@@ -1,0 +1,90 @@
+/**
+ * HiveMind 设计变量 (Design Tokens)
+ *
+ * 色彩灵感: Cyber-Refined — 深青蓝底 + 青绿主色
+ * 参考: skills/frontend-design/SKILL.md
+ *
+ * ⚠️ 不再使用 Inter 字体和紫色渐变
+ */
+
+:root {
+    /* === 色彩体系 === */
+    --hm-color-bg-deepest: #0A0E1A;
+    --hm-color-bg-base: #111827;
+    --hm-color-bg-elevated: #1F2937;
+    --hm-color-bg-float: #283548;
+
+    --hm-color-brand: #06D6A0;
+    --hm-color-brand-hover: #05C090;
+    --hm-color-brand-dim: rgba(6, 214, 160, 0.12);
+    --hm-color-accent: #118AB2;
+    --hm-color-accent-dim: rgba(17, 138, 178, 0.12);
+
+    --hm-color-success: #06D6A0;
+    --hm-color-warning: #FFD166;
+    --hm-color-danger: #EF476F;
+    --hm-color-info: #118AB2;
+
+    --hm-color-text-primary: #F8FAFC;
+    --hm-color-text-secondary: #94A3B8;
+    --hm-color-text-muted: #475569;
+
+    /* === 品牌渐变 === */
+    --hm-gradient-brand: linear-gradient(135deg, #06D6A0, #118AB2);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(6, 214, 160, 0.15), rgba(17, 138, 178, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #111827 0%, #0A0E1A 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(6, 214, 160, 0.08) 0%, transparent 60%);
+
+    /* === 布局尺寸 === */
+    --hm-header-height: 56px;
+    --hm-content-max-width: 1280px;
+    --hm-chat-max-width: 840px;
+
+    /* === 间距 === */
+    --hm-space-xs: 4px;
+    --hm-space-sm: 8px;
+    --hm-space-md: 16px;
+    --hm-space-lg: 24px;
+    --hm-space-xl: 32px;
+    --hm-space-2xl: 48px;
+    --hm-space-3xl: 64px;
+
+    /* === 阴影 === */
+    --hm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --hm-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --hm-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --hm-shadow-glow: 0 0 24px rgba(6, 214, 160, 0.12);
+    --hm-shadow-glow-strong: 0 0 40px rgba(6, 214, 160, 0.2);
+
+    /* === 边框 === */
+    --hm-border-subtle: 1px solid rgba(255, 255, 255, 0.06);
+    --hm-border-light: 1px solid rgba(255, 255, 255, 0.1);
+    --hm-border-brand: 1px solid rgba(6, 214, 160, 0.25);
+
+    /* === 圆角 === */
+    --hm-radius-sm: 6px;
+    --hm-radius-md: 10px;
+    --hm-radius-lg: 14px;
+    --hm-radius-xl: 20px;
+    --hm-radius-full: 9999px;
+
+    /* === 动画 === */
+    --hm-duration-fast: 0.15s;
+    --hm-duration-normal: 0.3s;
+    --hm-duration-slow: 0.5s;
+    --hm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --hm-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* === 毛玻璃 === */
+    --hm-glass-bg: rgba(17, 24, 39, 0.75);
+    --hm-glass-blur: blur(16px);
+    --hm-glass-border: 1px solid rgba(255, 255, 255, 0.08);
+
+    /* === Z-Index === */
+    --hm-z-dropdown: 100;
+    --hm-z-sticky: 200;
+    --hm-z-header: 300;
+    --hm-z-modal-backdrop: 400;
+    --hm-z-modal: 500;
+    --hm-z-toast: 600;
+}

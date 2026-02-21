@@ -1,0 +1,122 @@
+/**
+ * 共通样式模式 (Mixins) — Cyber-Refined 风格
+ *
+ * 其他 CSS Module 通过 composes 引用:
+ *   .myCard { composes: glassCard from '../../styles/mixins.module.css'; }
+ *
+ * @see skills/frontend-design/SKILL.md
+ */
+
+/* === 毛玻璃卡片 === */
+.glassCard {
+    background: var(--hm-glass-bg);
+    backdrop-filter: var(--hm-glass-blur);
+    -webkit-backdrop-filter: var(--hm-glass-blur);
+    border: var(--hm-glass-border);
+    border-radius: var(--hm-radius-lg);
+    transition: all var(--hm-duration-normal) var(--hm-ease-out);
+}
+
+.glassCard:hover {
+    border-color: rgba(6, 214, 160, 0.15);
+    box-shadow: var(--hm-shadow-glow);
+}
+
+/* === 渐变文字 === */
+.gradientText {
+    background: var(--hm-gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* === 发光边框 === */
+.glowBorder {
+    border: var(--hm-border-brand);
+    box-shadow: var(--hm-shadow-glow);
+}
+
+/* === 内容容器 (限宽居中) === */
+.contentContainer {
+    max-width: var(--hm-content-max-width);
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* === 对话区域容器 (窄版) === */
+.chatContainer {
+    max-width: var(--hm-chat-max-width);
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* === 可交互项 === */
+.interactive {
+    cursor: pointer;
+    transition: all var(--hm-duration-fast) ease;
+}
+
+.interactive:hover {
+    color: var(--hm-color-brand);
+}
+
+/* === 滚动容器 === */
+.scrollable {
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+/* === 截断文本 (单行) === */
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* === 截断文本 (多行) === */
+.lineClamp2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lineClamp3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* === Flex 快捷 === */
+.flexCenter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flexBetween {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.flexColumn {
+    display: flex;
+    flex-direction: column;
+}
+
+/* === 隐藏但 accessible === */
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}

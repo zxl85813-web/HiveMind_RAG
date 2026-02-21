@@ -1,0 +1,154 @@
+/**
+ * AppLayout 样式 — AI-First 布局
+ *
+ * 三区结构:
+ *   Header (fixed top)
+ *   Body: Content (flexible) + ChatPanel (fixed right)
+ */
+
+.layout {
+    min-height: 100vh;
+    background: var(--hm-color-bg-deepest);
+    display: flex;
+}
+
+/* === Sidebar (Left Sider) === */
+.sider {
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: var(--hm-z-header);
+    background: var(--hm-glass-bg) !important;
+    backdrop-filter: var(--hm-glass-blur);
+    -webkit-backdrop-filter: var(--hm-glass-blur);
+    border-right: var(--hm-glass-border);
+}
+
+.siderInner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Logo */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    padding: 24px;
+    flex-shrink: 0;
+    transition: opacity var(--hm-duration-fast) ease;
+    border-bottom: var(--hm-glass-border);
+}
+
+.logo:hover {
+    opacity: 0.85;
+}
+
+.logoMark {
+    font-size: 24px;
+    color: var(--hm-color-brand);
+    filter: drop-shadow(0 0 8px rgba(6, 214, 160, 0.3));
+}
+
+.logoText {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: var(--hm-gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.nav {
+    background: transparent !important;
+    border-right: none !important;
+    flex: 1;
+    padding: 16px 8px;
+}
+
+.nav :global(.ant-menu-item) {
+    color: var(--hm-color-text-secondary) !important;
+    font-size: 14px;
+    font-weight: 500;
+    height: 44px !important;
+    line-height: 44px !important;
+    border-radius: var(--hm-radius-sm);
+    margin-bottom: 8px !important;
+    transition: all var(--hm-duration-fast) ease !important;
+}
+
+.nav :global(.ant-menu-item:hover) {
+    color: var(--hm-color-text-primary) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.nav :global(.ant-menu-item-selected) {
+    color: var(--hm-color-brand) !important;
+    background: var(--hm-color-brand-dim) !important;
+}
+
+/* Sidebar actions / Footer */
+.siderFooter {
+    padding: 20px 24px;
+    border-top: var(--hm-glass-border);
+}
+
+.siderAction {
+    font-size: 18px;
+    color: var(--hm-color-text-secondary);
+    cursor: pointer;
+    transition: color var(--hm-duration-fast) ease;
+}
+
+.siderAction:hover {
+    color: var(--hm-color-brand);
+}
+
+.statusText {
+    font-size: 12px;
+    color: var(--hm-color-text-secondary);
+}
+
+.statusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hm-color-success);
+    box-shadow: 0 0 8px rgba(6, 214, 160, 0.4);
+    animation: statusPulse 3s ease-in-out infinite;
+}
+
+/* === Body: Content + ChatPanel === */
+.mainLayout {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    background: transparent;
+    height: 100vh;
+}
+
+.content {
+    flex: 1;
+    overflow-y: auto;
+    min-width: 0;
+    /* flex 子元素收缩 */
+}
+
+.contentInner {
+    max-width: var(--hm-content-max-width);
+    margin: 0 auto;
+    padding: var(--hm-space-xl) var(--hm-space-lg);
+    animation: fadeIn var(--hm-duration-normal) var(--hm-ease-out);
+}
+
+/* Chat Panel 容器 */
+.chatPanelWrap {
+    flex-shrink: 0;
+    height: 100%;
+    transition: width var(--hm-duration-normal) var(--hm-ease-out);
+    overflow: hidden;
+}

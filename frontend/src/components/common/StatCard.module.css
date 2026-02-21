@@ -1,0 +1,29 @@
+/**
+ * StatCard 样式 — Cyber-Refined
+ */
+
+.card {
+    transition: all var(--hm-duration-normal) var(--hm-ease-out);
+    border: var(--hm-border-subtle);
+}
+
+.card:hover {
+    border-color: rgba(6, 214, 160, 0.15);
+    box-shadow: var(--hm-shadow-glow);
+}
+
+.iconWrap {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--hm-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.desc {
+    font-size: 12px;
+    color: var(--hm-color-text-muted);
+    margin-top: 2px;
+}

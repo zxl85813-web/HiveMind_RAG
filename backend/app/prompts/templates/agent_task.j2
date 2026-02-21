@@ -1,0 +1,60 @@
+{# ============================================================ #}
+{# Layer 3: Agent Execution Task Template                       #}
+{#                                                              #}
+{# Variables:                                                   #}
+{#   - base: dict (from base/system.yaml)                       #}
+{#   - role: dict (from agents/<agent_name>.yaml)               #}
+{#   - schemas: dict (from base/output_schemas.yaml)            #}
+{#   - task: str (refined task from Supervisor)                 #}
+{#   - rag_context: str (optional, retrieved documents)         #}
+{#   - memory_context: str (optional, recalled memories)        #}
+{#   - tools_available: list[str] (optional, available tools)   #}
+{# ============================================================ #}
+
+{# --- Layer 1: Base --- #}
+{{ base.identity }}
+
+{% for rule in base.safety %}
+- {{ rule }}
+{% endfor %}
+
+{# --- Layer 2: Role --- #}
+## Your Role
+{{ role.role }}
+
+{% if role.constraints %}
+## Constraints
+{% for c in role.constraints %}
+- {{ c }}
+{% endfor %}
+{% endif %}
+
+{# --- Layer 3: Task --- #}
+## Your Current Task
+{{ task }}
+
+{% if tools_available %}
+## Available Tools
+You have access to the following tools:
+{% for tool in tools_available %}
+- `{{ tool }}`
+{% endfor %}
+Use tools when they help you accomplish the task more accurately.
+{% endif %}
+
+{# --- Layer 4: Runtime Context (injected at call time) --- #}
+{% if rag_context %}
+## Retrieved Knowledge
+The following documents were retrieved from the knowledge base.
+Use them as your PRIMARY source of information:
+
+{{ rag_context }}
+{% endif %}
+
+{% if memory_context %}
+## Relevant Memory
+{{ memory_context }}
+{% endif %}
+
+## Output Format
+{{ schemas.agent_response }}

@@ -1,0 +1,41 @@
+/**
+ * HiveMind Theme: Ocean Depths (海洋深处)
+ * 
+ * 专业冷静的深海蓝绿色调，适合商务和企业场景。
+ * 灵感: 深海水域的宁静与神秘
+ */
+
+[data-theme="ocean-depths"] {
+    /* 背景色 */
+    --hm-color-bg-deepest: #0B1929;
+    --hm-color-bg-base: #132F4C;
+    --hm-color-bg-elevated: #1E3A5F;
+    --hm-color-bg-float: #274D74;
+
+    /* 品牌色 */
+    --hm-color-brand: #2D8B8B;
+    --hm-color-brand-hover: #259090;
+    --hm-color-brand-dim: rgba(45, 139, 139, 0.12);
+    --hm-color-accent: #A8DADC;
+    --hm-color-accent-dim: rgba(168, 218, 220, 0.12);
+
+    /* 语义色 */
+    --hm-color-success: #2D8B8B;
+    --hm-color-warning: #F1C232;
+    --hm-color-danger: #E06C75;
+    --hm-color-info: #61AFEF;
+
+    /* 渐变 */
+    --hm-gradient-brand: linear-gradient(135deg, #2D8B8B, #A8DADC);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(45, 139, 139, 0.15), rgba(168, 218, 220, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #132F4C 0%, #0B1929 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(45, 139, 139, 0.08) 0%, transparent 60%);
+
+    /* 光效/边框 */
+    --hm-shadow-glow: 0 0 24px rgba(45, 139, 139, 0.12);
+    --hm-shadow-glow-strong: 0 0 40px rgba(45, 139, 139, 0.2);
+    --hm-border-brand: 1px solid rgba(45, 139, 139, 0.25);
+
+    /* 毛玻璃 */
+    --hm-glass-bg: rgba(19, 47, 76, 0.75);
+}

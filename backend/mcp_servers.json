@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "database": {
+      "description": "Database query and management tools",
+      "type": "sse",
+      "url": "http://localhost:3001/sse",
+      "enabled": true
+    },
+    "filesystem": {
+      "description": "File system operations",
+      "type": "stdio",
+      "command": "node",
+      "args": ["mcp-servers/filesystem/index.js"],
+      "enabled": true
+    }
+  }
+}

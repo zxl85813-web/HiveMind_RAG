@@ -1,0 +1,55 @@
+"""
+Database models for Knowledge Base management.
+"""
+
+import uuid
+from datetime import datetime
+
+from sqlmodel import Field, Relationship, SQLModel
+
+
+
+class KnowledgeBaseDocumentLink(SQLModel, table=True):
+    __tablename__ = "knowledge_base_documents"
+
+    knowledge_base_id: str = Field(foreign_key="knowledge_bases.id", primary_key=True)
+    document_id: str = Field(foreign_key="documents.id", primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "pending"  # pending | indexing | indexed | failed
+    error_message: str | None = None
+
+
+class KnowledgeBase(SQLModel, table=True):
+    __tablename__ = "knowledge_bases"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    name: str = Field(index=True)
+    description: str = ""
+    owner_id: str = Field(foreign_key="users.id", index=True)
+    embedding_model: str = "text-embedding-3-small"
+    vector_collection: str  # Name of the collection in vector store
+    is_public: bool = Field(default=False)
+    version: int = Field(default=1)  # Versioning support
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    documents: list["Document"] = Relationship(back_populates="knowledge_bases", link_model=KnowledgeBaseDocumentLink)
+
+
+class Document(SQLModel, table=True):
+    __tablename__ = "documents"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    # owner_id: str = Field(foreign_key="users.id", index=True) # TODO: Add owner for global ownership
+    filename: str
+    file_type: str  # pdf | docx | txt | md | xlsx
+    file_size: int  # bytes
+    storage_path: str  # Path in object storage
+    content_hash: str | None = Field(index=True) # Content hash for deduplication
+    chunk_count: int = 0
+    status: str = "pending"  # Global parsing status: pending | processing | parsed | failed
+    error_message: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    knowledge_bases: list[KnowledgeBase] = Relationship(back_populates="documents", link_model=KnowledgeBaseDocumentLink)

@@ -1,0 +1,64 @@
+from typing import List, Optional
+from uuid import UUID
+
+from sqlmodel import select
+from loguru import logger
+
+from app.core.database import get_db_session
+from app.models.{{ model_name_path }} import {{ model_name }}
+from app.common.exceptions import NotFoundError
+
+class {{ service_name }}:
+    """
+    Service for managing {{ model_name }}.
+    """
+
+    @staticmethod
+    async def create(data: dict) -> {{ model_name }}:
+        """Create a new record."""
+        async for session in get_db_session():
+            obj = {{ model_name }}(**data)
+            session.add(obj)
+            await session.commit()
+            await session.refresh(obj)
+            logger.info(f"Created {{ model_name }}: {obj.id}")
+            return obj
+
+    @staticmethod
+    async def get(id: UUID) -> {{ model_name }}:
+        """Retrieve a record by ID."""
+        async for session in get_db_session():
+            result = await session.exec(select({{ model_name }}).where({{ model_name }}.id == id))
+            obj = result.first()
+            if not obj:
+                raise NotFoundError(resource="{{ model_name }}", resource_id=str(id))
+            return obj
+
+    @staticmethod
+    async def list(skip: int = 0, limit: int = 100) -> List[{{ model_name }}]:
+        """List all records with pagination."""
+        async for session in get_db_session():
+            result = await session.exec(select({{ model_name }}).offset(skip).limit(limit))
+            return list(result.all())
+
+    @staticmethod
+    async def update(id: UUID, data: dict) -> {{ model_name }}:
+        """Update a record."""
+        async for session in get_db_session():
+            obj = await {{ service_name }}.get(id)  # Reuse get() for existence check
+            for key, value in data.items():
+                setattr(obj, key, value)
+            session.add(obj)
+            await session.commit()
+            await session.refresh(obj)
+            logger.info(f"Updated {{ model_name }}: {id}")
+            return obj
+
+    @staticmethod
+    async def delete(id: UUID) -> None:
+        """Delete a record."""
+        async for session in get_db_session():
+            obj = await {{ service_name }}.get(id)
+            await session.delete(obj)
+            await session.commit()
+            logger.info(f"Deleted {{ model_name }}: {id}")

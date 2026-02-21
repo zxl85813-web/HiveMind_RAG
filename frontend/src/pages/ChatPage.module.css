@@ -1,0 +1,50 @@
+/**
+ * ChatPage 样式 — 顶部导航版
+ */
+
+.container {
+    height: calc(100vh - var(--hm-header-height) - var(--hm-space-2xl));
+    position: relative;
+    animation: fadeIn var(--hm-duration-normal) var(--hm-ease-out);
+}
+
+.messagesArea {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: var(--hm-space-md);
+}
+
+.welcomeContainer {
+    height: 100%;
+    padding: var(--hm-space-3xl) var(--hm-space-lg);
+}
+
+.welcome {
+    margin-bottom: var(--hm-space-xl);
+}
+
+.prompts {
+    max-width: 640px;
+}
+
+.messageList {
+    max-width: var(--hm-chat-max-width);
+    margin: 0 auto;
+    width: 100%;
+    padding: var(--hm-space-md) 0;
+}
+
+.bubbleList {
+    width: 100%;
+}
+
+.senderArea {
+    padding: var(--hm-space-sm) 0;
+    max-width: var(--hm-chat-max-width);
+    margin: 0 auto;
+    width: 100%;
+}
+
+.sender {
+    width: 100%;
+}

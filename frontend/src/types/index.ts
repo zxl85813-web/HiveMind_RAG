@@ -1,0 +1,220 @@
+/**
+ * TypeScript 类型定义 — 复用 shared/types.ts 中的定义。
+ *
+ * @module types
+ * @see shared/types.ts
+ * @see REGISTRY.md > 前端 > Types
+ */
+
+// ==========================================
+//  Common
+// ==========================================
+
+export interface ApiResponse<T = any> {
+    success: boolean;
+    data: T;
+    message: string;
+    code: number;
+}
+
+// ==========================================
+//  Chat
+// ==========================================
+
+export interface ChatRequest {
+    message: string;
+    conversation_id?: string;
+    knowledge_base_ids?: string[];
+    model?: string;
+    stream?: boolean;
+}
+
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    created_at: string;
+    /** AI 操作按钮 — 嵌入在回答中的结构化操作 */
+    actions?: AIAction[];
+    /** 用户反馈: 1=Like, -1=Dislike, 0=None */
+    rating?: number;
+    metadata?: {
+        model?: string;
+        sources?: Source[];
+        agent_trace?: AgentTraceStep[];
+        /** 当前页面上下文 (AI 回答时所在的页面) */
+        context_page?: string;
+        /** 发送过程中的状态标签 (雷达、图谱等) */
+        statuses?: string[];
+    };
+}
+
+// ==========================================
+//  AI Action 系统 — AI-First 核心
+// ==========================================
+
+/** AI 可以在回答中嵌入的操作类型 */
+export type AIActionType =
+    | 'navigate'       // 导航到页面
+    | 'open_modal'     // 打开弹窗 (如创建知识库)
+    | 'execute'        // 执行后台操作
+    | 'suggest'        // 推荐后续操作
+    | 'show_data';     // 内联展示数据
+
+/** AI 操作按钮 */
+export interface AIAction {
+    type: AIActionType;
+    label: string;
+    icon?: string;
+    /** 跳转目标 (路由路径) 或操作标识符 */
+    target: string;
+    /** 操作参数 */
+    params?: Record<string, unknown>;
+    /** 按钮样式: primary 突出, default 普通, link 文字链接 */
+    variant?: 'primary' | 'default' | 'link';
+}
+
+/** Chat Panel 上下文 — 感知当前页面 */
+export interface ChatContext {
+    /** 当前页面路由 */
+    currentPage: string;
+    /** 当前页面标题 */
+    pageTitle: string;
+    /** 当前页面上可用的 AI 快捷操作 */
+    availableActions: AIAction[];
+    /** 用户在页面中选中的项目 ID */
+    selectedItems?: string[];
+}
+
+export interface Conversation {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ConversationListItem {
+    id: string;
+    title: string;
+    last_message_preview: string;
+    created_at: string;
+    updated_at: string;
+}
+
+// ==========================================
+//  Agent
+// ==========================================
+
+export interface AgentTraceStep {
+    agent_name: string;
+    action: string;
+    input: string;
+    output: string;
+    duration_ms: number;
+    timestamp: string;
+}
+
+export interface AgentStatus {
+    agent_name: string;
+    status: 'idle' | 'thinking' | 'executing' | 'reflecting';
+    current_task?: string;
+}
+
+// ==========================================
+//  Knowledge Base
+// ==========================================
+
+export interface KnowledgeBase {
+    id: string;
+    name: string;
+    description: string;
+    owner_id?: string;
+    vector_collection?: string;
+    is_public?: boolean;
+    version?: number;
+    created_at: string;
+}
+
+export interface Document {
+    id: string;
+    filename: string;
+    file_type: string;
+    file_size: number;
+    storage_path: string;
+    status: 'pending' | 'processing' | 'parsed' | 'failed';
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface KBLink {
+    knowledge_base_id: string;
+    document_id: string;
+    status: string;
+    created_at: string;
+}
+
+export interface Source {
+    document_id: string;
+    document_name: string;
+    chunk_content: string;
+    relevance_score: number;
+    page_number?: number;
+}
+
+// ==========================================
+//  WebSocket
+// ==========================================
+
+export type ServerEventType =
+    | 'agent_status'
+    | 'notification'
+    | 'suggestion'
+    | 'todo_update'
+    | 'reflection'
+    | 'learning_update'
+    | 'task_complete'
+    | 'heartbeat';
+
+export interface ServerMessage {
+    event: ServerEventType;
+    data: Record<string, unknown>;
+    timestamp: string;
+}
+
+// ==========================================
+//  External Learning
+// ==========================================
+
+export interface TechDiscovery {
+    id: string;
+    source: string;
+    category: string;
+    title: string;
+    summary: string;
+    url: string;
+    relevance_score: number;
+    impact_score: number;
+    github_stars?: number;
+    tags: string[];
+    discovered_at: string;
+}
+
+// ==========================================
+//  Shared TODO
+// ==========================================
+
+export type TodoPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TodoStatus = 'pending' | 'in_progress' | 'waiting_user' | 'completed' | 'cancelled';
+
+export interface TodoItem {
+    id: string;
+    title: string;
+    description: string;
+    priority: TodoPriority;
+    status: TodoStatus;
+    created_by: string;
+    assigned_to: string;
+    created_at: string;
+    due_at?: string;
+}

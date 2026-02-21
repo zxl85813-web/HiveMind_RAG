@@ -1,0 +1,181 @@
+/**
+ * ChatPanel 样式 — 永驻右侧面板
+ *
+ * 关键特性:
+ *   - 固定在右侧，高度撑满
+ *   - 毛玻璃边框分隔
+ *   - 折叠时变成窄条 + 图标
+ */
+
+/* === 折叠状态 === */
+.collapsed {
+    width: 48px;
+    height: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: var(--hm-space-lg);
+    cursor: pointer;
+    border-left: var(--hm-border-subtle);
+    transition: background var(--hm-duration-fast) ease;
+    flex-shrink: 0;
+}
+
+.collapsed:hover {
+    background: rgba(6, 214, 160, 0.04);
+}
+
+.collapsedIcon {
+    font-size: 20px;
+    color: var(--hm-color-brand);
+    animation: pulseGlow 3s ease-in-out infinite;
+}
+
+/* === 展开面板 === */
+.panel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border-left: var(--hm-border-subtle);
+    background: var(--hm-color-bg-base);
+    animation: slideInRight var(--hm-duration-normal) var(--hm-ease-out);
+}
+
+/* === 头部 === */
+.panelHeader {
+    height: var(--hm-header-height);
+    padding: 0 var(--hm-space-md);
+    border-bottom: var(--hm-border-subtle);
+    flex-shrink: 0;
+}
+
+.headerIcon {
+    font-size: 16px;
+    color: var(--hm-color-brand);
+}
+
+.headerAction {
+    font-size: 14px;
+    color: var(--hm-color-text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--hm-radius-sm);
+    transition: all var(--hm-duration-fast) ease;
+}
+
+.headerAction:hover {
+    color: var(--hm-color-brand);
+    background: var(--hm-color-brand-dim);
+}
+
+.contextTag {
+    font-size: 11px;
+    border: none;
+    border-radius: var(--hm-radius-full);
+}
+
+/* === 消息区 === */
+.messagesArea {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--hm-space-md);
+    scrollbar-width: thin;
+}
+
+.bubbleList {
+    width: 100%;
+}
+
+/* === 空状态 === */
+.emptyState {
+    height: 100%;
+    padding: var(--hm-space-2xl) var(--hm-space-md);
+    text-align: center;
+}
+
+.emptyIcon {
+    font-size: 48px;
+    color: var(--hm-color-brand);
+    filter: drop-shadow(0 0 16px rgba(6, 214, 160, 0.25));
+    margin-bottom: var(--hm-space-md);
+    animation: fadeIn var(--hm-duration-slow) var(--hm-ease-out);
+}
+
+.emptyTitle {
+    font-size: 18px;
+    font-weight: 600;
+    background: var(--hm-gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--hm-space-xs);
+}
+
+.emptyDesc {
+    font-size: 13px;
+    margin-bottom: var(--hm-space-lg);
+}
+
+.contextPrompts {
+    max-width: 320px;
+}
+
+/* === 输入区 === */
+.inputArea {
+    padding: var(--hm-space-sm) var(--hm-space-md);
+    border-top: var(--hm-border-subtle);
+    flex-shrink: 0;
+}
+
+.sender {
+    width: 100%;
+}
+
+/* === Status Memory Tag === */
+.statusTag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: var(--hm-radius-sm);
+    background: rgba(17, 138, 178, 0.1);
+    border: 1px solid rgba(17, 138, 178, 0.2);
+    color: var(--hm-color-info);
+    align-self: flex-start;
+    animation: pulseMemory var(--hm-duration-slow) infinite alternate;
+}
+
+@keyframes pulseMemory {
+    0% {
+        box-shadow: 0 0 2px rgba(17, 138, 178, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 8px rgba(17, 138, 178, 0.4);
+    }
+}
+
+/* === History === */
+.historyItem {
+    padding: var(--hm-space-sm) !important;
+    border-radius: var(--hm-radius-md);
+    transition: all var(--hm-duration-fast) ease;
+}
+
+.historyItem:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.deleteAction {
+    font-size: 12px;
+    color: var(--hm-color-text-tertiary);
+    opacity: 0;
+    transition: opacity var(--hm-duration-fast) ease;
+}
+
+.historyItem:hover .deleteAction {
+    opacity: 1;
+}
+
+.deleteAction:hover {
+    color: var(--hm-color-error) !important;
+}

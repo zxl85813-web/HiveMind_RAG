@@ -1,0 +1,48 @@
+# ============================================================
+# Layer 1.5: JSON Output Schemas — 可复用的输出格式片段
+# 通过 Jinja2 include 机制插入到任务层
+# ============================================================
+
+# Supervisor 路由决策的 JSON Schema
+routing_decision: |
+  You MUST respond with a JSON object containing EXACTLY these fields:
+  ```json
+  {
+    "next_agent": "<agent_name or 'FINISH'>",
+    "uncertainty": <float 0.0-1.0>,
+    "reasoning": "<why you chose this agent>",
+    "task_refinement": "<specific instructions for the agent>"
+  }
+  ```
+  Rules:
+  - `next_agent`: Must be one of the available agent names listed above, or "FINISH".
+  - `uncertainty`: 0.0 = completely confident, 1.0 = no idea.
+  - `reasoning`: Be concise (1-2 sentences).
+  - `task_refinement`: Rephrase the user's request as a clear instruction for the chosen agent.
+  - Do NOT include any text outside the JSON object.
+
+# Reflection 评估的 JSON Schema
+reflection_result: |
+  You MUST respond with a JSON object:
+  ```json
+  {
+    "quality_score": <float 0.0-1.0>,
+    "issues": ["<issue 1>", "<issue 2>"],
+    "suggestions": ["<suggestion 1>"],
+    "verdict": "APPROVE" | "REVISE" | "ESCALATE"
+  }
+  ```
+  Rules:
+  - `quality_score`: 0.0 = terrible, 1.0 = perfect.
+  - `verdict`: 
+    - APPROVE: Response is good enough to return to user.
+    - REVISE: Send back to the agent with suggestions.
+    - ESCALATE: Forward to a different agent or human.
+
+# Agent 通用任务结果格式
+agent_response: |
+  Structure your response clearly:
+  1. **Answer**: Direct answer to the question.
+  2. **Reasoning**: How you arrived at this answer (if non-trivial).
+  3. **Sources**: References or evidence (if applicable).
+  4. **Confidence**: Your confidence level (low/medium/high).

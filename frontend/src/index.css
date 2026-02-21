@@ -1,0 +1,123 @@
+/**
+ * 全局样式 — HiveMind RAG Platform
+ *
+ * 设计方向: Cyber-Refined (赛博精致)
+ * 字体: JetBrains Mono (代码) + Sora (UI)
+ * 参考: skills/frontend-design/SKILL.md
+ */
+
+/* === Design System === */
+@import './styles/variables.css';
+@import './styles/animations.css';
+
+/* === Fonts — Sora (独特几何无衬线) + JetBrains Mono (代码) === */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* === Reset & Base === */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--hm-color-bg-deepest);
+  color: var(--hm-color-text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* === 全局背景渐变光晕 === */
+#root {
+  min-height: 100vh;
+  position: relative;
+}
+
+#root::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 600px;
+  background: var(--hm-gradient-glow);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* === Selection === */
+::selection {
+  background: rgba(6, 214, 160, 0.25);
+  color: var(--hm-color-text-primary);
+}
+
+/* === Links === */
+a {
+  color: var(--hm-color-brand);
+  text-decoration: none;
+  transition: color var(--hm-duration-fast) ease;
+}
+
+a:hover {
+  color: var(--hm-color-brand-hover);
+}
+
+/* === Code === */
+code,
+pre,
+.ant-typography code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace !important;
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* === Ant Design 全局覆盖 (最小化) === */
+.ant-card {
+  transition: all var(--hm-duration-normal) var(--hm-ease-out) !important;
+}
+
+.ant-card:hover {
+  box-shadow: var(--hm-shadow-glow) !important;
+}
+
+.ant-btn-primary {
+  font-weight: 500;
+}
+
+/* 确保 Sora 字体传递给 Ant Design */
+.ant-typography,
+.ant-menu,
+.ant-btn,
+.ant-input,
+.ant-select,
+.ant-form-item-label>label {
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}

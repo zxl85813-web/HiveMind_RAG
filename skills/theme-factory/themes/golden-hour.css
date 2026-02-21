@@ -1,0 +1,41 @@
+/**
+ * HiveMind Theme: Golden Hour (黄金时刻)
+ * 
+ * 温暖秋季色调，适合文档密集场景和内容平台。
+ * 灵感: 深秋黄昏的金色光芒
+ */
+
+[data-theme="golden-hour"] {
+    /* 背景色 */
+    --hm-color-bg-deepest: #141008;
+    --hm-color-bg-base: #231C0E;
+    --hm-color-bg-elevated: #322816;
+    --hm-color-bg-float: #41351F;
+
+    /* 品牌色 */
+    --hm-color-brand: #D4A017;
+    --hm-color-brand-hover: #C49315;
+    --hm-color-brand-dim: rgba(212, 160, 23, 0.12);
+    --hm-color-accent: #E8C547;
+    --hm-color-accent-dim: rgba(232, 197, 71, 0.12);
+
+    /* 语义色 */
+    --hm-color-success: #66BB6A;
+    --hm-color-warning: #E8C547;
+    --hm-color-danger: #EF5350;
+    --hm-color-info: #42A5F5;
+
+    /* 渐变 */
+    --hm-gradient-brand: linear-gradient(135deg, #D4A017, #E8C547);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(212, 160, 23, 0.15), rgba(232, 197, 71, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #231C0E 0%, #141008 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(212, 160, 23, 0.08) 0%, transparent 60%);
+
+    /* 光效/边框 */
+    --hm-shadow-glow: 0 0 24px rgba(212, 160, 23, 0.12);
+    --hm-shadow-glow-strong: 0 0 40px rgba(212, 160, 23, 0.2);
+    --hm-border-brand: 1px solid rgba(212, 160, 23, 0.25);
+
+    /* 毛玻璃 */
+    --hm-glass-bg: rgba(35, 28, 14, 0.75);
+}

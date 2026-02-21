@@ -1,0 +1,41 @@
+/**
+ * HiveMind Theme: Sunset Boulevard (日落大道)
+ * 
+ * 温暖活力的日落色调，适合创意团队和社交产品。
+ * 灵感: 橙红色黄昏天际
+ */
+
+[data-theme="sunset-boulevard"] {
+    /* 背景色 */
+    --hm-color-bg-deepest: #1A0F0A;
+    --hm-color-bg-base: #2D1810;
+    --hm-color-bg-elevated: #3D2518;
+    --hm-color-bg-float: #4E3220;
+
+    /* 品牌色 */
+    --hm-color-brand: #FF6B35;
+    --hm-color-brand-hover: #E85D2A;
+    --hm-color-brand-dim: rgba(255, 107, 53, 0.12);
+    --hm-color-accent: #FFD166;
+    --hm-color-accent-dim: rgba(255, 209, 102, 0.12);
+
+    /* 语义色 */
+    --hm-color-success: #6BCB77;
+    --hm-color-warning: #FFD166;
+    --hm-color-danger: #FF6B6B;
+    --hm-color-info: #4ECDC4;
+
+    /* 渐变 */
+    --hm-gradient-brand: linear-gradient(135deg, #FF6B35, #FFD166);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(255, 209, 102, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #2D1810 0%, #1A0F0A 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(255, 107, 53, 0.08) 0%, transparent 60%);
+
+    /* 光效/边框 */
+    --hm-shadow-glow: 0 0 24px rgba(255, 107, 53, 0.12);
+    --hm-shadow-glow-strong: 0 0 40px rgba(255, 107, 53, 0.2);
+    --hm-border-brand: 1px solid rgba(255, 107, 53, 0.25);
+
+    /* 毛玻璃 */
+    --hm-glass-bg: rgba(45, 24, 16, 0.75);
+}

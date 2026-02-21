@@ -1,0 +1,72 @@
+[project]
+name = "hivemind-rag"
+version = "0.1.0"
+description = "Enterprise RAG platform with Agent Swarm architecture"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # === Web Framework ===
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "python-multipart>=0.0.18",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+
+    # === LLM & Agent ===
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langgraph>=0.2.0",
+    "langchain-mcp-adapters>=0.1.0",
+
+    # === Embedding & Vector Store ===
+    "sentence-transformers>=3.0.0",
+    "chromadb>=0.5.0",
+
+    # === Database ===
+    "sqlmodel>=0.0.22",
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "alembic>=1.14.0",
+    "redis>=5.0.0",
+
+    # === Document Processing ===
+    "unstructured>=0.16.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "pymupdf>=1.25.0",
+
+    # === MCP ===
+    "mcp>=1.0.0",
+
+    # === Observability ===
+    "langfuse>=2.0.0",
+    "loguru>=0.7.0",
+
+    # === Utilities ===
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "httpx>=0.28.0",
+    "aiofiles>=24.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

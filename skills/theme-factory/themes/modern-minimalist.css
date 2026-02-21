@@ -1,0 +1,41 @@
+/**
+ * HiveMind Theme: Modern Minimalist (现代极简)
+ * 
+ * 清晰现代的灰色调，适合通用商务和文档密集场景。
+ * 灵感: 简约设计与高级灰
+ */
+
+[data-theme="modern-minimalist"] {
+    /* 背景色 */
+    --hm-color-bg-deepest: #0E0E12;
+    --hm-color-bg-base: #1A1A22;
+    --hm-color-bg-elevated: #252530;
+    --hm-color-bg-float: #30303E;
+
+    /* 品牌色 */
+    --hm-color-brand: #8B8B9E;
+    --hm-color-brand-hover: #9D9DB0;
+    --hm-color-brand-dim: rgba(139, 139, 158, 0.12);
+    --hm-color-accent: #B0B0C8;
+    --hm-color-accent-dim: rgba(176, 176, 200, 0.12);
+
+    /* 语义色 */
+    --hm-color-success: #6BCB77;
+    --hm-color-warning: #FFD166;
+    --hm-color-danger: #EF5350;
+    --hm-color-info: #64B5F6;
+
+    /* 渐变 */
+    --hm-gradient-brand: linear-gradient(135deg, #8B8B9E, #B0B0C8);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(139, 139, 158, 0.15), rgba(176, 176, 200, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #1A1A22 0%, #0E0E12 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(139, 139, 158, 0.06) 0%, transparent 60%);
+
+    /* 光效/边框 */
+    --hm-shadow-glow: 0 0 24px rgba(139, 139, 158, 0.08);
+    --hm-shadow-glow-strong: 0 0 40px rgba(139, 139, 158, 0.15);
+    --hm-border-brand: 1px solid rgba(139, 139, 158, 0.2);
+
+    /* 毛玻璃 */
+    --hm-glass-bg: rgba(26, 26, 34, 0.75);
+}

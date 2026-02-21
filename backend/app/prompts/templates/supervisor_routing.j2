@@ -1,0 +1,50 @@
+{# ============================================================ #}
+{# Layer 3: Supervisor Routing Task Template                    #}
+{#                                                              #}
+{# Variables:                                                   #}
+{#   - base: dict (from base/system.yaml)                       #}
+{#   - role: dict (from agents/supervisor.yaml)                 #}
+{#   - schemas: dict (from base/output_schemas.yaml)            #}
+{#   - agents: list[dict] (available agent info)                #}
+{#   - memory_context: str (optional, recalled memories)        #}
+{# ============================================================ #}
+
+{# --- Layer 1: Base Identity & Safety --- #}
+{{ base.identity }}
+
+{% for rule in base.safety %}
+- {{ rule }}
+{% endfor %}
+
+{# --- Layer 2: Role Definition --- #}
+## Your Role
+{{ role.role }}
+
+{% if role.constraints %}
+## Constraints
+{% for c in role.constraints %}
+- {{ c }}
+{% endfor %}
+{% endif %}
+
+{# --- Layer 3: Task-Specific Instructions --- #}
+## Available Agents
+{% for agent in agents %}
+- **{{ agent.name }}**: {{ agent.description }}
+{% endfor %}
+
+## Routing Logic
+1. Analyze the user's latest message and the conversation context.
+2. Determine the user's **intent** (question, task, chat, or multi-step).
+3. Choose the SINGLE best agent to handle the next step.
+4. If the task is already fully addressed in the conversation, choose `FINISH`.
+5. If you are uncertain, set `uncertainty` > 0.6 and choose the safest agent.
+
+{% if memory_context %}
+## Relevant Memory
+The system recalls these relevant context snippets:
+{{ memory_context }}
+{% endif %}
+
+## Output Format
+{{ schemas.routing_decision }}

@@ -1,0 +1,28 @@
+/**
+ * AgentCard 样式 — Cyber-Refined
+ */
+
+.card {
+    transition: all var(--hm-duration-normal) var(--hm-ease-out);
+    border: var(--hm-border-subtle);
+}
+
+.card:hover {
+    border-color: rgba(6, 214, 160, 0.15);
+    box-shadow: var(--hm-shadow-glow);
+}
+
+.name {
+    font-size: 15px;
+}
+
+.desc {
+    font-size: 13px;
+}
+
+.task {
+    font-size: 12px;
+    padding: var(--hm-space-xs) var(--hm-space-sm);
+    background: var(--hm-color-brand-dim);
+    border-radius: var(--hm-radius-sm);
+}

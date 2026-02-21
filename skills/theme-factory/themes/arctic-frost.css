@@ -1,0 +1,41 @@
+/**
+ * HiveMind Theme: Arctic Frost (极地寒霜)
+ * 
+ * 冰蓝通透色调，适合数据分析和BI仪表盘。
+ * 灵感: 极地冰川的纯净透彻
+ */
+
+[data-theme="arctic-frost"] {
+    /* 背景色 */
+    --hm-color-bg-deepest: #080E18;
+    --hm-color-bg-base: #101828;
+    --hm-color-bg-elevated: #1A2538;
+    --hm-color-bg-float: #243248;
+
+    /* 品牌色 */
+    --hm-color-brand: #56CCF2;
+    --hm-color-brand-hover: #4AB8DB;
+    --hm-color-brand-dim: rgba(86, 204, 242, 0.12);
+    --hm-color-accent: #A0E4FF;
+    --hm-color-accent-dim: rgba(160, 228, 255, 0.12);
+
+    /* 语义色 */
+    --hm-color-success: #6FCF97;
+    --hm-color-warning: #F2C94C;
+    --hm-color-danger: #EB5757;
+    --hm-color-info: #56CCF2;
+
+    /* 渐变 */
+    --hm-gradient-brand: linear-gradient(135deg, #56CCF2, #A0E4FF);
+    --hm-gradient-brand-subtle: linear-gradient(135deg, rgba(86, 204, 242, 0.15), rgba(160, 228, 255, 0.15));
+    --hm-gradient-surface: linear-gradient(180deg, #101828 0%, #080E18 100%);
+    --hm-gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(86, 204, 242, 0.08) 0%, transparent 60%);
+
+    /* 光效/边框 */
+    --hm-shadow-glow: 0 0 24px rgba(86, 204, 242, 0.12);
+    --hm-shadow-glow-strong: 0 0 40px rgba(86, 204, 242, 0.2);
+    --hm-border-brand: 1px solid rgba(86, 204, 242, 0.25);
+
+    /* 毛玻璃 */
+    --hm-glass-bg: rgba(16, 24, 40, 0.75);
+}

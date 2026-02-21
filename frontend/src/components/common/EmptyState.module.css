@@ -1,0 +1,23 @@
+.container {
+    padding: var(--hm-space-xxl) var(--hm-space-lg);
+    text-align: center;
+    animation: fadeIn var(--hm-duration-normal) ease;
+}
+
+.iconWrap {
+    font-size: 48px;
+    color: rgba(255, 255, 255, 0.15);
+    line-height: 1;
+}
+
+.textArea {
+    text-align: center;
+}
+
+.title {
+    margin: 0 !important;
+}
+
+.action {
+    margin-top: var(--hm-space-sm);
+}
