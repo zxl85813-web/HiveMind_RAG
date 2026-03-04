@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:integration": "playwright test integration.spec.ts"
+    "test:integration": "playwright test integration.spec.ts",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

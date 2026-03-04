@@ -1,0 +1,26 @@
+schema: spec-driven
+
+# Project context
+context: |
+  Tech stack: Python 3.11 (FastAPI), TypeScript (React + Vite), PostgreSQL, Neo4j, ChromaDB/Elasticsearch.
+  We use Conventional Commits and the MADR format for architecture decisions.
+  Domain: Enterprise RAG platform with Agent Swarm architecture (HiveMind RAG).
+  Code rules: See .agent/rules/coding-standards.md and .agent/rules/project-structure.md.
+  Quality gates: 80% test coverage required, strict typing (mypy + tsc strict), ruff + eslint linting.
+  Collaboration: Feature branches + PR-based workflow. ADR required for core/schema changes.
+  OpenSpec manages AI-assisted development lifecycle.
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Always include a "Non-goals" section
+    - Reference related REQ-NNN documents from docs/requirements/ when applicable
+    - Consider architecture impact — flag if an ADR is needed
+  design:
+    - Reference module boundary rules from .agent/rules/project-structure.md
+    - Specify which existing services/modules are affected
+    - Include data model changes if applicable
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task must include a testability criterion
+    - Group tasks by backend/frontend when both are affected

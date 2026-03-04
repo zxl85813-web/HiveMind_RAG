@@ -1,0 +1,46 @@
+name: PR Auto-Labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  label:
+    name: Auto-label PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v44
+
+      - name: Label architecture-sensitive changes
+        if: |
+          contains(steps.changed.outputs.all_changed_files, 'backend/app/models/') ||
+          contains(steps.changed.outputs.all_changed_files, 'backend/app/core/') ||
+          contains(steps.changed.outputs.all_changed_files, 'backend/alembic/') ||
+          contains(steps.changed.outputs.all_changed_files, 'docs/architecture/')
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: needs-architecture-review
+
+      - name: Label backend changes
+        if: contains(steps.changed.outputs.all_changed_files, 'backend/')
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: backend
+
+      - name: Label frontend changes
+        if: contains(steps.changed.outputs.all_changed_files, 'frontend/')
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: frontend
+
+      - name: Label docs changes
+        if: contains(steps.changed.outputs.all_changed_files, 'docs/')
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: documentation
