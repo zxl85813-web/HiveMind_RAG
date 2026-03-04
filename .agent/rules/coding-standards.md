@@ -156,3 +156,62 @@ if (error) return <ErrorDisplay error={error} />;
 ### 5.3 鉴权降级与隔离 (Auth Downgrade for Debugging)
 * **集成测试降级**：在不需要严格验证权限的核心业务链路贯通测试中，对于带有 `Depends(get_current_user)` 依赖的接口，应提供一个通用的 mock ID（如通过在路由或 dep 文件里设置默认 mock response），确保前端能在不携带真实 JWT Token 时顺利联调通过网络请求。
 * **避免无声失败**：当发生鉴权错误（401/403）时，前后端必须给出明确的日志或提示，禁止因为一处接口 403 导致整页 Crash（React 前端需配合 ErrorBoundary 和可选链调用 `?.`）。
+
+## 6. Python 深度编码规范 (Python Deep Standards)
+
+### 6.1 Import 排序 (Import Sorting)
+必须遵循严格的块级排序逻辑 (与 `isort` / `ruff` 默认规则一致)：
+1. 标准库导入 (`import os`, `import sys`)
+2. 第三方库导入 (`from fastapi import ...`, `import pydantic`)
+3. 本地项目导入 (`from app.core import ...`, `from app.models import ...`)
+> 块与块之间保留一个空行。
+
+### 6.2 函数与类型提示 (Functions & Type Hints)
+- **强制类型标注**: 所有函数的参数和返回值类型必须标注。
+- **禁止滥用 kwargs**: 严禁毫无理由地使用 `**kwargs` 穿透传参，必须提供明确的 Schema 或具名参数，以便 IDE 提示和静态检查。
+```python
+# ✅ 正确
+async def process_text(text: str, max_length: int = 100) -> str:
+
+# ❌ 错误
+def process_text(text, **kwargs):
+```
+
+### 6.3 类设计原则 (Class Design)
+- **单一职责**: 一个类只做一件事。如果有类名变成 `XxxManagerAndHandler`，说明需要拆分。
+- **组合优于继承**: 尽量使用依赖注入或组合的方式复用逻辑，避免产生超过 3 层的深层继承树。
+
+### 6.4 异步编程边界 (Async Programming)
+- **禁止在 async 中阻塞**: 在 `async def` 函数中，绝对禁止调用同步的阻塞 IO 函数（如 `requests.get`, 同步版的 `time.sleep`, 或者原生的 `open(file)`。必须使用 `httpx.AsyncClient`, `asyncio.sleep`, `aiofiles`）。
+
+### 6.5 安全编码 (Security)
+- 严禁使用 `eval()` 或 `exec()` 解析动态输入。
+- 环境变量必须通过 `app.core.config.settings` 强类型获取，禁止使用 `os.environ.get()`，以防类型转换错误或由于缺失默认值导致线上崩溃。
+- 使用 ORM (SQLModel) 进行所有数据库操作，防范 SQL 注入风险。
+
+## 7. TypeScript & React 深度规范 (TS/React Deep Standards)
+
+### 7.1 React Hooks 规范
+- **穷举依赖**: `useEffect`、`useCallback`、`useMemo` 的依赖数组 (`deps`) 必须**完全穷举**所有在外部作用域声明并于内部使用的变量/函数。如果不希望触发 re-render，应该用 `useRef` 包裹而不是从依赖数组中删掉变量。
+- **不要滥用 Memo**: 只有在传递给复杂子组件（且该组件被 `React.memo` 优化）或进行大量复杂计算时，才使用 `useMemo`/`useCallback`。普通计算直接写在 render 流中。
+
+### 7.2 严格类型 (Strict Typing)
+- **禁止 Any**: 全局禁止使用 `any`。遇到未知类型时使用 `unknown`，并在使用前做类型收窄 (Type Narrowing)。
+- **Enum 替代方案**: TypeScript 原生 `enum` 会导致转译出的 JS 体积膨胀和双向映射的问题。建议使用常量对象 + `as const` 来代替枚举：
+```typescript
+// ✅ 推荐的类 Enum 写法
+export const Role = {
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
+export type RoleType = typeof Role[keyof typeof Role]; // 'admin' | 'user'
+```
+
+### 7.3 国际化规范 (i18n Implementation)
+- **禁止硬编码中文**: UI 上用户可见的所有中文字符串，必须提取至本地化包，并通过 `t()` 函数渲染。
+- **Key 命名法**: `<Page名>.<组件块>.<词元>`，例如 `'dashboard.stats.totalUsers'` 或 `'common.button.submit'`。
+
+### 7.4 文件与目录结构附加约束
+除了第 3 节中提到的基础大小写外：
+- 组件必须使用 `PascalCase` 的目录和 `index.ts` 导出模式？不，本项目默认直接使用 `Component.tsx` 为文件名，以避免 IDE tab 页里全是 `index.tsx` 的困境。
+- 导出建议使用具名导出：`export const MyButton = () => ...`，少用 `export default` 以便于全局搜索和重构。

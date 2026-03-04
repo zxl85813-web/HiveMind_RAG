@@ -1,4 +1,41 @@
-# Testing Guidelines & Mock Strategies
+# 🧪 综合测试规范与策略指南 (Testing Guidelines)
+
+本文档定义了 HiveMind RAG 项目的测试体系、层级结构、命名规范以及在复杂环境下的 Mock 策略。遵循本项目 [研发方法论](design-and-implementation-methodology.md) 中的**“双视角”测试原则**。
+
+---
+
+## 0. 总则与测试框架体系
+
+### 0.1 测试分层金字塔 (Testing Pyramid)
+我们期望的自动化测试分布如下：
+1. **单元测试 (Unit) - 70%**: 针对独立的工具函数、计算逻辑和单个的 Service 方法。无网络请求，极少真实数据库交互。执行速度必须在毫秒级。
+2. **集成测试 (Integration) - 20%**: 覆盖 API 路由层 (`api/routes`) 到 Service 再到数据库的贯通。使用内存型数据库（如 SQLite `sqlite+aiosqlite:///:memory:`）。可以 Mock 外部大模型请求。
+3. **端到端测试 (E2E) - 10%**: 真实的 Frontend 通过浏览器驱动 (Playwright) 挂载到真实的 Backend。仅覆盖主干流程（如知识库上传、发起聊天），用于验收。
+
+### 0.2 覆盖率要求 (Coverage Requirements)
+- **全局要求**: 整体代码覆盖率必须达到 `80%` (`fail_under = 80`)。
+- **新增代码**: 每次提交的增量代码覆盖率必须达到 `90%`。没有测试覆盖的 PR 将被 CI 直接拒绝。
+
+### 0.3 文件命名与组织架构
+测试文件必须镜像存放于 `tests/` 或组件所在同级目录，名称严格对齐：
+- **后端 (Pytest)**: 放在 `backend/tests/` 下。例如，测试 `app/services/chat_service.py` 的文件必须是 `backend/tests/unit/services/test_chat_service.py`。所有的测试函数必须以 `test_` 开头。
+- **前端 (Vitest)**: 组件测试放在对应组件目录的 `__tests__` 下或直接同级。例如，测试 `ChatBubble.tsx` 必须命名为 `ChatBubble.test.tsx`。
+
+### 0.4 Mock 决策树 (When to Mock?)
+当你在写测试并犹豫是否要 Mock 一个依赖时，按以下顺序决策：
+1. **是系统级的依赖库 (如 os.time, uuid) 吗？** 👉 如果必须固定返回值，用 `mock.patch`。
+2. **是耗时的 I/O 或昂贵的第三方服务吗 (如 LLM 调用、发送邮件)？** 👉 **必须 Mock**。禁止在跑测试时真实扣费。
+3. **是本系统内部的另一个 Service 或复杂逻辑吗？** 👉 **先尝试不用 Mock**。尽可能构造前置数据（Fixtures），让测试穿透业务逻辑，这叫“宽隔离”。只有当构建状态过于困难或引发级联死循环时，才局部 Mock 掉深层的方法。
+4. **是数据库 (Session) 吗？** 👉 在 Unit 测试如果纯测计算可以 Mock (麻烦，见下文踩坑记录)；在 Integration 测试**禁止 Mock Session**，必须连那个用内存起起来的虚拟 SQLite 库真实跑 DDL 和 DML！
+
+### 0.5 “双视角”测试的落实要求
+每次为新 API 写测试时，你至少需要准备这两类 Case：
+- **契约视角 (Contract/Black-box)**: 给正确的 Input，断言 Status Code 是 200 且拿到了遵循 `ApiResponse` 约定的 JSON。给非法的 Input（如越权、断链 ID），断言返回 400 且包裹出错信息。
+- **容错视角 (Logic/White-box)**: 人为用 Mock 抛出一个深层次错误（如假装在保存数据时 `SQLAlchemyError` 宕机），断言你的系统会妥善 catch 这个异常，并返回安全的 500 信息而不仅是把整个进程搞挂。
+
+---
+
+## 1. 常见陷阱与具体的 Mock 策略 (Pitfalls & Advanced Mocking)
 
 ## 1. Pydantic V2 Model Initialization (Strict Validation)
 Pydantic V2 is strict about required fields during instantiation. 
