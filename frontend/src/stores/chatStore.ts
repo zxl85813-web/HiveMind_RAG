@@ -14,6 +14,12 @@
 import { create } from 'zustand';
 import type { ChatMessage, ConversationListItem, ChatContext, AIAction } from '../types';
 
+export interface ClientEvent {
+    name: string;
+    data: string;
+    timestamp: string;
+}
+
 /** 页面路由 → 上下文映射 */
 const PAGE_CONTEXT_MAP: Record<string, Omit<ChatContext, 'currentPage'>> = {
     '/': {
@@ -49,7 +55,18 @@ const PAGE_CONTEXT_MAP: Record<string, Omit<ChatContext, 'currentPage'>> = {
     },
 };
 
+/** 视图模式: 'ai' = 对话为中心, 'classic' = 传统 Dashboard */
+export type ViewMode = 'ai' | 'classic';
+
 interface ChatState {
+    // === 视图模式 ===
+    /** 当前视图模式 */
+    viewMode: ViewMode;
+    /** 切换视图模式 */
+    toggleViewMode: () => void;
+    /** 设置视图模式 */
+    setViewMode: (mode: ViewMode) => void;
+
     // === Panel 状态 ===
     /** Chat Panel 展开/折叠 */
     panelOpen: boolean;
@@ -79,10 +96,12 @@ interface ChatState {
     setCurrentConversation: (id: string | null) => void;
     addMessage: (message: ChatMessage) => void;
     updateLastMessage: (content: string) => void;
+    updateLastMessageMetadata: (meta: any) => void;
     appendStatusToLastMessage: (status: string) => void;
     setGenerating: (value: boolean) => void;
     clearMessages: () => void;
     rateMessage: (messageId: string, rating: number) => void;
+    setActionsToLastMessage: (actions: AIAction[]) => void;
     loadConversations: () => Promise<void>;
     loadConversationDetails: (id: string) => Promise<void>;
     deleteConversation: (id: string) => Promise<void>;
@@ -96,9 +115,24 @@ interface ChatState {
     // === Actions: AI 操作 ===
     /** 执行 AI 操作 (由 ActionButton 触发，返回导航目标) */
     executeAction: (action: AIAction) => string | null;
+
+    // === UI State: Modals ===
+    /** 是否打开创建知识库弹窗 (可由 AI 触发) */
+    isCreateKBModalOpen: boolean;
+    setCreateKBModalOpen: (open: boolean) => void;
+
+    // === Client Event Logging ===
+    clientEvents: ClientEvent[];
+    logEvent: (name: string, data?: any) => void;
+    clearEvents: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+    // 视图模式 — 默认 AI-First
+    viewMode: 'ai' as ViewMode,
+    toggleViewMode: () => set((state) => ({ viewMode: state.viewMode === 'ai' ? 'classic' : 'ai' })),
+    setViewMode: (mode) => set({ viewMode: mode }),
+
     // Panel 状态
     panelOpen: true,
     panelWidth: 420,
@@ -114,13 +148,37 @@ export const useChatStore = create<ChatState>((set) => ({
     selectedKnowledgeBases: [],
     toggleKnowledgeBase: (id) => set((state) => {
         const list = state.selectedKnowledgeBases;
-        if (list.includes(id)) {
-            return { selectedKnowledgeBases: list.filter(kb => kb !== id) };
-        } else {
-            return { selectedKnowledgeBases: [...list, id] };
-        }
+        const newState = list.includes(id)
+            ? { selectedKnowledgeBases: list.filter(kb => kb !== id) }
+            : { selectedKnowledgeBases: [...list, id] };
+
+        // Log event
+        const isSelected = !list.includes(id);
+        const eventName = isSelected ? "Select KB" : "Unselect KB";
+        const events = [...state.clientEvents, {
+            name: eventName,
+            data: `KB ID: ${id}`,
+            timestamp: new Date().toISOString()
+        }];
+
+        return { ...newState, clientEvents: events };
     }),
     setSelectedKnowledgeBases: (ids) => set({ selectedKnowledgeBases: ids }),
+
+    // UI State: Modals
+    isCreateKBModalOpen: false,
+    setCreateKBModalOpen: (open) => set({ isCreateKBModalOpen: open }),
+
+    // Client Events
+    clientEvents: [],
+    logEvent: (name, data) => set((state) => ({
+        clientEvents: [...state.clientEvents, {
+            name,
+            data: typeof data === 'string' ? data : JSON.stringify(data),
+            timestamp: new Date().toISOString()
+        }]
+    })),
+    clearEvents: () => set({ clientEvents: [] }),
 
     // 对话数据
     currentConversationId: null,
@@ -159,6 +217,18 @@ export const useChatStore = create<ChatState>((set) => ({
             }
             return { messages: msgs };
         }),
+    updateLastMessageMetadata: (meta: any) =>
+        set((state) => {
+            const msgs = [...state.messages];
+            if (msgs.length > 0) {
+                const lastMsg = msgs[msgs.length - 1];
+                msgs[msgs.length - 1] = {
+                    ...lastMsg,
+                    metadata: { ...(lastMsg.metadata || {}), ...meta }
+                };
+            }
+            return { messages: msgs };
+        }),
     appendStatusToLastMessage: (status) =>
         set((state) => {
             const msgs = [...state.messages];
@@ -175,12 +245,36 @@ export const useChatStore = create<ChatState>((set) => ({
         }),
     setGenerating: (value) => set({ isGenerating: value }),
     clearMessages: () => set({ messages: [] }),
-    rateMessage: (id, rating) =>
-        set((state) => ({
-            messages: state.messages.map((m) =>
-                m.id === id ? { ...m, rating } : m
-            ),
-        })),
+    rateMessage: async (id, rating) => {
+        set((state) => {
+            const events = [...state.clientEvents, {
+                name: "Message Feedback",
+                data: `ID: ${id}, Rating: ${rating}`,
+                timestamp: new Date().toISOString()
+            }];
+            return {
+                messages: state.messages.map((m) =>
+                    m.id === id ? { ...m, rating } : m
+                ),
+                clientEvents: events
+            };
+        });
+        // Fire and forget API call
+        try {
+            const { chatApi } = await import('../services/chatApi');
+            await chatApi.submitFeedback(id, rating);
+        } catch (err) {
+            console.error('Failed to submit feedback:', err);
+        }
+    },
+    setActionsToLastMessage: (actions) =>
+        set((state) => {
+            const msgs = [...state.messages];
+            if (msgs.length > 0) {
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], actions };
+            }
+            return { messages: msgs };
+        }),
 
     loadConversations: async () => {
         try {
@@ -203,7 +297,14 @@ export const useChatStore = create<ChatState>((set) => ({
                     role: m.role,
                     content: m.content,
                     created_at: m.created_at,
-                    metadata: m.metadata ? JSON.parse(m.metadata) : undefined
+                    metadata: m.metadata ? JSON.parse(m.metadata) : {
+                        prompt_tokens: m.prompt_tokens,
+                        completion_tokens: m.completion_tokens,
+                        total_tokens: m.total_tokens,
+                        latency_ms: m.latency_ms,
+                        is_cached: m.is_cached,
+                        trace_data: m.trace_data
+                    }
                 }))
             });
         } catch (error) {
@@ -234,17 +335,43 @@ export const useChatStore = create<ChatState>((set) => ({
 
     // AI 操作执行
     executeAction: (action) => {
+        // Log the interaction
+        set((state) => ({
+            clientEvents: [...state.clientEvents, {
+                name: "Execute Action",
+                data: `Type: ${action.type}, Label: ${action.label}, Target: ${action.target}`,
+                timestamp: new Date().toISOString()
+            }]
+        }));
+
         switch (action.type) {
             case 'navigate':
+                // AI-First 关键 UX 修复: 导航时自动切换到传统模式
+                // 确保目标页面可见(AI 模式下 Content 区域只显示 Chat，无 Outlet)
+                set({ viewMode: 'classic' });
                 // 返回导航目标，由组件侧调用 navigate()
                 return action.target;
             case 'open_modal':
-                // TODO: 触发全局 modal 事件
+                if (action.target === 'create_kb') {
+                    set({ isCreateKBModalOpen: true });
+                }
                 console.log('[AI Action] Open modal:', action.target);
                 return null;
             case 'execute':
-                // TODO: 调用后端 API
-                console.log('[AI Action] Execute:', action.target);
+                // 模拟执行后台操作
+                set((state) => {
+                    const msgs = [...state.messages];
+                    if (msgs.length > 0) {
+                        const lastMsg = msgs[msgs.length - 1];
+                        const meta = lastMsg.metadata || {};
+                        const statuses = meta.statuses || [];
+                        msgs[msgs.length - 1] = {
+                            ...lastMsg,
+                            metadata: { ...meta, statuses: [...statuses, `任务已启动: ${action.label}`] }
+                        };
+                    }
+                    return { messages: msgs };
+                });
                 return null;
             case 'suggest':
                 return null;

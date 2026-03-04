@@ -1,0 +1,93 @@
+{
+    "common": {
+        "save": "保存",
+        "cancel": "取消",
+        "delete": "删除",
+        "edit": "编辑",
+        "create": "创建",
+        "loading": "加载中...",
+        "success": "成功",
+        "error": "错误",
+        "warning": "警告",
+        "language": "语言切换",
+        "status": "状态"
+    },
+    "nav": {
+        "dashboard": "概览",
+        "knowledge": "知识库",
+        "agents": "Agent 蜂巢",
+        "studio": "创作空间",
+        "learning": "技术动态",
+        "audit": "数据审核",
+        "security": "安全管控",
+        "evaluation": "评估专区",
+        "finetuning": "数据集",
+        "pipelines": "可视化编排",
+        "batch": "批处理调度",
+        "settings": "系统设置"
+    },
+    "dashboard": {
+        "welcome": "欢迎使用 HiveMind",
+        "heroDesc": "通过右侧 AI 助手开始对话，或选择下方快捷入口直接操作。",
+        "stats": {
+            "kbs": "知识库",
+            "agents": "活跃 Agent",
+            "requests": "今日对话",
+            "discoveries": "自省发现"
+        }
+    },
+    "knowledge": {
+        "title": "知识库管理",
+        "create": "创建知识库",
+        "name": "名称",
+        "desc": "描述",
+        "public": "是否公开",
+        "embedding": "嵌入模型",
+        "emptyTitle": "还没有知识库",
+        "emptyDesc": "点击右上角「创建知识库」开始",
+        "fileName": "文件名",
+        "fileSize": "大小",
+        "uploadText": "点击或拖拽文件到此区域上传",
+        "uploadHint": "支持 TXT, MD, PDF, DOCX 等格式。将在后台自动完成解析与向量化。"
+    },
+    "agents": {
+        "title": "Agent 蜂巢监控",
+        "description": "基于 LangGraph 的多 Agent 协作系统实时状态监控与共享记忆检索",
+        "stats": {
+            "active": "活跃 Agent",
+            "requests": "今日请求",
+            "todos": "共享 TODO",
+            "reflections": "自省记录"
+        },
+        "clusters": "集群节点",
+        "tabs": {
+            "todos": "共享任务队列",
+            "reflections": "自省日志"
+        }
+    },
+    "learning": {
+        "title": "技术动态",
+        "description": "自动追踪开源项目和最新技术，分析与当前技术栈的关联程度",
+        "add_sub": "添加订阅",
+        "tabs": {
+            "discovery": "技术发现",
+            "my_subs": "我的订阅"
+        }
+    },
+    "settings": {
+        "title": "系统设置",
+        "description": "配置 LLM 模型、Agent 行为和系统偏好",
+        "llm": "LLM 模型设置",
+        "agent": "Agent 行为"
+    },
+    "chat": {
+        "title": "AI 助手",
+        "history": "历史记录",
+        "new": "开启新对话",
+        "placeholder": "在这里问我任何问题...",
+        "feedback": {
+            "good": "有帮助",
+            "bad": "无帮助"
+        }
+    }
+}

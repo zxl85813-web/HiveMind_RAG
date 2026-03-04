@@ -12,8 +12,9 @@
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -61,10 +62,9 @@ async def init_db() -> None:
     
     async with engine.begin() as conn:
         if settings.DEBUG:
-            # 开发环境自动同步表结构
-            # 注意: 生产环境应完全禁用此行，只用 Alembic
-            await conn.run_sync(SQLModel.metadata.create_all)
-            logger.info("Database tables synced (dev mode)")
+            # 开发环境不再自动同步表结构，全面启用 Alembic
+            # await conn.run_sync(SQLModel.metadata.create_all)
+            logger.info("Database initialized (metadata sync disabled, use Alembic instead)")
         else:
             logger.info("Database connected (production — use Alembic for migrations)")
 

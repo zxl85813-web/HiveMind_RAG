@@ -29,10 +29,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Awaitable
+from typing import Any, Callable, Awaitable, Optional
 
 from pydantic import BaseModel, Field
 from loguru import logger
+import time
 
 
 # ============================================================
@@ -238,6 +239,13 @@ class PipelineExecutor:
         self._swarm_invoke_fn = swarm_invoke_fn
         self._artifacts: dict[str, Artifact] = {}  # stage_name → Artifact
         self._stage_traces: dict[str, dict] = {}    # 调试用: stage → 完整 swarm 状态
+        
+        # Lifecycle Hooks (for logging/monitoring)
+        self.on_job_start: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None
+        self.on_job_end: Optional[Callable[[dict[str, Artifact]], Awaitable[None]]] = None
+        self.on_stage_start: Optional[Callable[[str, StageInput], Awaitable[None]]] = None
+        self.on_stage_end: Optional[Callable[[str, Artifact, int], Awaitable[None]]] = None # stage_name, artifact, duration_ms
+
         logger.info(f"🔗 PipelineExecutor created: {pipeline.name} ({len(pipeline.stages)} stages)")
 
     async def execute(
@@ -266,6 +274,16 @@ class PipelineExecutor:
             f"Stages: {' → '.join(['/'.join(layer) for layer in execution_order])}"
         )
 
+        # 1. Job Start Hook
+        on_job_start = self.on_job_start
+        if on_job_start:
+            await on_job_start({
+                "pipeline_name": self._pipeline.name,
+                "file_metadata": file_metadata,
+                "pipeline_context": pipeline_context,
+                "total_stages": len(self._pipeline.stages)
+            })
+
         import asyncio
 
         for layer_idx, layer in enumerate(execution_order):
@@ -285,7 +303,36 @@ class PipelineExecutor:
                     pipeline_context=pipeline_context,
                 )
 
-                tasks.append(self._execute_stage(stage_def, stage_input))
+                # 2. Stage Start Hook
+                on_stage_start = self.on_stage_start
+                if on_stage_start:
+                    await on_stage_start(stage_name, stage_input)
+
+                async def _timed_execution(sd, si):
+                    start_t = time.perf_counter()
+                    on_stage_end = self.on_stage_end
+                    try:
+                        res = await self._execute_stage(sd, si)
+                        duration = int((time.perf_counter() - start_t) * 1000)
+                        
+                        # 3. Stage End Hook
+                        if on_stage_end:
+                            await on_stage_end(sd.name, res, duration)
+                        return res
+                    except Exception as e:
+                        duration = int((time.perf_counter() - start_t) * 1000)
+                        err_art = Artifact(
+                            artifact_type=ArtifactType.ERROR,
+                            data={"error": str(e)},
+                            text_summary=f"Stage Exception: {e}",
+                            source_stage=sd.name,
+                            confidence=0.0
+                        )
+                        if on_stage_end:
+                            await on_stage_end(sd.name, err_art, duration)
+                        raise e
+
+                tasks.append(_timed_execution(stage_def, stage_input))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -301,6 +348,20 @@ class PipelineExecutor:
                     )
                 else:
                     self._artifacts[stage_name] = result
+                    
+                # --- Short-circuit logic for Audit/Security (M2.1D) ---
+                if not isinstance(result, Exception):
+                    status = result.data.get("status")
+                    if status in ["pending", "rejected"]:
+                        logger.warning(f"🛑 Pipeline HALTED at stage [{stage_name}] due to status: {status}")
+                        on_job_end = self.on_job_end
+                        if on_job_end:
+                            await on_job_end(self._artifacts)
+                        return self._artifacts
+
+        on_job_end = self.on_job_end
+        if on_job_end:
+            await on_job_end(self._artifacts)
 
         logger.success(
             f"✅ Pipeline [{self._pipeline.name}] completed | "

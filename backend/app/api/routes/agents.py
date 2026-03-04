@@ -126,6 +126,93 @@ async def get_swarm_todos():
     """Get the communal TODO list from shared memory."""
     memory_manager = getattr(_swarm, "memory", None)
     if not memory_manager:
-        return []
+        return ApiResponse.ok(data=[])
     todos = await memory_manager.get_todos()
     return ApiResponse.ok(data=todos)
+
+@router.get("/swarm/traces")
+async def get_swarm_traces():
+    """Get the live execution DAG trace."""
+    memory_manager = getattr(_swarm, "memory", None)
+    if not memory_manager:
+        return ApiResponse.ok(data={"nodes": [], "links": []})
+    traces = await memory_manager.get_traces()
+    return ApiResponse.ok(data=traces)
+
+@router.get("/mcp/status")
+async def get_mcp_status():
+    """Get status of all configured MCP servers."""
+    if not hasattr(_swarm, "mcp"):
+        return ApiResponse.ok(data={})
+        
+    status = await _swarm.mcp.health_check()
+    
+    # We want to return more detailed info
+    result = []
+    for name, is_connected in status.items():
+        config = _swarm.mcp._servers.get(name, {})
+        result.append({
+            "name": name,
+            "status": "connected" if is_connected else "disconnected",
+            "type": config.get("type", "unknown"),
+            "command": config.get("command", ""),
+            "args": config.get("args", []),
+        })
+    return ApiResponse.ok(data=result)
+
+@router.get("/mcp/tools")
+async def get_mcp_tools():
+    """Get all tools loaded from MCP servers."""
+    if not hasattr(_swarm, "mcp"):
+        return ApiResponse.ok(data=[])
+        
+    tools = _swarm.mcp.get_tools()
+    
+    result = []
+    for t in tools:
+        if not hasattr(t, "name"):
+            continue
+        result.append({
+            "name": t.name,
+            "description": getattr(t, "description", ""),
+        })
+        
+    return ApiResponse.ok(data=result)
+
+@router.get("/skills")
+async def get_skills():
+    """Get all registered skills from SkillRegistry."""
+    # Assuming SkillRegistry is global or we can parse it from directories
+    # For now, let's just use the file system since it's dynamic
+    from pathlib import Path
+    import yaml
+    
+    skills_dir = Path("app/skills")
+    if not skills_dir.exists():
+        return ApiResponse.ok(data=[])
+        
+    skills = []
+    for d in skills_dir.iterdir():
+        if d.is_dir() and not d.name.startswith("__"):
+            skill_md = d / "SKILL.md"
+            if skill_md.exists():
+                # Extract basic info
+                try:
+                    content = skill_md.read_text(encoding="utf-8")
+                    if content.startswith("---"):
+                        frontmatter = content.split("---")[1]
+                        meta = yaml.safe_load(frontmatter)
+                        skills.append({
+                            "name": meta.get("name", d.name),
+                            "description": meta.get("description", ""),
+                            "version": meta.get("version", "0.1.0"),
+                            "status": "active"
+                        })
+                except Exception:
+                    skills.append({
+                        "name": d.name,
+                        "description": "Failed to parse SKILL.md",
+                        "status": "error"
+                    })
+                    
+    return ApiResponse.ok(data=skills)

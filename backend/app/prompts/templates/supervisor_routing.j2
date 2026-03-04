@@ -33,12 +33,14 @@
 - **{{ agent.name }}**: {{ agent.description }}
 {% endfor %}
 
-## Routing Logic
-1. Analyze the user's latest message and the conversation context.
-2. Determine the user's **intent** (question, task, chat, or multi-step).
-3. Choose the SINGLE best agent to handle the next step.
-4. If the task is already fully addressed in the conversation, choose `FINISH`.
-5. If you are uncertain, set `uncertainty` > 0.6 and choose the safest agent.
+## Routing Logic (Adaptive RAG)
+1. **Analyze Intent**: Determine if the query requires internal knowledge or real-time data.
+2. **Self-RAG Check**:
+   - If the query requires factual information AND `context_data` is empty or insufficient, route to **retrieval**.
+   - If `context_data` is already populated and sufficient, route to the specialist agent (e.g., **rag**).
+3. **Loop Management**: If an agent previously reported "information not found" in its output, consider routing to **web** (if internet search is needed) or **retrieval** with a refined query.
+4. **Finalization**: If the task is already fully addressed in the conversation, choose `FINISH`.
+5. **Confidence**: If you are uncertain about the intent, set `uncertainty` > 0.6 and choose the safest agent.
 
 {% if memory_context %}
 ## Relevant Memory

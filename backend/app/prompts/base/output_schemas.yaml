@@ -45,4 +45,6 @@ agent_response: |
   1. **Answer**: Direct answer to the question.
   2. **Reasoning**: How you arrived at this answer (if non-trivial).
   3. **Sources**: References or evidence (if applicable).
-  4. **Confidence**: Your confidence level (low/medium/high).
+  4. **Actions**: (Optional) Suggested UI actions if the user wants to navigate or perform a task. 
+     Format: `[ACTION: {"type": "navigate", "label": "Upload", "target": "/knowledge", "icon": "UploadOutlined"}]`
+  5. **Confidence**: Your confidence level (low/medium/high).

@@ -15,77 +15,19 @@ Storage Backends:
 """
 
 from datetime import datetime
-from enum import Enum
-from typing import Any
+from typing import Any, Sequence
 
 from loguru import logger
-from pydantic import BaseModel
+from sqlalchemy import select, desc
 
-# ==========================================
-#  Shared TODO List
-# ==========================================
-
-
-class TodoPriority(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
-class TodoStatus(str, Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    WAITING_USER = "waiting_user"  # Needs user input
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-
-class TodoItem(BaseModel):
-    """An item in the swarm's shared TODO list."""
-
-    id: str
-    title: str
-    description: str = ""
-    priority: TodoPriority = TodoPriority.MEDIUM
-    status: TodoStatus = TodoStatus.PENDING
-    created_by: str = ""  # Agent name or "user"
-    assigned_to: str = ""  # Agent name
-    source_conversation_id: str = ""
-    created_at: datetime = datetime.utcnow()
-    due_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
-# ==========================================
-#  Reflection Log
-# ==========================================
-
-
-class ReflectionType(str, Enum):
-    SELF_EVAL = "self_evaluation"  # Quality assessment of own output
-    ERROR_CORRECTION = "error_correction"  # Detected and corrected an error
-    KNOWLEDGE_GAP = "knowledge_gap"  # Identified missing knowledge
-    USER_INTERVENTION = "user_intervention"  # Requesting user help
-    PERIODIC_REVIEW = "periodic_review"  # Scheduled memory review
-
-
-class ReflectionEntry(BaseModel):
-    """A record of an agent's self-reflection."""
-
-    id: str
-    type: ReflectionType
-    agent_name: str
-    summary: str
-    details: dict[str, Any] = {}
-    confidence_score: float = 0.0  # 0.0 - 1.0
-    action_taken: str = ""
-    created_at: datetime = datetime.utcnow()
-
-
-# ==========================================
-#  Memory Manager
-# ==========================================
+from app.core.database import async_session_factory
+from app.models.agents import (
+    ReflectionEntry,
+    ReflectionType,
+    TodoItem,
+    TodoPriority,
+    TodoStatus,
+)
 
 
 class SharedMemoryManager:
@@ -98,142 +40,128 @@ class SharedMemoryManager:
 
     def __init__(self) -> None:
         self._working_memory: dict[str, Any] = {}
-        self._todos: list[TodoItem] = []
-        self._reflections: list[ReflectionEntry] = []
+        self._traces: list[dict] = [] # Memory store for DAG traces
         logger.info("🧠 SharedMemoryManager initialized")
 
-    # --- Working Memory ---
+    # --- DAG Trace Memory (Session-scoped) ---
+    async def add_trace(self, node_id: str, label: str, agent: str, status: str, targets: list[str] | None = None) -> None:
+        """Record a trace node for the Agent Supervisor visualization."""
+        if len(self._traces) > 100:
+            self._traces = self._traces[-50:] # Keep last 50
+        
+        # Determine targets defaults. Usually links to 'supervisor' or 'reflection' unless specified
+        targets = targets if targets is not None else []
+            
+        self._traces.append({
+            "id": node_id,
+            "label": label,
+            "agent": agent,
+            "status": status,
+            "targets": targets
+        })
+
+    async def get_traces(self) -> dict:
+        """Get formatted nodes and links for DAG Visualizer."""
+        nodes = []
+        links = []
+        for t in self._traces:
+            nodes.append({"id": t["id"], "label": t["label"], "agent": t["agent"], "status": t["status"]})
+            for target in t["targets"]:
+                links.append({"source": t["id"], "target": target})
+        return {"nodes": nodes, "links": links}
+        
+    async def clear_traces(self) -> None:
+        self._traces.clear()
+
+    # --- Working Memory (Session-scoped) ---
 
     async def set_working(self, key: str, value: Any, ttl_seconds: int = 3600) -> None:
-        """Store a value in working memory (short-term, session-scoped)."""
-        # TODO: Use Redis in production
+        """Store a value in working memory (short-term)."""
+        # TODO: Implement TTL with Redis
         self._working_memory[key] = value
 
     async def get_working(self, key: str) -> Any | None:
         """Retrieve from working memory."""
         return self._working_memory.get(key)
 
-    # --- Episodic Memory ---
+    # --- Shared TODO List (Persistent) ---
+
+    async def add_todo(self, item: TodoItem) -> TodoItem:
+        """Add a new TODO item to the swarm's shared list."""
+        async with async_session_factory() as session:
+            session.add(item)
+            await session.commit()
+            await session.refresh(item)
+            logger.info(f"📝 TODO recorded in DB: {item.title} (by {item.created_by})")
+            return item
+
+    async def update_todo(self, todo_id: str, **updates: Any) -> TodoItem | None:
+        """Update a TODO item's status or fields."""
+        async with async_session_factory() as session:
+            todo = await session.get(TodoItem, todo_id)
+            if not todo:
+                return None
+            
+            for key, value in updates.items():
+                if hasattr(todo, key):
+                    setattr(todo, key, value)
+            
+            if updates.get("status") == TodoStatus.COMPLETED:
+                todo.completed_at = datetime.utcnow()
+                
+            session.add(todo)
+            await session.commit()
+            await session.refresh(todo)
+            return todo
+
+    async def get_todos(self, status: TodoStatus | None = None, limit: int = 50) -> Sequence[TodoItem]:
+        """Get TODO items from database."""
+        async with async_session_factory() as session:
+            # Using session.exec for SQLModel
+            statement = select(TodoItem).order_by(desc(TodoItem.created_at))
+            if status:
+                statement = statement.where(TodoItem.status == status)
+            statement = statement.limit(limit)
+            
+            results = await session.execute(statement)
+            return results.scalars().all()
+
+    # --- Reflection Log (Persistent) ---
+
+    async def add_reflection(self, entry: ReflectionEntry) -> ReflectionEntry:
+        """Record a self-reflection from an agent to the database."""
+        async with async_session_factory() as session:
+            session.add(entry)
+            await session.commit()
+            await session.refresh(entry)
+            logger.info(f"🪞 Reflection logged in DB: [{entry.type}] by {entry.agent_name}")
+            return entry
+
+    async def get_reflections(self, limit: int = 20) -> Sequence[ReflectionEntry]:
+        """Get recent reflection entries from database."""
+        async with async_session_factory() as session:
+            statement = select(ReflectionEntry).order_by(desc(ReflectionEntry.created_at)).limit(limit)
+            results = await session.execute(statement)
+            return results.scalars().all()
+
+    # --- Future Memory Layers (Episodic/Semantic) ---
 
     async def store_episode(self, conversation_id: str, summary: str, metadata: dict) -> None:
-        """Store a conversation episode summary for future retrieval."""
-        # TODO: Implement
-        # - Generate embedding of the summary
-        # - Store in vector database with metadata
-        # - Store summary in PostgreSQL
+        """Placeholder for Episodic Memory (Vector-based interaction logs)."""
         pass
 
     async def recall_episodes(self, query: str, limit: int = 5) -> list[dict]:
-        """Recall relevant past episodes based on semantic similarity."""
-        # TODO: Implement vector similarity search
+        """Placeholder for recalling past interaction episodes."""
         return []
 
-    # --- Semantic Memory ---
-
     async def learn(self, knowledge: str, source: str, category: str = "general") -> None:
-        """
-        Store a piece of learned knowledge in long-term memory.
-        Called when agents extract useful patterns or facts.
-        """
-        # TODO: Implement
+        """Placeholder for extracted knowledge (Semantic Memory)."""
         pass
 
     async def recall_knowledge(self, query: str, category: str | None = None, limit: int = 10) -> list[dict]:
-        """Recall relevant knowledge from long-term memory."""
-        # TODO: Implement
+        """Placeholder for recalling long-term semantic knowledge."""
         return []
 
-    # --- Shared TODO ---
-
-    async def add_todo(self, item: TodoItem) -> None:
-        """Add a new TODO item to the swarm's shared list."""
-        self._todos.append(item)
-        logger.info(f"📝 TODO added: {item.title} (by {item.created_by})")
-        # TODO: Push notification via WebSocket
-
-    async def update_todo(self, todo_id: str, **updates: Any) -> None:
-        """Update a TODO item's status or fields."""
-        # TODO: Implement
-        pass
-
-    async def get_todos(self, status: TodoStatus | None = None) -> list[TodoItem]:
-        """Get TODO items, optionally filtered by status."""
-        if not self._todos:
-            # Temporary mock data for UI demo
-            import uuid
-            self._todos.extend([
-                TodoItem(
-                    id=str(uuid.uuid4()),
-                    title="Implement Distributed Agent Orchestration",
-                    description="Move from centralized Supervisor to decentralized multi-agent negotiation.",
-                    priority=TodoPriority.HIGH,
-                    status=TodoStatus.IN_PROGRESS,
-                    created_by="Supervisor",
-                    assigned_to="Core Agent"
-                ),
-                TodoItem(
-                    id=str(uuid.uuid4()),
-                    title="Optimize Vector Memory Recall",
-                    description="Review current similarity thresholds and optimize for speed.",
-                    priority=TodoPriority.MEDIUM,
-                    status=TodoStatus.PENDING,
-                    created_by="RAG Agent",
-                    assigned_to="System"
-                )
-            ])
-        
-        if status:
-            return [t for t in self._todos if t.status == status]
-        return self._todos
-
-    # --- Reflection ---
-
-    async def add_reflection(self, entry: ReflectionEntry) -> None:
-        """Record a self-reflection from an agent."""
-        self._reflections.append(entry)
-        logger.info(f"🪞 Reflection: [{entry.type}] by {entry.agent_name} - {entry.summary}")
-        # TODO: If confidence is low, trigger user intervention notification
-
-    async def get_reflections(self, limit: int = 20) -> list[ReflectionEntry]:
-        """Get recent reflection entries."""
-        if not self._reflections:
-            # Temporary mock data for UI demo
-            import uuid
-            self._reflections.extend([
-                ReflectionEntry(
-                    id=str(uuid.uuid4()),
-                    type=ReflectionType.SELF_EVAL,
-                    agent_name="Supervisor",
-                    summary="Analyzed intent. Multi-hop query detected.",
-                    confidence_score=0.92,
-                    action_taken="Spawned RAG & SQL Agents"
-                ),
-                ReflectionEntry(
-                    id=str(uuid.uuid4()),
-                    type=ReflectionType.KNOWLEDGE_GAP,
-                    agent_name="RAG Agent",
-                    summary="Missing internal documents for '2025 Roadmap'.",
-                    confidence_score=0.45,
-                    action_taken="Delegated to Web Agent for external context"
-                ),
-                ReflectionEntry(
-                    id=str(uuid.uuid4()),
-                    type=ReflectionType.ERROR_CORRECTION,
-                    agent_name="SQL Agent",
-                    summary="Initial query failed due to invalid syntax on 'user_id'.",
-                    confidence_score=0.88,
-                    action_taken="Corrected syntax taking schema into account"
-                )
-            ])
-            
-        return self._reflections[-limit:]
-
-    # --- Memory Decay ---
-
     async def decay_old_memories(self) -> None:
-        """
-        Periodic task: decay or archive old working memories.
-        Long-term semantic memory is preserved.
-        """
-        # TODO: Implement memory decay strategy
+        """Placeholder for memory decay/summarization strategy."""
         pass

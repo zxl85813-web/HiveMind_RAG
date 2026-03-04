@@ -15,7 +15,8 @@ async def test_query_preprocessing_step(mock_retrieval_context):
     step = QueryPreProcessingStep()
     await step.execute(mock_retrieval_context)
     
-    assert mock_retrieval_context.expanded_queries == ["test query"]
+    # Expect at least the original query to be present
+    assert "test query" in mock_retrieval_context.expanded_queries
     assert any("[QueryProc]" in log for log in mock_retrieval_context.trace_log)
 
 @pytest.mark.asyncio

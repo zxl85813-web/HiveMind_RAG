@@ -2,23 +2,24 @@
  * ChatPanel — AI 对话面板 (永驻右侧)。
  *
  * 这是 AI-First 架构的核心组件:
- *   - 始终显示在布局右侧 (可折叠)
+ *   - 始终显示在 layout 右侧 (可折叠)
  *   - 感知当前页面上下文
  *   - AI 回答中可嵌入 ActionButton
  *   - 上方显示上下文指示器
- *
- * @module components/chat
- * @see docs/design/ai-first-frontend.md
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Checkbox, message, List, Modal } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Checkbox, List, Modal, Collapse, Timeline } from 'antd';
 import { Bubble, Sender, Prompts } from '@ant-design/x';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/atom-one-dark.css';
 import {
     RobotOutlined,
     UserOutlined,
     CompressOutlined,
-    ClearOutlined,
     EnvironmentOutlined,
     LikeOutlined,
     DislikeOutlined,
@@ -27,7 +28,16 @@ import {
     DatabaseOutlined,
     HistoryOutlined,
     PlusOutlined,
-    DeleteOutlined
+    DeleteOutlined,
+    CaretRightOutlined,
+    ThunderboltOutlined,
+    DashboardOutlined,
+    DeploymentUnitOutlined,
+    BugOutlined,
+    ClockCircleOutlined,
+    CheckCircleOutlined,
+    ExclamationCircleOutlined,
+    FileSearchOutlined
 } from '@ant-design/icons';
 
 import { useChatStore } from '../../stores/chatStore';
@@ -37,12 +47,18 @@ import { knowledgeApi } from '../../services/knowledgeApi';
 import { memoryApi } from '../../services/memoryApi';
 import { GraphVisualizer } from '../knowledge/GraphVisualizer';
 import type { KnowledgeBase } from '../../types';
+import { matchQuickCommand } from '../../config/quickCommands';
 import styles from './ChatPanel.module.css';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 export const ChatPanel: React.FC = () => {
+    const navigate = useNavigate();
+    const { t } = useTranslation();
+    const { message } = App.useApp();
     const {
+        viewMode,
         panelOpen,
         togglePanel,
         context,
@@ -59,7 +75,8 @@ export const ChatPanel: React.FC = () => {
         deleteConversation,
         startNewChat,
         currentConversationId,
-        setCurrentConversation
+        setCurrentConversation,
+        executeAction
     } = useChatStore();
 
     const [inputValue, setInputValue] = useState('');
@@ -67,16 +84,15 @@ export const ChatPanel: React.FC = () => {
     const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
     const [graphData, setGraphData] = useState<{ nodes: any[], links: any[] } | null>(null);
     const [radarTags, setRadarTags] = useState<string[]>([]);
+    const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
+    const [currentTrace, setCurrentTrace] = useState<any[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Fetch KBs
-    // Initial Load
     useEffect(() => {
         if (panelOpen) {
             knowledgeApi.listKBs()
                 .then(res => setKbs(res.data.data))
                 .catch(err => console.error("Failed to load KBs", err));
-
             loadConversations();
         }
     }, [panelOpen]);
@@ -87,44 +103,108 @@ export const ChatPanel: React.FC = () => {
         chatApi.submitFeedback(msgId, rating);
     };
 
+    /** 处理建议点击 */
+    const handlePromptClick = (action: any) => {
+        const navTarget = executeAction(action);
+        if (navTarget) {
+            navigate(navTarget);
+        }
+    };
+
+    /** 尝试匹配快速指令，匹配成功返回 true */
+    const tryQuickCommand = (input: string): boolean => {
+        const cmd = matchQuickCommand(input);
+        if (!cmd) return false;
+        // 1. 添加用户消息
+        addMessage({
+            id: `usr-${Date.now()}`,
+            role: 'user',
+            content: input,
+            created_at: new Date().toISOString(),
+        });
+        // 2. 添加即时 AI 回复（含按钮）
+        addMessage({
+            id: `ast-${Date.now()}`,
+            role: 'assistant',
+            content: cmd.reply,
+            actions: cmd.actions,
+            created_at: new Date().toISOString(),
+            metadata: { is_cached: false, latency_ms: 0 },
+        });
+        return true;
+    };
+
     /** 发送消息 */
     const handleSend = async (value: string) => {
         if (!value.trim()) return;
-        setRadarTags([]); // Reset tags for new query
+        setInputValue('');
+        setRadarTags([]);
 
-        const userMsgId = `user-${Date.now()}`;
-        // 1. 添加用户消息
+        // === Quick Command 快速匹配 ===
+        if (tryQuickCommand(value)) {
+            // 匹配成功，直接返回，不走后端
+            return;
+        }
+
+        // === 正常 AI 流程 ===
+        setGenerating(true);
+
+        const userMsgId = `usr-${Date.now()}`;
         addMessage({
             id: userMsgId,
             role: 'user',
             content: value,
-            created_at: new Date().toISOString(),
-            metadata: { context_page: context.currentPage },
+            created_at: new Date().toISOString()
         });
-        setInputValue('');
-        setGenerating(true);
 
-        // 2. 预先添加一个空的 AI 消息 (用于流式更新)
-        const aiMsgId = `ai-${Date.now()}`;
         addMessage({
-            id: aiMsgId,
+            id: `ast-${Date.now()}`,
             role: 'assistant',
-            content: '', // 初始为空
+            content: '',
             created_at: new Date().toISOString(),
-            // actions: [], // 后续根据 content 解析
         });
 
-        // 3. 发起流式请求
-        // 累积内容缓冲区
+        const chatStoreState = useChatStore.getState();
+        const clientEvents = [...chatStoreState.clientEvents];
+        chatStoreState.clearEvents();
         let fullContent = '';
 
         await chatApi.streamChat({
             message: value,
             conversationId: currentConversationId,
-            knowledgeBaseIds: useChatStore.getState().selectedKnowledgeBases,
+            knowledgeBaseIds: chatStoreState.selectedKnowledgeBases,
+            clientEvents: clientEvents,
             onDelta: (delta) => {
                 fullContent += delta;
-                useChatStore.getState().updateLastMessage(fullContent);
+
+                // ==========================================
+                // 🛡️ [AI-LOCKED]: 流式信令解析区 (Action Parsing)
+                // [设计意图]: 这段代码是实现“Agent 施放 UI 魔法按钮”的核心。
+                // 后端会把控制指令（如跳出弹窗）混杂在 Markdown 文本流里发过来。
+                // 这里的正则表达式提取和 replace 是为了将隐藏指令剥离，然后转交给 Zustand 去实例化 ActionButton。
+                // [⚠️ 禁区]: 不要为了“代码更精简”把这个 while 循环删掉或随意修改正则，否则前端收到的 UI 指令将彻底崩盘。
+                // ==========================================
+                const actionRegex = /\[ACTION:\s*({.*?})\]/g;
+                let match;
+                const foundActions: any[] = [];
+                let displayContent = fullContent;
+
+                // Reset regex for each iteration to handle the growing string
+                while ((match = actionRegex.exec(fullContent)) !== null) {
+                    try {
+                        const actionData = JSON.parse(match[1]);
+                        foundActions.push(actionData);
+                        // Hide it from the raw markdown text for a cleaner look
+                        displayContent = displayContent.replace(match[0], '');
+                    } catch (e) {
+                        // Incomplete JSON during streaming, skip
+                    }
+                }
+
+                useChatStore.getState().updateLastMessage(displayContent.trim());
+                if (foundActions.length > 0) {
+                    useChatStore.getState().setActionsToLastMessage(foundActions);
+                }
             },
             onStatus: (status) => {
                 useChatStore.getState().appendStatusToLastMessage(status);
@@ -134,13 +214,22 @@ export const ChatPanel: React.FC = () => {
                     setRadarTags(prev => [...new Set([...prev, ...tags])]);
                 }
             },
+            onInsight: (insight) => {
+                // Update the last message with proactive actions from the Insight Engine
+                if (insight && insight.actions) {
+                    useChatStore.getState().setActionsToLastMessage(insight.actions);
+                }
+            },
             onSessionCreated: (id) => {
                 setCurrentConversation(id);
-                loadConversations(); // Refresh list
+                loadConversations();
             },
-            onFinish: () => {
+            onFinish: (metrics) => {
                 setGenerating(false);
-                loadConversations(); // Update previews
+                if (metrics) {
+                    useChatStore.getState().updateLastMessageMetadata(metrics);
+                }
+                loadConversations();
             },
             onError: (err) => {
                 console.error('Chat error:', err);
@@ -151,11 +240,10 @@ export const ChatPanel: React.FC = () => {
         });
     };
 
-    /** 将上下文快捷操作转为 Prompts 项 */
     const contextPrompts = context.availableActions.slice(0, 3).map((action) => ({
         key: action.target,
         label: action.label,
-        description: `${action.type === 'navigate' ? '跳转到' : ''}${action.label}`,
+        description: (action.type === 'navigate' ? '跳转到' : '') + action.label,
     }));
 
     if (!panelOpen) {
@@ -170,7 +258,6 @@ export const ChatPanel: React.FC = () => {
 
     const fetchRealGraph = async () => {
         if (radarTags.length === 0) return;
-
         try {
             const res = await memoryApi.getGraph(radarTags);
             if (res.data.nodes.length > 0) {
@@ -231,45 +318,44 @@ export const ChatPanel: React.FC = () => {
     return (
         <div className={styles.panel}>
             {/* === 面板头部 === */}
-            <Flex align="center" justify="space-between" className={styles.panelHeader}>
+            <Flex
+                align="center"
+                justify="space-between"
+                className={styles.panelHeader + (viewMode === 'ai' ? ' ' + styles.headerAI : '')}
+            >
                 <Flex align="center" gap={8}>
                     <RobotOutlined className={styles.headerIcon} />
-                    <Text strong>AI 助手</Text>
+                    <Text strong>{t('chat.title')}</Text>
+                    <Tooltip title={"当前上下文: " + context.pageTitle}>
+                        <Tag
+                            icon={<EnvironmentOutlined />}
+                            color="processing"
+                            className={styles.contextTag}
+                            style={{ marginLeft: 4 }}
+                        >
+                            {context.pageTitle}
+                        </Tag>
+                    </Tooltip>
                 </Flex>
-                <Space size={4}>
-                    <Tooltip title="历史记录">
-                        <Popover content={historyContent} title="历史对话" trigger="click" placement="bottomRight">
+                <Space size={8}>
+                    <Tooltip title={t('chat.history')}>
+                        <Popover content={historyContent} title={t('chat.history')} trigger="click" placement="bottomRight">
                             <HistoryOutlined className={styles.headerAction} />
                         </Popover>
                     </Tooltip>
-
-                    <Tooltip title="开启新对话">
+                    <Tooltip title={t('chat.new')}>
                         <PlusOutlined className={styles.headerAction} onClick={startNewChat} />
                     </Tooltip>
-
-                    {/* 知识库选择器 */}
                     <Popover content={kbContent} title="选择知识库" trigger="click" placement="bottomRight">
                         <Tag
                             icon={<DatabaseOutlined />}
                             color={selectedKnowledgeBases.length > 0 ? "blue" : "default"}
                             className={styles.contextTag}
-                            style={{ cursor: 'pointer' }}
+                            style={{ cursor: 'pointer', margin: 0 }}
                         >
-                            {selectedKnowledgeBases.length > 0 ? `知识库 (${selectedKnowledgeBases.length})` : '知识库'}
+                            {selectedKnowledgeBases.length > 0 ? "知识库 (" + selectedKnowledgeBases.length + ")" : '知识库'}
                         </Tag>
                     </Popover>
-
-                    {/* 上下文指示 */}
-                    <Tooltip title={`当前上下文: ${context.pageTitle}`}>
-                        <Tag
-                            icon={<EnvironmentOutlined />}
-                            color="processing"
-                            className={styles.contextTag}
-                        >
-                            {context.pageTitle}
-                        </Tag>
-                    </Tooltip>
-
                     <Tooltip title="折叠">
                         <CompressOutlined className={styles.headerAction} onClick={togglePanel} />
                     </Tooltip>
@@ -279,7 +365,6 @@ export const ChatPanel: React.FC = () => {
             {/* === 消息区域 === */}
             <div className={styles.messagesArea}>
                 {messages.length === 0 ? (
-                    /* 空状态: 显示上下文快捷操作 */
                     <Flex vertical align="center" justify="center" className={styles.emptyState}>
                         <div className={styles.emptyIcon}>⬡</div>
                         <Text className={styles.emptyTitle}>HiveMind AI</Text>
@@ -289,52 +374,69 @@ export const ChatPanel: React.FC = () => {
                         {contextPrompts.length > 0 && (
                             <Prompts
                                 items={contextPrompts}
-                                onItemClick={(info) => handleSend(info.data.description as string)}
+                                onItemClick={(info) => {
+                                    if (info.data.description) {
+                                        handleSend(info.data.description as string);
+                                    }
+                                }}
                                 wrap
                                 className={styles.contextPrompts}
                             />
                         )}
                     </Flex>
                 ) : (
-                    /* 消息列表 */
                     <Bubble.List
                         items={messages.map((msg, idx) => {
                             const isUser = msg.role === 'user';
                             const isLoading = isGenerating && idx === messages.length - 1 && msg.role === 'assistant';
 
-                            // 构造符合 Ant Design X Bubble.List 的 item 对象
                             return {
                                 key: msg.id || String(idx),
                                 role: isUser ? 'end' : 'start',
-                                content: msg.content,
                                 avatar: isUser
                                     ? <Avatar icon={<UserOutlined />} style={{ background: '#06D6A0' }} />
                                     : <Avatar icon={<RobotOutlined />} style={{ background: '#1F2937' }} />,
                                 loading: isLoading,
-                                messageRender: () => (
+                                content: (
                                     <Flex vertical gap={8}>
-                                        {/* Statuses (Memory/Graph Nodes) */}
                                         {msg.metadata?.statuses && msg.metadata.statuses.length > 0 && (
-                                            <Flex vertical gap={4} style={{ marginBottom: 4 }}>
-                                                {msg.metadata.statuses.map((status, i) => {
-                                                    const isGraph = status.includes('图谱');
-                                                    return (
-                                                        <div
-                                                            key={i}
-                                                            className={styles.statusTag}
-                                                            style={{ cursor: isGraph ? 'pointer' : 'default' }}
-                                                            onClick={isGraph ? fetchRealGraph : undefined}
-                                                        >
-                                                            {status} {isGraph && ' (点击查看)'}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </Flex>
+                                            <Collapse
+                                                ghost
+                                                size="small"
+                                                expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} style={{ color: 'var(--hm-color-primary)' }} />}
+                                                className={styles.thoughtCollapse}
+                                                items={[{
+                                                    key: '1',
+                                                    label: <span style={{ color: 'var(--hm-color-primary)', fontSize: 13, fontWeight: 500 }}>
+                                                        {isLoading ? "💡 Agent 思考中..." : "💭 查看执行与检索链路"}
+                                                    </span>,
+                                                    children: (
+                                                        <Flex vertical gap={4} style={{ marginBottom: 4 }}>
+                                                            {msg.metadata.statuses.map((status: string, i: number) => {
+                                                                const isGraph = status.includes('图谱');
+                                                                return (
+                                                                    <div
+                                                                        key={i}
+                                                                        className={styles.statusTag}
+                                                                        style={{ cursor: isGraph ? 'pointer' : 'default', padding: '4px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', fontSize: '12px', borderLeft: '2px solid var(--hm-color-primary)' }}
+                                                                        onClick={isGraph ? fetchRealGraph : undefined}
+                                                                    >
+                                                                        {status} {isGraph && ' (点击查看)'}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </Flex>
+                                                    )
+                                                }]}
+                                            />
                                         )}
 
-                                        <div style={{ wordBreak: 'break-word' }}>{msg.content}</div>
+                                        <div style={{ wordBreak: 'break-word', overflowX: 'auto', fontSize: '14px', lineHeight: '1.6' }} className={styles.markdownBody}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                                                {msg.content || (isLoading ? '...' : '')}
+                                            </ReactMarkdown>
+                                        </div>
 
-                                        {/* Actions */}
                                         {msg.actions && msg.actions.length > 0 && (
                                             <Flex gap={6} wrap>
                                                 {msg.actions.map((action, i) => (
@@ -343,27 +445,70 @@ export const ChatPanel: React.FC = () => {
                                             </Flex>
                                         )}
 
-                                        {/* Feedback Buttons (Only for Assistant & Not Generating) */}
+                                        {!isUser && !isLoading && msg.metadata && (
+                                            <Flex gap={12} align="center" style={{ marginTop: 4, opacity: 0.7 }}>
+                                                {msg.metadata.is_cached && (
+                                                    <Tooltip title="语义缓存命中: 本次回答未消耗 Token，响应极快。">
+                                                        <Tag icon={<ThunderboltOutlined />} color="gold" style={{ border: 'none', background: 'rgba(255, 191, 0, 0.1)', cursor: 'default', margin: 0 }}>
+                                                            CACHED
+                                                        </Tag>
+                                                    </Tooltip>
+                                                )}
+                                                {(msg.metadata.latency_ms ?? 0) > 0 && (
+                                                    <Space size={4} style={{ fontSize: 11, color: '#8c8c8c' }}>
+                                                        <DashboardOutlined />
+                                                        <span>{((msg.metadata.latency_ms ?? 0) / 1000).toFixed(2)}s</span>
+                                                    </Space>
+                                                )}
+                                                {(msg.metadata.total_tokens ?? 0) > 0 && (
+                                                    <Space size={4} style={{ fontSize: 11, color: '#8c8c8c' }}>
+                                                        <DeploymentUnitOutlined />
+                                                        <span>{msg.metadata.total_tokens} tokens</span>
+                                                    </Space>
+                                                )}
+                                                {msg.metadata.trace_data && (
+                                                    <Tooltip title="查看执行追踪 (Trace)">
+                                                        <Tag
+                                                            icon={<BugOutlined />}
+                                                            color="error"
+                                                            style={{ cursor: 'pointer', margin: 0, padding: '0 8px', borderRadius: 4, background: 'rgba(255, 77, 79, 0.1)', border: '1px solid rgba(255, 77, 79, 0.2)', fontSize: 11 }}
+                                                            onClick={() => {
+                                                                try {
+                                                                    if (msg.metadata?.trace_data) {
+                                                                        setCurrentTrace(JSON.parse(msg.metadata.trace_data));
+                                                                        setIsTraceModalOpen(true);
+                                                                    }
+                                                                } catch (e) {
+                                                                    message.error("解析追踪数据失败");
+                                                                }
+                                                            }}
+                                                        >
+                                                            TRACE
+                                                        </Tag>
+                                                    </Tooltip>
+                                                )}
+                                            </Flex>
+                                        )}
+
                                         {!isUser && !isLoading && (
-                                            <Flex gap={8} style={{ marginTop: 4 }}>
-                                                <Tooltip title="有帮助">
+                                            <Flex gap={8} style={{ marginTop: 2 }}>
+                                                <Tooltip title={t('chat.feedback.good')}>
                                                     {msg.rating === 1 ? (
-                                                        <LikeFilled style={{ color: '#1890ff', cursor: 'pointer' }} />
+                                                        <LikeFilled style={{ color: '#1890ff', cursor: 'pointer' }} onClick={() => handleFeedback(msg.id!, 0)} />
                                                     ) : (
                                                         <LikeOutlined
                                                             style={{ color: '#8c8c8c', cursor: 'pointer' }}
-                                                            onClick={() => handleFeedback(msg.id, 1)}
+                                                            onClick={() => handleFeedback(msg.id!, 1)}
                                                         />
                                                     )}
                                                 </Tooltip>
-
-                                                <Tooltip title="无帮助">
+                                                <Tooltip title={t('chat.feedback.bad')}>
                                                     {msg.rating === -1 ? (
-                                                        <DislikeFilled style={{ color: '#ff4d4f', cursor: 'pointer' }} />
+                                                        <DislikeFilled style={{ color: '#ff4d4f', cursor: 'pointer' }} onClick={() => handleFeedback(msg.id!, 0)} />
                                                     ) : (
                                                         <DislikeOutlined
                                                             style={{ color: '#8c8c8c', cursor: 'pointer' }}
-                                                            onClick={() => handleFeedback(msg.id, -1)}
+                                                            onClick={() => handleFeedback(msg.id!, -1)}
                                                         />
                                                     )}
                                                 </Tooltip>
@@ -371,7 +516,7 @@ export const ChatPanel: React.FC = () => {
                                         )}
                                     </Flex>
                                 ),
-                            } as React.ComponentProps<typeof Bubble.List>['items'][number];
+                            } as any;
                         })}
                         className={styles.bubbleList}
                     />
@@ -379,14 +524,35 @@ export const ChatPanel: React.FC = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* === 输入区域 === */}
             <div className={styles.inputArea}>
+                {context.availableActions.length > 0 && (
+                    <div className={styles.promptsContainer}>
+                        <Prompts
+                            items={context.availableActions.map(action => ({
+                                key: action.label,
+                                label: (
+                                    <Space size={4}>
+                                        {action.variant === 'primary' && <ThunderboltOutlined style={{ color: '#faad14' }} />}
+                                        <span>{action.label}</span>
+                                    </Space>
+                                ),
+                                description: action.type === 'navigate' ? "前往 " + action.label : action.label,
+                                action: action
+                            }))}
+                            onItemClick={(info) => {
+                                const action = (info.data as any).action;
+                                handlePromptClick(action);
+                            }}
+                            className={styles.prompts}
+                        />
+                    </div>
+                )}
                 <Sender
                     value={inputValue}
                     onChange={setInputValue}
                     onSubmit={handleSend}
                     loading={isGenerating}
-                    placeholder={`在「${context.pageTitle}」问我任何问题...`}
+                    placeholder={t('chat.placeholder')}
                     className={styles.sender}
                 />
             </div>
@@ -398,55 +564,144 @@ export const ChatPanel: React.FC = () => {
                 onCancel={() => setIsGraphModalOpen(false)}
                 footer={null}
                 width={800}
-                bodyStyle={{ height: 600, padding: 0, background: '#0A0E1A' }}
+                styles={{ body: { height: 600, padding: 0, background: '#0A0E1A' } }}
                 centered
-                destroyOnClose
+                destroyOnHidden
             >
                 {graphData && <GraphVisualizer data={graphData} width={800} height={600} />}
+            </Modal>
+
+            {/* Trace 可观察性 Modal */}
+            <Modal
+                title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BugOutlined style={{ color: 'var(--ant-color-primary)' }} /> 执行追踪 (Custom Tracing)</span>}
+                open={isTraceModalOpen}
+                onCancel={() => setIsTraceModalOpen(false)}
+                footer={null}
+                width={650}
+                centered
+                styles={{ body: { padding: '24px 32px' } }}
+            >
+                <div style={{ maxHeight: 600, overflowY: 'auto', paddingRight: 8 }}>
+                    <Timeline
+                        mode="left"
+                        items={(currentTrace || []).map((step) => ({
+                            color: step.status === 'success' ? '#52c41a' : step.status === 'error' ? '#ff4d4f' : '#1890ff',
+                            dot: step.status === 'success' ? <CheckCircleOutlined /> : step.status === 'error' ? <ExclamationCircleOutlined /> : <ClockCircleOutlined />,
+                            children: (
+                                <div style={{ marginBottom: 16 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                        <Text strong style={{ fontSize: 14 }}>{step.name}</Text>
+                                        <Tag color="default" style={{ border: 'none', background: 'rgba(0,0,0,0.04)', fontSize: 11 }}>
+                                            {step.duration_ms.toFixed(1)}ms
+                                        </Tag>
+                                    </div>
+                                    <div style={{ marginBottom: 8 }}>
+                                        <Tag color="blue" style={{ fontSize: 10, borderRadius: 2 }}>{step.type.toUpperCase()}</Tag>
+                                        {step.status === 'error' && <Tag color="error" style={{ fontSize: 10 }}>FAILED</Tag>}</div >
+
+                                    {step.input && (
+                                        <div style={{ background: 'rgba(0,0,0,0.02)', padding: '8px 12px', borderRadius: 6, marginBottom: 8 }}>
+                                            <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>INPUT:</Text>
+                                            <div style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all', color: '#595959' }}>
+                                                {typeof step.input === 'string' ? step.input : JSON.stringify(step.input)}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {step.metadata?.logs && (
+                                        <Collapse ghost size="small" style={{ marginBottom: 8, background: '#f6ffed', borderRadius: 4, border: '1px solid #d9f7be' }}>
+                                            <Collapse.Panel header={<span style={{ fontSize: 12, color: '#389e0d' }}>查看检索明细 ({step.metadata.logs.length} 条)</span>} key="1">
+                                                <List
+                                                    size="small"
+                                                    dataSource={step.metadata.logs}
+                                                    renderItem={(log: string) => (
+                                                        <List.Item style={{ padding: '4px 0', border: 'none' }}>
+                                                            <Text code style={{ fontSize: 11, width: '100%' }}>{log}</Text>
+                                                        </List.Item>
+                                                    )}
+                                                />
+                                            </Collapse.Panel>
+                                        </Collapse>
+                                    )}
+
+                                    {step.metadata?.docs && step.metadata.docs.length > 0 && (
+                                        <Collapse ghost size="small" style={{ marginBottom: 8, background: '#f0f5ff', borderRadius: 4, border: '1px solid #adc6ff' }}>
+                                            <Collapse.Panel header={<span style={{ fontSize: 12, color: '#003a8c' }}><FileSearchOutlined /> 查看知识分块 ({step.metadata.docs.length} 个)</span>} key="2">
+                                                <List
+                                                    size="small"
+                                                    dataSource={step.metadata.docs}
+                                                    renderItem={(doc: any, i: number) => (
+                                                        <div key={i} style={{ padding: '8px', borderBottom: i < step.metadata.docs.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                                                            <Flex justify="space-between" align="center" style={{ marginBottom: 4 }}>
+                                                                <Tag color="blue" style={{ fontSize: 10, borderRadius: 2 }}>分块 {i + 1}</Tag>
+                                                                <Text type="secondary" style={{ fontSize: 10 }}>匹配度: {(doc.score || 0).toFixed(4)}</Text>
+                                                            </Flex>
+                                                            <Text
+                                                                style={{
+                                                                    fontSize: 11,
+                                                                    color: 'var(--ant-color-primary)',
+                                                                    display: 'block',
+                                                                    marginBottom: 4,
+                                                                    cursor: 'pointer',
+                                                                    textDecoration: 'underline'
+                                                                }}
+                                                                onClick={() => {
+                                                                    const kbId = doc.metadata?.kb_id;
+                                                                    const docId = doc.metadata?.doc_id;
+                                                                    if (kbId) {
+                                                                        navigate('/knowledge?kbId=' + kbId + (docId ? '&docId=' + docId : ''));
+                                                                        setIsTraceModalOpen(false);
+                                                                    } else {
+                                                                        message.warning("无法定位归属知识库");
+                                                                    }
+                                                                }}
+                                                            >
+                                                                来源: {doc.metadata?.file_name || '未知文件'} (第 {doc.metadata?.page || '?'} 页)
+                                                            </Text>
+                                                            <div style={{
+                                                                fontSize: 12,
+                                                                background: '#fff',
+                                                                padding: '8px',
+                                                                borderRadius: '4px',
+                                                                border: '1px solid #f0f0f0',
+                                                                maxHeight: '120px',
+                                                                overflowY: 'auto',
+                                                                whiteSpace: 'pre-wrap',
+                                                                color: '#262626',
+                                                                lineHeight: '1.5'
+                                                            }}>
+                                                                {doc.page_content}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                />
+                                            </Collapse.Panel>
+                                        </Collapse>
+                                    )}
+
+                                    {step.output && step.status !== 'error' && (
+                                        <div style={{ background: 'rgba(82, 196, 26, 0.04)', padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(82, 196, 26, 0.1)' }}>
+                                            <Text type="secondary" style={{ fontSize: 11, display: 'block', color: '#389e0d', marginBottom: 2 }}>OUTPUT:</Text>
+                                            <div style={{ fontSize: 12, color: '#2b2b2b' }}>
+                                                {typeof step.output === 'string' ? step.output : JSON.stringify(step.output)}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {step.status === 'error' && step.output && (
+                                        <div style={{ background: 'rgba(255, 77, 79, 0.04)', padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255, 77, 79, 0.1)' }}>
+                                            <Text type="danger" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>ERROR:</Text>
+                                            <div style={{ fontSize: 12, color: '#cf1322', fontWeight: 500 }}>
+                                                {step.output}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        }))}
+                    />
+                </div>
             </Modal>
         </div>
     );
 };
-
-// ==========================================
-//  Mock Helpers (开发阶段)
-// ==========================================
-
-/* unused
-function generateMockReply(input: string, pageName: string): string {
-    if (input.includes('知识库') || input.includes('创建')) {
-        return '好的，我帮你准备知识库创建流程。你可以点击下方按钮直接前往，或者告诉我你想创建什么类型的知识库。';
-    }
-    if (input.includes('Agent') || input.includes('状态')) {
-        return '当前所有 Agent 处于空闲状态。Supervisor 待命中，随时可以处理新任务。';
-    }
-    if (input.includes('动态') || input.includes('开源')) {
-        return '让我帮你查看最新的技术动态。目前外部学习引擎还未启动，你可以先添加订阅源。';
-    }
-    return `我收到了你在「${pageName}」页面的问题。实际实现中，我会根据你当前的页面上下文，调用对应的 Agent 来回答。`;
-}
-
-function generateMockActions(input: string, _currentPage: string): AIAction[] {
-    if (input.includes('知识库') || input.includes('创建')) {
-        return [
-            { type: 'navigate', label: '前往知识库', target: '/knowledge', icon: 'DatabaseOutlined', variant: 'primary' },
-        ];
-    }
-    if (input.includes('Agent') || input.includes('状态')) {
-        return [
-            { type: 'navigate', label: '查看监控面板', target: '/agents', icon: 'ClusterOutlined', variant: 'primary' },
-        ];
-    }
-    if (input.includes('动态') || input.includes('开源') || input.includes('项目')) {
-        return [
-            { type: 'navigate', label: '查看技术动态', target: '/learning', icon: 'BulbOutlined', variant: 'primary' },
-        ];
-    }
-    if (input.includes('设置') || input.includes('模型') || input.includes('配置')) {
-        return [
-            { type: 'navigate', label: '打开设置', target: '/settings', icon: 'SettingOutlined' },
-        ];
-    }
-    return [];
-}
-*/

@@ -2,6 +2,8 @@ import abc
 from typing import List
 from app.core.vector_store import get_vector_store, VectorDocument
 from app.core.reranker import get_reranker
+from app.core.database import async_session_factory
+from sqlalchemy import select
 from .protocol import RetrievalContext
 
 class BaseRetrievalStep(abc.ABC):
@@ -16,18 +18,52 @@ class QueryPreProcessingStep(BaseRetrievalStep):
     Similar to 'IngestionParser'.
     """
     async def execute(self, ctx: RetrievalContext):
-        # 1. Expand query (Mock: Add lowercase version or expand vague terms)
+        from app.core.llm import get_llm_service
+        import json
+        
         ctx.expanded_queries = [ctx.query]
         
-        # If query is very short, maybe add context?
         if len(ctx.query) < 5:
-            ctx.log("QueryApply", f"Query '{ctx.query}' is short.")
-        else:
-            # Mock expansion
-            # ctx.expanded_queries.append(ctx.query + " definition")
-            pass
+            ctx.log("QueryProc", f"Query '{ctx.query}' is short, skipping advanced analysis.")
+            return
+
+        llm = get_llm_service()
+        prompt = f"""You are an advanced query analyzer for a RAG system.
+Analyze the user's query: "{ctx.query}"
+
+Return a JSON object with the following fields:
+1. "intent": String. Identify the primary intent. Must be one of: "fact" (factual retrieval), "comparison" (comparing multiple entities), "summary" (summarizing an entire topic), or "action" (instructional or procedural).
+2. "rewritten_query": String. Rewrite the original query to be more specific, objective, and clear for vector search.
+3. "hyde_document": String. A hypothetical short answer to the query, 1-2 positive sentences, used to improve vector retrieval (HyDE technique). Keep it concise.
+4. "keywords": List of strings. Key entities, topics, or exact terms.
+
+Respond ONLY with valid JSON. Do not include markdown formatting.
+"""
+        
+        try:
+            response = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
             
-        ctx.log("QueryProc", f"Prepared {len(ctx.expanded_queries)} queries")
+            # Remove Markdown block if present
+            if response.startswith("```json"):
+                response = response[7:]
+            if response.endswith("```"):
+                response = response[:-3]
+                
+            analysis = json.loads(response.strip())
+            
+            ctx.query_intent = analysis.get("intent", "fact")
+            ctx.rewritten_query = analysis.get("rewritten_query", ctx.query)
+            ctx.hyde_document = analysis.get("hyde_document")
+            ctx.keywords = analysis.get("keywords", [])
+            
+            if ctx.rewritten_query and ctx.rewritten_query != ctx.query:
+                ctx.expanded_queries.append(ctx.rewritten_query)
+            if ctx.hyde_document:
+                ctx.expanded_queries.append(ctx.hyde_document)
+                
+            ctx.log("QueryProc", f"Intent: {ctx.query_intent}, Expanded: {len(ctx.expanded_queries)} variations. Keywords: {ctx.keywords}")
+        except Exception as e:
+            ctx.log("QueryProc", f"Query analysis failed: {e}. Fallback to basic term.")
 
 class HybridRetrievalStep(BaseRetrievalStep):
     """
@@ -80,3 +116,171 @@ class RerankingStep(BaseRetrievalStep):
         )
         ctx.final_results = ranked
         ctx.log("Rerank", f"Selected top {len(ranked)} documents")
+
+class ParentChunkExpansionStep(BaseRetrievalStep):
+    """
+    Parent-Child Chunking Expansion Phase.
+    If a retrieved vector document has a 'parent_chunk_id', we fetch the parent chunk
+    content from the SQL database and substitute it to provide broader context to the LLM.
+    """
+    async def execute(self, ctx: RetrievalContext):
+        if not ctx.final_results:
+            return
+            
+        from app.models.knowledge import DocumentChunk
+        
+        async with async_session_factory() as session:
+            for doc in ctx.final_results:
+                parent_id = doc.metadata.get("parent_chunk_id")
+                if parent_id:
+                    # Fetch parent chunk
+                    parent = await session.get(DocumentChunk, parent_id)
+                    if parent and parent.content:
+                        original_length = len(doc.page_content)
+                        # Substitute the content
+                        doc.page_content = parent.content
+                        ctx.log("ParentExpansion", f"Expanded chunk '{doc.metadata.get('chunk_id')}' from {original_length} to {len(parent.content)} chars.")
+                        # Clear parent_chunk_id so we don't expand again
+                        doc.metadata["expanded_from_parent"] = True
+
+class GraphRetrievalStep(BaseRetrievalStep):
+    """
+    Graph Traversal Phase: Retrieve connected nodes from Neo4j to enrich context.
+    """
+    async def execute(self, ctx: RetrievalContext):
+        from app.core.graph_store import get_graph_store
+        store = get_graph_store()
+        
+        if not store.driver:
+            return
+            
+        # 1. Extract entities from the query to know what to lookup in the graph
+        # For MVP, we can just do a very simple entity extraction or rely on existing entities.
+        # Here we extract entities directly using GraphExtractor
+        try:
+            from app.services.knowledge.graph_extractor import GraphExtractor
+            extractor = GraphExtractor()
+            nodes, _ = await extractor.extract_knowledge_graph(ctx.query, "query_context")
+            entity_names = [n.get("id") for n in nodes if n.get("id")]
+            
+            if not entity_names:
+                return
+                
+            graph_facts = []
+            # 2. Lookup related edges in the graph for each KB
+            for kb_id in ctx.kb_ids:
+                for entity in entity_names:
+                    # Basic neighborhood query
+                    cypher = """
+                    MATCH (n {id: $entity, kb_id: $kb_id})-[r]-(m)
+                    RETURN n.id AS source, type(r) AS rel, m.id AS target, r.description AS desc
+                    LIMIT 5
+                    """
+                    results = store.query(cypher, {"entity": entity, "kb_id": kb_id})
+                    for row in results:
+                        desc = row.get('desc', '') or ''
+                        fact = f"Graph Fact: {row['source']} -> {row['rel']} -> {row['target']} ({desc})"
+                        graph_facts.append(fact)
+                        
+            if graph_facts:
+                # Remove duplicates
+                graph_facts = list(set(graph_facts))
+                # Create a mock VectorDocument to hold graph context
+                from app.core.vector_store import VectorDocument
+                graph_doc = VectorDocument(
+                    page_content="[Knowledge Graph Context]\n" + "\n".join(graph_facts),
+                    metadata={"source": "GraphRAG", "type": "graph", "entities": entity_names}
+                )
+                # Ensure context has candidates initialized
+                if not hasattr(ctx, 'candidates') or ctx.candidates is None:
+                    ctx.candidates = []
+                # Prepend graph context so it has high priority in hybrid retrieval
+                ctx.candidates.insert(0, graph_doc)
+                ctx.log("GraphRetrieval", f"Injected {len(graph_facts)} graph facts for entities: {entity_names}")
+        except Exception as e:
+            ctx.log("GraphRetrieval", f"Graph retrieval failed: {e}")
+
+class AclFilterStep(BaseRetrievalStep):
+    """
+    ACL Phase: Check document permissions against the current user before returning them.
+    (M2.2 Security & Data Desensitization)
+    """
+    async def execute(self, ctx: RetrievalContext):
+        if not ctx.candidates:
+            return
+            
+        # If user is admin or script, bypass ACL checks
+        if ctx.is_admin or not ctx.user_id:
+            ctx.log("ACL", "Bypassing ACL due to admin or system context.")
+            return
+            
+        from app.models.chat import User
+        from app.services.security_service import SecurityService
+        
+        allowed_candidates = []
+        rejected = 0
+        async with async_session_factory() as session:
+            # Load user for Role/Dept checks
+            user = await session.get(User, ctx.user_id)
+            if not user:
+                ctx.log("ACL", f"User {ctx.user_id} not found, rejecting all candidates.")
+                ctx.candidates = []
+                return
+
+            for doc in ctx.candidates:
+                doc_id = doc.metadata.get("document_id")
+                if not doc_id:
+                    allowed_candidates.append(doc)
+                    continue
+                    
+                # Use centralized SecurityService logic
+                is_allowed = await SecurityService.has_permission(session, user, doc_id, "read")
+                
+                # Special Case: If no permissions are set, we decide if it's public.
+                # In this implementation, SecurityService.has_permission returns False if no match.
+                # Let's check if there are ANY permissions at all.
+                # Actually, SecurityService should probably handle "public by default" vs "private by default".
+                # For now, we follow the logic: if no permissions exist, it's public for MVP context.
+                from app.models.security import DocumentPermission
+                stmt = select(DocumentPermission).where(DocumentPermission.document_id == doc_id)
+                has_any_perm = (await session.exec(stmt)).first() is not None
+                
+                if not has_any_perm or is_allowed:
+                    allowed_candidates.append(doc)
+                else:
+                    rejected += 1
+                    
+        ctx.candidates = allowed_candidates
+        ctx.log("ACL", f"Filtered out {rejected} documents for user {user.username} (Role: {user.role}, Dept: {user.department_id})")
+
+
+class PromptInjectionFilterStep(BaseRetrievalStep):
+    """
+    Security Phase: Prevent context injection attacks.
+    Scan chunks for malicious instructions like 'Ignore previous instructions'.
+    """
+    async def execute(self, ctx: RetrievalContext):
+        if not ctx.final_results:
+            return
+            
+        clean_results = []
+        suspicious = 0
+        malicious_patterns = [
+            "ignore previous instructions",
+            "system prompt",
+            "you are now",
+            "forget everything",
+            "do not follow"
+        ]
+        
+        for doc in ctx.final_results:
+            content = doc.page_content.lower()
+            if any(p in content for p in malicious_patterns):
+                suspicious += 1
+            else:
+                clean_results.append(doc)
+                
+        ctx.final_results = clean_results
+        if suspicious > 0:
+            ctx.log("Security", f"Dropped {suspicious} chunks due to suspected Prompt Injection.")
+

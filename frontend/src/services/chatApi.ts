@@ -25,7 +25,7 @@ export interface ConversationItem {
     updated_at: string;
 }
 
-const API_BASE = '/api/v1'; // Base is already handled by api.ts axios instance for non-SSE, but SSE uses fetchEventSource
+// Base is already handled by api.ts axios instance for non-SSE, but SSE uses fetchEventSource
 
 export const chatApi = {
     /**
@@ -37,12 +37,14 @@ export const chatApi = {
         knowledgeBaseIds?: string[];
         onDelta: (delta: string) => void;
         onStatus?: (status: string) => void;
+        onInsight?: (data: any) => void;
         onSessionCreated?: (id: string, title: string) => void;
-        onFinish?: () => void;
+        onFinish?: (metrics?: { latency_ms?: number; is_cached?: boolean }) => void;
+        clientEvents?: any[];
         onError?: (err: unknown) => void;
         controller?: AbortController;
     }) {
-        const { message, conversationId, knowledgeBaseIds, onDelta, onStatus, onSessionCreated, onFinish, onError, controller } = params;
+        const { message, conversationId, knowledgeBaseIds, clientEvents, onDelta, onStatus, onInsight, onSessionCreated, onFinish, onError, controller } = params;
 
         // Use the baseURL from import.meta.env via a clean string construction
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -58,6 +60,7 @@ export const chatApi = {
                     message,
                     conversation_id: conversationId,
                     knowledge_base_ids: knowledgeBaseIds,
+                    client_events: clientEvents
                 }),
                 signal: controller?.signal,
 
@@ -69,10 +72,15 @@ export const chatApi = {
                             onDelta(data.delta);
                         } else if (data.type === 'status') {
                             onStatus?.(data.content);
+                        } else if (data.type === 'insight') {
+                            onInsight?.(data.data);
                         } else if (data.type === 'session_created') {
                             onSessionCreated?.(data.id, data.title);
                         } else if (data.type === 'done') {
-                            onFinish?.();
+                            onFinish?.({
+                                latency_ms: data.latency_ms,
+                                is_cached: data.is_cached
+                            });
                         } else if (data.type === 'error') {
                             onError?.(new Error(data.message || data.content));
                         }
@@ -117,10 +125,9 @@ export const chatApi = {
      * 提交消息反馈
      */
     async submitFeedback(messageId: string, rating: number, comment?: string) {
-        return api.post('/learning/feedback', {
-            message_id: messageId,
+        return api.post(`/chat/messages/${messageId}/feedback`, {
             rating,
-            comment
+            feedback_text: comment
         });
     }
 };

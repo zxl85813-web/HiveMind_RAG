@@ -1,0 +1,94 @@
+# ============================================================
+# Platform Knowledge Base — 平台内置知识
+#
+# 这不是向量数据库，而是直接注入到 Agent System Prompt 的
+# 结构化知识。AI 每次回答时天然知道平台有什么功能。
+#
+# 编辑说明:
+#   - 修改本文件后重启后端即可生效 (或调用 PromptEngine.reload())
+#   - 保持简洁，总字符数建议 < 2000 (节省 Token)
+# ============================================================
+
+meta:
+  name: "platform_knowledge"
+  version: "1.0.0"
+  description: "HiveMind RAG 平台内置知识"
+
+# === 平台概览 ===
+overview: |
+  本系统是 **HiveMind** — 一个企业级 AI-First RAG (检索增强生成) 平台。
+  核心理念: 以 AI 对话为主入口，驱动知识管理、评测、安全审计等全部功能。
+
+# === 功能模块 ===
+features:
+  - name: "知识库管理"
+    path: "/knowledge"
+    description: "创建和管理知识库，上传文档(PDF/DOCX/MD/TXT)，自动分块、向量化、索引。"
+    operations:
+      - "创建知识库: 点击「创建知识库」按钮或在聊天中输入「创建知识库」"
+      - "上传文档: 进入知识库详情页，点击上传按钮，支持批量上传"
+      - "管理标签: 为文档添加分类标签，便于检索和管理"
+
+  - name: "RAG 评测中心"
+    path: "/evaluation"
+    description: "对知识库的检索质量进行量化评测，包括 Faithfulness、Relevance、Precision、Recall 四项指标。"
+    operations:
+      - "创建评测集: 提供问题和标准答案对"
+      - "运行评测: 选择知识库和模型，自动执行并生成报告"
+      - "多模型对比: 同一评测集可对比不同模型表现"
+
+  - name: "安全中心"
+    path: "/security"
+    description: "文档脱敏策略管理，PII 检测，敏感信息自动遮蔽。"
+    operations:
+      - "配置脱敏规则: 定义需要检测的敏感信息类型(身份证、手机号等)"
+      - "查看脱敏报告: 查看文档处理中发现和处理的敏感信息"
+
+  - name: "审计日志"
+    path: "/audit"
+    description: "记录所有系统操作的审计追踪，包括谁在何时做了什么。"
+
+  - name: "Agent 蜂巢"
+    path: "/agents"
+    description: "查看和监控 AI Agent 集群状态，包括 Supervisor、RAG Agent、Code Agent 等。"
+
+  - name: "Prompt Studio"
+    path: "/studio"
+    description: "可视化编辑和测试 Prompt 模板。"
+
+  - name: "数据 Pipeline"
+    path: "/pipelines"
+    description: "配置数据处理流水线，包括文档解析、分块、向量化等步骤。"
+
+  - name: "模型微调"
+    path: "/finetuning"
+    description: "基于知识库内容生成微调数据集，导出为 JSONL 格式用于模型训练。"
+
+  - name: "批处理任务"
+    path: "/batch"
+    description: "管理批量数据处理任务，查看任务进度和结果。"
+
+  - name: "技术动态"
+    path: "/learning"
+    description: "自动聚合 AI/NLP 领域技术动态，帮助团队保持技术敏感度。"
+
+  - name: "系统设置"
+    path: "/settings"
+    description: "配置 LLM 模型、API 密钥、Embedding 模型、日志级别等系统参数。"
+
+# === 常见问答 ===
+faq:
+  - q: "如何创建知识库？"
+    a: "在聊天中输入「创建知识库」，或导航到知识库管理页面点击创建按钮。"
+
+  - q: "支持哪些文档格式？"
+    a: "支持 PDF、DOCX、Markdown、TXT 格式。上传后系统会自动解析、分块并建立向量索引。"
+
+  - q: "如何评测检索质量？"
+    a: "进入评测中心，创建评测集(提供问题+标准答案)，选择知识库运行评测，系统会自动计算四项指标。"
+
+  - q: "如何保护敏感信息？"
+    a: "在安全中心配置脱敏策略，系统会在文档入库时自动检测并遮蔽敏感信息(如身份证号、手机号)。"
+
+  - q: "这个平台使用了什么技术栈？"
+    a: "后端: FastAPI + LangGraph + SQLModel + PostgreSQL。前端: React + Ant Design + Zustand。"

@@ -7,15 +7,47 @@ by simply adding a new parser class.
 """
 
 import abc
-from typing import Any, Dict, Type, List, Optional
+from typing import Any, Dict, Type, List, Optional, TYPE_CHECKING
+from pydantic import BaseModel
 from loguru import logger
 from app.batch.ingestion.protocol import StandardizedResource, ResourceType
 
-class IngestionContext(abc.ABC):
+if TYPE_CHECKING:
+    from app.batch.pipeline import Artifact
+
+class IngestionContext(BaseModel):
     """Context passed around during ingestion."""
     job_id: str
     file_path: str
+    kb_id: Optional[str] = None
     metadata: Dict[str, Any] = {}
+
+
+class BaseIngestionStep(abc.ABC):
+    """Base class for a local Python-based pipeline step."""
+    
+    @abc.abstractmethod
+    async def run(self, stage_input: Any) -> 'Artifact':
+        pass
+
+
+class StepRegistry:
+    """Registry for local Python-based steps."""
+    _steps: Dict[str, Type[BaseIngestionStep]] = {}
+
+    @classmethod
+    def register(cls, name: str):
+        def wrapper(step_cls: Type[BaseIngestionStep]):
+            cls._steps[name] = step_cls
+            logger.info(f"🧱 Registered Pipeline Step: {name} -> {step_cls.__name__}")
+            return step_cls
+        return wrapper
+
+    @classmethod
+    def get_step(cls, name: str) -> Optional[BaseIngestionStep]:
+        step_cls = cls._steps.get(name)
+        return step_cls() if step_cls else None
+
 
 class BaseParser(abc.ABC):
     """

@@ -11,6 +11,7 @@ class KnowledgeBaseCreate(SQLModel):
     embedding_model: str = "text-embedding-3-small"
     vector_collection: str = "default_collection" # User can specify or auto-gen
     is_public: bool = False
+    chunking_strategy: str = "recursive"
 
 class KnowledgeBaseUpdate(SQLModel):
     name: str | None = None

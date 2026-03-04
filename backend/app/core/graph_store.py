@@ -14,7 +14,7 @@ except ImportError:
 class Neo4jStore:
     def __init__(self):
         if not NEO4J_AVAILABLE:
-            print("⚠️ Neo4j driver not installed.")
+            logger.warning("Neo4j driver not installed. Graph features will be disabled.")
             self.driver = None
             return
 

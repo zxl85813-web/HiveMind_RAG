@@ -8,6 +8,8 @@ Reranker Interface — Re-ranking and Fine-ranking for RAG.
 import abc
 from typing import List, Tuple
 from app.core.vector_store import VectorDocument
+from app.core.logging import logger
+import threading
 
 class BaseReranker(abc.ABC):
     """Abstract interface for Reranking models (Cross-Encoder)."""
@@ -66,8 +68,63 @@ class MockReranker(BaseReranker):
         
         return [doc for doc, score in scored_docs[:top_n]]
 
-# Singleton
-_global_reranker = MockReranker()
+class BGEReranker(BaseReranker):
+    """
+    Real Cross-Encoder Reranker using HuggingFace / SentenceTransformers.
+    Default to BAAI/bge-reranker-base (or a smaller model for MVP).
+    """
+    
+    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
+        self.model_name = model_name
+        self._model = None
+        self._lock = threading.Lock()
+        
+    def _get_model(self):
+        # Lazy load to avoid blocking startup if model needs downloading
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    try:
+                        from sentence_transformers import CrossEncoder
+                        logger.info(f"Loading Reranker Model: {self.model_name}...")
+                        self._model = CrossEncoder(self.model_name)
+                        logger.info(f"Reranker Model {self.model_name} loaded successfully.")
+                    except ImportError:
+                        logger.error("sentence-transformers not installed! Reranker will fail.")
+                        raise
+        return self._model
+        
+    async def rerank(self, query: str, documents: List[VectorDocument], top_n: int = 5) -> List[VectorDocument]:
+        if not documents:
+            return []
+            
+        try:
+            model = self._get_model()
+            pairs = [[query, doc.page_content[:2000]] for doc in documents] # Truncate if too long to prevent token limit errors
+            
+            # predict
+            scores = model.predict(pairs)
+            
+            doc_scores = list(zip(documents, scores))
+            doc_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            ret_docs = []
+            for doc, score in doc_scores[:top_n]:
+                # Dynamically set score attribute
+                setattr(doc, "score", float(score))
+                ret_docs.append(doc)
+                
+            return ret_docs
+            
+        except Exception as e:
+            logger.error(f"Error during reranking: {e}")
+            # Fallback to mock logic if model fails
+            logger.warning("Falling back to MockReranker logic.")
+            mock = MockReranker()
+            return await mock.rerank(query, documents, top_n)
+
+# Global Instance
+_global_reranker = BGEReranker()
 
 def get_reranker() -> BaseReranker:
     return _global_reranker

@@ -42,11 +42,27 @@ You have access to the following tools:
 Use tools when they help you accomplish the task more accurately.
 {% endif %}
 
+{% if platform_kb %}
+## Platform Knowledge (Built-in)
+{{ platform_kb.overview | default('') }}
+
+### Available Features
+{% for feat in platform_kb.features | default([]) %}
+- **{{ feat.name }}** (`{{ feat.path }}`): {{ feat.description }}
+{% endfor %}
+
+### FAQ
+{% for item in platform_kb.faq | default([]) %}
+- Q: {{ item.q }}  A: {{ item.a }}
+{% endfor %}
+{% endif %}
+
 {# --- Layer 4: Runtime Context (injected at call time) --- #}
 {% if rag_context %}
 ## Retrieved Knowledge
 The following documents were retrieved from the knowledge base.
-Use them as your PRIMARY source of information:
+Use them as your PRIMARY source of information. 
+IMPORTANT: When you use information from these documents, you MUST append citations in the format `[idx]` (e.g. `[1]`, `[2]`) at the end of the sentence.
 
 {{ rag_context }}
 {% endif %}

@@ -48,3 +48,42 @@
 .sender {
     width: 100%;
 }
+
+.statusIndicator {
+    margin-top: var(--hm-space-sm);
+    padding: var(--hm-space-xs) var(--hm-space-sm);
+    background: rgba(6, 214, 160, 0.05);
+    border-radius: var(--hm-radius-md);
+    border-left: 2px solid var(--hm-primary, #06D6A0);
+    display: inline-flex;
+    align-items: center;
+    animation: slideIn var(--hm-duration-fast) var(--hm-ease-out);
+}
+
+.statusText {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--hm-text-secondary, #6B7280);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

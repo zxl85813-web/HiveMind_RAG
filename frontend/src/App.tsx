@@ -19,7 +19,14 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { AgentsPage } from './pages/AgentsPage';
 import { StudioPage } from './pages/StudioPage';
 import { LearningPage } from './pages/LearningPage';
+import { AuditPage } from './pages/AuditPage';
+import { EvalPage } from './pages/EvalPage';
+import { FineTuningPage } from './pages/FineTuningPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { BatchPage } from './pages/BatchPage';
+import { SecurityPage } from './pages/SecurityPage';
+import { PipelineBuilderPage } from './pages/PipelineBuilderPage';
+import { MockControl } from './components/common/MockControl';
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -95,12 +102,19 @@ function App() {
             <Route index element={<DashboardPage />} />
             {/* 功能页面 — Chat Panel 始终跟随 */}
             <Route path="knowledge" element={<KnowledgePage />} />
-            <Route path="agents" element={<AgentsPage />} />
             <Route path="studio" element={<StudioPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="batch" element={<BatchPage />} />
             <Route path="learning" element={<LearningPage />} />
+            <Route path="audit" element={<AuditPage />} />
+            <Route path="security" element={<SecurityPage />} />
+            <Route path="evaluation" element={<EvalPage />} />
+            <Route path="finetuning" element={<FineTuningPage />} />
+            <Route path="pipelines" element={<PipelineBuilderPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
+        <MockControl />
       </AntApp>
     </ConfigProvider>
   );

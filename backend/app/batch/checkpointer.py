@@ -81,12 +81,12 @@ class PickleCheckpointer(MemorySaver):
         self._save()
         return result
 
-    def put_writes(self, config: RunnableConfig, writes: Sequence[tuple[str, Any]], task_id: str) -> None:
+    def put_writes(self, config: RunnableConfig, writes: Sequence[tuple[str, Any]], task_id: str, task_path: str = "") -> None:
         """Store intermediate writes and persist."""
-        super().put_writes(config, writes, task_id)
+        super().put_writes(config, writes, task_id, task_path)
         self._save()
 
-    async def aput_writes(self, config: RunnableConfig, writes: Sequence[tuple[str, Any]], task_id: str) -> None:
+    async def aput_writes(self, config: RunnableConfig, writes: Sequence[tuple[str, Any]], task_id: str, task_path: str = "") -> None:
         """Async store intermediate writes and persist."""
-        await super().aput_writes(config, writes, task_id)
+        await super().aput_writes(config, writes, task_id, task_path)
         self._save()

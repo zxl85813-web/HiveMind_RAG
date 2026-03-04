@@ -121,3 +121,14 @@ pre,
 .ant-form-item-label>label {
   font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
+
+/* === Highlight Row (Deep Linking) === */
+.highlight-row {
+  background-color: rgba(6, 214, 160, 0.1) !important;
+  border-left: 3px solid var(--hm-color-brand);
+  transition: background-color 0.5s ease;
+}
+
+.highlight-row:hover {
+  background-color: rgba(6, 214, 160, 0.15) !important;
+}

@@ -19,6 +19,76 @@ const api = axios.create({
     },
 });
 
+// === Mock Interceptor ===
+if (import.meta.env.VITE_USE_MOCK === 'true') {
+    console.warn('🛠️ [Frontend] Running in MOCK Mode');
+    api.interceptors.request.use(async (config) => {
+        const { mockHandlers, sleep } = await import('../mock/handlers');
+        const { specialCases } = await import('../mock/specialCases');
+
+        const mockCase = localStorage.getItem('VITE_MOCK_CASE');
+
+        // Handle special cases if requested (Priority over normal mocks)
+        if (mockCase && specialCases[mockCase]) {
+            const scenario = specialCases[mockCase];
+            console.warn(`🧪 [Mock] Special Scenario: ${mockCase}`);
+            await sleep(scenario.delay || 500);
+
+            config.adapter = async () => ({
+                data: scenario.data,
+                status: scenario.status || 200,
+                statusText: scenario.status === 200 ? 'OK' : 'Error',
+                headers: {},
+                config,
+            });
+            return config;
+        }
+
+        // Extract pure path without query strings
+        const pureUrl = config.url?.replace(config.baseURL || '', '').split('?')[0];
+        const key = `${config.method?.toUpperCase()}:${pureUrl}`;
+
+        if (mockHandlers[key]) {
+            console.log(`🎯 [Mock] Intercepted: ${key}`);
+            await sleep(500); // 模拟网络延迟
+            config.adapter = async () => ({
+                data: mockHandlers[key],
+                status: 200,
+                statusText: 'OK',
+                headers: {},
+                config,
+            });
+        } else {
+            // Dynamic route matching for paths like /knowledge/{id}/graph, /knowledge/{id}/documents
+            // Match /knowledge/{any-kb-id}/graph -> use kb-001 mock
+            if (pureUrl && config.method?.toUpperCase() === 'GET') {
+                const graphMatch = pureUrl.match(/^\/knowledge\/[^/]+\/graph$/);
+                const docsMatch = pureUrl.match(/^\/knowledge\/[^/]+\/documents$/);
+                let fallbackKey: string | undefined;
+
+                if (graphMatch) {
+                    fallbackKey = 'GET:/knowledge/kb-001/graph';
+                } else if (docsMatch) {
+                    fallbackKey = 'GET:/knowledge/kb-001/documents';
+                }
+
+                if (fallbackKey && mockHandlers[fallbackKey]) {
+                    console.log(`🎯 [Mock] Dynamic match: ${key} -> ${fallbackKey}`);
+                    await sleep(500);
+                    config.adapter = async () => ({
+                        data: mockHandlers[fallbackKey!],
+                        status: 200,
+                        statusText: 'OK',
+                        headers: {},
+                        config,
+                    });
+                }
+            }
+        }
+        return config;
+    });
+}
+
 // 请求拦截器 — 注入 auth token
 api.interceptors.request.use(
     (config) => {

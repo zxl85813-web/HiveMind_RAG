@@ -15,7 +15,7 @@ from app.batch.plugins.excel_parser import ExcelParser
 async def test_resource_ingestion_flow():
     # 1. Pipeline Definition
     pipeline_def = create_ingestion_pipeline()
-    assert len(pipeline_def.stages) == 4
+    assert len(pipeline_def.stages) == 5
 
     # 2. Mock Data
     mock_pdf_path = "/tmp/fake_paper.pdf"

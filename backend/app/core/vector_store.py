@@ -7,6 +7,8 @@ Vector Store Interface — Abstract storage for embeddings.
 """
 import abc
 import asyncio
+import os
+import uuid
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 from loguru import logger
@@ -36,7 +38,6 @@ class BaseVectorStore(abc.ABC):
         """Add documents to the vector store."""
         pass
 
-    @abc.abstractmethod
     async def search(
         self, 
         query: str, 
@@ -45,6 +46,11 @@ class BaseVectorStore(abc.ABC):
         collection_name: str = "default"
     ) -> List[VectorDocument]:
         """Unified search method supporting Vector, BM25, and Hybrid modes."""
+        pass
+
+    @abc.abstractmethod
+    async def delete_documents(self, collection_name: str, filter_metadata: Dict[str, Any]) -> None:
+        """Delete documents from the vector store based on metadata."""
         pass
 
     async def similarity_search(self, query: str, k: int = 4, collection_name: str = "default") -> List[VectorDocument]:
@@ -107,6 +113,16 @@ class MockVectorStore(BaseVectorStore):
         
         scored_docs.sort(key=lambda x: x[1], reverse=True)
         return [doc for doc, score in scored_docs[:k]]
+
+    async def delete_documents(self, collection_name: str, filter_metadata: Dict[str, Any]) -> None:
+        if collection_name not in self._store:
+            return
+        initial_count = len(self._store[collection_name])
+        self._store[collection_name] = [
+            doc for doc in self._store[collection_name]
+            if not all(doc.metadata.get(k) == v for k, v in filter_metadata.items())
+        ]
+        print(f"📚 [MockVectorStore] Deleted {initial_count - len(self._store[collection_name])} docs from '{collection_name}'")
 
 class ElasticVectorStore(BaseVectorStore):
     """Production Vector Store using Elasticsearch 8.x."""
@@ -217,6 +233,87 @@ class ElasticVectorStore(BaseVectorStore):
             ))
         return results
 
+    async def delete_documents(self, collection_name: str, filter_metadata: Dict[str, Any]) -> None:
+        index_name = f"{settings.ES_INDEX_PREFIX}_{collection_name}".lower()
+        if not await self.client.indices.exists(index=index_name):
+            return
+            
+        must_clauses = [{"match": {f"metadata.{k}": v}} for k, v in filter_metadata.items()]
+        query = {"query": {"bool": {"must": must_clauses}}}
+        
+        try:
+            await self.client.delete_by_query(index=index_name, body=query)
+            logger.info(f"Deleted docs from ES index {index_name} with filter {filter_metadata}")
+        except Exception as e:
+            logger.error(f"ES Delete failed: {e}")
+
+class ChromaVectorStore(BaseVectorStore):
+    """Local Vector Store using ChromaDB."""
+    
+    def __init__(self):
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+        
+        path = os.path.join(os.getcwd(), "data", "chroma")
+        os.makedirs(path, exist_ok=True)
+        
+        self.client = chromadb.PersistentClient(path=path)
+        logger.info(f"💾 Connected to ChromaDB at {path}")
+
+    async def add_documents(self, documents: List[VectorDocument], collection_name: str) -> List[str]:
+        # Chroma operations are blocking, run in executor if needed for high volume
+        # Simplified for now
+        collection = self.client.get_or_create_collection(name=collection_name)
+        
+        ids = [f"id_{uuid.uuid4()}" for _ in documents]
+        texts = [doc.page_content for doc in documents]
+        metadatas = [doc.metadata for doc in documents]
+        embeddings = [doc.embedding for doc in documents if doc.embedding]
+        
+        if embeddings:
+            collection.add(
+                ids=ids,
+                documents=texts,
+                metadatas=metadatas,
+                embeddings=embeddings
+            )
+        else:
+            collection.add(
+                ids=ids,
+                documents=texts,
+                metadatas=metadatas
+            )
+        
+        logger.info(f"Chroma: Added {len(documents)} docs to {collection_name}")
+        return ids
+
+    async def search(self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default") -> List[VectorDocument]:
+        collection = self.client.get_or_create_collection(name=collection_name)
+        
+        results = collection.query(
+            query_texts=[query],
+            n_results=k
+        )
+        
+        docs = []
+        if results and results['documents']:
+            for i in range(len(results['documents'][0])):
+                docs.append(VectorDocument(
+                    page_content=results['documents'][0][i],
+                    metadata=results['metadatas'][0][i] if results['metadatas'] else {}
+                ))
+        return docs
+
+    async def delete_documents(self, collection_name: str, filter_metadata: Dict[str, Any]) -> None:
+        try:
+            collection = self.client.get_collection(name=collection_name)
+            # ChromaDB where filter
+            # Example: {"doc_id": "123"}
+            collection.delete(where=filter_metadata)
+            logger.info(f"Chroma: Deleted docs from {collection_name} with filter {filter_metadata}")
+        except Exception as e:
+            logger.warning(f"Chroma delete failed or collection not found: {e}")
+
 # Singleton Factory
 _global_store = None
 
@@ -230,6 +327,12 @@ def get_vector_store() -> BaseVectorStore:
             _global_store = ElasticVectorStore()
         except Exception as e:
             logger.error(f"⚠️ Failed to init ElasticVectorStore: {e}. Falling back to Mock.")
+            _global_store = MockVectorStore()
+    elif settings.VECTOR_STORE_TYPE == "chroma":
+        try:
+            _global_store = ChromaVectorStore()
+        except Exception as e:
+            logger.error(f"⚠️ Failed to init ChromaVectorStore: {e}. Falling back to Mock.")
             _global_store = MockVectorStore()
     else:
         _global_store = MockVectorStore()

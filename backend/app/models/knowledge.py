@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlmodel import Field, Relationship, SQLModel
+from .tags import DocumentTagLink, Tag
 
 
 
@@ -29,6 +30,8 @@ class KnowledgeBase(SQLModel, table=True):
     embedding_model: str = "text-embedding-3-small"
     vector_collection: str  # Name of the collection in vector store
     is_public: bool = Field(default=False)
+    chunking_strategy: str = Field(default="recursive")
+    pipeline_type: str = Field(default="general")  # general | technical | legal | table
     version: int = Field(default=1)  # Versioning support
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -53,3 +56,20 @@ class Document(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     knowledge_bases: list[KnowledgeBase] = Relationship(back_populates="documents", link_model=KnowledgeBaseDocumentLink)
+    chunks: list["DocumentChunk"] = Relationship(back_populates="document")
+    tags: list[Tag] = Relationship(back_populates="documents", link_model=DocumentTagLink)
+    tag_links: list[DocumentTagLink] = Relationship(back_populates="document")
+
+
+class DocumentChunk(SQLModel, table=True):
+    __tablename__ = "document_chunks"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    document_id: str = Field(foreign_key="documents.id", index=True)
+    chunk_index: int = Field(default=0)
+    content: str
+    metadata_json: str = Field(default="{}")  # Will store JSON string for MVP
+    parent_chunk_id: str | None = Field(default=None, foreign_key="document_chunks.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    document: Document = Relationship(back_populates="chunks")

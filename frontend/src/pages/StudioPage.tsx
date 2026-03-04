@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, Select, Steps, Table, Typography, message, Tag, Space } from 'antd';
+import { App, Card, Input, Button, Select, Steps, Table, Typography, Tag, Space } from 'antd';
 import { RocketOutlined, FileExcelOutlined, LoadingOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { knowledgeApi } from '../services/knowledgeApi';
@@ -11,6 +11,7 @@ const { TextArea } = Input;
 const { Title, Text } = Typography;
 
 export const StudioPage: React.FC = () => {
+    const { message } = App.useApp();
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
     const [selectedKbs, setSelectedKbs] = useState<string[]>([]);
     const [task, setTask] = useState('');
@@ -139,7 +140,7 @@ export const StudioPage: React.FC = () => {
                                 <Space>
                                     <FileExcelOutlined style={{ color: 'green' }} />
                                     <span>Generated Artifact</span>
-                                    {result.artifact_path && <Tag color="blue">{result.artifact_path}</Tag>}
+                                    {result.artifact_path && <Tag color="blue" variant="filled">{result.artifact_path}</Tag>}
                                 </Space>
                             }
                             extra={<Button type="link">Download CSV</Button>}

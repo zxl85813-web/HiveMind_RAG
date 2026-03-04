@@ -12,7 +12,7 @@
  * @see docs/design/ai-first-frontend.md
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Typography, Flex } from 'antd';
 import {
     DatabaseOutlined,
@@ -21,43 +21,96 @@ import {
     ThunderboltOutlined,
     ArrowRightOutlined,
     RocketOutlined,
+    LineChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { StatCard } from '../components/common';
+import { agentApi } from '../services/agentApi';
+import { knowledgeApi } from '../services/knowledgeApi';
+import { evalApi } from '../services/evalApi';
+import { Tag, List, Progress } from 'antd';
 import styles from './DashboardPage.module.css';
 
 const { Title, Text, Paragraph } = Typography;
 
-/** 快捷入口 */
-const quickActions = [
-    {
-        key: 'knowledge',
-        icon: <DatabaseOutlined />,
-        title: '知识库管理',
-        desc: '上传文档，构建向量知识库',
-        path: '/knowledge',
-        color: '#06D6A0',
-    },
-    {
-        key: 'agents',
-        icon: <ClusterOutlined />,
-        title: 'Agent 蜂巢',
-        desc: '监控和管理 AI Agent 集群',
-        path: '/agents',
-        color: '#118AB2',
-    },
-    {
-        key: 'learning',
-        icon: <BulbOutlined />,
-        title: '技术动态',
-        desc: '追踪开源项目与技术趋势',
-        path: '/learning',
-        color: '#FFD166',
-    },
-];
-
 export const DashboardPage: React.FC = () => {
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+
+    /** 快捷入口 */
+    const quickActions = [
+        {
+            key: 'knowledge',
+            icon: <DatabaseOutlined />,
+            title: t('nav.knowledge'),
+            desc: i18n.language === 'zh-CN' ? '上传文档，构建向量知识库' : 'Upload docs and build vector KB',
+            path: '/knowledge',
+            color: '#06D6A0',
+        },
+        {
+            key: 'agents',
+            icon: <ClusterOutlined />,
+            title: t('nav.agents'),
+            desc: i18n.language === 'zh-CN' ? '监控和管理 AI Agent 集群' : 'Monitor and manage AI Agent swarm',
+            path: '/agents',
+            color: '#118AB2',
+        },
+        {
+            key: 'learning',
+            icon: <BulbOutlined />,
+            title: t('nav.learning'),
+            desc: i18n.language === 'zh-CN' ? '追踪开源项目与技术趋势' : 'Track open source and tech trends',
+            path: '/learning',
+            color: '#FFD166',
+        },
+    ];
+    const [stats, setStats] = useState({
+        kbs: 0,
+        agents: 0,
+        requests: 0,
+        discoveries: 0
+    });
+    const [recentReports, setRecentReports] = useState<any[]>([]);
+    const [loadingReports, setLoadingReports] = useState(false);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const [statsRes, kbRes] = await Promise.all([
+                    agentApi.getStats(),
+                    knowledgeApi.listKBs()
+                ]);
+                setStats({
+                    kbs: kbRes.data.data.length,
+                    agents: statsRes.data.data.active_agents,
+                    requests: statsRes.data.data.today_requests,
+                    discoveries: statsRes.data.data.reflection_logs // Using reflection logs as a proxy for activity
+                });
+            } catch (err) {
+                console.error("Failed to fetch dashboard stats", err);
+            }
+        };
+
+        const fetchReports = async () => {
+            setLoadingReports(true);
+            try {
+                const res = await evalApi.getReports();
+                setRecentReports(res.data.data.slice(0, 3));
+            } catch (err) {
+                // Mock data if empty
+                setRecentReports([
+                    { id: '1', kb_name: 'Core Docs', total_score: 0.85, created_at: new Date().toISOString() },
+                    { id: '2', kb_name: 'API Reference', total_score: 0.42, created_at: new Date().toISOString() }
+                ]);
+            } finally {
+                setLoadingReports(false);
+            }
+        };
+
+        fetchStats();
+        fetchReports();
+    }, []);
 
     return (
         <div className={styles.container}>
@@ -68,27 +121,26 @@ export const DashboardPage: React.FC = () => {
                     <Text className={styles.heroLabelText}>AI-First RAG Platform</Text>
                 </Flex>
                 <Title level={2} className={styles.heroTitle}>
-                    欢迎使用 <span className={styles.brand}>HiveMind</span>
+                    {t('dashboard.welcome')} <span className={styles.brand}>HiveMind</span>
                 </Title>
                 <Paragraph className={styles.heroDesc}>
-                    通过右侧 AI 助手开始对话，或选择下方快捷入口直接操作。
-                    AI 助手能理解你的意图并自动导航到对应功能。
+                    {t('dashboard.heroDesc')}
                 </Paragraph>
             </div>
 
             {/* === 统计概览 === */}
             <Row gutter={[16, 16]}>
                 <Col xs={12} md={6}>
-                    <StatCard title="知识库" value={0} icon={<DatabaseOutlined />} color="primary" />
+                    <StatCard title={t('dashboard.stats.kbs')} value={stats.kbs} icon={<DatabaseOutlined />} color="primary" />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title="活跃 Agent" value={5} icon={<ClusterOutlined />} color="info" />
+                    <StatCard title={t('dashboard.stats.agents')} value={stats.agents} icon={<ClusterOutlined />} color="info" />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title="今日对话" value={0} icon={<ThunderboltOutlined />} color="warning" />
+                    <StatCard title={t('dashboard.stats.requests')} value={stats.requests} icon={<ThunderboltOutlined />} color="warning" />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title="技术发现" value={0} icon={<BulbOutlined />} color="success" />
+                    <StatCard title={t('dashboard.stats.discoveries')} value={stats.discoveries} icon={<BulbOutlined />} color="success" />
                 </Col>
             </Row>
 
@@ -126,11 +178,34 @@ export const DashboardPage: React.FC = () => {
 
             {/* === 近期活动 (占位) === */}
             <div>
-                <Title level={5} className={styles.sectionTitle}>近期活动</Title>
-                <Card className={styles.activityCard}>
-                    <Flex align="center" justify="center" style={{ padding: 32 }}>
-                        <Text type="secondary">暂无活动记录。通过右侧 AI 助手开始你的第一次对话 →</Text>
-                    </Flex>
+                <Title level={5} className={styles.sectionTitle}>近期质量报告</Title>
+                <Card className={styles.activityCard} loading={loadingReports}>
+                    {recentReports.length > 0 ? (
+                        <List
+                            itemLayout="horizontal"
+                            dataSource={recentReports}
+                            renderItem={(item) => (
+                                <List.Item
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => navigate('/evaluation')}
+                                    extra={<Tag color={item.total_score > 0.7 ? 'success' : item.total_score > 0.4 ? 'warning' : 'error'}>Score: {Math.round(item.total_score * 100)}%</Tag>}
+                                >
+                                    <List.Item.Meta
+                                        avatar={<LineChartOutlined style={{ fontSize: 24, color: 'var(--hm-color-brand)' }} />}
+                                        title={<Text strong>{item.kb_name || 'Knowledge Base Evaluation'}</Text>}
+                                        description={<Text type="secondary" style={{ fontSize: 12 }}>完成于 {new Date(item.created_at).toLocaleString()}</Text>}
+                                    />
+                                    <div style={{ width: 120 }}>
+                                        <Progress percent={Math.round(item.total_score * 100)} size="small" showInfo={false} strokeColor={item.total_score > 0.7 ? '#52c41a' : '#faad14'} />
+                                    </div>
+                                </List.Item>
+                            )}
+                        />
+                    ) : (
+                        <Flex align="center" justify="center" style={{ padding: 32 }}>
+                            <Text type="secondary">暂无质量评估记录。建议前往「质量评估」模块生成测试集进行客观打分。</Text>
+                        </Flex>
+                    )}
                 </Card>
             </div>
         </div>

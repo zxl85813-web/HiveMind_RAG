@@ -1,0 +1,93 @@
+{
+    "common": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "create": "Create",
+        "loading": "Loading...",
+        "success": "Success",
+        "error": "Error",
+        "warning": "Warning",
+        "language": "Switch Language",
+        "status": "Status"
+    },
+    "nav": {
+        "dashboard": "Dashboard",
+        "knowledge": "Knowledge",
+        "agents": "Agents",
+        "studio": "Studio",
+        "learning": "Learning",
+        "audit": "Data Audit",
+        "security": "Security",
+        "evaluation": "Evaluation",
+        "finetuning": "Datasets",
+        "pipelines": "Pipelines",
+        "batch": "Batch Jobs",
+        "settings": "Settings"
+    },
+    "dashboard": {
+        "welcome": "Welcome to HiveMind",
+        "heroDesc": "Start a conversation with the AI assistant on the right, or use the quick access links below.",
+        "stats": {
+            "kbs": "Knowledge Bases",
+            "agents": "Active Agents",
+            "requests": "Today Requests",
+            "discoveries": "Discoveries"
+        }
+    },
+    "knowledge": {
+        "title": "Knowledge Management",
+        "create": "Create Knowledge Base",
+        "name": "Name",
+        "desc": "Description",
+        "public": "Public Access",
+        "embedding": "Embedding Model",
+        "emptyTitle": "No Knowledge Base Found",
+        "emptyDesc": "Click 'Create' to upload your first document.",
+        "fileName": "File Name",
+        "fileSize": "Size",
+        "uploadText": "Click or drag files to this area to upload",
+        "uploadHint": "Support TXT, MD, PDF, DOCX. Parsing and indexing will run in the background."
+    },
+    "agents": {
+        "title": "Agent Swarm Monitor",
+        "description": "Real-time state monitoring and shared memory retrieval for LangGraph-based multi-agent collaboration system",
+        "stats": {
+            "active": "Active Agents",
+            "requests": "Today Requests",
+            "todos": "Shared TODOs",
+            "reflections": "Reflections"
+        },
+        "clusters": "Cluster Nodes",
+        "tabs": {
+            "todos": "Shared Task Queue",
+            "reflections": "Reflection Logs"
+        }
+    },
+    "learning": {
+        "title": "Tech Discoveries",
+        "description": "Automatically track open source projects and latest tech, analyze relevance to current tech stack",
+        "add_sub": "Add Subscription",
+        "tabs": {
+            "discovery": "Discoveries",
+            "my_subs": "My Subscriptions"
+        }
+    },
+    "settings": {
+        "title": "System Settings",
+        "description": "Configure LLM models, Agent behaviors, and system preferences",
+        "llm": "LLM Model Configuration",
+        "agent": "Agent Behavior"
+    },
+    "chat": {
+        "title": "AI Assistant",
+        "history": "History",
+        "new": "New Chat",
+        "placeholder": "Ask me anything here...",
+        "feedback": {
+            "good": "Helpful",
+            "bad": "Not Helpful"
+        }
+    }
+}

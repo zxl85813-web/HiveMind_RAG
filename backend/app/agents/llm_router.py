@@ -1,119 +1,143 @@
 """
-Multi-LLM Router — intelligent model selection and failover.
+Multi-LLM Router — intelligent model selection, cost optimization, and failover.
 
-Routes requests to the most appropriate LLM based on:
-- Task type (reasoning, chat, code, summarization, embedding)
-- Cost constraints
-- Latency requirements
-- Model availability
+Routes requests based on task complexity (Model Tiering):
+- REASONING (High Cost): Complex analysis, planning, multi-step deduction (e.g. o1, deepseek-r1)
+- BALANCED (Mid Cost): Default agent logic, robust tool use (e.g. gpt-4o, deepseek-v3)
+- FAST (Low Cost): Summarization, entity extraction, simple routing (e.g. gpt-4o-mini, qwen-plus)
 
-Supports fallback chains for reliability.
+Concept: Cost-Aware Swarm Orchestration.
+High-end reasoning is only invoked for ambiguous or high-stakes reasoning phases.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI
 from loguru import logger
 from pydantic import BaseModel
 
-
-class TaskType(str, Enum):
-    """Classification of tasks for routing purposes."""
-
-    CHAT = "chat"  # General conversation
-    REASONING = "reasoning"  # Complex analysis, planning
-    CODE = "code"  # Code generation
-    SUMMARIZATION = "summarization"  # Text summarization
-    EXTRACTION = "extraction"  # Information extraction
-    ROUTING = "routing"  # Agent routing decisions (fast + cheap)
-    EMBEDDING = "embedding"  # Text embedding (separate model type)
+from app.core.config import settings
 
 
-class ModelProvider(str, Enum):
-    OPENAI = "openai"
-    DEEPSEEK = "deepseek"
-    QWEN = "qwen"
-    ZHIPU = "zhipu"
-    OLLAMA = "ollama"
-    VLLM = "vllm"
-
-
-class ModelConfig(BaseModel):
-    """Configuration for a single LLM model."""
-
-    provider: ModelProvider
-    model_name: str
-    display_name: str
-    supported_tasks: list[TaskType]
-    base_url: str | None = None
-    api_key_env: str = ""
-    max_tokens: int = 4096
-    temperature: float = 0.7
-    cost_per_1k_input: float = 0.0
-    cost_per_1k_output: float = 0.0
-    priority: int = 0  # Higher = preferred
+class ModelTier(str, Enum):
+    """Classification of models by capability and cost."""
+    FAST = "fast"            # Simple reasoning, extremely cheap
+    BALANCED = "balanced"    # Standard agent tool use & logic
+    REASONING = "reasoning"  # Complex planning & error correction
 
 
 class LLMRouter:
     """
-    Intelligent LLM router with fallback support.
-
-    Usage:
-        router = LLMRouter()
-        llm = router.get_model(TaskType.REASONING)
-        response = await llm.ainvoke(messages)
+    Orchestrates multiple LLM instances to balance quality and cost.
+    Ensures that "simple tasks" use "cheap models" (FAST tier).
     """
 
     def __init__(self) -> None:
-        self._models: dict[str, ModelConfig] = {}
-        self._instances: dict[str, BaseChatModel] = {}
-        self._fallback_chains: dict[TaskType, list[str]] = {}
-        logger.info("🔀 LLMRouter initialized")
+        self._instances: Dict[ModelTier, BaseChatModel] = {}
+        self._setup_default_routes()
+        logger.info("🔀 LLMRouter initialized with cost-optimization tiers")
 
-    def register_model(self, config: ModelConfig) -> None:
-        """Register a model configuration."""
-        key = f"{config.provider}:{config.model_name}"
-        self._models[key] = config
-        logger.info(f"Model registered: {config.display_name} ({key})")
+    def _setup_default_routes(self) -> None:
+        """Initialize default models for each tier from settings. Supports per-tier providers."""
+        try:
+            # Determine provider overrides or use global fallback
+            global_provider = settings.LLM_PROVIDER
+            logger.debug(f"LLM Routing: Global Provider={global_provider}")
+            
+            # --- Reasoning Tier ---
+            r_provider = settings.REASONING_PROVIDER or global_provider
+            try:
+                self._instances[ModelTier.REASONING] = self._create_llm(
+                    model=settings.DEFAULT_REASONING_MODEL,
+                    provider=r_provider,
+                    temperature=0.6
+                )
+                logger.debug(f"✅ Loaded REASONING tier: {settings.DEFAULT_REASONING_MODEL} via {r_provider}")
+            except Exception as e:
+                logger.error(f"❌ Failed to load REASONING tier: {e}")
 
-    def get_model(self, task_type: TaskType, preferred_model: str | None = None) -> BaseChatModel:
-        """
-        Get the best model for a given task type.
+            # --- Balanced Tier ---
+            b_provider = settings.BALANCED_PROVIDER or global_provider
+            try:
+                self._instances[ModelTier.BALANCED] = self._create_llm(
+                    model=settings.LLM_MODEL, 
+                    provider=b_provider,
+                    temperature=0.7
+                )
+                logger.debug(f"✅ Loaded BALANCED tier: {settings.LLM_MODEL} via {b_provider}")
+            except Exception as e:
+                logger.error(f"❌ Failed to load BALANCED tier: {e}")
 
-        Args:
-            task_type: The type of task to route
-            preferred_model: Optional specific model override
+            # --- Fast Tier ---
+            f_provider = settings.FAST_PROVIDER or global_provider
+            try:
+                self._instances[ModelTier.FAST] = self._create_llm(
+                    model=settings.DEFAULT_CHAT_MODEL,
+                    provider=f_provider,
+                    temperature=0.3
+                )
+                logger.debug(f"✅ Loaded FAST tier: {settings.DEFAULT_CHAT_MODEL} via {f_provider}")
+            except Exception as e:
+                logger.error(f"❌ Failed to load FAST tier: {e}")
 
-        Returns:
-            A LangChain chat model instance
-        """
-        # TODO: Implement model selection logic
-        # 1. If preferred_model specified, use it
-        # 2. Otherwise, find best model for task_type based on priority
-        # 3. Instantiate BaseChatModel (lazy, cached)
-        # 4. Return with fallback wrapper
-        raise NotImplementedError("LLM routing not yet implemented")
+            if not self._instances:
+                raise RuntimeError("No LLM tiers could be initialized. Check your .env credentials.")
 
-    def _create_instance(self, config: ModelConfig) -> BaseChatModel:
-        """Create a LangChain model instance from configuration."""
-        # TODO: Implement for each provider
-        # match config.provider:
-        #     case ModelProvider.OPENAI:
-        #         from langchain_openai import ChatOpenAI
-        #         return ChatOpenAI(model=config.model_name, ...)
-        #     case ModelProvider.DEEPSEEK:
-        #         return ChatOpenAI(base_url=config.base_url, ...)
-        #     case ModelProvider.OLLAMA:
-        #         from langchain_ollama import ChatOllama
-        #         return ChatOllama(model=config.model_name)
-        raise NotImplementedError()
+        except Exception as e:
+            logger.error(f"Critical failure in LLMRouter setup: {e}")
 
-    def list_available_models(self) -> list[ModelConfig]:
-        """List all registered model configurations."""
-        return list(self._models.values())
+    def _create_llm(self, model: str, provider: str, temperature: float = 0.7) -> BaseChatModel:
+        """Internal factory for LangChain model instances."""
+        # Standardize provider name
+        p = provider.lower()
+        
+        # Prepare configuration
+        config = {
+            "model": model,
+            "temperature": temperature,
+        }
 
-    def get_usage_stats(self) -> dict[str, Any]:
-        """Get usage statistics per model."""
-        # TODO: Implement token counting, cost tracking
-        return {}
+        # Inject provider-specific credentials from settings
+        if p == "siliconflow":
+            config["api_key"] = settings.LLM_API_KEY
+            config["base_url"] = settings.LLM_BASE_URL
+        elif p in ["moonshot", "kimi"]:
+            config["api_key"] = settings.KIMI_API_KEY
+            config["base_url"] = settings.KIMI_API_BASE # Using the fixed setting name
+        elif p == "openai":
+            config["api_key"] = settings.OPENAI_API_KEY
+            config["base_url"] = settings.OPENAI_BASE_URL
+        elif p == "deepseek":
+            config["api_key"] = settings.DEEPSEEK_API_KEY
+            config["base_url"] = settings.DEEPSEEK_BASE_URL
+        else:
+            # Generic fallback
+            config["api_key"] = settings.LLM_API_KEY or settings.OPENAI_API_KEY
+            config["base_url"] = settings.LLM_BASE_URL or settings.OPENAI_BASE_URL
+
+        if not config.get("api_key"):
+            raise ValueError(f"Missing API Key for provider '{p}'")
+
+        return ChatOpenAI(**config)
+
+    def get_model(self, tier: ModelTier = ModelTier.BALANCED) -> BaseChatModel:
+        """Get the chat model instance for the requested tier."""
+        # Direct hit
+        if tier in self._instances:
+            return self._instances[tier]
+            
+        # Failover to BALANCED
+        if ModelTier.BALANCED in self._instances:
+            return self._instances[ModelTier.BALANCED]
+            
+        # Absolute fallback to first available
+        if self._instances:
+            return list(self._instances.values())[0]
+            
+        raise RuntimeError("No LLM instances available in router.")
+
+    def list_tiers(self) -> Dict[str, str]:
+        """Expose current routing map for UI or logging."""
+        return {tier.value: str(getattr(inst, 'model', getattr(inst, 'model_name', 'unknown'))) for tier, inst in self._instances.items()}

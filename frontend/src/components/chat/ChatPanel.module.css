@@ -37,7 +37,6 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    border-left: var(--hm-border-subtle);
     background: var(--hm-color-bg-base);
     animation: slideInRight var(--hm-duration-normal) var(--hm-ease-out);
 }
@@ -48,6 +47,12 @@
     padding: 0 var(--hm-space-md);
     border-bottom: var(--hm-border-subtle);
     flex-shrink: 0;
+    transition: padding var(--hm-duration-normal) ease;
+}
+
+.headerAI {
+    padding-right: 200px;
+    /* 增加到 200px 确保万无一失 */
 }
 
 .headerIcon {
@@ -152,6 +157,40 @@
     100% {
         box-shadow: 0 0 8px rgba(17, 138, 178, 0.4);
     }
+}
+
+.thoughtCollapse {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-radius: var(--hm-radius-md) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    margin-bottom: var(--hm-space-sm);
+}
+
+.markdownBody {
+    color: var(--hm-color-text-primary);
+}
+
+.markdownBody p:last-child {
+    margin-bottom: 0;
+}
+
+.markdownBody pre {
+    background: #1e1e1e;
+    padding: var(--hm-space-sm);
+    border-radius: var(--hm-radius-md);
+    overflow-x: auto;
+}
+
+.markdownBody code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.markdownBody pre code {
+    background: transparent;
+    padding: 0;
 }
 
 /* === History === */

@@ -1,9 +1,9 @@
 /**
- * AppLayout 样式 — AI-First 布局
+ * AppLayout 样式 — AI-First 双模式布局
  *
- * 三区结构:
- *   Header (fixed top)
- *   Body: Content (flexible) + ChatPanel (fixed right)
+ * 两种模式:
+ *   🤖 AI Mode: Chat 居中全屏, 侧边栏收缩为图标
+ *   📊 Classic Mode: 传统三栏 (Sidebar + Content + ChatPanel)
  */
 
 .layout {
@@ -12,7 +12,14 @@
     display: flex;
 }
 
-/* === Sidebar (Left Sider) === */
+.headerAI {
+    padding-right: 180px;
+    /* 为右上角的模式切换按钮留出充足空间 */
+}
+
+/* =============================================
+   Sidebar
+   ============================================= */
 .sider {
     height: 100vh;
     position: sticky;
@@ -23,6 +30,7 @@
     backdrop-filter: var(--hm-glass-blur);
     -webkit-backdrop-filter: var(--hm-glass-blur);
     border-right: var(--hm-glass-border);
+    transition: all 0.3s ease;
 }
 
 .siderInner {
@@ -39,8 +47,9 @@
     cursor: pointer;
     padding: 24px;
     flex-shrink: 0;
-    transition: opacity var(--hm-duration-fast) ease;
+    transition: all var(--hm-duration-fast) ease;
     border-bottom: var(--hm-glass-border);
+    justify-content: center;
 }
 
 .logo:hover {
@@ -51,6 +60,7 @@
     font-size: 24px;
     color: var(--hm-color-brand);
     filter: drop-shadow(0 0 8px rgba(6, 214, 160, 0.3));
+    flex-shrink: 0;
 }
 
 .logoText {
@@ -61,6 +71,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    white-space: nowrap;
 }
 
 .nav {
@@ -122,20 +133,112 @@
     animation: statusPulse 3s ease-in-out infinite;
 }
 
-/* === Body: Content + ChatPanel === */
+/* =============================================
+   Body: Content + ChatPanel
+   ============================================= */
 .mainLayout {
     display: flex;
     flex-direction: row;
     flex: 1;
     background: transparent;
     height: 100vh;
+    position: relative;
 }
 
+/* === Mode Switcher (右上角) === */
+.modeSwitcher {
+    position: absolute;
+    top: 12px;
+    right: 54px;
+    /* 从 12px 移到 54px，避开 ChatPanel 的一些控件 */
+    z-index: 1000;
+}
+
+.modeSwitchBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Sora', sans-serif;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.modeSwitchBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modeSwitchBtn:active {
+    transform: translateY(0);
+}
+
+.modeSwitchAI {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--hm-color-text-secondary);
+}
+
+.modeSwitchAI:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--hm-color-text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.modeSwitchClassic {
+    background: rgba(6, 214, 160, 0.1);
+    color: var(--hm-color-brand);
+    border-color: rgba(6, 214, 160, 0.25);
+}
+
+.modeSwitchClassic:hover {
+    background: rgba(6, 214, 160, 0.18);
+    border-color: rgba(6, 214, 160, 0.4);
+    box-shadow: 0 4px 20px rgba(6, 214, 160, 0.15);
+}
+
+.modeSwitchLabel {
+    white-space: nowrap;
+}
+
+/* =============================================
+   AI Mode: Chat 居中全屏
+   ============================================= */
+.aiModeContent {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    overflow: hidden;
+    padding: 0;
+    background: transparent;
+}
+
+.aiModeChatWrap {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn var(--hm-duration-normal) var(--hm-ease-out);
+}
+
+/* AI 模式下的 ChatPanel 应该没有左边框 */
+.aiModeChatWrap :global(.panel) {
+    border-left: none;
+}
+
+/* =============================================
+   Classic Mode: 传统三栏
+   ============================================= */
 .content {
     flex: 1;
     overflow-y: auto;
     min-width: 0;
-    /* flex 子元素收缩 */
 }
 
 .contentInner {
@@ -145,10 +248,26 @@
     animation: fadeIn var(--hm-duration-normal) var(--hm-ease-out);
 }
 
-/* Chat Panel 容器 */
+/* Chat Panel 容器 (传统模式) */
 .chatPanelWrap {
     flex-shrink: 0;
     height: 100%;
     transition: width var(--hm-duration-normal) var(--hm-ease-out);
     overflow: hidden;
+    border-left: var(--hm-border-subtle);
+}
+
+/* =============================================
+   Animations
+   ============================================= */
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px rgba(6, 214, 160, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 16px rgba(6, 214, 160, 0.6);
+    }
 }

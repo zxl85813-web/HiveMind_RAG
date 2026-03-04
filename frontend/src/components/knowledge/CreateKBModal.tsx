@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Form, Input, Switch, Select } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export const CreateKBModal: React.FC<Props> = ({ open, onCancel, onSubmit, loading }) => {
+    const { t } = useTranslation();
     const [form] = Form.useForm();
 
     const handleOk = async () => {
@@ -29,26 +31,35 @@ export const CreateKBModal: React.FC<Props> = ({ open, onCancel, onSubmit, loadi
 
     return (
         <Modal
-            title="创建知识库"
+            title={t('knowledge.create')}
             open={open}
             onOk={handleOk}
             onCancel={onCancel}
             confirmLoading={loading}
+            destroyOnHidden={true}
+            forceRender={true}
         >
-            <Form form={form} layout="vertical" initialValues={{ is_public: false, embedding_model: 'text-embedding-3-small' }}>
-                <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
-                    <Input placeholder="知识库名称 (例如: 产品文档)" />
+            <Form form={form} layout="vertical" initialValues={{ is_public: false, embedding_model: 'text-embedding-3-small', chunking_strategy: 'recursive' }}>
+                <Form.Item name="name" label={t('knowledge.name')} rules={[{ required: true, message: 'Please input name' }]}>
+                    <Input placeholder="eg: Product Docs" />
                 </Form.Item>
-                <Form.Item name="description" label="描述">
-                    <Input.TextArea placeholder="该知识库的用途..." rows={3} />
+                <Form.Item name="description" label={t('knowledge.desc')}>
+                    <Input.TextArea rows={3} />
                 </Form.Item>
-                <Form.Item name="embedding_model" label="Embedding 模型">
+                <Form.Item name="embedding_model" label={t('knowledge.embedding')}>
                     <Select options={[
                         { label: 'OpenAI text-embedding-3-small', value: 'text-embedding-3-small' },
                         { label: 'OpenAI text-embedding-3-large', value: 'text-embedding-3-large' },
                     ]} />
                 </Form.Item>
-                <Form.Item name="is_public" label="公开可见" valuePropName="checked" tooltip="若开启，所有用户均可检索此知识库">
+                <Form.Item name="chunking_strategy" label="Chunking Strategy">
+                    <Select options={[
+                        { label: 'Recursive Character (Default)', value: 'recursive' },
+                        { label: 'Parent-Child (Advanced Context)', value: 'parent_child' },
+                        { label: 'Table Aware (Markdown)', value: 'table_aware' },
+                    ]} />
+                </Form.Item>
+                <Form.Item name="is_public" label={t('knowledge.public')} valuePropName="checked">
                     <Switch />
                 </Form.Item>
             </Form>

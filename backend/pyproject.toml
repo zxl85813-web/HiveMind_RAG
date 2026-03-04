@@ -44,6 +44,10 @@ dependencies = [
     "langfuse>=2.0.0",
     "loguru>=0.7.0",
 
+    # === Knowledge Graph ===
+    "neo4j>=5.14.0",
+    "networkx>=3.0",
+
     # === Utilities ===
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",

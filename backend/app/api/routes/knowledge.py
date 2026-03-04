@@ -1,13 +1,14 @@
 """
 Knowledge Base management endpoints.
 """
-from typing import Sequence
+from typing import Sequence, Any
 import shutil
 import os
 import uuid
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
-from sqlmodel import Session
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
 from app.schemas.knowledge import KnowledgeBaseCreate, KnowledgeBaseUpdate, DocumentCreate, DocumentResponse
@@ -16,15 +17,18 @@ from app.services.indexing import index_document_task
 from app.models.chat import User
 from app.core.config import settings
 from app.common.response import ApiResponse
+from app.core.database import engine
+from app.core.exceptions import AppError, NotFoundError
+from app.core.vector_store import get_vector_store
+from app.services.retrieval.pipeline import get_retrieval_service
 
 router = APIRouter()
-mock_user_id = "mock-user-001"
 
 
-@router.post("/", response_model=KnowledgeBase)
+@router.post("", response_model=ApiResponse[KnowledgeBase])
 async def create_knowledge_base(
     kb_in: KnowledgeBaseCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new knowledge base."""
@@ -41,40 +45,97 @@ async def create_knowledge_base(
         embedding_model=kb_in.embedding_model,
         vector_collection=collection_name,
         is_public=kb_in.is_public,
+        chunking_strategy=kb_in.chunking_strategy,
     )
-    kb = service.create_kb(kb)
+    kb = await service.create_kb(kb)
     return ApiResponse.ok(data=kb)
 
 
-@router.get("/", response_model=Sequence[KnowledgeBase])
+@router.get("", response_model=ApiResponse[Sequence[KnowledgeBase]])
 async def list_knowledge_bases(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List all knowledge bases owned by user."""
     service = KnowledgeService(db)
-    kbs = service.list_kbs(mock_user_id)
+    kbs = await service.list_kbs(current_user.id)
     return ApiResponse.ok(data=kbs)
 
+# ----------------------------------------------------------------------------
+# RAG Search
+# ----------------------------------------------------------------------------
 
-@router.get("/{kb_id}", response_model=KnowledgeBase)
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    search_type: str = "hybrid"  # vector, bm25, hybrid
+
+class SearchResponse(BaseModel):
+    results: list[dict[str, Any]]
+    context_log: list[str]
+
+@router.post("/{kb_id}/search", response_model=ApiResponse[SearchResponse])
+async def search_knowledge_base(
+    kb_id: str,
+    request: SearchRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search a specific knowledge base using the Retrieval Pipeline.
+    This replaces the raw vector store search, incorporating query rewrite and reranking.
+    """
+    from app.core.database import async_session_factory
+    async with async_session_factory() as session:
+        kb = await session.get(KnowledgeBase, kb_id)
+        if not kb:
+            raise NotFoundError("Knowledge Base", kb_id)
+        # TODO: Add ownership/permission check
+
+    retrieval_service = get_retrieval_service()
+    
+    docs = await retrieval_service.run(
+        query=request.query,
+        collection_names=[kb.vector_collection],
+        search_type=request.search_type,
+        top_k=request.top_k,    # Docs to recall
+        top_n=request.top_k     # Docs to return after rerank
+    )
+    
+    # Format results
+    results = []
+    for doc in docs:
+        results.append({
+            "content": doc.page_content,
+            "metadata": doc.metadata,
+            "score": getattr(doc, "score", None) # Reranker might add score
+        })
+        
+    # How to return log? RetrievalPipeline should probably attach it to returned objects.
+    # For now, we omit detailed log if not returned by run()
+        
+    return ApiResponse.ok(data=SearchResponse(
+        results=results,
+        context_log=["Search completed via RetrievalPipeline"]
+    ))
+
+@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase])
 async def get_knowledge_base(
     kb_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get knowledge base details."""
     service = KnowledgeService(db)
-    kb = service.get_kb(kb_id)
+    kb = await service.get_kb(kb_id)
     if kb.owner_id != current_user.id and not kb.is_public:
         raise HTTPException(status_code=403, detail="Not authorized")
     return ApiResponse.ok(data=kb)
 
 
-@router.post("/documents", response_model=DocumentResponse)
+@router.post("/documents", response_model=ApiResponse[DocumentResponse])
 async def upload_document_global(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a document to the global library (not linked to any KB yet)."""
@@ -86,13 +147,14 @@ async def upload_document_global(
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
     file_path = os.path.join(upload_dir, unique_filename)
     
-    # Write file
+    # Write file by chunks to avoid OOM
+    file_size = 0
     async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await file.read() # Read into memory (careful with large files)
-        await out_file.write(content)
+        while chunk := await file.read(1024 * 1024):  # 1MB chunks
+            await out_file.write(chunk)
+            file_size += len(chunk)
         
     # 2. Extract metadata
-    file_size = len(content)
     file_type = file.filename.split('.')[-1].lower() if '.' in file.filename else 'unknown'
     
     # 3. Create Document record
@@ -106,60 +168,159 @@ async def upload_document_global(
     )
     
     service = KnowledgeService(db)
-    return service.create_document(doc)
+    doc = await service.create_document(doc)
+    return ApiResponse.ok(data=doc)
 
 
-@router.post("/{kb_id}/documents/{doc_id}", response_model=KnowledgeBaseDocumentLink)
+@router.post("/{kb_id}/documents/{doc_id}", response_model=ApiResponse[KnowledgeBaseDocumentLink])
 async def link_document(
     kb_id: str,
     doc_id: str,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Link an existing document to a knowledge base and start indexing."""
     service = KnowledgeService(db)
     # Check ownership
-    kb = service.get_kb(kb_id)
+    kb = await service.get_kb(kb_id)
     if kb.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    link = service.link_document_to_kb(kb_id, doc_id)
+    link = await service.link_document_to_kb(kb_id, doc_id)
     
     # Trigger background indexing
     background_tasks.add_task(index_document_task, kb_id, doc_id)
     
-    return link
+    return ApiResponse.ok(data=link)
 
 
-@router.get("/{kb_id}/documents", response_model=Sequence[Document])
+@router.get("/{kb_id}/documents", response_model=ApiResponse[Sequence[Document]])
 async def list_documents_in_kb(
     kb_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List documents in a knowledge base."""
     service = KnowledgeService(db)
-    kb = service.get_kb(kb_id)
+    kb = await service.get_kb(kb_id)
     # Access control
     if kb.owner_id != current_user.id and not kb.is_public:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    return service.list_documents_in_kb(kb_id)
+    docs = await service.list_documents_in_kb(kb_id)
+    return ApiResponse.ok(data=docs)
 
 
 @router.delete("/{kb_id}/documents/{doc_id}")
 async def unlink_document(
     kb_id: str,
     doc_id: str,
-    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Unlink a document from a knowledge base."""
     service = KnowledgeService(db)
-    kb = service.get_kb(kb_id)
+    kb = await service.get_kb(kb_id)
     if kb.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    service.unlink_document(kb_id, doc_id)
-    return {"status": "success", "message": "Document unlinked"}
+    await service.unlink_document(kb_id, doc_id)
+    
+    # Clean up vector store
+    store = get_vector_store()
+    try:
+        await store.delete_documents(kb.vector_collection, {"doc_id": doc_id})
+    except Exception as e:
+        import loguru
+        loguru.logger.error(f"Failed to delete docs from vector store for {doc_id}: {e}")
+        
+    return ApiResponse.ok(data={"status": "success", "message": "Document unlinked"})
+
+
+@router.get("/{kb_id}/graph")
+async def get_knowledge_graph(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get the knowledge graph subset for this KB."""
+    from app.core.graph_store import get_graph_store
+    
+    service = KnowledgeService(db)
+    kb = await service.get_kb(kb_id)
+    if kb.owner_id != current_user.id and not kb.is_public:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    store = get_graph_store()
+    if not store.driver:
+        return ApiResponse.ok(data={"nodes": [], "links": []})
+        
+    cypher = """
+    MATCH (n {kb_id: $kb_id})
+    OPTIONAL MATCH (n)-[r]->(m {kb_id: $kb_id})
+    RETURN collect(DISTINCT n) as nodes, collect(DISTINCT r) as links
+    """
+    results = store.query(cypher, {"kb_id": kb_id})
+    
+    nodes = []
+    links = []
+    
+    if results:
+        # Format for react-force-graph
+        for n in results[0].get('nodes', []):
+            if n:
+                nodes.append({
+                    "id": n.get('id'),
+                    "name": n.get('name') or n.get('id'),
+                    "label": "Entity",
+                    "val": 10
+                })
+                
+        for r in results[0].get('links', []):
+            if r:
+                links.append({
+                    "source": r[0].element_id if hasattr(r[0], 'element_id') else r[0].id if hasattr(r[0], 'id') else r[0],
+                    "target": r[2].element_id if hasattr(r[2], 'element_id') else r[2].id if hasattr(r[2], 'id') else r[2],
+                    "type": r[1].type if hasattr(r[1], 'type') else "RELATED"
+                })
+                
+    return ApiResponse.ok(data={"nodes": nodes, "links": links})
+
+@router.get("/documents/{doc_id}/preview")
+async def get_document_preview(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get the parsed text content of a document for preview."""
+    from app.models.pipeline_log import PipelineJob, PipelineStageLog
+    from sqlmodel import select, desc
+    import json
+    
+    # 1. Get latest job for this doc
+    stmt = select(PipelineJob).where(PipelineJob.doc_id == doc_id).order_by(desc(PipelineJob.start_time))
+    res = await db.execute(stmt)
+    job = res.scalars().first()
+    if not job:
+        raise HTTPException(status_code=404, detail="No indexing job found for this document")
+        
+    # 2. Get parse_content stage log
+    stmt = select(PipelineStageLog).where(
+        PipelineStageLog.job_id == job.id,
+        PipelineStageLog.stage_name == "parse_content"
+    )
+    res = await db.execute(stmt)
+    log = res.scalars().first()
+    if not log or not log.artifact_data_json:
+        raise HTTPException(status_code=404, detail="No parsed content found")
+        
+    try:
+        data = json.loads(log.artifact_data_json)
+        text = data.get("raw_text", "No raw text extracted.")
+        return ApiResponse.ok(data={"text": text, "job_id": job.id})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+

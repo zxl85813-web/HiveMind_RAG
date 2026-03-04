@@ -16,55 +16,96 @@ from app.batch.ingestion.protocol import StandardizedResource, ResourceType
 #  Stage Definitions
 # ============================================================
 
-def create_ingestion_pipeline() -> PipelineDefinition:
-    
-    # 1. Classification
-    # Decides if it's Excel Design Doc, Java Code, or DDL
-    route_stage = StageDefinition(
-        name="classify_resource",
-        description="Analyze filename and header to determine ResourceType (requirement, code, design, etc).",
-        output_artifact_type=ArtifactType.CLASSIFICATION,
-        extraction_schema={
-            "resource_type": "string (enum: source_code, basic_design, detail_design, db_schema)",
-            "confidence": "number"
-        }
-    )
+# ============================================================
+#  Pipeline Factory — Preset Templates
+# ============================================================
 
-    # 2. Parsing (Dynamic Plugin Strategy)
-    parse_stage = StageDefinition(
-        name="parse_content",
-        description="Extract structure using registered plugins (MinerU, Excel, Code, etc).",
-        required_inputs=["classify_resource"],
-        output_artifact_type=ArtifactType.EXTRACTED_DATA,
-        # The execution logic will look like: 
-        # parser = ParserRegistry.get_parser(filename)
-        # resource = await parser.parse(filepath)
-    )
+class PipelineFactory:
+    """
+    Factory for various ingestion pipeline types.
+    Requirement: REQ-008-rag-pipeline-quality
+    """
 
-    # 3. AI Enrichment (Freestyle)
-    # "What business questions can this answer?"
-    enrich_stage = StageDefinition(
-        name="ai_enrich",
-        description="Generate 'Freestyle' tags, business summary, and hypothetical questions.",
-        required_inputs=["parse_content"],
-        output_artifact_type=ArtifactType.ANALYSIS_RESULT,
-        extraction_schema={
-            "summary": "string",
-            "intent_tags": "list[string]", 
-            "hypothetical_questions": "list[string]"
-        }
-    )
+    @staticmethod
+    def create_general_pipeline() -> PipelineDefinition:
+        """
+        Standard flow for regular documents.
+        Flow: Parse -> Audit -> Security -> Chunk -> Vectorize
+        """
+        stages = [
+            StageDefinition(name="parse_content", description="Standard text extraction."),
+            StageDefinition(name="audit_content", description="Quality check.", required_inputs=["parse_content"]),
+            StageDefinition(name="desensitization", description="Security redaction.", required_inputs=["parse_content"]),
+            StageDefinition(name="chunk_content", description="Recursive chunking.", required_inputs=["desensitization"]),
+            StageDefinition(name="vectorize", description="Vector indexing.", required_inputs=["chunk_content"])
+        ]
+        return PipelineDefinition(
+            name="GeneralDocumentationPipeline",
+            description="Best for most documents (PDF, Word, TXT). Includes full auditing and security.",
+            stages=stages
+        )
 
-    # 4. Storage
-    persist_stage = StageDefinition(
-        name="persist_data",
-        description="Save StandardizedResource and Enrichments to Neo4j/ES.",
-        required_inputs=["parse_content", "ai_enrich"],
-        output_artifact_type=ArtifactType.REPORT
-    )
+    @staticmethod
+    def create_technical_pipeline() -> PipelineDefinition:
+        """
+        Optimized for code and technical manuals.
+        Flow: Similar to general but with technical-specific chunking hints in context.
+        """
+        stages = [
+            StageDefinition(name="parse_content", description="Extract code & text."),
+            # Audit often fails for pure code if not configured, or we can skip it for tech-only.
+            StageDefinition(name="desensitization", description="Keep code secrets safe.", required_inputs=["parse_content"]),
+            StageDefinition(name="chunk_content", description="Code-aware chunking.", required_inputs=["desensitization"]),
+            StageDefinition(name="vectorize", description="Store vectors.", required_inputs=["chunk_content"])
+        ]
+        return PipelineDefinition(
+            name="TechnicalDocumentationPipeline",
+            description="Optimized for Markdown with code blocks and technical manuals.",
+            stages=stages
+        )
 
-    return PipelineDefinition(
-        name="ResourceIngestionPipeline",
-        description="Python-only pipeline for ingesting software resources",
-        stages=[route_stage, parse_stage, enrich_stage, persist_stage]
-    )
+    @staticmethod
+    def create_legal_pipeline() -> PipelineDefinition:
+        """
+        High accuracy and security for legal documents.
+        Flow: Parse -> Audit (Mandatory) -> Security (Deep) -> Chunk -> Vectorize
+        """
+        stages = [
+            StageDefinition(name="parse_content", description="High-precision layout extraction."),
+            StageDefinition(name="audit_content", description="Compliance & Quality Audit.", required_inputs=["parse_content"]),
+            StageDefinition(name="desensitization", description="Deep PII/BSI scrubbing.", required_inputs=["audit_content"]),
+            StageDefinition(name="chunk_content", description="Logical section chunking.", required_inputs=["desensitization"]),
+            StageDefinition(name="vectorize", description="Final storage.", required_inputs=["chunk_content"])
+        ]
+        return PipelineDefinition(
+            name="LegalCompliancePipeline",
+            description="Strict adherence to security and quality standards for sensitive contracts.",
+            stages=stages
+        )
+
+    @staticmethod
+    def create_table_pipeline() -> PipelineDefinition:
+        """
+        Structured data extraction.
+        """
+        stages = [
+            StageDefinition(name="parse_content", description="Table & Grid extraction."),
+            StageDefinition(name="chunk_content", description="Table-aware chunking.", required_inputs=["parse_content"]),
+            StageDefinition(name="vectorize", description="Store table vectors.", required_inputs=["chunk_content"])
+        ]
+        return PipelineDefinition(
+            name="StructuredDataPipeline",
+            description="Ideal for Excel and CSV, or documents with heavy table content.",
+            stages=stages
+        )
+
+def create_ingestion_pipeline(pipeline_type: str = "general") -> PipelineDefinition:
+    """Entry point for getting a pipeline by type."""
+    factories = {
+        "general": PipelineFactory.create_general_pipeline,
+        "technical": PipelineFactory.create_technical_pipeline,
+        "legal": PipelineFactory.create_legal_pipeline,
+        "table": PipelineFactory.create_table_pipeline
+    }
+    factory_fn = factories.get(pipeline_type, PipelineFactory.create_general_pipeline)
+    return factory_fn()

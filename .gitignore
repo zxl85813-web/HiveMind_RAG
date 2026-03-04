@@ -1,40 +1,97 @@
-# Byte-compiled
+# ==========================================
+# Environments
+# ==========================================
+.env
+.env.*
+!.env.example
+!.env.mock
+.venv/
+venv/
+env/
+
+# ==========================================
+# Python / API Backend
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.egg-info/
+*.egg
+build/
+dist/
 
-# Environments
-.env
-.venv/
-venv/
+# ==========================================
+# Node / Frontend
+# ==========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# IDE
+# ==========================================
+# Logs and Test Outputs
+# ==========================================
+*.log
+logs/
+traceback*.log
+error.log
+server_log*.txt
+
+# Ignore arbitrary text/test outputs generated during debugging
+debug*.txt
+test_out*.txt
+test_result*.txt
+test_failures.txt
+test_ingestion.txt
+test_trace.txt
+test_run.txt
+trace.txt
+out.txt
+temp.txt
+coverage_report.txt
+
+# ==========================================
+# Local Data / DB
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+hivemind.db
+backend/data/chroma/
+backend/data/
+start_data/
+
+# ==========================================
+# Temporary Test Scripts & Sandbox
+# ==========================================
+dummy_mcp_server.py
+mcp_swarm_test.py
+mcp_test.py
+debug_chat.py
+
+# ==========================================
+# IDE / OS
+# ==========================================
 .vscode/
+!.vscode/extensions.json
 .idea/
+.DS_Store
+Thumbs.db
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# ==========================================
+# Unwanted Personal / Temporary Files
+# ==========================================
+# Exclude personal json outputs or models
+夏瑾*.json
 
-# Node
-node_modules/
-dist/
-build/
-.next/
-
-# Dependencies
-*.egg-info/
-*.egg
-
-# Logs
-*.log
-
-# Docker
+# Docker overrides
 docker-compose.override.yml
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/

@@ -1,0 +1,158 @@
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+
+from app.api import deps
+from app.common.response import ApiResponse
+from app.services.evaluation import EvaluationService
+from app.models.evaluation import EvaluationSet, EvaluationReport, BadCase
+
+router = APIRouter()
+
+class TestsetCreate(BaseModel):
+    kb_id: str
+    name: str
+    count: int = 10
+
+@router.post("/testset", response_model=ApiResponse[str])
+async def create_testset(
+    data: TestsetCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """Trigger background generation of a ground-truth testset."""
+    from app.core.database import get_db_session
+    async def bg_gen():
+        async for db_session in get_db_session():
+            await EvaluationService.generate_testset(db_session, data.kb_id, data.name, data.count)
+            break
+            
+    background_tasks.add_task(bg_gen)
+    return ApiResponse.ok(message="Testset generation started in background")
+
+@router.get("/testsets", response_model=ApiResponse[List[EvaluationSet]])
+async def get_testsets(db: AsyncSession = Depends(deps.get_db)):
+    """List all available evaluation sets."""
+    from sqlmodel import select
+    res = await db.execute(select(EvaluationSet))
+    return ApiResponse.ok(data=res.scalars().all())
+
+class EvaluationRun(BaseModel):
+    model_name: Optional[str] = "gpt-3.5-turbo"
+
+@router.post("/{set_id}/evaluate", response_model=ApiResponse[str])
+async def run_evaluation(
+    set_id: str,
+    data: EvaluationRun,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """Trigger background evaluation run with specified model."""
+    from app.core.database import get_db_session
+    async def bg_eval():
+        async for db_session in get_db_session():
+            await EvaluationService.run_evaluation(db_session, set_id, model_name=data.model_name)
+            break
+
+    background_tasks.add_task(bg_eval)
+    return ApiResponse.ok(message=f"Evaluation run for {data.model_name} started in background")
+
+@router.get("/reports", response_model=ApiResponse[List[EvaluationReport]])
+async def get_reports(db: AsyncSession = Depends(deps.get_db)):
+    """List all evaluation reports."""
+    from sqlmodel import select
+    res = await db.execute(select(EvaluationReport).order_by(EvaluationReport.created_at.desc()))
+    return ApiResponse.ok(data=res.scalars().all())
+
+@router.get("/reports/{report_id}", response_model=ApiResponse[EvaluationReport])
+async def get_report_details(report_id: str, db: AsyncSession = Depends(deps.get_db)):
+    """Get detailed results for a specific report."""
+    report = await db.get(EvaluationReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return ApiResponse.ok(data=report)
+
+
+class BadCaseUpdate(BaseModel):
+    status: str
+    expected_answer: str | None = None
+    reason: str | None = None
+
+@router.get("/badcases", response_model=ApiResponse[List[BadCase]])
+async def get_badcases(db: AsyncSession = Depends(deps.get_db)):
+    """List all bad cases tracked from user feedback or failed evals."""
+    from sqlmodel import select
+    res = await db.execute(select(BadCase).order_by(BadCase.created_at.desc()))
+    return ApiResponse.ok(data=res.scalars().all())
+
+@router.put("/badcases/{case_id}", response_model=ApiResponse[BadCase])
+async def update_badcase(
+    case_id: str,
+    update_data: BadCaseUpdate,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """Update BadCase status, expected answer, or reason."""
+    case = await db.get(BadCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="BadCase not found")
+        
+    case.status = update_data.status
+    if update_data.expected_answer is not None:
+        case.expected_answer = update_data.expected_answer
+    if update_data.reason is not None:
+        case.reason = update_data.reason
+        
+    db.add(case)
+    await db.commit()
+    await db.refresh(case)
+    return ApiResponse.ok(data=case)
+
+@router.delete("/badcases/{case_id}", response_model=ApiResponse[str])
+async def delete_badcase(case_id: str, db: AsyncSession = Depends(deps.get_db)):
+    """Delete a BadCase."""
+    case = await db.get(BadCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="BadCase not found")
+    await db.delete(case)
+    await db.commit()
+    return ApiResponse.ok(message="Deleted successfully")
+
+@router.get("/stats/kb/{kb_id}", response_model=ApiResponse[Dict[str, Any]])
+async def get_kb_health_stats(kb_id: str, db: AsyncSession = Depends(deps.get_db)):
+    """Get health score and trend data for a specific Knowledge Base."""
+    from sqlmodel import select
+    stmt = select(EvaluationReport).where(EvaluationReport.kb_id == kb_id).order_by(EvaluationReport.created_at.asc())
+    res = await db.execute(stmt)
+    reports = list(res.scalars().all())
+    
+    if not reports:
+        return ApiResponse.ok(data={
+            "score": 0.0,
+            "reports_count": 0,
+            "trend": [],
+            "status": "no_data"
+        })
+    
+    avg_score = sum(r.total_score for r in reports) / len(reports)
+    avg_faithfulness = sum(r.faithfulness for r in reports) / len(reports)
+    avg_relevance = sum(r.answer_relevance for r in reports) / len(reports)
+    
+    trend = [
+        {
+            "timestamp": r.created_at.isoformat(),
+            "score": r.total_score,
+            "faithfulness": r.faithfulness,
+            "relevance": r.answer_relevance
+        }
+        for r in reports
+    ]
+    
+    return ApiResponse.ok(data={
+        "score": avg_score,
+        "faithfulness": avg_faithfulness,
+        "relevance": avg_relevance,
+        "reports_count": len(reports),
+        "trend": trend,
+        "status": "healthy" if avg_score > 0.7 else "warning" if avg_score > 0.4 else "critical"
+    })

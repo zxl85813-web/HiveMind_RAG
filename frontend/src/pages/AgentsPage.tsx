@@ -1,25 +1,28 @@
-/**
- * AgentsPage — Agent 监控面板。
- *
- * 使用通用组件: PageContainer, StatCard
- * 使用领域组件: AgentCard
- *
- * @module pages
- * @see REGISTRY.md > 前端 > 页面 > AgentsPage
- * @see docs/requirements/REQ-001-agent-swarm.md
- */
-
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Typography, List, Tag, Badge, Space } from 'antd';
-import { ClusterOutlined, MessageOutlined, UnorderedListOutlined, ExperimentOutlined, CheckCircleOutlined, ClockCircleOutlined, ToolOutlined } from '@ant-design/icons';
+import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex } from 'antd';
+import {
+    ClusterOutlined,
+    MessageOutlined,
+    UnorderedListOutlined,
+    ExperimentOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    SyncOutlined,
+    BulbOutlined,
+    CompassOutlined,
+    ShareAltOutlined
+} from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { PageContainer, StatCard } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
-import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats } from '../services/agentApi';
-import api from '../services/api';
+import { AgentDAGVisualizer } from '../components/agents/AgentDAGVisualizer';
+import type { DAGData } from '../components/agents/AgentDAGVisualizer';
+import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats, type TodoItem } from '../services/agentApi';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 export const AgentsPage: React.FC = () => {
+    const { t } = useTranslation();
     const [reflections, setReflections] = useState<ReflectionEntry[]>([]);
     const [agents, setAgents] = useState<AgentInfo[]>([]);
     const [stats, setStats] = useState<SwarmStats>({
@@ -28,46 +31,172 @@ export const AgentsPage: React.FC = () => {
         shared_todos: 0,
         reflection_logs: 0
     });
-    const [todos, setTodos] = useState<any[]>([]);
+    const [todos, setTodos] = useState<TodoItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [dagData, setDagData] = useState<DAGData>({ nodes: [], links: [] });
 
-    const fetchData = () => {
-        agentApi.getReflections(10).then(res => setReflections(res.data.data)).catch(console.error);
-        agentApi.getAgents().then(res => setAgents(res.data.data)).catch(console.error);
-        agentApi.getStats().then(res => setStats(res.data.data)).catch(console.error);
-        // We'll mock the todos list fetching here too
-        api.get('/agents/swarm/todos').then(res => setTodos(res.data.data)).catch(console.error);
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [reflRes, agentsRes, statsRes, todosRes, traceRes] = await Promise.all([
+                agentApi.getReflections(20),
+                agentApi.getAgents(),
+                agentApi.getStats(),
+                agentApi.getTodos(),
+                agentApi.getTraces()
+            ]);
+
+            setReflections(reflRes.data.data || []);
+            setAgents(agentsRes.data.data || []);
+            setStats(statsRes.data.data || { active_agents: 0, today_requests: 0, shared_todos: 0, reflection_logs: 0 });
+            setTodos(todosRes.data.data || []);
+
+            const liveTrace = traceRes.data.data;
+            if (liveTrace && liveTrace.nodes && liveTrace.nodes.length > 0) {
+                setDagData(liveTrace);
+            } else {
+                // Keep the state empty if no traces yet, but maybe show a placeholder text in the visualizer?
+                setDagData({ nodes: [], links: [] });
+            }
+        } catch (err) {
+            console.error('Failed to fetch swarm data:', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
         fetchData();
-
-        // Polling every 5s
-        const timer = setInterval(fetchData, 5000);
+        const timer = setInterval(fetchData, 10000); // Refresh every 10s
         return () => clearInterval(timer);
     }, []);
 
+    const renderTodoTab = () => (
+        <List
+            loading={loading}
+            dataSource={todos}
+            locale={{ emptyText: <Empty description="任务队列已排空。Agent 集群正处于待命状态。" /> }}
+            renderItem={(item) => (
+                <List.Item key={item.id} className="memory-log-item" style={{ padding: '12px 0' }}>
+                    <List.Item.Meta
+                        avatar={<Badge status={item.status === 'completed' ? 'success' : 'processing'} />}
+                        title={
+                            <Space>
+                                <Text strong>{item.title}</Text>
+                                <Tag color={
+                                    item.priority === 'critical' ? 'red' :
+                                        item.priority === 'high' ? 'orange' :
+                                            item.priority === 'medium' ? 'blue' : 'default'
+                                }>
+                                    {item.priority.toUpperCase()}
+                                </Tag>
+                            </Space>
+                        }
+                        description={
+                            <div style={{ marginTop: 8 }}>
+                                <Paragraph type="secondary" style={{ marginBottom: 8, fontSize: '13px' }}>{item.description}</Paragraph>
+                                <Space size="middle" separator={<Text type="secondary" style={{ fontSize: '10px' }}>|</Text>} wrap>
+                                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                                        <BulbOutlined /> <Tag variant="filled" style={{ fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>{item.created_by}</Tag>
+                                    </Text>
+                                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                                        <CompassOutlined /> {item.assigned_to || '自动调度'}
+                                    </Text>
+                                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                                        <ClockCircleOutlined /> {new Date(item.created_at).toLocaleString()}
+                                    </Text>
+                                </Space>
+                            </div>
+                        }
+                    />
+                    <div style={{ textAlign: 'center', minWidth: 80 }}>
+                        <Tag color={
+                            item.status === 'completed' ? 'success' :
+                                item.status === 'in_progress' ? 'processing' :
+                                    item.status === 'waiting_user' ? 'warning' : 'default'
+                        }>
+                            {item.status.replace('_', ' ').toUpperCase()}
+                        </Tag>
+                    </div>
+                </List.Item>
+            )}
+        />
+    );
+
+    const renderReflectionBoard = () => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            {reflections.length === 0 ? (
+                <Empty description="Agent 群体尚未产生显著的自省洞察。" style={{ gridColumn: '1 / -1', padding: '40px 0' }} />
+            ) : (
+                reflections.map((item) => (
+                    <Card key={item.id} size="small" hoverable style={{ borderColor: 'rgba(6, 214, 160, 0.2)', background: 'rgba(255, 255, 255, 0.03)' }}>
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            <Flex justify="space-between" align="flex-start">
+                                <Space>
+                                    <Text strong style={{ color: '#06D6A0', fontSize: '13px' }}>Agent [{item.agent_name}]</Text>
+                                    <Tag color="cyan" variant="filled" style={{ border: 'none' }}>{item.type.replace('_', ' ')}</Tag>
+                                </Space>
+                                <Tooltip title="Confidence Score">
+                                    <Badge count={`${(item.confidence_score * 100).toFixed(0)}%`} style={{ backgroundColor: '#52c41a' }} />
+                                </Tooltip>
+                            </Flex>
+
+                            <Paragraph style={{ margin: '8px 0', fontSize: '13px', lineHeight: '1.6', color: 'var(--hm-color-text-primary)' }}>
+                                {item.summary}
+                            </Paragraph>
+
+                            {item.action_taken && (
+                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 4, borderLeft: '3px solid #52c41a' }}>
+                                    <Text type="success" style={{ fontSize: '12px' }}>
+                                        <CheckCircleOutlined style={{ marginRight: 4 }} />
+                                        {item.action_taken}
+                                    </Text>
+                                </div>
+                            )}
+
+                            <Text type="secondary" style={{ fontSize: '11px', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                                <ClockCircleOutlined style={{ marginRight: 4 }} />
+                                {new Date(item.created_at).toLocaleString()}
+                            </Text>
+                        </Space>
+                    </Card>
+                ))
+            )}
+        </div>
+    );
+
     return (
         <PageContainer
-            title="Agent 蜂巢监控"
-            description="实时监控 Agent Swarm 的运行状态、共享记忆和 TODO 列表"
+            title={t('agents.title')}
+            description={t('agents.description')}
+            actions={
+                <Tooltip title="更新数据">
+                    <SyncOutlined spin={loading} onClick={fetchData} style={{ fontSize: 20, cursor: 'pointer', color: '#06D6A0' }} />
+                </Tooltip>
+            }
         >
-            {/* 统计概览 — 使用共通 StatCard */}
+            {/* 统计概览 */}
             <Row gutter={[16, 16]}>
                 <Col xs={12} lg={6}>
-                    <StatCard title="活跃 Agent" value={stats.active_agents} icon={<ClusterOutlined />} color="primary" />
+                    <StatCard title={t('agents.stats.active')} value={stats.active_agents} icon={<ClusterOutlined />} color="primary" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title="今日请求" value={stats.today_requests} icon={<MessageOutlined />} color="info" />
+                    <StatCard title={t('agents.stats.requests')} value={stats.today_requests} icon={<MessageOutlined />} color="info" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title="共享 TODO" value={stats.shared_todos} icon={<UnorderedListOutlined />} color="warning" />
+                    <StatCard title={t('agents.stats.todos')} value={stats.shared_todos} icon={<UnorderedListOutlined />} color="warning" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title="自省记录" value={stats.reflection_logs} icon={<ExperimentOutlined />} color="success" />
+                    <StatCard title={t('agents.stats.reflections')} value={stats.reflection_logs} icon={<ExperimentOutlined />} color="success" />
                 </Col>
             </Row>
 
-            {/* Agent 列表 — 使用领域 AgentCard */}
+            {/* Agent 列表 */}
+            <Title level={4} style={{ marginTop: '24px' }}>
+                <Badge dot status="processing" offset={[10, 0]}>
+                    <ClusterOutlined /> {t('agents.clusters')}
+                </Badge>
+            </Title>
             <Row gutter={[16, 16]}>
                 {agents.map((agent) => (
                     <Col key={agent.name} xs={24} sm={12} lg={8}>
@@ -81,84 +210,56 @@ export const AgentsPage: React.FC = () => {
                 ))}
             </Row>
 
-            {/* TODO List */}
-            <Title level={4} style={{ marginTop: '2rem' }}><UnorderedListOutlined /> 共享任务队列 (Collective TODOs)</Title>
-            <List
-                style={{ background: 'var(--hm-glass-bg)', backdropFilter: 'var(--hm-glass-blur)', borderRadius: 'var(--hm-radius-lg)', marginTop: '1rem' }}
-                bordered
-                dataSource={todos}
-                renderItem={(item) => (
-                    <List.Item>
-                        <List.Item.Meta
-                            title={
-                                <span>
-                                    <Text strong>{item.title}</Text>
-                                    <Tag color={item.priority === 'high' ? 'error' : item.priority === 'medium' ? 'warning' : 'default'} style={{ marginLeft: 8 }}>
-                                        {item.priority.toUpperCase()}
-                                    </Tag>
-                                </span>
-                            }
-                            description={
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    <Text type="secondary">{item.description}</Text>
-                                    <Space size="middle">
-                                        <Text style={{ fontSize: '0.85em' }}><ToolOutlined /> By: {item.created_by}</Text>
-                                        <Text style={{ fontSize: '0.85em' }}><ClockCircleOutlined /> Assigned To: {item.assigned_to}</Text>
-                                    </Space>
-                                </div>
-                            }
-                        />
-                        <Tag color={item.status === 'completed' ? 'success' : item.status === 'in_progress' ? 'processing' : 'default'}>
-                            {item.status.toUpperCase()}
-                        </Tag>
-                    </List.Item>
-                )}
-                locale={{ emptyText: 'All tasks completed. Swarm waiting for input.' }}
-            />
+            <Title level={4} style={{ marginTop: '36px' }}>
+                <Badge dot status="success" offset={[10, 0]}>
+                    <ShareAltOutlined /> 蜂巢监控: 共享记忆与群智反思 (Shared Memory View)
+                </Badge>
+            </Title>
 
-            {/* Reflection List */}
-            <Title level={4} style={{ marginTop: '2rem' }}>自省日志 (Thoughts & Reflections)</Title>
-            <List
-                style={{ background: 'var(--hm-glass-bg)', backdropFilter: 'var(--hm-glass-blur)', borderRadius: 'var(--hm-radius-lg)' }}
-                bordered
-                dataSource={reflections}
-                renderItem={(item) => (
-                    <List.Item>
-                        <List.Item.Meta
-                            avatar={
-                                <Badge status={item.confidence_score > 0.8 ? "success" : "warning"} />
-                            }
-                            title={
-                                <span>
-                                    <Text strong>{item.agent_name}</Text>{' '}
-                                    <Tag color="processing" style={{ marginLeft: 8 }}>{item.type}</Tag>
-                                </span>
-                            }
-                            description={
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    <Text>{item.summary}</Text>
-                                    {item.action_taken && (
-                                        <Text type="secondary" style={{ fontSize: '0.85em' }}>
-                                            <CheckCircleOutlined style={{ marginRight: 4, color: 'var(--hm-color-success)' }} />
-                                            Action: {item.action_taken}
-                                        </Text>
-                                    )}
-                                </div>
-                            }
-                        />
-                        <div style={{ textAlign: 'right' }}>
-                            <Text type="secondary" style={{ fontSize: '0.8em' }}>
-                                Confidence: {(item.confidence_score * 100).toFixed(0)}%
-                            </Text>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: '0.8em' }}>
-                                {new Date(item.created_at).toLocaleTimeString()}
-                            </Text>
+            <Row gutter={[24, 24]}>
+                <Col xs={24}>
+                    <Card
+                        title={
+                            <Space split={<Text type="secondary" style={{ fontWeight: 'normal' }}>|</Text>}>
+                                <span style={{ color: '#1890ff' }}><ClusterOutlined /> Agent DAG 实时链路追踪 (Execution Trace)</span>
+                                <Text type="secondary" style={{ fontSize: '12px', fontWeight: 'normal' }}>
+                                    可视化展示 Agent 之间的协作流水线与数据流转状态
+                                </Text>
+                            </Space>
+                        }
+                        style={{ borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid #1f1f1f' }}
+                        bodyStyle={{ padding: 0, height: '440px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                    >
+                        {dagData.nodes && dagData.nodes.length > 0 ? (
+                            <AgentDAGVisualizer data={dagData} height={440} />
+                        ) : (
+                            <Empty description="等待 Agent 集群产生执行链路 (在侧边栏对话以生成 Trace)" />
+                        )}
+                    </Card>
+                </Col>
+            </Row>
+
+            <Row gutter={[24, 24]} style={{ marginTop: '24px' }}>
+                <Col xs={24} lg={16}>
+                    <Card
+                        title={<span style={{ color: '#06D6A0' }}><ExperimentOutlined /> 共享记忆板 (Reflections & Active Memory)</span>}
+                        style={{ height: '100%', borderRadius: '12px' }}
+                    >
+                        {renderReflectionBoard()}
+                    </Card>
+                </Col>
+                <Col xs={24} lg={8}>
+                    <Card
+                        title={<><UnorderedListOutlined /> 协同任务队列 (Todos)</>}
+                        style={{ height: '100%', borderRadius: '12px' }}
+                        bodyStyle={{ paddingRight: 8 }}
+                    >
+                        <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                            {renderTodoTab()}
                         </div>
-                    </List.Item>
-                )}
-                locale={{ emptyText: 'Agent Swarm is sleeping. No recent thoughts.' }}
-            />
+                    </Card>
+                </Col>
+            </Row>
         </PageContainer>
     );
 };

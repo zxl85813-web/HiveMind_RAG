@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Button, message, Space } from 'antd';
+import { App, Button, Space } from 'antd';
 import { PlusOutlined, DatabaseOutlined, SyncOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { PageContainer, EmptyState } from '../components/common';
 import { KnowledgeList } from '../components/knowledge/KnowledgeList';
 import { CreateKBModal } from '../components/knowledge/CreateKBModal';
@@ -9,7 +10,12 @@ import { knowledgeApi } from '../services/knowledgeApi';
 import type { CreateKnowledgeBaseParams } from '../services/knowledgeApi';
 import type { KnowledgeBase } from '../types';
 
+import { useSearchParams } from 'react-router-dom';
+
 export const KnowledgePage: React.FC = () => {
+    const { message } = App.useApp();
+    const { t } = useTranslation();
+    const [searchParams] = useSearchParams();
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -22,9 +28,20 @@ export const KnowledgePage: React.FC = () => {
         setLoading(true);
         try {
             const res = await knowledgeApi.listKBs();
-            setKbs(res.data.data);
+            const data = res.data.data;
+            setKbs(data);
+
+            // Handle deep link via query params
+            const kbId = searchParams.get('kbId');
+            if (kbId) {
+                const target = data.find(k => k.id === kbId);
+                if (target) {
+                    setSelectedKB(target);
+                    setIsDetailOpen(true);
+                }
+            }
         } catch (error) {
-            message.error("加载知识库列表失败");
+            message.error(t('common.error'));
         } finally {
             setLoading(false);
         }
@@ -32,16 +49,16 @@ export const KnowledgePage: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [searchParams]);
 
     const handleCreate = async (values: CreateKnowledgeBaseParams) => {
         try {
             await knowledgeApi.createKB(values);
-            message.success("知识库创建成功");
+            message.success(t('common.success'));
             setIsCreateModalOpen(false);
             loadData();
         } catch (e) {
-            message.error("创建失败");
+            message.error(t('common.error'));
         }
     };
 
@@ -52,13 +69,13 @@ export const KnowledgePage: React.FC = () => {
 
     return (
         <PageContainer
-            title="知识库管理"
-            description="管理文档知识库，上传文档并构建向量索引"
+            title={t('knowledge.title')}
+            description={t('nav.knowledge')}
             actions={
                 <Space>
-                    <Button icon={<SyncOutlined />} onClick={loadData} title="刷新列表" />
+                    <Button icon={<SyncOutlined />} onClick={loadData} />
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
-                        创建知识库
+                        {t('common.create')}
                     </Button>
                 </Space>
             }
@@ -66,11 +83,11 @@ export const KnowledgePage: React.FC = () => {
             {kbs.length === 0 && !loading ? (
                 <EmptyState
                     icon={<DatabaseOutlined />}
-                    title="还没有知识库"
-                    description="点击右上角「创建知识库」开始"
+                    title={t('knowledge.emptyTitle')}
+                    description={t('knowledge.emptyDesc')}
                     action={
                         <Button type="primary" onClick={() => setIsCreateModalOpen(true)}>
-                            立即创建
+                            {t('common.create')}
                         </Button>
                     }
                 />

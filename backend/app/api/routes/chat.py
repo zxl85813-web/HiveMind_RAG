@@ -94,3 +94,18 @@ async def delete_conversation(conversation_id: str):
     if success:
         return ApiResponse.ok(message="Deleted")
     return ApiResponse.error(message="Delete failed", code=400)
+
+
+from pydantic import BaseModel
+
+class FeedbackRequest(BaseModel):
+    rating: int  # 1 for like, -1 for dislike
+    feedback_text: str | None = None
+
+@router.post("/messages/{message_id}/feedback")
+async def submit_feedback(message_id: str, req: FeedbackRequest):
+    """Provide feedback for a specific AI message."""
+    success = await ChatService.record_feedback(message_id, req.rating, req.feedback_text)
+    if success:
+        return ApiResponse.ok(message="Feedback recorded")
+    return ApiResponse.error(message="Message not found or update failed", code=400)

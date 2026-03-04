@@ -15,8 +15,9 @@ async def get_current_user() -> User:
     """
     return User(
         id="mock-user-001", 
+        username="developer",
         email="dev@hivemind.local", 
         hashed_password="mock",
         is_active=True,
-        is_superuser=True
+        role="admin"
     )

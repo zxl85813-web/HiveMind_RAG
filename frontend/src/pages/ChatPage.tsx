@@ -1,15 +1,5 @@
-/**
- * ChatPage — 主对话页面。
- *
- * 使用 Ant Design X 的 Bubble, Sender 等组件构建 AI 对话界面。
- * 品牌色: #06D6A0 (青绿)
- *
- * @module pages
- * @see REGISTRY.md > 前端 > 页面 > ChatPage
- */
-
-import React, { useState } from 'react';
-import { Flex, Avatar } from 'antd';
+import React, { useState, useRef } from 'react';
+import { Flex, Avatar, Typography, Tag, Spin, Space } from 'antd';
 import { Bubble, Sender, Welcome, Prompts } from '@ant-design/x';
 import {
     RobotOutlined,
@@ -18,8 +8,14 @@ import {
     SearchOutlined,
     FileTextOutlined,
     CodeOutlined,
+    ThunderboltOutlined,
+    LoadingOutlined,
 } from '@ant-design/icons';
+import { ActionButton } from '../components/chat/ActionButton';
+import { chatApi } from '../services/chatApi';
 import styles from './ChatPage.module.css';
+
+const { Text } = Typography;
 
 /** 预设快捷提示 */
 const promptItems = [
@@ -53,29 +49,93 @@ export const ChatPage: React.FC = () => {
     const [messages, setMessages] = useState<Array<{
         role: 'user' | 'assistant';
         content: string;
+        status?: string;
+        actions?: any[];
     }>>([]);
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
+    const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+    const [agentStatus, setAgentStatus] = useState<string | null>(null);
+
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     /** 发送消息 */
     const handleSend = async (value: string) => {
         if (!value.trim()) return;
 
+        // 1. Add user message
         setMessages((prev) => [...prev, { role: 'user', content: value }]);
         setInputValue('');
         setLoading(true);
+        setAgentStatus('🚀 准备启动 Swarm 编排器...');
 
-        // TODO: 实际调用后端 SSE 流式接口
-        setTimeout(() => {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: 'assistant',
-                    content: `收到你的问题: "${value}"\n\n这是一个模拟回答。实际实现中，这里会通过 SSE 流式连接接收 Agent Swarm 的回答。`,
-                },
-            ]);
-            setLoading(false);
-        }, 1000);
+        // 2. Prepare assistant message placeholder
+        setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        let fullContent = '';
+
+        // 3. Start SSE
+        await chatApi.streamChat({
+            message: value,
+            conversationId: currentConversationId,
+            onDelta: (delta) => {
+                fullContent += delta;
+                setMessages((prev) => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.role === 'assistant') {
+                        lastMsg.content = fullContent;
+                    }
+                    return newMsgs;
+                });
+            },
+            onStatus: (status) => {
+                setAgentStatus(status);
+            },
+            onInsight: (data) => {
+                setMessages((prev) => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.role === 'assistant') {
+                        // @ts-ignore
+                        lastMsg.actions = data.actions;
+                    }
+                    return newMsgs;
+                });
+            },
+            onSessionCreated: (id) => {
+                setCurrentConversationId(id);
+            },
+            onFinish: () => {
+                setLoading(false);
+                setAgentStatus(null);
+            },
+            onError: (err) => {
+                console.error('Chat error:', err);
+                setLoading(false);
+                setAgentStatus('❌ 服务连接异常，请重试');
+            },
+            controller
+        });
+    };
+
+    /** 渲染状态标签 */
+    const renderStatus = () => {
+        if (!agentStatus) return null;
+        return (
+            <div className={styles.statusIndicator}>
+                <Space>
+                    <Spin indicator={<LoadingOutlined style={{ fontSize: 14, color: '#06D6A0' }} spin />} />
+                    <Text type="secondary" className={styles.statusText}>
+                        {agentStatus}
+                    </Text>
+                    <Tag color="cyan" variant="filled" icon={<ThunderboltOutlined />}>HiveMind Swarm</Tag>
+                </Space>
+            </div>
+        );
     };
 
     /** 空状态 — 欢迎页 */
@@ -97,22 +157,35 @@ export const ChatPage: React.FC = () => {
     );
 
     /** 消息列表 */
-    const renderMessages = () => (
-        <Flex vertical className={styles.messageList}>
-            <Bubble.List
-                items={messages.map((msg, idx) => ({
-                    key: String(idx),
-                    role: msg.role === 'user' ? 'end' : 'start',
-                    content: msg.content,
-                    avatar: msg.role === 'user'
-                        ? <Avatar icon={<UserOutlined />} style={{ background: '#06D6A0' }} />
-                        : <Avatar icon={<RobotOutlined />} style={{ background: '#1F2937', border: '1px solid rgba(6,214,160,0.25)' }} />,
-                    loading: loading && idx === messages.length - 1 && msg.role === 'assistant',
-                }))}
-                className={styles.bubbleList}
-            />
-        </Flex>
-    );
+    const renderMessages = () => {
+        return (
+            <Flex vertical className={styles.messageList}>
+                <Bubble.List
+                    items={messages.map((msg, idx) => ({
+                        key: String(idx),
+                        role: msg.role === 'user' ? 'end' : 'start',
+                        content: msg.content || (loading && idx === messages.length - 1 ? '...' : ''),
+                        avatar: msg.role === 'user'
+                            ? <Avatar icon={<UserOutlined />} style={{ background: '#06D6A0' }} />
+                            : <Avatar icon={<RobotOutlined />} style={{ background: '#1F2937', border: '1px solid rgba(6,214,160,0.25)' }} />,
+                        footer: (
+                            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+                                {idx === messages.length - 1 && msg.role === 'assistant' && renderStatus()}
+                                {msg.actions && msg.actions.length > 0 && (
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                        {msg.actions.map((action, actionIdx) => (
+                                            <ActionButton key={actionIdx} action={action} />
+                                        ))}
+                                    </div>
+                                )}
+                            </Space>
+                        ),
+                    }))}
+                    className={styles.bubbleList}
+                />
+            </Flex>
+        );
+    };
 
     return (
         <Flex vertical className={styles.container}>

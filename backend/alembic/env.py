@@ -3,15 +3,24 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
+
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from alembic import context
 from sqlmodel import SQLModel
 
 # 导入所有 Model 以便 Alembic 正确识别 Schema 变更
-from app.models.user import User
-from app.models.chat import Conversation, Message
-from app.models.knowledge import KnowledgeBase, Document
+from app.models.chat import User, Conversation, Message
+from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink, DocumentChunk
+from app.models.agents import TodoItem, ReflectionEntry
+from app.models.tags import Tag, TagCategory, DocumentTagLink
+from app.models.security import DesensitizationPolicy, DesensitizationReport, SensitiveItem, DocumentPermission, AuditLog
+from app.models.evaluation import EvaluationSet, EvaluationItem, EvaluationReport, BadCase
+from app.models.pipeline_log import PipelineJob, PipelineStageLog
+from app.models.pipeline_config import PipelineConfig
 from app.core.config import settings
 
 config = context.config
@@ -22,15 +31,15 @@ if config.config_file_name is not None:
 # 注入 SQLModel 的 Metadata
 target_metadata = SQLModel.metadata
 
-# 从 Settings 获取数据库连接串 (覆盖 alembic.ini 的硬编码)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# 注意: 不使用 config.set_main_option("sqlalchemy.url", ...)
+# 因为 ConfigParser 会将密码中的 % 视为插值语法导致报错。
+# 改为在 run_migrations_online 中直接使用 settings.DATABASE_URL 建立引擎。
 
 
 def run_migrations_offline() -> None:
     """运行离线迁移 (生成 SQL 文件)。"""
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -44,15 +53,14 @@ def do_run_migrations(connection: Connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
-        # 这里实际上还没有进行修改，只有 migrate 命令会真正提交
         context.run_migrations()
 
 
 async def run_migrations_online() -> None:
     """运行在线迁移 (连接数据库)。"""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    # 直接用 settings.DATABASE_URL 创建引擎，绕过 ConfigParser 对 % 的解析
+    connectable = create_async_engine(
+        settings.DATABASE_URL,
         poolclass=pool.NullPool,
     )
 
@@ -66,3 +74,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     asyncio.run(run_migrations_online())
+

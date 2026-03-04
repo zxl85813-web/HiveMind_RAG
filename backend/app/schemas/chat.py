@@ -15,7 +15,17 @@ class ChatRequest(BaseModel):
     knowledge_base_ids: list[str] = []
     model: str | None = None  # Override default model
     stream: bool = True
+    client_events: list[dict] = []  # UI interaction logs (button clicks, navigation, etc.)
 
+
+class AIAction(BaseModel):
+    """AI suggested action button."""
+    type: str  # navigate | open_modal | execute | suggest | show_data
+    label: str
+    target: str
+    icon: str | None = None
+    params: dict | None = None
+    variant: str = "default" # primary | default | link
 
 class ChatMessage(BaseModel):
     """A single message in a conversation."""
@@ -25,6 +35,15 @@ class ChatMessage(BaseModel):
     content: str
     created_at: datetime
     metadata: dict | None = None  # sources, agent trace, etc.
+    actions: list[AIAction] | None = None
+    
+    # P2: Performance Metrics
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: float = 0.0
+    is_cached: bool = False
+    trace_data: str | None = None
 
 
 class ConversationResponse(BaseModel):

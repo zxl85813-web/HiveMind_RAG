@@ -14,10 +14,12 @@ import json
 from collections.abc import AsyncGenerator
 
 from sqlmodel import desc, select
+from loguru import logger
 
 from app.core.database import get_db_session
 from app.models.chat import Conversation, Message
-from app.schemas.chat import ChatRequest, ConversationListItem
+from app.models.evaluation import BadCase
+from app.schemas.chat import ChatMessage, ChatRequest, ConversationListItem
 
 
 class ChatService:
@@ -108,20 +110,117 @@ class ChatService:
         return False
 
     @staticmethod
+    async def record_feedback(msg_id: str, rating: int, text: str | None = None) -> bool:
+        """Record user feedback (like/dislike) for a specific AI message."""
+        from app.models.evaluation import EvaluationSet, EvaluationItem
+        
+        async for session in get_db_session():
+            statement = select(Message).where(Message.id == msg_id)
+            result = await session.exec(statement)
+            msg = result.first()
+            if not msg:
+                logger.warning(f"Feedback target message not found: {msg_id}")
+                return False
+                
+            msg.rating = rating
+            if text is not None:
+                msg.feedback_text = text
+                
+            session.add(msg)
+            
+            # --- Automation Logic (AI-First) ---
+            
+            # 1. Negative Feedback -> Bad Case Analysis (M2.1E)
+            if rating == -1:
+                # 寻找本轮对话对应的 user question
+                stmt_q = select(Message).where(Message.conversation_id == msg.conversation_id).where(Message.role == 'user').where(Message.created_at <= msg.created_at).order_by(Message.created_at.desc())
+                user_q = (await session.exec(stmt_q)).first()
+                if user_q:
+                    existing_bc = (await session.exec(select(BadCase).where(BadCase.message_id == msg_id))).first()
+                    if not existing_bc:
+                        bad_case = BadCase(
+                            message_id=msg_id,
+                            question=user_q.content,
+                            bad_answer=msg.content,
+                            reason=text or "User disliked this answer",
+                            status="pending"
+                        )
+                        session.add(bad_case)
+                        logger.info(f"Automatically created BadCase entry for message {msg_id}")
+
+            # 2. Positive Feedback -> Evaluation/Few-shot set (M2.1F)
+            if rating == 1:
+                # 寻找对应的 user question
+                stmt_q = select(Message).where(Message.conversation_id == msg.conversation_id).where(Message.role == 'user').where(Message.created_at <= msg.created_at).order_by(Message.created_at.desc())
+                user_q = (await session.exec(stmt_q)).first()
+                if user_q:
+                    # Find a "User-Gold" Evaluation Set or create one
+                    set_stmt = select(EvaluationSet).where(EvaluationSet.name == "User-Gold Feedback Set")
+                    eval_set = (await session.exec(set_stmt)).first()
+                    
+                    if not eval_set:
+                        # Find first available KB to link this set to (Default strategy)
+                        from app.models.knowledge import KnowledgeBase
+                        kb_stmt = select(KnowledgeBase).limit(1)
+                        kb = (await session.exec(kb_stmt)).first()
+                        if kb:
+                            eval_set = EvaluationSet(
+                                kb_id=kb.id, 
+                                name="User-Gold Feedback Set", 
+                                description="High-quality RAG pairs verified by user 'Like' feedback."
+                            )
+                            session.add(eval_set)
+                            await session.flush() # Get ID
+                    
+                    if eval_set:
+                        # Check for duplicate
+                        dup_stmt = select(EvaluationItem).where(EvaluationItem.set_id == eval_set.id, EvaluationItem.question == user_q.content)
+                        if not (await session.exec(dup_stmt)).first():
+                            eval_item = EvaluationItem(
+                                set_id=eval_set.id,
+                                question=user_q.content,
+                                ground_truth=msg.content,
+                                reference_context="Captured from Chat Feedback"
+                            )
+                            session.add(eval_item)
+                            logger.info(f"✨ AI-First: Automatically promoted Liked Chat to EvaluationItem {eval_item.id}")
+
+            await session.commit()
+            logger.info(f"Feedback recorded for message {msg_id}: rating={rating}")
+            return True
+        return False
+
+    @staticmethod
     async def chat_stream(request: ChatRequest, user_id: str) -> AsyncGenerator[str, None]:
         """
-        核心流式对话生成器。
-
-        Yields:
-            SSE 格式数据: data: <json_string>\n\n
+        核心流式对话生成器 — 使用 SwarmOrchestrator 进行智能编排与多级存储检索。
+        P2: 集成语义缓存 (Semantic Cache) 与 Token 追踪。
         """
+        from app.api.routes.agents import _swarm
+        from app.services.cache_service import CacheService, TokenService
+        from app.services.trace_service import ChatTracer
+        import time
+
+        start_time = time.time()
+        tracer = ChatTracer()
         conversation_id = request.conversation_id
+        is_cached = False
 
         # 1. 如果没有会话ID，创建新会话
         if not conversation_id:
             conv = await ChatService.create_conversation(user_id, title=request.message[:20])
             conversation_id = conv.id
             yield f"data: {json.dumps({'type': 'session_created', 'id': conversation_id, 'title': conv.title})}\n\n"
+        
+        # 1.5 Record Client Events (Frontend Operation Logs)
+        if request.client_events:
+            for event in request.client_events:
+                tracer.add_quick_step(
+                    name=f"Client: {event.get('name', 'Interaction')}",
+                    output=event.get("data", "No data"),
+                    step_type="client",
+                    metadata={"timestamp": event.get("timestamp")}
+                )
 
         # 2. 保存用户消息
         async for session in get_db_session():
@@ -129,95 +228,160 @@ class ChatService:
             session.add(user_msg)
             await session.commit()
 
-        # 3. Multi-tier Memory Routing (Radar + Vector)
-        context_str = ""
-        try:
-            from app.core.llm import get_llm_service
-            from app.services.memory.tier.abstract_index import abstract_index
-            llm = get_llm_service()
-
-            # --- Stage 1: Radar (Tier 1 Memory) ---
-            # Fast extraction of intent tags
-            radar_prompt = f"""
-            Extract 1-3 searchable keywords (tags) from this query. 
-            Return ONLY a JSON array of strings. Query: "{request.message}"
-            """
-            tags = []
-            try:
-                tags_json = await llm.chat_complete([{"role": "user", "content": radar_prompt}], json_mode=True)
-                tags_data = json.loads(tags_json)
-                if isinstance(tags_data, dict):
-                    # Sometimes models wrap array in dict
-                    tags = tags_data.get("tags", list(tags_data.values())[0])
-                elif isinstance(tags_data, list):
-                    tags = tags_data
-            except Exception as e:
-                pass
-            
-            radar_hits = []
-            if tags and isinstance(tags, list):
-                # Hit the memory memory!
-                radar_hits = abstract_index.route_query(tags=tags, limit=3)
-            
-            if radar_hits:
-                yield f"data: {json.dumps({'type': 'status', 'content': f'⚡ 雷达定位到 {len(radar_hits)} 个相关记忆 (Tags: {tags})'})}\n\n"
-                context_str += "--- HOT MEMORY (Abstracts) ---\n"
-                for hit in radar_hits:
-                    context_str += f"- [{hit['date']}] {hit['title']} (Type: {hit['type']})\n"
-                context_str += "\n"
-
-            # --- Stage 1.5: Graph Neighborhood (Tier 2 Memory) ---
-            from app.services.memory.tier.graph_index import graph_index
-            if tags and isinstance(tags, list):
-                neighbor_hits = graph_index.get_neighborhood(tags)
-                if neighbor_hits:
-                    yield f"data: {json.dumps({'type': 'status', 'content': f'🕸️ 图谱扩展了 {len(neighbor_hits)} 条关联上下文'})}\n\n"
-                    context_str += "--- GLOBAL CONTEXT (Graph Neighborhood) ---\n"
-                    context_str += "\n".join([f"- {n}" for n in neighbor_hits])
-                    context_str += "\n\n"
-
-            # --- Stage 2: Deep Vector Retrieval (Tier 3 Memory) ---
-            from app.services.retrieval import get_retrieval_service
-            retriever = get_retrieval_service()
-            
-            docs = await retriever.retrieve(request.message, collection_names=["default"], top_k=2)
-            
-            if docs:
-                context_str += "--- DEEP CONTEXT ---\n"
-                context_str += "\n".join([f"- {d.page_content}" for d in docs])
-                if not radar_hits:
-                    yield f"data: {json.dumps({'type': 'status', 'content': f'🔍 检索到 {len(docs)} 条相关上下文'})}\n\n"
-                    
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'status', 'content': f'⚠️ 记忆检索异常: {e}'})}\n\n"
-
-        # 4. LLM Generation
-        from app.core.llm import get_llm_service
-        llm = get_llm_service()
-        
-        system_prompt = "You are HiveMind, an AI Assistant. Answer concisely and helpfully."
-        if context_str:
-            system_prompt += f"\n\n## Context\n{context_str}\n\n## Instruction\nAnswer based on context if relevant."
-            
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": request.message}
-        ]
-
-        response_content = ""
-        try:
-            async for delta in llm.stream_chat(messages):
-                response_content += delta
-                chunk = {"type": "content", "delta": delta, "conversation_id": conversation_id}
-                yield f"data: {json.dumps(chunk)}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-
-        # 5. 保存 AI 回复
+        # 3. Load Conversation History (Moved up to ensure 'history' is always defined for Insights)
+        history = []
         async for session in get_db_session():
-            ai_msg = Message(conversation_id=conversation_id, role="assistant", content=response_content)
+            stmt = select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at).limit(10)
+            res = await session.exec(stmt)
+            for m in res.all():
+                if m.id == user_msg.id: # Skip the one we just added
+                    continue
+                if m.role == "user":
+                    from langchain_core.messages import HumanMessage
+                    history.append(HumanMessage(content=m.content))
+                elif m.role == "assistant":
+                    from langchain_core.messages import AIMessage
+                    history.append(AIMessage(content=m.content))
+
+        # 4. Semantic Cache Lookup
+        cache_step = tracer.start_step("Semantic Cache Check", "tool", input_data=request.message)
+        cached = await CacheService.get_cached_response(request.message)
+        if cached:
+            is_cached = True
+            cache_step.complete(output="Cache Hit", status="success")
+            logger.info("🚀 Semantic Cache Hit! Skipping LLM Swarm.")
+            yield f"data: {json.dumps({'type': 'status', 'content': '⚡ 语义缓存命中: 正在极速回复...'})}\n\n"
+            response_content = cached["content"]
+            # Stream the cached content to keep UI experience consistent
+            for char in response_content:
+                yield f"data: {json.dumps({'type': 'content', 'delta': char, 'conversation_id': conversation_id, 'is_cached': True})}\n\n"
+                await asyncio.sleep(0.001)
+        else:
+            cache_step.complete(output="Cache Miss", status="info")
+            # 5. Prepare Context
+            context = {}
+            if request.knowledge_base_ids:
+                context["knowledge_base_ids"] = request.knowledge_base_ids
+
+            # 5.5 Load Security Policy for Outbound Filtering
+            policy_rules = None
+            async for session in get_db_session():
+                from app.services.security_service import SecurityService
+                policy = await SecurityService.get_active_policy(session)
+                if policy and policy.rules_json:
+                    policy_rules = json.loads(policy.rules_json)
+                break 
+
+            # 6. 调用 Swarm 编排器
+            response_content = ""
+            swarm_step = tracer.start_step("Swarm Orchestration", "agent", input_data=request.message)
+            try:
+                current_sub_step = None
+                async for output in _swarm.invoke_stream(request.message, context=context, history=history):
+                    if "retrieval" in output:
+                        ret_data = output["retrieval"]
+                        ret_logs = ret_data.get("retrieval_trace", [])
+                        ret_docs = ret_data.get("retrieved_docs", [])
+                        tracer.add_quick_step(
+                            "Memory Retrieval", 
+                            "Searching Radar/Graph/Vector Store", 
+                            "retrieval",
+                            metadata={
+                                "logs": ret_logs,
+                                "docs": ret_docs
+                            } if (ret_logs or ret_docs) else None
+                        )
+                        yield f"data: {json.dumps({'type': 'status', 'content': '🔍 正在检索多级记忆库 (Radar/Graph/Vector)...'})}\n\n"
+                    
+                    if "supervisor" in output:
+                        decision = output["supervisor"]
+                        next_agent = decision.get("next_step")
+                        if next_agent and next_agent != "FINISH":
+                            tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'👨‍✈️ 编排器决策: 由 {next_agent} 处理回复'})}\n\n"
+                    
+                    for node_name, updates in output.items():
+                        if node_name not in ["retrieval", "supervisor", "reflection"]:
+                            if "messages" in updates:
+                                raw_content = updates["messages"][-1].content
+                                if policy_rules:
+                                    from app.services.security.engine import DesensitizationEngine
+                                    content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
+                                else:
+                                    content = raw_content
+                                
+                                # --- AI-First Refinement: Clean up internal model tags (M2.1H) ---
+                                import re
+                                # Remove common leaked internal tags from models like DeepSeek (e.g., <|tool_calls_begin|>)
+                                # Added Unicode variants check (｜ and |) for robustness
+                                content = re.sub(r'<[\|｜].*?[\|｜]>', '', content)
+                                content = content.replace('< | tool_calls_begin | >', '')
+                                content = content.replace('< | tool_calls_end | >', '')
+                                
+                                # Skip if result is just empty tags or whitespace
+                                if not content.strip():
+                                    continue
+                                
+                                for char in content:
+                                    response_content += char
+                                    yield f"data: {json.dumps({'type': 'content', 'delta': char, 'conversation_id': conversation_id})}\n\n"
+                                    # Optimized delay for better UX (0.005 -> 0.001)
+                                    await asyncio.sleep(0.001)
+
+                swarm_step.complete(output="Generation Completed")
+                # 6.5 Set Cache for future similar questions (only if it's a REAL answer, not a tool leak)
+                if response_content and not any(tag in response_content for tag in ["tool_calls_begin", "tool_sep"]):
+                    await CacheService.set_cached_response(request.message, response_content)
+
+            except Exception as e:
+                swarm_step.complete(output=str(e), status="error")
+                logger.error(f"Swarm invocation failed: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'content': f'Swarm Error: {str(e)}'})}\n\n"
+
+        # 7. Generate Proactive Insight (AI-First)
+        insight_step = tracer.start_step("Proactive Insight", "agent")
+        try:
+            from app.services.insight_service import InsightService
+            # Ensure history is always included for context-aware insights
+            full_history = "\n".join([m.content for m in history] + [request.message])
+            insight = await InsightService.generate_session_insight(full_history, response_content)
+            if insight:
+                insight_step.complete(output=f"Generated {len(insight.actions)} actions")
+                yield f"data: {json.dumps({'type': 'insight', 'data': insight.dict()})}\n\n"
+            else:
+                insight_step.complete(output="No insight generated")
+        except Exception as e:
+            insight_step.complete(output=str(e), status="error")
+            logger.warning(f"Failed to generate session insight: {e}")
+
+        # 8. Performance Metrics Calculation
+        end_time = time.time()
+        latency_ms = (end_time - start_time) * 1000
+        p_tokens = TokenService.count_tokens(request.message)
+        c_tokens = TokenService.count_tokens(response_content)
+        total_tokens = p_tokens + c_tokens
+
+        # 9. 保存 AI 最终回复与指标
+        async for session in get_db_session():
+            actions_json = None
+            if 'insight' in locals() and insight:
+                actions_json = json.dumps([a.dict() for a in insight.actions])
+            
+            ai_msg = Message(
+                conversation_id=conversation_id, 
+                role="assistant", 
+                content=response_content,
+                # P2 Metrics
+                prompt_tokens=p_tokens if not is_cached else 0,
+                completion_tokens=c_tokens if not is_cached else 0,
+                total_tokens=total_tokens if not is_cached else 0,
+                latency_ms=latency_ms,
+                is_cached=is_cached,
+                metadata_json=json.dumps({"actions": actions_json}) if actions_json else None,
+                trace_data=tracer.get_trace_json()  # Save custom trace!
+            )
             session.add(ai_msg)
             await session.commit()
 
-        # 6. 结束信号
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        # 10. 结束信号
+        yield f"data: {json.dumps({'type': 'done', 'latency_ms': latency_ms, 'is_cached': is_cached})}\n\n"

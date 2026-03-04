@@ -68,8 +68,9 @@ class PromptEngine:
         # 预加载 Layer 1
         self._base = self._load_yaml("base", "system")
         self._schemas = self._load_yaml("base", "output_schemas")
+        self._platform_kb = self._load_yaml("base", "platform_knowledge")
 
-        logger.info(f"🎯 PromptEngine initialized (dir={prompt_dir})")
+        logger.info(f"PromptEngine initialized (dir={prompt_dir})")
 
     # ============================================================
     #  公开 API — 构建各类 Prompt
@@ -137,6 +138,7 @@ class PromptEngine:
             base=self._base,
             role=role,
             schemas=self._schemas,
+            platform_kb=self._platform_kb,
             task=task,
             rag_context=rag_context,
             memory_context=memory_context,

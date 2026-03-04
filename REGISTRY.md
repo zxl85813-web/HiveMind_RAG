@@ -76,9 +76,9 @@
 |------|------|------|------|
 | `SwarmOrchestrator` | Agent 蜂巢编排 | `agents/swarm.py` | ✅ MVP |
 | `AgentDefinition` | Agent 定义数据类 | `agents/swarm.py` | ✅ |
-| `SharedMemoryManager` | 共享记忆管理 | `agents/memory.py` | 🔲 框架 |
-| `TodoItem` | 共享 TODO 数据模型 | `agents/memory.py` | ✅ |
-| `ReflectionEntry` | 自省日志数据模型 | `agents/memory.py` | ✅ |
+| `SharedMemoryManager` | 共享记忆管理 | `agents/memory.py` | ✅ |
+| `TodoItem` | 共享 TODO 数据模型 | `models/agents.py` | ✅ |
+| `ReflectionEntry` | 自省日志数据模型 | `models/agents.py` | ✅ |
 | `LLMRouter` | 多 LLM 路由 | `agents/llm_router.py` | 🔲 框架 |
 | `ModelConfig` | LLM 配置数据类 | `agents/llm_router.py` | ✅ |
 | `MCPManager` | MCP 服务管理 | `agents/mcp_manager.py` | 🔲 框架 |
@@ -287,6 +287,9 @@
 | REQ-005 MCP+Skills | — | `agents/mcp_manager.py`, `agents/skills.py` | 待编写 | — | 🔲 |
 | REQ-006 通信 | ADR-001 ✅ | `routes/chat.py`, `routes/websocket.py`, `services/ws_manager.py` | 待编写 | `docs/api/chat.md` (待) | 🔲 |
 | REQ-007 开发治理 | — | `.agent/rules/*`, `.agent/workflows/*` | N/A | `docs/README.md` ✅ | 🟢 |
+| REQ-008 RAG Pipeline & 质量体系 | REQ-008 ✅ | `services/retrieval/`, `services/indexing.py` | 待编写 | — | 🔲 |
+| REQ-009 RAG 进阶能力 | REQ-009 ✅ | `services/retrieval/`, `core/graph_store.py`, `services/memory/` | 待编写 | — | 🔲 |
+| REQ-010 数据脱敏体系 | REQ-010 ✅ | 待实现 | 待编写 | — | 🔲 |
 
 ---
 

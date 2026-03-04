@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Button, List, Card, Tag, Space, Typography, Modal, Input, message, Tabs, Empty } from 'antd';
+import { App, Button, List, Card, Tag, Space, Typography, Modal, Input, Tabs, Empty } from 'antd';
 import { PlusOutlined, BulbOutlined, FireOutlined, GlobalOutlined, DeleteOutlined, RocketOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { PageContainer } from '../components/common';
 import { learningApi, type Subscription, type TechDiscovery } from '../services/learningApi';
 
-const { Text, Title, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 
 export const LearningPage: React.FC = () => {
+    const { t } = useTranslation();
+    const { message } = App.useApp();
     const [discoveries, setDiscoveries] = useState<TechDiscovery[]>([]);
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loading, setLoading] = useState(false);
@@ -58,11 +61,11 @@ export const LearningPage: React.FC = () => {
 
     return (
         <PageContainer
-            title="技术动态"
-            description="自动追踪开源项目和最新技术，分析与当前技术栈的关联程度"
+            title={t('learning.title')}
+            description={t('learning.description')}
             actions={
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsSubModalOpen(true)}>
-                    添加订阅
+                    {t('learning.add_sub')}
                 </Button>
             }
         >
@@ -71,7 +74,7 @@ export const LearningPage: React.FC = () => {
                 items={[
                     {
                         key: '1',
-                        label: <span><FireOutlined /> 技术发现</span>,
+                        label: <span><FireOutlined /> {t('learning.tabs.discovery')}</span>,
                         children: (
                             <List
                                 grid={{ gutter: 16, column: 2 }}
@@ -89,8 +92,8 @@ export const LearningPage: React.FC = () => {
                                             ]}
                                         >
                                             <Paragraph ellipsis={{ rows: 2 }}>{item.summary}</Paragraph>
-                                            <Space split={<Text type="secondary">|</Text>}>
-                                                <Tag>{item.category.toUpperCase()}</Tag>
+                                            <Space separator={<Text type="secondary">|</Text>}>
+                                                <Tag variant="filled">{item.category.toUpperCase()}</Tag>
                                                 <Text type="secondary">{new Date(item.discovered_at).toLocaleDateString()}</Text>
                                             </Space>
                                         </Card>
@@ -102,7 +105,7 @@ export const LearningPage: React.FC = () => {
                     },
                     {
                         key: '2',
-                        label: <span><BulbOutlined /> 我的订阅</span>,
+                        label: <span><BulbOutlined /> {t('learning.tabs.my_subs')}</span>,
                         children: (
                             <List
                                 loading={loading}
@@ -137,6 +140,7 @@ export const LearningPage: React.FC = () => {
                 open={isSubModalOpen}
                 onOk={handleAddSub}
                 onCancel={() => setIsSubModalOpen(false)}
+                destroyOnHidden
             >
                 <Paragraph>输入你想追踪的技术关键词（如：Spring Boot, LangChain, React 19），系统将自动搜寻相关动态。</Paragraph>
                 <Input

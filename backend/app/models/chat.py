@@ -17,6 +17,7 @@ class User(SQLModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True)
     role: str = Field(default="user")  # user | admin
+    department_id: str | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     conversations: list["Conversation"] = Relationship(back_populates="user")
@@ -42,11 +43,14 @@ class Message(SQLModel, table=True):
     conversation_id: str = Field(foreign_key="conversations.id", index=True)
     role: str  # user | assistant | system
     content: str
-    metadata_json: str | None = None  # JSON: model used, agent trace, sources, etc.
-
-    # Feedback fields
-    rating: int = Field(default=0)  # 0: None, 1: Like, -1: Dislike
-    feedback_text: str | None = None  # User's reason for feedback
+    # P2: Performance & Cost Tracking
+    prompt_tokens: int | None = Field(default=0)
+    completion_tokens: int | None = Field(default=0)
+    total_tokens: int | None = Field(default=0)
+    latency_ms: float | None = Field(default=0.0)
+    is_cached: bool = Field(default=False)
+    # Trace data for custom observability (JSON string)
+    trace_data: str | None = Field(default=None)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -10,13 +10,14 @@ from typing import Any, Dict
 from loguru import logger
 
 from app.batch.pipeline import PipelineExecutor, StageDefinition, Artifact, ArtifactType, StageInput
-from app.batch.ingestion.core import ParserRegistry, IngestionContext
+from app.batch.ingestion.core import ParserRegistry, IngestionContext, StepRegistry
 from app.batch.ingestion.protocol import StandardizedResource
 
 # Import all plugins so they register themselves
 import app.batch.plugins.mineru_parser
 import app.batch.plugins.excel_parser
 import app.batch.plugins.image_parser
+import app.batch.ingestion.steps
 
 class IngestionExecutor(PipelineExecutor):
     """
@@ -29,18 +30,21 @@ class IngestionExecutor(PipelineExecutor):
         stage_input: StageInput,
     ) -> Artifact:
         """
-        Override the default execution to inject local code logic.
+        Override the default execution to inject local code logic or Step Registry logic.
         """
         logger.info(f"⚙️ IngestionExecutor running stage: {stage_def.name}")
 
-        # --- Hook 1: Parse Content (The Plugin System) ---
+        # 1. Check Step Registry (Priority 1: Code-based modular steps)
+        step = StepRegistry.get_step(stage_def.name)
+        if step:
+            logger.info(f"🧱 Using local step logic for: {stage_def.name}")
+            return await step.run(stage_input)
+
+        # 2. Legacy Hooks (Priority 2: For backwards compatibility or specific overrides)
         if stage_def.name == "parse_content":
             return await self._execute_parsing(stage_input)
         
-        # --- Hook 2: AI Enrich (The Swarm) ---
-        # For now we use the default LLM behavior, but we could add custom pre-processing here.
-        
-        # Default behavior (LLM Call)
+        # 3. Default behavior (Priority 3: LLM / Swarm agent)
         return await super()._execute_stage(stage_def, stage_input)
 
     async def _execute_parsing(self, stage_input: StageInput) -> Artifact:
@@ -70,7 +74,7 @@ class IngestionExecutor(PipelineExecutor):
             # 3. Wrap result
             return Artifact(
                 artifact_type=ArtifactType.EXTRACTED_DATA,
-                data=resource.dict(), # Convert Pydantic to dict
+                data=resource.model_dump(), # Convert Pydantic to dict
                 text_summary=f"Parsed {len(resource.sections)} sections, {len(resource.tables)} tables.",
                 source_stage="parse_content",
                 confidence=1.0

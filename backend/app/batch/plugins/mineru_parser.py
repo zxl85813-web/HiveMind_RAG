@@ -18,7 +18,6 @@ class MinerUParser(BaseParser):
     async def parse(self, file_path: str, context: Optional[IngestionContext] = None) -> StandardizedResource:
         # TODO: Integrate actual MinerU SDK here.
         # For now, we mock the output structure MinerU would provide.
-        
         mock_content = "Mocked content from MinerU for " + file_path
         
         return StandardizedResource(
