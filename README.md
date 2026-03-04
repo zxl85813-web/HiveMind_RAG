@@ -178,7 +178,7 @@ graph TD
         User["User Query"] -->|8. Chat| Swarm["Swarm Orchestrator"]
         Swarm -->|9. Route| Supervisor["Supervisor Agent"]
         
-        Supervisor --vs-->|10. Call Tool| Service["Generation/Retrieval Service"]
+        Supervisor -->|"10. Call Tool"| Service["Generation/Retrieval Service"]
         Service -->|"11. Hybrid Search (Vector+BM25)"| VectorDB
         
         VectorDB -->|12. Top K Candidates| Reranker["Reranker (Cross-Encoder)"]
