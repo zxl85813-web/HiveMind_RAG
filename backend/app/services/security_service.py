@@ -9,7 +9,7 @@ from loguru import logger
 
 from app.models.security import DesensitizationPolicy, DesensitizationReport, SensitiveItem, AuditLog, DocumentPermission
 from app.models.chat import User
-from app.services.security.engine import DesensitizationEngine
+from app.audit.security.engine import DesensitizationEngine
 
 
 class SecurityService:

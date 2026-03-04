@@ -1,7 +1,7 @@
 import re
 import hashlib
 from typing import Dict, Any, List
-from app.services.security.detectors import DetectorRegistry
+from app.audit.security.detectors import DetectorRegistry
 
 class AuditEngine:
     """Engine for performing automatic data quality audits (M2.3)."""

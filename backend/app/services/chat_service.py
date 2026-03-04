@@ -305,7 +305,7 @@ class ChatService:
                             if "messages" in updates:
                                 raw_content = updates["messages"][-1].content
                                 if policy_rules:
-                                    from app.services.security.engine import DesensitizationEngine
+                                    from app.audit.security.engine import DesensitizationEngine
                                     content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
                                 else:
                                     content = raw_content

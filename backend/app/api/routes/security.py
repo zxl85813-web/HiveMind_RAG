@@ -97,7 +97,7 @@ async def get_report_for_document(
 @router.get("/detectors", response_model=ApiResponse[Dict[str, Any]])
 async def get_available_detectors(current_user: User = Depends(get_current_user)):
     """List all registered detectors with their descriptions."""
-    from app.services.security.detectors import DetectorRegistry
+    from app.audit.security.detectors import DetectorRegistry
     detectors = DetectorRegistry.get_all()
     
     res = []

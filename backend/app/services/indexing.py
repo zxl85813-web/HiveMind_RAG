@@ -43,7 +43,7 @@ async def index_document_task(kb_id: str, doc_id: str):
             pipeline_type = kb.pipeline_type if hasattr(kb, "pipeline_type") else "general"
             pipeline_def = create_ingestion_pipeline(pipeline_type)
             # --- Logging & Monitoring (M2.1B) ---
-            from app.services.pipeline_monitor import PipelineMonitor
+            from app.batch.monitor import PipelineMonitor
             job_id = await PipelineMonitor.create_job(
                 pipeline_name=pipeline_def.name,
                 kb_id=kb_id,

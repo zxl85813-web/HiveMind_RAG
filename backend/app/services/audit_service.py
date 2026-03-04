@@ -4,7 +4,7 @@ from sqlmodel import select
 from loguru import logger
 
 from app.models.security import DocumentReview
-from app.services.security.audit import AuditEngine
+from app.audit.security.audit import AuditEngine
 
 class AuditService:
     """Service for managing document quality audits (M2.3)."""
@@ -54,7 +54,7 @@ class AuditService:
         overlap_score = 0.0
         if stats["status"] != "rejected" and len(text) > 300:
             try:
-                from app.services.security.overlap import KnowledgeOverlapEngine
+                from app.audit.security.overlap import KnowledgeOverlapEngine
                 overlap_res = await KnowledgeOverlapEngine.check_overlap(text)
                 overlap_score = overlap_res.overlap_score
                 
