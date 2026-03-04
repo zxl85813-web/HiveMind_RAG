@@ -23,7 +23,10 @@
 
 ---
 
-## 一、🔥 紧急 / 阻塞项 (Blockers)
+## 一、🔥 紧急 / 阻塞项 (Blockers & Tracking)
+
+> 根据 `design-and-implementation-methodology.md` 的追踪规范，任何开发中遇到的中断必须记录于此。
+> 格式: `- [ ] 🛑 BLOCKED: TASK_NAME - Reason: <具体问题详情>`
 
 （暂无阻塞问题，BUG-001/002/003已在前期修复）
 

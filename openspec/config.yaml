@@ -8,6 +8,7 @@ context: |
   Code rules: See .agent/rules/coding-standards.md and .agent/rules/project-structure.md.
   Quality gates: 80% test coverage required, strict typing (mypy + tsc strict), ruff + eslint linting.
   Collaboration: Multi-role workflow (.agent/rules/project-workflow.md). Feature branches + PR-based workflow. ADR required for core/schema changes.
+  Methodology: All designs must follow .agent/rules/design-and-implementation-methodology.md (4-tier design, tracking blockers in TODO.md, dual-view testing).
   OpenSpec manages AI-assisted development lifecycle, mapping 1:1 with GitHub Issues.
 
 # Per-artifact rules
@@ -18,10 +19,13 @@ rules:
     - Reference related REQ-NNN documents from docs/requirements/ when applicable
     - Consider architecture impact — flag if an ADR is needed
   design:
+    - MUST include 4 domains: Database Design (Mermaid ER), Backend Logic, API Design (Schema/REST), Frontend Design (Component Tree).
+    - Design MUST mandate re-use of components or explicitly justify new ones.
     - Reference module boundary rules from .agent/rules/project-structure.md
     - Specify which existing services/modules are affected
     - Include data model changes if applicable
   tasks:
     - Break tasks into chunks of max 2 hours
-    - Each task must include a testability criterion
+    - Each task must include a validation/testability criterion from BOTH Design Viewpoint and Code Viewpoint.
     - Group tasks by backend/frontend when both are affected
+    - Automatically track `🛑 BLOCKED` issues into `TODO.md` if blocked during execution.
