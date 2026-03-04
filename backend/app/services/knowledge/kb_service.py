@@ -1,7 +1,7 @@
 """
 Knowledge Base Service — Manages KB and Document persistence.
 
-所属模块: services
+所属模块: services/knowledge
 依赖模块: models.knowledge, core.database
 注册位置: REGISTRY.md > Services > KnowledgeService
 """

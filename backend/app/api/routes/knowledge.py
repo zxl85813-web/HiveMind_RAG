@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
 from app.schemas.knowledge import KnowledgeBaseCreate, KnowledgeBaseUpdate, DocumentCreate, DocumentResponse
-from app.services.knowledge_base import KnowledgeService
+from app.services.knowledge.kb_service import KnowledgeService
 from app.services.indexing import index_document_task
 from app.models.chat import User
 from app.core.config import settings
