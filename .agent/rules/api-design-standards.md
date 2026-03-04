@@ -98,3 +98,8 @@ API 是前后端（以及未来 Agent 之间）协作的唯一契约。所有新
 - `500xx` 内部服务端异常（数据库报错 50001，三方大模型超时 50002）
 
 > 开发 API 时，若要抛出预料之内的业务错误，直接在 Service/API 层抛出对应带有具体业务 Code 的基类 Exception，由 FastAPI 的 Exception Handler 拦截并包装成上述"失败格式"。
+
+---
+
+> 💡 **可扩展性与规则豁免**:
+> 本文档定义的是标准场景下的通用规范。如果在极其特殊的业务或性能要求下必须突破这些规则，请参见 [`design-and-implementation-methodology.md`](design-and-implementation-methodology.md) 中的"特例豁免机制"（例如强制要求在代码中写明注释或生成 ADR）。

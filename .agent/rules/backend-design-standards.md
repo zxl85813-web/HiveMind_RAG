@@ -93,3 +93,8 @@ async def doc_large_handler(request, exc):
 在书写某个需求的设计文档时，如果涉及到后端改造，必须明确写出：
 1. **依赖关系图** (将要添加的 Service 会实例化哪些现有的组件/客户端？)
 2. **将抛出的主要异常清单**。
+
+---
+
+> 💡 **可扩展性与规则豁免**:
+> 本文档定义的是标准场景下的通用规范。如果在极其特殊的业务或性能要求下必须突破这些规则，请参见 [`design-and-implementation-methodology.md`](design-and-implementation-methodology.md) 中的"特例豁免机制"（例如强制要求在代码中写明注释或生成 ADR）。

@@ -96,3 +96,8 @@ erDiagram
    - Alembic 无法自动探测列名重命名（它会当作 Drop Column + Add Column）。如果重命名列，修改生成的脚本，使用 `op.alter_column`。
    - 确认 Enum 类型在 PostgreSQL 中是否被正确创建。
 3. `revision` message 参数必须包含所关联的 Issue ID，例如：`alembic revision --autogenerate -m "feat(rag): add chunk table for Issue #12"`。
+
+---
+
+> 💡 **可扩展性与规则豁免**:
+> 本文档定义的是标准场景下的通用规范。如果在极其特殊的业务或性能要求下必须突破这些规则，请参见 [`design-and-implementation-methodology.md`](design-and-implementation-methodology.md) 中的"特例豁免机制"（例如强制要求在代码中写明注释或生成 ADR）。

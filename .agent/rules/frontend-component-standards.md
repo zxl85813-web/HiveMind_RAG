@@ -90,3 +90,8 @@ interface SearchInputProps {
 2. **需要但没有**: 停下！去项目的 `TODO.md` 追加一条记录：
    `- [ ] 🔧 COMPONENT_NEEDED: [组件名] - [组件简要描述用途]`
    并询问设计方/PO 是否应该把它做到 `common/` 里供大家复用。
+
+---
+
+> 💡 **可扩展性与规则豁免**:
+> 本文档定义的是标准场景下的通用规范。如果在极其特殊的业务或性能要求下必须突破这些规则，请参见 [`design-and-implementation-methodology.md`](design-and-implementation-methodology.md) 中的"特例豁免机制"（例如强制要求在代码中写明注释或生成 ADR）。
