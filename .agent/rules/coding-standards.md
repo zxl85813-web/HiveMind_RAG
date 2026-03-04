@@ -75,7 +75,7 @@ class SwarmOrchestrator:
 | 数据验证 | Pydantic BaseModel / SQLModel | raw dict |
 | 数据库操作 | SQLModel + async session | 原生 SQL (除 SQL Agent) |
 | 依赖注入 | FastAPI Depends() | 全局变量 |
-| 时间处理 | `datetime.utcnow()` | `datetime.now()` |
+| 时间处理 | `datetime.now(timezone.utc)` | `datetime.now()`, `datetime.utcnow()` |
 | ID 生成 | `uuid.uuid4()` | 自增 ID, 随机字符串 |
 
 ### 前端一致性

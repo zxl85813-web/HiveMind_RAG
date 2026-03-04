@@ -12,31 +12,31 @@
 
 ```mermaid
 graph TD
-    User((User)) <--> Frontend[⚛️ React Frontend<br>(AI-First UI/ChatPanel)]
+    User((User)) <--> Frontend["⚛️ React Frontend<br>(AI-First UI/ChatPanel)"]
     
     subgraph "Backend (FastAPI)"
-        API[🌐 API Gateway<br>(Routes + Deps)]
+        API["🌐 API Gateway<br>(Routes + Deps)"]
         
         subgraph "Application Layer"
-            Service[💼 Business Services<br>(User/Chat/KB)]
-            Auth[🔐 Auth & Audit<br>(RBAC/Log/Sanitizer)]
+            Service["💼 Business Services<br>(User/Chat/KB)"]
+            Auth["🔐 Auth & Audit<br>(RBAC/Log/Sanitizer)"]
         end
         
         subgraph "Intelligence Layer (Agent Swarm)"
-            Supervisor[🧠 Manager Agent<br>(Router)]
-            Workers[👷 Worker Agents<br>(RAG/Code/Web/Reflection)]
-            Memory[💾 Shared Memory<br>(Redis/Vector)]
+            Supervisor["🧠 Manager Agent<br>(Router)"]
+            Workers["👷 Worker Agents<br>(RAG/Code/Web/Reflection)"]
+            Memory["💾 Shared Memory<br>(Redis/Vector)"]
         end
         
         subgraph "Infrastructure Layer"
-            Core[⚙️ Core Infra<br>(Config/DB/Log)]
-            LLM[🧠 LLM Gateway<br>(Router/Guardrails)]
-            Tools[🛠️ Tools<br>(MCP/Skills/Learning)]
+            Core["⚙️ Core Infra<br>(Config/DB/Log)"]
+            LLM["🧠 LLM Gateway<br>(Router/Guardrails)"]
+            Tools["🛠️ Tools<br>(MCP/Skills/Learning)"]
         end
     end
 
-    Frontend <-->|SSE Stream| API
-    Frontend <-->|WebSocket| API
+    Frontend <-->|"SSE Stream"| API
+    Frontend <-->|"WebSocket"| API
     API --> Service
     Service --> Supervisor
     Supervisor --> Workers
@@ -162,29 +162,29 @@ alembic upgrade head
 graph TD
     %% --- Ingestion Flow (入库) ---
     subgraph "Ingestion Pipeline (Write Path)"
-        Upload[User Upload] -->|1. Upload File| API[API Gateway]
-        API -->|2. Create Job| JobManager[Job Manager]
+        Upload["User Upload"] -->|1. Upload File| API["API Gateway"]
+        API -->|2. Create Job| JobManager["Job Manager"]
         
-        JobManager -->|3. Schedule| Worker[Ingestion Worker]
-        Worker -->|4. Load Skill| Plugins[Parser Plugins\n(Mineru/Excel/PDF)]
+        JobManager -->|3. Schedule| Worker["Ingestion Worker"]
+        Worker -->|4. Load Skill| Plugins["Parser Plugins\n(Mineru/Excel/PDF)"]
         
-        Plugins -->|5. Parse & Chunk| Chunks[Text Chunks]
-        Chunks -->|6. Embed| EmbedModel[Embedding Model]
-        EmbedModel -->|7. Upsert| VectorDB[(pgvector\nVector Core)]
+        Plugins -->|5. Parse & Chunk| Chunks["Text Chunks"]
+        Chunks -->|6. Embed| EmbedModel["Embedding Model"]
+        EmbedModel -->|7. Upsert| VectorDB[("pgvector\nVector Core")]
     end
 
     %% --- Query & Generation Flow (检索与生成) ---
     subgraph "Retrieval & Generation Loop (Read Path)"
-        User[User Query] -->|8. Chat| Swarm[Swarm Orchestrator]
-        Swarm -->|9. Route| Supervisor[Supervisor Agent]
+        User["User Query"] -->|8. Chat| Swarm["Swarm Orchestrator"]
+        Swarm -->|9. Route| Supervisor["Supervisor Agent"]
         
-        Supervisor --vs-->|10. Call Tool| Service[Generation/Retrieval Service]
-        Service -->|11. Hybrid Search (Vector+BM25)| VectorDB
+        Supervisor --vs-->|10. Call Tool| Service["Generation/Retrieval Service"]
+        Service -->|"11. Hybrid Search (Vector+BM25)"| VectorDB
         
-        VectorDB -->|12. Top K Candidates| Reranker[Reranker (Cross-Encoder)]
-        Reranker -->|13. Context (Top N)| Generator[Drafting Agent]
-        Generator -->|14. Self-Correction| Reviewer[Critic Agent]
-        Reviewer -->|15. Final Artifact (Excel/Text)| User
+        VectorDB -->|12. Top K Candidates| Reranker["Reranker (Cross-Encoder)"]
+        Reranker -->|"13. Context (Top N)"| Generator["Drafting Agent"]
+        Generator -->|"14. Self-Correction"| Reviewer["Critic Agent"]
+        Reviewer -->|"15. Final Artifact (Excel/Text)"| User
     end
 ```
 

@@ -25,12 +25,25 @@
 
 ## 2. 核心字段要求 (Mandatory Columns)
 
-所有的业务实体表，都**必须**继承自基础模型（如果项目中有 `BaseModel`）或包含以下 4 个标准审计字段：
+所有的业务实体表都**必须**继承自基础模型 `HiveMindBaseModel` 或包含以下标准审计字段，以实现统一的生命周期管理：
 
-1. `id`: 首选 `uuid.UUID`（如果是分布式高并发）或带自增语义的字符串/整数。推荐项目统一定义一种 ID 生成策略。
-2. `created_at`: `datetime`，默认值为服务器当前 UTC 时间 (`SERVER_DEFAULT = func.now()`)。
-3. `updated_at`: `datetime`，默认值为当前时间，并在 `onupdate` 时触发 (`onupdate=func.now()`)。
-4. `is_deleted` (可选): `bool`。如需使用**软删除**，务必添加此字段。核心数据（如用户知识库）禁止硬关联删除。
+1. **唯一标识 (`id`)**: 统一使用 `uuid.UUID` (UUID4)。
+   - **理由**: 方便分布式系统集成、离线数据合并及前端安全（不泄露数据总量）。
+   - **实现**: `Field(default_factory=uuid.uuid4, primary_key=True)`。
+2. **审计时间戳**:
+   - `created_at`: 创建时间。使用 Python 层 `datetime.now(timezone.utc)` 填充。
+   - `updated_at`: 更新时间。使用 Python 层填充，并配合 **SQLAlchemy Event Hooks (before_update)** 自动维护。
+   - **注意**: 统一在 Python 应用层处理时间戳，以保持跨数据库（PG/SQLite）的行为一致性。
+3. **审计操作人**:
+   - `created_by`: 创建者标识 (UUID 或 String ID)。
+   - `updated_by`: 最后修改者标识。
+4. **软删除 (`is_deleted`)**: 
+   - 所有的核心业务模型必须包含此字段，默认为 `False`。
+   - **规则**: 除非明确需要物理删除（如临时 Cache），否则禁止直接进行硬删除。
+
+> **技术决策 (Refined)**: 
+> - **查询安全**: 所有的查询逻辑**必须手动**包含 `.where(Model.is_deleted == False)`。AI Agent 和代码评审者需严格检查此项以防数据泄露。
+> - **自动化**: 项目配置了 SQLAlchemy 拦截器，在 `session.commit()` 前自动同步 `updated_at`，开发者无需在 Service 层显式更新。
 
 ---
 
