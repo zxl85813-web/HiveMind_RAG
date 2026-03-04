@@ -183,6 +183,12 @@ ADR 格式: 参见 `0000-use-madr.md`
 4. 合并 ADR PR
 5. 基于已批准的 ADR 开始 OpenSpec 变更流程
 
+## 🎭 多角色协作与需求分解
+
+在处理复杂需求时，我们遵循 **需求 -> GitHub Issues -> OpenSpec -> PR** 的降维流转机制，并支持 PO/Architect/Dev/Reviewer 多角色协作。
+
+**详情必读规范:** [`.agent/rules/project-workflow.md`](.agent/rules/project-workflow.md)
+
 ---
 
 ## 🔧 OpenSpec 协作流程

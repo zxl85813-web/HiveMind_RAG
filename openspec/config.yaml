@@ -7,13 +7,14 @@ context: |
   Domain: Enterprise RAG platform with Agent Swarm architecture (HiveMind RAG).
   Code rules: See .agent/rules/coding-standards.md and .agent/rules/project-structure.md.
   Quality gates: 80% test coverage required, strict typing (mypy + tsc strict), ruff + eslint linting.
-  Collaboration: Feature branches + PR-based workflow. ADR required for core/schema changes.
-  OpenSpec manages AI-assisted development lifecycle.
+  Collaboration: Multi-role workflow (.agent/rules/project-workflow.md). Feature branches + PR-based workflow. ADR required for core/schema changes.
+  OpenSpec manages AI-assisted development lifecycle, mapping 1:1 with GitHub Issues.
 
 # Per-artifact rules
 rules:
   proposal:
     - Always include a "Non-goals" section
+    - Explicitly state `Resolves #IssueID` for GitHub tracking
     - Reference related REQ-NNN documents from docs/requirements/ when applicable
     - Consider architecture impact — flag if an ADR is needed
   design:
