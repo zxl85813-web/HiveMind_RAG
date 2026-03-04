@@ -13,7 +13,10 @@ cat REGISTRY.md
 ```
 确认没有相同/相似组件。
 
-### 2. 确认组件归属目录
+### 2. 阅读设计与复用规范
+在动手写组件前，必须阅读：[`.agent/rules/frontend-component-standards.md`](../rules/frontend-component-standards.md) 以遵守 Smart/Dumb 拆解以及 TypeScript Props 规范。
+
+### 3. 确认组件归属目录
 组件必须放到 `frontend/src/components/` 下的子目录:
 - `common/` — 通用 (Layout, Sidebar, ErrorDisplay)
 - `chat/` — 对话相关
@@ -21,7 +24,7 @@ cat REGISTRY.md
 - `agents/` — Agent 监控
 - `learning/` — 技术动态
 
-### 3. 检查 Ant Design 是否已提供
+### 4. 检查 Ant Design 是否已提供
 去 [Ant Design 文档](https://ant.design/components/overview-cn) 确认是否已有对应组件。
 **如果 Ant Design / Ant Design X 已有，直接使用，不要二次封装**（除非需要注入特定业务逻辑）。
 

@@ -13,7 +13,10 @@ cat REGISTRY.md
 ```
 确认没有重复端点。
 
-### 2. 确认归属路由文件
+### 2. 前置阅读标准
+- 请遵守 RESTful 命名规范及 ApiResponse 结构返回：[`.agent/rules/api-design-standards.md`](../rules/api-design-standards.md)
+
+### 3. 确认归属路由文件
 API 端点必须在 `backend/app/api/routes/` 下已有文件中添加:
 - `chat.py` — 对话相关
 - `knowledge.py` — 知识库管理
