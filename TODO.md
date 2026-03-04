@@ -5,8 +5,9 @@
 > 
 > 🗺️ **完整开发计划**: [docs/ROADMAP.md](docs/ROADMAP.md) — 7 个里程碑 / 87 个任务 / ~30 天
 > 📄 **需求文档**: REQ-001~010 见 `docs/requirements/`
+> 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 
-> 📅 最后更新: 2026-02-24
+> 📅 最后更新: 2026-03-04
 
 ---
 

@@ -86,34 +86,36 @@ graph TD
 
 ## 🛡️ 研发治理体系 (Engineering Governance)
 
-为了保证代码质量和架构一致性，我们建立了完整的数字化治理体系。
+为了保证代码质量和架构一致性，我们建立了完整的数字化治理体系框架。不仅约束人类开发者，也高度约束 AI Agent。
 
-### 1. 代码生成 (Templates)
-不从零写代码，使用标准模板快速生成高质量骨架。
-- **Backend Service**: `.agent/templates/backend/service.py.j2`
-- **Tests**: `.agent/testing/generate_test.py`
+### 1. 多角色协同与 GitHub 绑定 (Collaboration & Binding)
+通过在 `.agent/rules/team-collaboration-standards.md` 中定义的双向绑定机制：
+- **向下驱动**: 使用 `/opsx-explore --issue={ID}` 让 AI 解析 GitHub Issue 并产出代码。
+- **向上报警**: AI 在生成遇到难以解决的阻塞时，会自动生成 `[BLOCKED]` Issue，指引人工介入。
+- **Issue Templates**: 强制打领域标签和架构评审标记。
 
-### 2. 质量门禁 (Quality Gates)
-提交代码前必须通过的自动化检查。
+### 2. 强制性 Git Hooks (Commit Guards)
+位于 `.agent/hooks/`，用于防范代码级灾难：
+- **`commit-msg`**: 强制所有提交必须关联 Issue (如 `Resolves #42`) 且符合 Conventional Commits 语义化规范。
+- **`pre-commit`**: 扫描缓存区的 `.py/.ts` 文件，一旦发现硬编码的敏感密钥 (`sk-xxx`) 立即熔断并阻止 push。
+
+### 3. 代码生成流与标准 (Templates & Rules)
+不从零写代码，使用标准工作流避免大模型的“发散随机性”。
+- **API & Component 设计**: 必须通过 `.agent/workflows/create-*` 命令。
+- **代码规范溯源**: 代码级别的 JSDoc / Docstring 顶部必须加 `@see REGISTRY.md`。
+
+### 4. 质量门禁与测试体系 (Quality Gates & Tests)
+遵循“.agent/testing_guidelines.md”开展契约+容错的双视角测试。
 ```bash
-# 一键运行所有检查 (Lint + Type Check)
+# 一键运行所有检查 (Lint + Type Check + Pytest)
 ./.agent/checks/run_checks.ps1
 ```
 
-### 3. Prompt 资产化管理 (Prompt Engineering)
-Prompt 不写死在代码里，而是作为资产统一管理。
-- **位置**: `backend/app/prompts/`
-- **格式**: YAML (配置) + Jinja2 (动态模板)
-- **加载**: 使用 `prompts.loader.PromptLoader`
-
-### 4. 数据库演进 (Database Evolution)
+### 5. 数据库演进 (Database Evolution)
 严禁手动改表，所有变更必须通过 Alembic 迁移脚本。
 ```bash
 # 生成迁移脚本 (开发环境)
-alembic revision --autogenerate -m "add_user_table"
-
-# 执行迁移 (生产环境)
-alembic upgrade head
+alembic revision --autogenerate -m "add_table"
 ```
 
 ---
