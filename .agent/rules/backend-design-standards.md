@@ -117,45 +117,63 @@ async def create_user(
 
 ## 5. 分层记忆架构 (Layered Memory System)
 
-> 记忆是 AI 的内部状态，但它会主动产出用户价值。
+> 记忆是 RAG 系统的核心竞争力。记忆的内部状态对用户不可见，但会主动暴露产出价值。
+
+### 5.0 实际存储栈（从代码得出，非假设）
+
+| 存储目的 | 生产环境 | 本地开发 | 测试 |
+|---|---|---|---|
+| 关系数据 (用户/知识库/会话) | **PostgreSQL** | SQLite | SQLite in-memory |
+| 向量存储 (语义检索) | **Elasticsearch 8.x** (kNN dense_vector + BM25 Hybrid) | **ChromaDB** (轻量) | MockVectorStore |
+| 知识图谱 | **Neo4j** | 同左 | 同左 |
+| 工作记忆 | **Redis** (TTL 管理，计划迁移) | Python dict | Python dict |
+| Embedding 提供商 | **智谱 AI (embedding-3, 2048维)** | 同左 | Mock |
+
+> **重要**: `core/vector_store.py` 中已实现统一抽象接口 `BaseVectorStore`，所有对向量存储的调用**必须通过 `get_vector_store()` 工厂方法**获取实例，禁止直接实例化 `ElasticVectorStore` 或 `ChromaVectorStore`。
 
 ### 5.1 三层记忆结构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  LAYER 1: Working Memory — 工作记忆                      │
-│  scope: 单次会话 | 存储: Python 内存                     │
-│  内容: 当前 Context Window + 临时推理状态                 │
-└──────────┬──────────────────────┬───────────────────────┘
-           │ 会话结束 →           │ 实时产出 (用户可见 API)
-           ▼ BackgroundTask       ▼
-┌───────────────────────┐   ┌───────────────────────────┐
-│ LAYER 2: Episodic      │   │  📤 Session Insights API  │
-│ Memory — 情景记忆      │   │  GET /sessions/{id}/insights│
-│ 存储: DB (summaries)  │   │  ├── proposed_kb_entries   │
-│ 每会话 → 分类摘要      │   │  ├── extracted_todos       │
-└──────────┬────────────┘   │  └── key_conclusions       │
-           │ 积累到阈值     └───────────────────────────┘
-           ▼ 渐进式批量归纳 (BackgroundTask / 定时触发)
-┌─────────────────────────────────────────────────────────┐
-│  LAYER 3: Semantic Memory — 语义记忆                     │
-│  存储: ChromaDB (向量) + DB (结构化)                     │
-│  内容: 精炼提取的通用知识, 自动注入到知识库               │
-│  检索策略: 分层检索 (Working → Episodic → Semantic)     │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 1: Working Memory — 工作记忆                              │
+│  存储: Python dict (现阶段) / Redis TTL (生产升级目标)            │
+│  scope: 单次会话生命周期                                          │
+│  内容: 当前 Context Window + Agent 临时推理状态                   │
+└──────────┬──────────────────────────┬────────────────────────────┘
+           │ 会话结束 →               │ 实时产出 (用户可见 API)
+           ▼ BackgroundTask           ▼
+┌───────────────────────────┐   ┌────────────────────────────────┐
+│ LAYER 2: Episodic Memory  │   │  📤 Session Insights API       │
+│ 情景记忆                   │   │  GET /api/v1/sessions/{id}/insights│
+│ 存储: PostgreSQL (摘要)    │   │  ├── proposed_kb_entries (待入库)│
+│       + ES (向量索引)      │   │  ├── extracted_todos (行动清单)  │
+│ 每会话 → LLM归纳摘要 →     │   │  └── key_conclusions (结论摘要) │
+│ 打分类标签入库             │   └────────────────────────────────┘
+└──────────┬────────────────┘
+           │ 积累到阈值 → 渐进式批量归纳
+           ▼ BackgroundTask (阈值触发 / 定时调度)
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 3: Semantic Memory — 语义记忆                             │
+│  存储: Elasticsearch 8.x (production) / ChromaDB (local)        │
+│  collection: memory_semantic_<user_id>                          │
+│  内容: 从情景记忆精炼的通用知识, 自动提议注入知识库              │
+│  检索策略: 分层检索 Working → Episodic → Semantic               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 记忆归纳原则
-- **小归纳**: 每次对话结束，立即触发 `BackgroundTask` 提取摘要 → 存入情景记忆。
-- **大总结**: 当情景记忆条数超过阈值，触发批量归纳 → 提炼知识注入语义记忆（知识库）。
-- **渐进式**: 不一次性处理全部，分批推进，避免单次任务过重。
-- **分类汇总**: 摘要需打标签 (如 `技术问题`, `设计决策`, `TODO`)，支持后续分类检索。
+### 5.2 记忆归纳原则 (Distillation Rules)
+- **小归纳 (会话级)**: 对话结束 → `BackgroundTask` → LLM 生成摘要 → 分类打标签 → 存入情景记忆。
+- **大总结 (批量级)**: 情景记忆条数超过阈值（如 50 条） → 渐进式批量归纳 → 提炼知识注入语义记忆。
+- **知识提议**: 归纳出的知识不直接写入知识库，而是进入"待确认"队列，通过 `proposed_kb_entries` API 暴露，由用户确认后才正式入库。
+- **TODO 提取**: 对话中出现的计划、承诺、行动项，由 Agent 抽取并存入 `SharedMemoryManager._todos`，通过 `GET /api/v1/memory/todos` 暴露。
 
-### 5.3 用户可见的记忆产物 (Shadow Outputs)
-记忆内部不可见，但通过特定 API 暴露产出物：
-- `GET /api/v1/sessions/{sessionId}/insights` — 会话级产出
-- `GET /api/v1/memory/todos` — 跨会话的 TODO 清单
-- `POST /api/v1/memory/kb-entries/{entryId}/accept` — 用户确认 AI 提议加入知识库
+### 5.3 `SharedMemoryManager` 当前状态与开发方向
+- 已有框架 (`memory/manager.py`)，多数方法为 `TODO` 占位符。
+- 实现时按以下顺序优先:
+  1. `store_episode` + `recall_episodes` (情景记忆的核心)
+  2. `add_todo` 持久化到 PostgreSQL (当前仅存内存)
+  3. `learn` + `recall_knowledge` (语义记忆，依赖向量存储)
+  4. Working Memory → Redis 迁移 (Redis 到位后再做)
 
 ---
 
