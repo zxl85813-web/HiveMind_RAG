@@ -1,43 +1,47 @@
 ---
-name: ✨ 功能请求
-about: 提出一个新功能或改进建议
+name: ✨ Feature 新功能需求
+about: 提出一个新的功能目标或业务设计
 title: "[FEAT] "
-labels: enhancement
+labels: 'enhancement'
 assignees: ''
 ---
 
-## 🎯 目标
+## 🎯 业务目标 (Objective)
 
-<!-- 这个功能要解决什么问题？ -->
+<!-- 这个功能要解决什么问题？带来了什么价值？ -->
 
-## 📐 提案方案
+## 📐 提案方案 (Proposed Solution)
 
-<!-- 描述你希望如何实现这个功能 -->
+<!-- 描述你期望如何实现这个功能，或者你希望它如何工作。 -->
 
-## 🔗 OpenSpec 关联
+## 🏷️ Metadata & Labels (建议标记) 
+*(Please tick the applicable ones, maintainers will adjust the actual labels / 请勾选适用的标签)*
 
-<!-- 如果已经创建了 OpenSpec 变更，请在此链接 -->
-- OpenSpec Change: `openspec/changes/<name>/`
+**领域 (Domain):**
+- [ ] `frontend`
+- [ ] `backend`
+- [ ] `rag-engine`
+- [ ] `agent-swarm`
+- [ ] `infra`
 
-## 📋 验收标准
+**规模预估 (Size):**
+- [ ] `size:S` (< 1 天)
+- [ ] `size:M` (1-3 天)
+- [ ] `size:L` (> 3天，通常需要拆解为多个子 Issue)
 
-- [ ] 标准 1
-- [ ] 标准 2
+## 🏗️ 架构与实施影响 (Architecture Impact)
+*触发后续工作流的关键检查点*
 
-## 🏗️ 架构影响
+- [ ] `needs-architecture-review`: 是否涉及表结构/API契约变更，需要输出 ADR？
+- [ ] `needs-design`: 是否需要 UI 设计图？
+- [ ] `needs-security-audit`: 是否涉及鉴权、脱敏、外部网络调用？
 
-<!-- 这个功能是否需要 ADR？是否涉及数据库变更、新外部依赖？ -->
+## 🔗 OpenSpec 关联 (OpenSpec Change)
 
-- [ ] 需要创建 ADR
-- [ ] 涉及数据库 Schema 变更
-- [ ] 引入新外部依赖/API
-- [ ] 纯前端变更
-- [ ] 纯后端变更
+<!-- 当单子进入开发时，通过终端运行 `/opsx-explore --issue={ID}` 创建并绑定变更 -->
+- OpenSpec Change: 待分配
 
-## 📸 参考设计 / 截图
+## 📋 验收标准 (Acceptance Criteria)
 
-<!-- 如果有 UI 设计稿或参考截图，请粘贴 -->
-
-## 💡 替代方案
-
-<!-- 描述你考虑过的其他替代方案 -->
+- [ ] 标准 1: ...
+- [ ] 标准 2: ...
