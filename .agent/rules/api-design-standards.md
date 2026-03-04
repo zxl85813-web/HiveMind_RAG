@@ -8,9 +8,9 @@ API 是前后端（以及未来 Agent 之间）协作的唯一契约。所有新
 
 ## 1. RESTful URL 设计原则
 
-### 1.1 命名使用名词复数
-- ✅ 对的: `GET /api/v1/users`, `POST /api/v1/knowledge-bases`
-- ❌ 错的: `GET /api/v1/getUser`, `POST /api/v1/create_knowledge`
+### 1.1 命名使用名词复数与小驼峰 (camelCase)
+- ✅ 对的: `GET /api/v1/users`, `POST /api/v1/knowledgeBases`
+- ❌ 错的: `GET /api/v1/getUser`, `POST /api/v1/knowledge_bases` (路径禁止用下划线)
 
 ### 1.2 动作由 HTTP Method 决定
 使用正确的 Method，禁止用 POST 走天下：
@@ -22,11 +22,11 @@ API 是前后端（以及未来 Agent 之间）协作的唯一契约。所有新
 
 ### 1.3 嵌套资源
 用于表示明确的所属关系。例如获取指定知识库下的所有文档：
-- ✅ `GET /api/v1/knowledge-bases/{kb_id}/documents`
+- ✅ `GET /api/v1/knowledgeBases/{kbId}/documents`
 
 ### 1.4 非资源型操作 (动作指令)
 如果某个操作实在难以抽象为资源（如"开始向量化"），可在资源后附加动词（复数名词 + 具体动词）：
-- ✅ `POST /api/v1/documents/{doc_id}/vectorize`
+- ✅ `POST /api/v1/documents/{docId}/vectorize`
 - ✅ `POST /api/v1/search` (当作全局资源)
 
 ---
@@ -42,21 +42,27 @@ API 是前后端（以及未来 Agent 之间）协作的唯一契约。所有新
 - 分页、排序、筛选条件必须放在 Query: `GET /api/v1/users?page=1&size=20&role=admin`
 - 敏感信息或复杂结构必须放在 Body (只适用于 POST/PUT/PATCH)。
 
-### 2.3 分页与排序
-如果返回的是列表，必须封装标准的分页字典：
+### 2.3 分页与排序 (必须包裹在 data 内部)
+如果返回的是列表，必须将分页字典整体作为 `data` 字段的值返回：
+
+**✅ 响应示例 (Response):**
 ```json
 {
-  "total": 120,
-  "page": 1,
-  "size": 20,
-  "items": [ ... ]
+  "success": true,
+  "data": {
+    "items": [ ... ],
+    "total": 120,
+    "page": 1,
+    "size": 20
+  }
 }
 ```
-并且在 Query 中允许以下参数控制：
+
+并且在 Query 中允许以下参数控制 (Query 参数统一使用 `snake_case` 以配合后端解包)：
 - `page` (默认 1)
 - `size` (默认 20, 上限 100)
 - `sort_by` (例：`created_at`)
-- `desc` (默认 `true` / 常用新数据在前)
+- `desc` (默认 `true`)
 
 ---
 
@@ -74,15 +80,20 @@ API 是前后端（以及未来 Agent 之间）协作的唯一契约。所有新
 }
 ```
 
-### ❌ 失败格式 (HTTP 4xx, 5xx)
+### ❌ 失败格式 (Detailed Error Response)
+为了方便前端联调与错误精细化展示，**必须采用方案 B (详尽报错)**。包含具体的错误原因。
+
 ```json
 {
   "success": false,
   "code": 40015,
-  "message": "Quota exceeded or validation failed",
+  "message": "Quota exceeded: You only have 5MB remaining but tried to upload 10MB.",
   "data": null,
-  "error_details": { // 仅针对 422 验证错误等提供明细
-     "field": "Must be greater than 0"
+  "error_details": { 
+     "reason": "storage_limit_exceeded",
+     "limit": "5MB",
+     "attempted": "10MB",
+     "fields": { "file": "Too large" }
   }
 }
 ```
