@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+# commit-msg git hook
+# Enforces Conventional Commits format and checks for Issue association.
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat $COMMIT_MSG_FILE)
+
+# Regex to validate the commit subject line
+# Format: type(scope): subject
+# Types allowed: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-]+\))?: .+"
+
+# Check if the commit message is a merge commit
+if [[ "$COMMIT_MSG" =~ ^Merge.+$ ]]; then
+    exit 0
+fi
+
+# 1. Check for basic Conventional Commits format
+if ! echo "$COMMIT_MSG" | head -n1 | egrep -q "$PATTERN"; then
+    echo "❌ 错误: 提交信息格式不正确 / Incorrect Commit Message Format!"
+    echo "必须遵守 Conventional Commits 规范。"
+    echo "格式: <type>(<scope>): <subject>"
+    echo "示例: feat(auth): implement real JWT validation"
+    echo "允许的类型: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+    exit 1
+fi
+
+# 2. Provide a warning/reminder to link GitHub Issues, if "Resolves #" or "Closes #" or "Fixes #" isn't present
+# Note: For smaller chores, we might not always have an issue, but it's strongly encouraged.
+ISSUE_PATTERN="(Resolves|Closes|Fixes|Relates) #[0-9]+"
+if ! echo "$COMMIT_MSG" | egrep -i -q "$ISSUE_PATTERN"; then
+    echo "⚠️ 警告: 你的提交信息中没有发现关联的 GitHub Issue (例如 'Resolves #42')."
+    echo "👉 强烈建议按照 .agent/rules/team-collaboration-standards.md 规范关联 Issue。"
+    # We do not block the commit, just warn them.
+fi
+
+exit 0
