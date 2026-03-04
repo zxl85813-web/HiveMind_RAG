@@ -215,7 +215,7 @@ class AclFilterStep(BaseRetrievalStep):
             return
             
         from app.models.chat import User
-        from app.services.security_service import SecurityService
+        from app.auth.permissions import has_document_permission
         
         allowed_candidates = []
         rejected = 0
@@ -233,8 +233,8 @@ class AclFilterStep(BaseRetrievalStep):
                     allowed_candidates.append(doc)
                     continue
                     
-                # Use centralized SecurityService logic
-                is_allowed = await SecurityService.has_permission(session, user, doc_id, "read")
+                # Use centralized authorization logic
+                is_allowed = await has_document_permission(session, user, doc_id, "read")
                 
                 # Special Case: If no permissions are set, we decide if it's public.
                 # In this implementation, SecurityService.has_permission returns False if no match.

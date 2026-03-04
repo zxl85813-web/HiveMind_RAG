@@ -28,7 +28,13 @@
 > 根据 `design-and-implementation-methodology.md` 的追踪规范，任何开发中遇到的中断必须记录于此。
 > 格式: `- [ ] 🛑 BLOCKED: TASK_NAME - Reason: <具体问题详情>`
 
-（暂无阻塞问题，BUG-001/002/003已在前期修复）
+
+- [ ] 🐛 **BUG-004**: `batch/monitor.py` 使用同步 `Session(engine)` 而非 `AsyncSession`，在全异步的 FastAPI 应用中会阻塞事件循环。
+  - **文件**: `backend/app/batch/monitor.py`
+  - **修复方向**: 将所有方法替换为 `async with async_session_factory() as session`
+  - **优先级**: 中（当前仅影响 Pipeline 监控写入性能，不影响主流程）
+
+
 
 ---
 

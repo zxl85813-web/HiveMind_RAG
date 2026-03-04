@@ -1,23 +1,46 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
 from app.models.chat import User
+from app.auth.security import decode_access_token
+from app.core.exceptions import AuthenticationError
 
 # Alias for backwards compatibility with routes that import get_db
 get_db = get_db_session
 
-async def get_current_user() -> User:
-    """
-    Mock dependency for current user until full Auth is implemented.
-    Returns a unified mock user so all endpoints (like memory, knowledge) 
-    work smoothly without security token overhead during local dev.
-    """
-    return User(
-        id="mock-user-001", 
-        username="developer",
-        email="dev@hivemind.local", 
-        hashed_password="mock",
-        is_active=True,
-        role="admin"
-    )
+security_scheme = HTTPBearer(auto_error=False)
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db_session),
+) -> User:
+    """获取当前认证用户（真实 JWT 验证）。"""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    try:
+        payload = decode_access_token(credentials.credentials)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise AuthenticationError("Invalid token payload")
+            
+        user = await db.get(User, user_id)
+        if not user:
+            raise AuthenticationError("User not found")
+            
+        if not user.is_active:
+            raise AuthenticationError("Inactive user")
+            
+        return user
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )

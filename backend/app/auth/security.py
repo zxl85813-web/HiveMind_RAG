@@ -55,6 +55,19 @@ def create_access_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_refresh_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
+) -> str:
+    """
+    创建 JWT Refresh Token (较长有效期).
+    """
+    to_encode = data.copy()
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
     """
     解码并验证 JWT Token。
@@ -72,25 +85,3 @@ def decode_access_token(token: str) -> dict[str, Any]:
         logger.warning("Invalid token: {}", e)
         raise AuthenticationError("Invalid token")
 
-
-# === FastAPI 依赖注入 ===
-# TODO: 完成以下依赖函数，集成到路由中
-
-# from fastapi import Depends
-# from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-#
-# security_scheme = HTTPBearer(auto_error=False)
-#
-# async def get_current_user(
-#     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
-#     db: AsyncSession = Depends(get_db_session),
-# ) -> User:
-#     """获取当前认证用户。"""
-#     if not credentials:
-#         raise AuthenticationError()
-#     payload = decode_access_token(credentials.credentials)
-#     user_id = payload.get("sub")
-#     user = await db.get(User, user_id)
-#     if not user:
-#         raise AuthenticationError("User not found")
-#     return user

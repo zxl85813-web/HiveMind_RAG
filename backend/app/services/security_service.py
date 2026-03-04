@@ -36,32 +36,6 @@ class SecurityService:
         await db.commit()
         logger.info(f"🛡️ Audit: User {user_id} performed {action} on {resource_type}:{resource_id}")
 
-    @staticmethod
-    async def has_permission(
-        db: AsyncSession, 
-        user: User, 
-        doc_id: str, 
-        required_level: str = "read"
-    ) -> bool:
-        """
-        Check if user has 'read' or 'write' access to a specific document.
-        """
-        if user.role == "admin":
-            return True
-
-        statement = select(DocumentPermission).where(DocumentPermission.document_id == doc_id)
-        result = await db.execute(statement)
-        perms = result.scalars().all()
-
-        for p in perms:
-            if p.user_id == user.id:
-                return p.can_write if required_level == "write" else p.can_read
-            if p.role_id == user.role:
-                return p.can_write if required_level == "write" else p.can_read
-            if p.department_id == user.department_id and user.department_id is not None:
-                return p.can_write if required_level == "write" else p.can_read
-
-        return False
 
     @staticmethod
     async def get_active_policy(db: AsyncSession) -> Optional[DesensitizationPolicy]:

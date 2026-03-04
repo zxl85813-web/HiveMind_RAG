@@ -79,7 +79,8 @@ class Settings(BaseSettings):
 
     # === Auth ===
     SECRET_KEY: str = "change-me-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes (short-lived)
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # === External Learning ===
     LEARNING_FETCH_INTERVAL_HOURS: int = 6

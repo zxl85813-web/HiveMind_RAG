@@ -10,7 +10,14 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 """
 
 from enum import Enum
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
+from app.api.deps import get_current_user
+from app.core.exceptions import ForbiddenError
+from app.models.chat import User
+from app.models.security import DocumentPermission
 
 class Role(str, Enum):
     """用户角色。"""
@@ -46,7 +53,7 @@ class Permission(str, Enum):
 
 # 角色 → 权限映射
 ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
-    Role.ADMIN: set(Permission),  # 全部权限
+    Role.ADMIN: {p for p in Permission},  # 全部权限
     Role.USER: {
         Permission.CHAT_SEND,
         Permission.CHAT_VIEW,
@@ -78,9 +85,35 @@ def require_permission(permission: Permission):
         async def create_kb(...):
             ...
     """
-    # TODO: 实现 — 需配合 get_current_user 使用
-    # async def checker(current_user: User = Depends(get_current_user)):
-    #     if not has_permission(current_user.role, permission):
-    #         raise ForbiddenError(f"Missing permission: {permission}")
-    # return checker
-    pass
+    async def checker(current_user: User = Depends(get_current_user)):
+        # Role defaults to string since DB maps it. Here we safely check.
+        if not has_permission(current_user.role, permission):
+            raise ForbiddenError(message=f"Missing permission: {permission.value}")
+    return checker
+
+
+async def has_document_permission(
+    db: AsyncSession, 
+    user: User, 
+    doc_id: str, 
+    required_level: str = "read"
+) -> bool:
+    """
+    Check if user has 'read' or 'write' access to a specific document.
+    """
+    if user.role == Role.ADMIN:
+        return True
+
+    statement = select(DocumentPermission).where(DocumentPermission.document_id == doc_id)
+    result = await db.execute(statement)
+    perms = result.scalars().all()
+
+    for p in perms:
+        if p.user_id == user.id:
+            return p.can_write if required_level == "write" else p.can_read
+        if p.role_id == user.role:
+            return p.can_write if required_level == "write" else p.can_read
+        if p.department_id == user.department_id and user.department_id is not None:
+            return p.can_write if required_level == "write" else p.can_read
+
+    return False
