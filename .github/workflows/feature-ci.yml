@@ -1,0 +1,90 @@
+# 功能分支快速检查 CI (feature/fix/hotfix → develop 的 PR 触发)
+# 只跑 Lint + Type + Unit Test，快速反馈，不跑慢速的集成/E2E
+name: Feature CI (Fast Check)
+
+on:
+  pull_request:
+    branches:
+      - develop       # 功能分支合入 develop 时触发
+      - 'release/**'  # fix 分支合入 release 时也触发
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/feature-ci.yml'
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  backend-fast:
+    name: 🐍 Backend Lint + Unit Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dev dependencies
+        run: pip install ruff black mypy
+
+      - name: Ruff (Linter)
+        run: ruff check . --output-format=github
+
+      - name: Black (Formatter Check)
+        run: black --check --diff .
+
+      - name: Install project dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Create minimal test .env
+        run: |
+          cat > .env << 'EOF'
+          APP_NAME="HiveMind RAG Test"
+          DEBUG=true
+          DATABASE_URL=sqlite+aiosqlite:///./test.db
+          VECTOR_STORE_TYPE=chroma
+          LLM_PROVIDER=siliconflow
+          LLM_API_KEY=sk-test
+          LLM_MODEL=test-model
+          LLM_BASE_URL=https://example.com/v1
+          SECRET_KEY=ci-test-secret-key
+          EOF
+
+      - name: Run Unit Tests (Coverage > 80%)
+        run: pytest tests/unit/ --cov=app --cov-report=term-missing --cov-fail-under=80
+
+  frontend-fast:
+    name: ⚛️ Frontend Lint + TypeCheck + Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript Type Check
+        run: npm run typecheck
+
+      - name: Build Check (确认能构建成功)
+        run: npm run build

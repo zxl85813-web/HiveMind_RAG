@@ -1,4 +1,7 @@
-name: Backend CI
+# Production Gate — main 分支的后端最终门禁
+# 只在代码合入 main 后触发 (PR 检查由 feature-ci / develop-ci / release-ci 承担)
+# 作用: 确保主干始终是可构建、可部署的干净状态
+name: Backend Production Gate
 
 on:
   push:
@@ -6,10 +9,6 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'backend/**'
 
 env:
   PYTHON_VERSION: '3.11'
