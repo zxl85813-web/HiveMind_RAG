@@ -6,8 +6,9 @@
 > 🗺️ **完整开发计划**: [docs/ROADMAP.md](docs/ROADMAP.md) — 7 个里程碑 / 87 个任务 / ~30 天
 > 📄 **需求文档**: REQ-001~010 见 `docs/requirements/`
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
+> 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-04
+> 📅 最后更新: 2026-03-05
 
 ---
 
@@ -74,6 +75,10 @@
   - ✅ **技术文档流**: 针对 Markdown 和代码块优化的分块逻辑
   - ✅ **法律合同流**: 强制开启深度审计与隐私擦除
   - ✅ **数据表格流**: 针对 Excel/CSV 优化的行列感知处理
+- ✅ **Contextual Retrieval (Situational Chunks)**: 给每个分块注入文档级背景 (Anthropic 文档启示)
+- ✅ **Prompt Caching for Ingestion**: 降低 Situational Chunking 的成本
+- ✅ **Contextual BM25 Integration**: 将 Situational Text 同时注入 BM25 索引
+利用 Claude (Haiku) 为每个分块生成简短的文档关联背景（如：所属章节、文件名、日期、实体关联），然后再进行向量化与 BM25 索引。
 - ✅ **前端 Pipeline 配置页** — 可视化拖拽编排 Pipeline 步骤
 - ✅ **前端节点参数配置抽屉** — 动态配置算子内部参数 (Chunk Size / Desensitization Policy)
 - ✅ **后端 Pipeline 执行引擎集成** — `indexing.py` 已完全重构为基于 PipelineExecutor 的模块化驱动
@@ -124,10 +129,13 @@
 
 > 采用 RAGAS 标准框架实现 MVP 版本
 
-- ✅ **评估数据模型** — `EvaluationSet`, `EvaluationItem`, `EvaluationReport` (Faithfulness 等指标)
-- ✅ **测试集管理 (Testset Generator)** — 基于 LLM 自动生成 ground-truth 问答对
-- ✅ **评估运行引擎** — 批量执行 RAG Pipeline → 用 LLM-as-a-Judge 评估指标
 - ✅ **评估仪表盘前端 (EvalPage)** — 概览统计 + 测试集列表 + 评估报告列表
+- ⬜ **Multi-Grader Evaluation System (M2.1E)**: 系统化集成三种评分器：
+  - **Code-based (Deterministic)**: 运行 `pytest` / `linter` / `Schema` 校验。
+  - **Model-based (LLM-as-a-Judge)**: 编写结构化 Rubric (红线准则)，如“是否泄露 PII”、“是否遵守架构分层”。
+  - **Human-in-the-loop**: 构建打分界面供专家校准 LLM 评分器。
+- ⬜ **Regression vs. Capability Suites**: 建立回归测试集（100% 通过要求，防止退化）与能力爬坡集（针对当前弱点，如“复杂图谱推理”）。
+- ⬜ **Agent Harness Isolation**: 确保评估环境完全隔离，避免 git 历史或残留文件对模型产生“泄题”干扰。
 - ✅ **Bad Case 追踪** — 对低分回答进行标注并辅助微调引导
 - ✅ **知识库健康度** — 每个 KB 的综合评分和历次对比趋势图 (Health Score & Trend)
 
@@ -240,6 +248,71 @@
 - ✅ **Adaptive RAG (Self-RAG)**: Supervisor dynamically decides whether to retrieve context or answer directly.
 - ✅ **Graph Refactor**: Entry point moved to Supervisor; Retrieval is now a routeable strategy node.
 - ✅ **Self-Refinement Loop**: Agents can report context quality issues, triggering re-retrieval via Supervisor.
+
+### 2.1G RAG 治理与数据契约 ⬜ (NEW ARCH)
+
+> 📑 参考文档: `docs/architecture/rag_data_interface_design.md` & `arag_microservice_governance.md`
+
+#### Phase 1: 核心契约与网关 (P0)
+- [x] ** 统一输出协议**: 创建 `app/schemas/knowledge_protocol.py` (KnowledgeResponse/KnowledgeFragment)
+- [x] ** 实现 RAGGateway**: 建立 `app/services/rag_gateway.py` 作为知识检索的单一入口 (API Gateway 模式)
+- [ ] ** 文档版本链基础**: 在 `Document` 模型中增加 `supersedes_id` 和 `is_active` 字段 (自洽性治理)
+- [ ] ** EnrichmentStep 实现**: 在 Ingestion Pipeline 中增加语义增强步 (自动摘要、关键词提取、版本标记)
+
+#### Phase 2: 三端消费者改造 (P1)
+- ⬜ **Agent 内部改造**: 重构 `SwarmOrchestrator._retrieval_node`，注入结构化 `KnowledgeResponse`
+- ⬜ **Skill Tool 升级**: 改造 `search_knowledge_base` tool，走 RAGGateway 链路并返回结构化文本
+- ⬜ **API 增强**: 将 `/{kb_id}/search` 升级为返回完整协议，新增 `POST /knowledge/retrieve` 智能检索接口
+
+#### Phase 3: 高级微服务治理 (P2)
+- [x] ** KB 级熔断器**: 在 RAGGateway 中实现熔断逻辑，当某个 KB 连续失败时自动降级
+- [x] ** 健康检查接口**: `GET /knowledge/{kb_id}/health` 返回 KB 质量评分与索引状态
+- [ ] ** 变更通知总线**: 建立 Event Bus，文档更新时通知 Agent 刷新语义缓存
+- [x] ** 权限细化**: 实现 Chunk-level 安全标签校验 (ACL 基础框架)
+
+#### Phase 4: 极致性能与体验 (P3)
+- [x] ** Semantic Cache**: 语义级别 Question-Answer 缓存 (Similarity > 0.95)
+- [x] ** Embedding Cache**: 内存级 LRU 嵌入缓存，减少 API 调用
+- [x] ** Context Optimization**: 实现 "Lost in the Middle" 结果重排算法
+- [ ] ** Streaming UI 优化**: 增强打字机效果的流畅度与 Markdown 渲染性能
+
+#### 架构底座 (Philosophy Implementation)
+- ⬜ **Skill 纯函数化审计**: 确保 `app/skills/` 下所有逻辑无状态、无副作用
+- ⬜ **Agent 副作用隔离**: 统一由 `SwarmState` 和 `MemoryManager` 管理 Agent 的状态变迁
+  - ⬜ **状态机入口规范化**: 每一个 Agent 节点必须定义明确的 Input/Output Schema (契约驱动)
+
+
+### 2.1H Agent 架构增强 (Anthropic 文档启示) ⬜
+
+- ✅ **Agentic Search Skills**: 实现 `grep`/`glob`/`head` 等 JIT 上下文获取工具
+- ✅ **Dynamic Tool Loading**: 实现 `search_available_tools` 模式，降低 Context 负载
+- ✅ **Programmatic Tool Execution**: 实现 `python_interpreter` 供 Agent 批量编排工具
+- ✅ **Think Tool Integration**: 为所有 Agent 注入专用 `think` 工具，用于在执行复杂工具链前记录显式推理逻辑和多步计划。
+- ⬜ **Progressive Skill Disclosure**: 优化 `.agent/skills/` 结构，引导 Agent 先读取目录 metadata，再按需通过 `cat` 读取详细文档，支持超大规模 Skill 库。
+- ⬜ **Semantic Identifier Mapping**: 改造 Skill 输出，将数据库 UUID 自动映射为语义化名称或 0-indexed ID，降低模型幻觉。
+- ⬜ **Context Compaction Node**: 在 Swarm 流程中增加自动摘要压缩节点，当消息记录过长时自动触发，防止 Token 爆炸。
+- ⬜ **Hybrid Reflection**: 在 Reflection 节点中集成 Linter、Schema 校验等硬规则验证，不完全依赖 LLM 裁判。
+- ⬜ **Contextual BM25 Integration**: 基于增强后的 Situational Chunks 构建高精度关键词索引，实现 Hybrid 检索的最佳性能（Recall@20 指标对齐 Anthropic 实验室数据）。
+- ⬜ **Search Subagents**: 实现子智能体并行检索模式，用于处理大规模、高模糊度的知识搜索任务。
+- ⬜ **Contextual Reranking (P0)**: 将 Reranking 提升为核心检索组件，支持 `Top 150 Retrieve -> Cross-Encoder Rerank -> Top 20 Inject` 的分段式高精度检索流。
+- ⬜ **Tool Result Clearing (Advanced Compaction)**: 在 Swarm 会话滚动中，对旧的 Tool 调用结果进行“选择性擦除”，仅保留结果摘要和状态变更，防止长会话下的 Context 污染。
+- ⬜ **Just-in-Time (JIT) Context Navigation**: 完善 Agent 的文件系统/Web 动态探索路径，优先使用 `glob`/`grep`/`head` 定向加载上下文，而非暴力检索全库。
+
+### 2.1J Agent 安全沙箱与生产治理 (Sandboxing & Reliability) ⬜
+
+- [x] ** Sandboxed Skill Runtime**: 基于 `SecuritySanitizer` 和 `ToolAuditor` 实现简单的沙箱规则。
+- [ ] ** Rainbow Deployment for Agents**: 参考 Anthropic 生产实践，建立“彩虹发布”机制。
+- ⬜ **Production Shadow Evals**: 在生产环境匿名运行“影子评估”，对比真实用户反馈与自动化评分的差异，快速捕捉如“模型理解退化”或“基础设施导致的随机错误”。
+- ⬜ **Sensitivity Monitoring**: 改进内部可观测性，监控 Agent 决策模式（不看内容看逻辑流），识别循环死结或工具滥用。
+
+### 2.1I Agent 长期任务稳定性与可靠性 (Long-Horizon & Reliability) ⬜
+
+- ✅ **Feature-based Scaffolding**: 实现基于数据库的任务记录器。Supervisor 初始化任务清单并持久化到 `swarm_todos` 表，Agent 强制按清单增量执行。
+- ✅ **LangGraph State Checkpointing**: 集成 `MemorySaver` 为 SwarmOrchestrator 提供 Checkpoints，支持 `thread_id` (Conversation ID) 级别的状态持久化。
+- ⬜ **MCP "Code Mode" Bridge**: 建立 MCP 的代码执行网关，允许 Agent 编写 Python 脚本对海量工具返回的数据（如 1000 行 CSV）进行端内过滤聚合，而非全部传输。
+- ⬜ **Self-Evolving Skills**: 实现“技能沉淀”机制，当 Agent 发现一种通用的工具编排模式时，自动将其保存为新的 `Skill` 并写入 `.agent/skills/` 目录。
+- ⬜ **End-to-End Visual Verification**: 为 Coding/UI Agent 集成 Puppeteer 视觉反馈，确保功能不仅“代码绿”而且“运行绿”。
+- ⬜ **Observability Trace Analytics**: 统计分析 Agent 的决策链路 (Thought -> Tool -> Result)，自动识别并标记“低效工具调用”或“逻辑循环陷阱”。
 
 ### 2.2 对话与 AI 核心
 

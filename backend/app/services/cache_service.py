@@ -17,17 +17,29 @@ class CacheService:
     @staticmethod
     async def get_cached_response(query: str) -> Optional[Dict[str, Any]]:
         """
-        [DEMO MODE] Temporarily disabled cache to show full trace.
+        Retrieves a cached answer if a similar query was processed before.
         """
-        return None
         store = get_vector_store()
         try:
-            results = await store.search(query, k=1, collection_name=CacheService.CACHE_COLLECTION)
+            # Search for the query itself in the cache collection
+            results = await store.search(
+                query=query, 
+                k=1, 
+                collection_name=CacheService.CACHE_COLLECTION,
+                search_type="vector" # Always use vector for semantic similarity
+            )
             
             if not results:
                 return None
             
             match = results[0]
+            score = getattr(match, "score", 0.0)
+            
+            # Distance check (for cosine similarity, higher is better)
+            if score < CacheService.THRESHOLD:
+                logger.debug(f"Cache miss: closest match score {score:.4f} < {CacheService.THRESHOLD}")
+                return None
+            
             answer = match.metadata.get("answer", match.page_content)
             
             # --- Safety Valve: Reject poisoned cache entries ---
@@ -40,10 +52,11 @@ class CacheService:
                 logger.warning(f"🚫 Echo cache entry detected for '{query}', discarding.")
                 return None
             
-            logger.info(f"🧠 Semantic Cache Hit for: '{query}'")
+            logger.info(f"🧠 Semantic Cache Hit for: '{query}' (score: {score:.4f})")
             return {
                 "content": answer,
-                "metadata": match.metadata
+                "metadata": match.metadata,
+                "score": score
             }
         except Exception as e:
             logger.warning(f"Cache lookup failed: {e}")

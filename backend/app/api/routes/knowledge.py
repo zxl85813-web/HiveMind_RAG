@@ -19,8 +19,9 @@ from app.core.config import settings
 from app.common.response import ApiResponse
 from app.core.database import engine
 from app.core.exceptions import AppError, NotFoundError
-from app.core.vector_store import get_vector_store
 from app.services.retrieval.pipeline import get_retrieval_service
+from app.services.rag_gateway import RAGGateway
+from app.schemas.knowledge_protocol import KnowledgeResponse, KBStatus
 
 router = APIRouter()
 
@@ -91,31 +92,33 @@ async def search_knowledge_base(
             raise NotFoundError("Knowledge Base", kb_id)
         # TODO: Add ownership/permission check
 
-    retrieval_service = get_retrieval_service()
+    gateway = RAGGateway()
     
-    docs = await retrieval_service.run(
+    knowledge_res = await gateway.retrieve(
         query=request.query,
-        collection_names=[kb.vector_collection],
-        search_type=request.search_type,
-        top_k=request.top_k,    # Docs to recall
-        top_n=request.top_k     # Docs to return after rerank
+        kb_ids=[kb_id],
+        top_k=request.top_k,
+        strategy=request.search_type
     )
     
-    # Format results
-    results = []
-    for doc in docs:
-        results.append({
-            "content": doc.page_content,
-            "metadata": doc.metadata,
-            "score": getattr(doc, "score", None) # Reranker might add score
-        })
-        
-    # How to return log? RetrievalPipeline should probably attach it to returned objects.
-    # For now, we omit detailed log if not returned by run()
-        
-    return ApiResponse.ok(data=SearchResponse(
-        results=results,
-        context_log=["Search completed via RetrievalPipeline"]
+    return ApiResponse.ok(data=knowledge_res)
+
+@router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus])
+async def get_kb_health(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get the health status and circuit breaker state of a KB."""
+    gateway = RAGGateway()
+    # Mocking score calculation for now
+    is_tripped = gateway._is_circuit_open(kb_id)
+    
+    return ApiResponse.ok(data=KBStatus(
+        kb_id=kb_id,
+        is_healthy=not is_tripped,
+        score_avg=0.95,
+        circuit_tripped=is_tripped
     ))
 
 @router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase])

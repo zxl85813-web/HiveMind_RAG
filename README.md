@@ -46,7 +46,43 @@ graph TD
 
 ---
 
+## 🧩 核心设计理念 (Core Philosophy)
+
+HiveMind 不仅仅是一个 RAG 系统，它是一套基于 **函数式编程**、**微服务治理** 与 **Anthropic Agent 工程最佳实践** 构建的 AI 协作架构。
+
+> 📑 **技术参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方工程博客的系统化提炼。
+
+### 1. 行为模型：Agent (副作用) × Skill (纯函数)
+*   **Skill (纯函数)**: 系统中的每一个工具都是一个**无状态、幂等、可测试**的原子函数。Skill 支持**渐进式披露 (Progressive Disclosure)** — Agent 初始只看到名称和描述，按需加载完整文档和脚本。
+*   **Agent (副作用函数)**: Agent 是**状态机**的载体。它们遵循 **Gather Context → Take Action → Verify Work** 的核心循环，通过 `think` 工具进行显式推理，通过调用 Skill 产生可审计的副作用。
+*   **价值**: 这种分离确保了复杂 AI 系统的高可靠性与透明度，让 Skill 变得极易复用，Agent 变得逻辑可预测。
+
+### 2. 数据治理：从"存储"到"编译" (Compilation)
+*   传统 RAG 把数据治理看作"文档整理"，而在 HiveMind 中，数据治理被定义为 **"知识编译"**。
+*   **源码**: 原始 PDF/Word 是人类可读的"源代码"。
+*   **编译器 (Compiler)**: 我们的 Ingestion Pipeline 即编译器。它执行词法分析（OCR/解析）、语法分析（结构提取）、**上下文增强 (Contextual Enrichment)**、语义优化（总结/标签/版本化）。
+*   **目标代码**: 最终存入向量库/图谱的 **Situational Chunks (带背景分块)** 是"机器可执行"的知识。
+
+### 3. 系统形态：数据治理 ≈ 微服务治理 (Isomorphism)
+*   **垂直分区**: 每一个知识库 (KB) 被视为一个独立的**数据微服务**，拥有独立的隔离边界和治理桶。
+*   **API Gateway**: `RAGGateway` 作为统一的知识网关，负责请求路由、负载均衡和审计。
+*   **熔断与降级**: 当某个知识库质量下降时，系统会自动触发熔断，降级到通用知识库。
+
+### 4. 上下文工程 (Context Engineering)
+*   **核心原则**: 在有限的注意力预算中，找到最小的高信噪比 Token 集合。
+*   **JIT 加载**: Agent 优先使用 `grep`/`glob`/`head` 等文件系统原语按需加载上下文，而非预载全部索引。
+*   **双层检索**: Agentic Search (精准但慢) + Semantic Search (快速但需索引) 混合策略。
+*   **长会话治理**: Compaction (消息摘要) + Tool Result Clearing (工具输出擦除) + Structured Note-taking (结构化笔记)。
+
+### 5. 安全与生产韧性 (Safety & Reliability)
+*   **沙箱隔离**: 所有 Skill 执行在 OS 级沙箱 (bubblewrap/seatbelt) 中运行，文件系统 + 网络双重隔离。
+*   **彩虹发布**: 长运行 Agent 不受热更新干扰，新旧版本平滑过渡。
+*   **评估驱动**: Multi-Grader (Code + Model + Human) 评估体系，Regression + Capability 双轨验证。
+
+---
+
 ## 📂 项目结构 (Directory Structure)
+
 
 本项目采用了 **AI-Native Modular Monolith** 架构。我们不再按单纯的技术层（Controller/Service/Dao）分包，而是按 **"Agent Capability" (能力域)** 进行组织。
 
@@ -124,18 +160,30 @@ alembic revision --autogenerate -m "add_table"
 
 ### 1. 蜂巢与自省 (Swarm & Reflection)
 不仅仅是简单的 Chain，而是拥有路由 (Supervisor) 和自省 (Reflection) 能力的 Agent 集群。
-- **Supervisor**: 分析意图，分发给 RagAgent / CodeAgent / WebAgent。
-- **Reflection**: 检查 Worker 的输出质量，不合格打回重做。
+- **Supervisor**: 分析意图，分发给 RagAgent / CodeAgent / WebAgent。含 **Fast Path** 关键字拦截，避免 RAG 幻觉。
+- **Reflection**: 检查 Worker 的输出质量，不合格打回重做。支持 **Hybrid Grading** (规则校验 + LLM 裁判)。
+- **Think Tool**: Agent 在执行复杂工具链前进行显式推理记录，提高决策透明度。
 
 ### 2. 混合通信架构 (Hybrid Communication)
 - **SSE (Server-Sent Events)**: 用于 AI 回复的打字机流式输出。
 - **WebSocket**: 用于后端主动推送状态变更 (Agent 思考过程、任务进度、通知)。
 
 ### 3. 多层渐进式记忆架构 (Multi-Tier Memory Architecture)
-独创的三层混合记忆检索机制，彻底解决传统 RAG 的“大海捞针”和“缺乏上下文全局视野”问题：
+独创的三层混合记忆检索机制，彻底解决传统 RAG 的"大海捞针"和"缺乏上下文全局视野"问题：
+- **Tier 0 - Agentic Search (JIT)**: Agent 使用 `grep`/`glob`/`head` 按需探索文件系统，无需预索引，适用于日志分析和代码导航。
 - **Tier 1 - 索引雷达层 (Hot Radar)**: 纯内存抽象索引 (`InMemoryAbstractIndex`)，利用标签与实体做极速集合碰撞，在检索底层海量文本前率先明确意图和方向。
 - **Tier 2 - 知识图谱层 (Overview Graph)**: 基于 **Neo4j** 构建实体关系网。当命中线索时，系统顺藤摸瓜拉取图谱邻居，赋予 Agent 类似人类大脑的关联能力，洞悉隐式关系。
-- **Tier 3 - 向量细节层 (Deep Detail)**: 基于 Vector/Elastic 本地数据库执行深层匹配。在明确目标后精准捞取原始长文本与代码切块兜底，交由 LLM 生成精确答案。
+- **Tier 3 - 向量细节层 (Deep Detail)**: 基于 **Contextual Retrieval** 增强的 Situational Chunks + BM25 混合检索，经 **Cross-Encoder Reranker** 精排后注入 LLM。
+
+### 4. 长会话稳定性 (Long-Horizon Resilience)
+- **Context Compaction**: 自动总结旧消息 + 清除过时工具输出，防止 Token 溢出。
+- **State Checkpointing**: LangGraph 持久化快照，支持断点续传。
+- **Feature-based Scaffolding**: `progress.json` 状态追踪，确保跨会话的增量执行。
+
+### 5. 工具效率革命 (Tool Efficiency)
+- **Dynamic Tool Loading**: 海量工具按需发现加载，初始仅占 ~2K Token。
+- **MCP Code Mode**: Agent 编写代码直接批量调度工具，Token 节省 98.7%。
+- **Skill Self-Evolution**: Agent 将通用编排模式自动沉淀为可复用 Skill。
 
 ---
 
@@ -192,9 +240,10 @@ graph TD
 
 ### 关键特性 (Key Features)
 1.  **Agentic RAG Pipeline**: 不止于检索。支持 **Active Creating (自主生成)** 和 **Self-Correction (自我修正)**，可直接生成 Excel/Word 制品。
-2.  **Hybrid Search**: 结合 **Vector (Semantic)** 和 **BM25 (Keyword)**，并引入 **Reranker (精排)**，显著提升专业领域的召回率。
-3.  **Multimodal Ingestion**: 支持 PDF、Excel、图片等多模态文档解析与其他 Agent 技能的无缝集成。
-4.  **Async Processing**: 入库过程完全异步，由 `JobManager` 调度，支持断点续传。
+2.  **Contextual Retrieval**: 每个分块在索引前由 LLM 注入文档背景信息 (Situational Chunks)，召回失败率降低 **49%**。
+3.  **Hybrid Search**: 结合 **Contextual Vector** 和 **Contextual BM25**，经 **Cross-Encoder Reranker** 精排 (Top 150 → Top 20)，显著提升专业领域的召回率。
+4.  **Multimodal Ingestion**: 支持 PDF、Excel、图片等多模态文档解析与其他 Agent 技能的无缝集成。
+5.  **Async Processing**: 入库过程完全异步，由 `JobManager` 调度，支持断点续传。
 
 ---
 

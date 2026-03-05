@@ -114,6 +114,17 @@ class RerankingStep(BaseRetrievalStep):
             documents=ctx.candidates,
             top_n=ctx.top_n
         )
+        
+        # --- Lost in the Middle Optimization (Phase 4) ---
+        # Reorder ranked results: [Most relevant, ..., Least relevant] -> [1, 3, 5, ..., 6, 4, 2]
+        # This puts high-rank documents at both the beginning and end of the context.
+        if len(ranked) > 2:
+            left = ranked[::2]
+            right = ranked[1::2]
+            right.reverse()
+            ranked = left + right
+            ctx.log("Rerank", "Reordered documents for 'Lost in the Middle' optimization.")
+
         ctx.final_results = ranked
         ctx.log("Rerank", f"Selected top {len(ranked)} documents")
 

@@ -132,13 +132,133 @@ class ChunkingStep(BaseIngestionStep):
         )
 
 
+@StepRegistry.register("situation_enrichment")
+class SituationEnrichmentStep(BaseIngestionStep):
+    """
+    Contextual Retrieval — Situates each chunk within the overall document.
+    Requirement: 2.1H Agent 架构增强 (Anthropic 文档启示)
+    """
+    async def run(self, stage_input: StageInput) -> Artifact:
+        chunk_artifact = stage_input.get_artifact("chunk_content")
+        parse_artifact = stage_input.get_artifact("desensitization") or stage_input.get_artifact("parse_content")
+        
+        if not chunk_artifact or not parse_artifact:
+            return Artifact(
+                artifact_type=ArtifactType.ERROR, 
+                data={"error": "Missing chunks or raw content for enrichment"}, 
+                source_stage="situation_enrichment"
+            )
+
+        chunks = chunk_artifact.data.get("chunks", [])
+        raw_text = parse_artifact.data.get("raw_text", "")
+        
+        if not chunks or not raw_text:
+            return Artifact(
+                artifact_type=ArtifactType.REPORT, 
+                data={"status": "skipped", "reason": "Empty chunks or raw text"}, 
+                source_stage="situation_enrichment"
+            )
+
+        from app.core.llm import get_llm_service
+        llm = get_llm_service()
+        
+        enriched_chunks = []
+        logger.info(f"🧠 [Situation Enrichment] Processing {len(chunks)} chunks...")
+
+        # Prompt template from Anthropic's Contextual Retrieval blog
+        PROMPT_TEMPLATE = """
+<document>
+{document}
+</document>
+Here is the chunk we want to situate within the whole document
+<chunk>
+{chunk}
+</chunk>
+Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else.
+"""
+
+        import asyncio
+        
+        async def enrich_chunk(chunk_dict: Dict[str, Any]) -> Dict[str, Any]:
+            chunk_text = chunk_dict.get("content", "")
+            if not chunk_text:
+                return chunk_dict
+            
+            # Use Prompt Caching (Anthropic Pattern)
+            # We cache the large document part.
+            prompt_messages = [
+                {
+                    "role": "user", 
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"<document>\n{raw_text[:50000]}\n</document>",
+                            "cache_control": {"type": "ephemeral"}
+                        },
+                        {
+                            "type": "text",
+                            "text": f"Here is the chunk we want to situate within the whole document\n<chunk>\n{chunk_text}\n</chunk>\nPlease give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else."
+                        }
+                    ]
+                }
+            ]
+            
+            # Prepare extra headers for Anthropic Caching Beta
+            extra_headers = {"anthropic-beta": "prompt-caching-2024-07-31"}
+            
+            try:
+                context = await llm.chat_complete(
+                    prompt_messages, 
+                    temperature=0.0,
+                    extra_headers=extra_headers
+                )
+            except Exception as e:
+                # Fallback to simple prompt if structured content fails
+                logger.warning(f"Structured prompt failed, falling back: {e}")
+                simple_prompt = PROMPT_TEMPLATE.format(document=raw_text[:50000], chunk=chunk_text)
+                context = await llm.chat_complete([
+                    {"role": "user", "content": simple_prompt}
+                ], temperature=0.0)
+            
+            # Prepend context to content
+            enriched_content = f"{context.strip()}\n\n{chunk_text}"
+            
+            new_chunk = chunk_dict.copy()
+            new_chunk["content"] = enriched_content
+            # Keep track of original content in metadata just in case
+            meta = json.loads(new_chunk.get("metadata_json", "{}"))
+            meta["original_content"] = chunk_text
+            meta["situational_context"] = context.strip()
+            new_chunk["metadata_json"] = json.dumps(meta)
+            
+            return new_chunk
+
+        # For production, we should use a semaphore to limit concurrency
+        semaphore = asyncio.Semaphore(5)
+        
+        async def sem_enrich(chunk_dict):
+            async with semaphore:
+                return await enrich_chunk(chunk_dict)
+
+        tasks = [sem_enrich(c) for c in chunks]
+        enriched_chunks = await asyncio.gather(*tasks)
+
+        return Artifact(
+            artifact_type=ArtifactType.EXTRACTED_DATA,
+            data={"chunks": enriched_chunks, "strategy": chunk_artifact.data.get("strategy")},
+            text_summary=f"Enriched {len(enriched_chunks)} chunks with situational context.",
+            source_stage="situation_enrichment",
+            confidence=1.0
+        )
+
+
 @StepRegistry.register("vectorize")
 class VectorizeStep(BaseIngestionStep):
     """
     Saves chunks to the Vector Database.
     """
     async def run(self, stage_input: StageInput) -> Artifact:
-        chunk_artifact = stage_input.get_artifact("chunk_content")
+        chunk_artifact = stage_input.get_artifact("situation_enrichment") or stage_input.get_artifact("chunk_content")
         if not chunk_artifact:
             return Artifact(artifact_type=ArtifactType.ERROR, data={"error": "No chunks found"}, source_stage="vectorize")
 

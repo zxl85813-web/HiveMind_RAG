@@ -1,24 +1,53 @@
+"""
+分层记忆服务 (Multi-Tier Memory Service).
+
+架构分层:
+    Tier 1 (Hot Radar)    — InMemoryAbstractIndex，毫秒级标签集合交集路由
+    Tier 2 (Graph Layer)  — Neo4j 图谱，实体关系跳跃检索
+    Tier 3 (Deep Vector)  — ChromaDB 向量数据库，语义精排检索
+
+写入流: add_memory()
+    └─► Tier-1: asyncio.create_task(_extract_and_index_abstract)
+    └─► Tier-2: asyncio.create_task(graph_index.extract_and_store)
+    └─► Tier-3: memory_collection.add(...)  (同步，ChromaDB 本地)
+
+读取流: get_context(query)
+    1. Tier-1 Radar 路由 → 得到摘要列表 + tags
+    2. Tier-2 图谱邻居  → 以 tags 为起点捞取关联圈
+    3. Tier-3 向量检索  → 精确召回细节 Chunk
+    4. 用户画像 (USER.md) + 今日日志兜底
+
+所属模块: services.memory
+参见: REGISTRY.md > 后端 > services > MemoryService
+参见: docs/design/multi_tier_memory.md
+"""
 from datetime import datetime
 from pathlib import Path
+import asyncio
 
 import chromadb
 from loguru import logger
 
 DATA_DIR = Path("data/memories")
 
-# Initialize Local Vector Store
+# Tier-3: 本地向量存储（ChromaDB）
 chroma_client = chromadb.PersistentClient(path="./start_data/chroma_db")
-# Use a simple collection for memories
 memory_collection = chroma_client.get_or_create_collection(name="agent_memories")
 
 
 class MemoryService:
     """
-    OpenClaw-style Memory System Implementation.
-    Features:
-    1. File-based persistent context (Markdown).
-    2. Semantic Search via ChromaDB (Local).
-    3. Daily Logging.
+    三层渐进式记忆引擎 — 模拟人类的记忆回溯过程。
+
+    初始化参数:
+        user_id: 用户 ID，用于隔离每个用户的记忆数据。
+
+    使用方式:
+        svc = MemoryService(user_id="user-abc")
+        await svc.add_memory("Python asyncio 踩坑", metadata={"role": "user"})
+        context = await svc.get_context("asyncio 相关的 bug")
+
+    参见: REGISTRY.md > 后端 > services > MemoryService
     """
 
     def __init__(self, user_id: str):
@@ -28,27 +57,29 @@ class MemoryService:
         self._ensure_directories()
 
     def _ensure_directories(self):
-        """Ensure memory directory structure exists."""
+        """确保用户记忆目录结构存在。"""
         self.user_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize core memory files if not exist
         for file in ["USER.md", "KNOWLEDGE.md"]:
-            if not (self.user_dir / file).exists():
-                file_path = self.user_dir / file
-                file_path.write_text(f"# {file.split('.')[0]}\n\n", encoding="utf-8")
-
-                # Index initial file content if needed
-                # self.add_memory(file_path.read_text(), metadata={"source": file})
+            fpath = self.user_dir / file
+            if not fpath.exists():
+                fpath.write_text(f"# {file.split('.')[0]}\n\n", encoding="utf-8")
 
     def _get_daily_log_path(self, date_str: str = None) -> Path:
-        """Get path for daily log file."""
+        """获取今日日志文件路径（Ephemeral Memory）。"""
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
         return self.logs_dir / f"{date_str}.md"
 
+    # ─────────────────────────────────────────────
+    # 写入流 (Write Path)
+    # ─────────────────────────────────────────────
+
     async def _extract_and_index_abstract(self, doc_id: str, content: str, role: str):
-        """Use LLM to generate an abstract and store it in Tier-1 Memory."""
+        """
+        [Tier-1] 用 LLM 提取摘要 + 标签，写入内存倒排索引。
+        由 add_memory 以 fire-and-forget 方式异步触发。
+        """
         from app.core.llm import get_llm_service
         from app.services.memory.tier.abstract_index import abstract_index
         import json
@@ -58,14 +89,13 @@ class MemoryService:
         Analyze the following memory segment and extract metadata in JSON format EXACTLY as below:
         {{
             "title": "Short title, max 5 words",
-            "tags": ["tag1", "tag2"], // lowercase, technical or topical keywords
-            "type": "{'user_query' if role == 'user' else 'ai_response'}" // Or 'log', 'concept', etc.
+            "tags": ["tag1", "tag2"],
+            "type": "{'user_query' if role == 'user' else 'ai_response'}"
         }}
         Content:
         {content}
         """
         try:
-            # We enforce JSON generation
             resp = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
             data = json.loads(resp)
             abstract_index.add_abstract(
@@ -74,15 +104,25 @@ class MemoryService:
                 doc_type=data.get("type", "log"),
                 tags=data.get("tags", ["general"])
             )
-            logger.info(f"⚡ Abstract Indexed | {data.get('title')} | Tags: {data.get('tags')}")
+            logger.info(f"⚡ Tier-1 Indexed | {data.get('title')} | Tags: {data.get('tags')}")
         except Exception as e:
-            logger.warning(f"Failed to extract abstract for {doc_id}: {e}. Retrying with basic tags.")
-            # Fallback
+            logger.warning(f"Tier-1 abstract extraction failed for {doc_id}: {e}")
+            # Fallback: 以基础分类兜底入库
+            from app.services.memory.tier.abstract_index import abstract_index
             abstract_index.add_abstract(doc_id, "Memory Fragment", role, ["fallback"])
 
     async def add_memory(self, content: str, metadata: dict = None):
         """
-        Add a memory fragment to Vector Store and Tier-1 Index.
+        将一段记忆写入所有三层存储。
+
+        Args:
+            content: 记忆内容文本
+            metadata: 附加信息，支持 {"role": "user"/"assistant", "source": "daily_log" 等}
+
+        写入策略:
+            - Tier-1 (Abstract): fire-and-forget 异步 LLM 提取
+            - Tier-2 (Graph): fire-and-forget 异步 LLM 提取 + Neo4j 写入
+            - Tier-3 (Vector): 同步写入 ChromaDB（本地，极快）
         """
         if not content.strip():
             return
@@ -92,23 +132,22 @@ class MemoryService:
         role = meta.get("role", "system")
         meta.update({"user_id": self.user_id, "timestamp": datetime.now().isoformat()})
 
-        import asyncio
-        # Fire-and-forget: Build the abstract index asynchronously
+        # Tier-1: 摘要索引（异步，不阻塞主流程）
         asyncio.create_task(self._extract_and_index_abstract(doc_id, content, role))
 
-        # Add to Tier-2 (Neo4j Graph) asynchronously
+        # Tier-2: 图谱提取（异步，不阻塞主流程）
         from app.services.memory.tier.graph_index import graph_index
         asyncio.create_task(graph_index.extract_and_store(doc_id, content))
 
-        # Add to Vector Store (Tier-3)
+        # Tier-3: 向量存储（同步，本地 ChromaDB，快）
         memory_collection.add(documents=[content], metadatas=[meta], ids=[doc_id])
-        logger.info(f"Memory added to Vector Store: {doc_id}")
+        logger.info(f"Memory written to all 3 tiers: {doc_id}")
 
     async def log_interaction(self, role: str, content: str):
         """
-        Append interaction to daily log (Ephemeral Memory) AND Index it.
+        将一次对话交互记录到今日日志，并触发记忆写入。
+        Ephemeral Memory（日志）会随时间积累并被汇总到 Semantic Memory。
         """
-        # 1. Write to File (Reliability)
         log_file = self._get_daily_log_path()
         timestamp = datetime.now().strftime("%H:%M:%S")
         entry = f"\n### [{timestamp}] {role.upper()}\n{content}\n"
@@ -116,56 +155,118 @@ class MemoryService:
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(entry)
 
-        # 2. Index to Vector Store (Retrieval)
-        # We only index User messages or significant Agent conclusions to save noise
+        # 仅对用户消息或较长的 AI 回复建索，避免噪声污染记忆库
         if role == "user" or len(content) > 50:
             await self.add_memory(content, metadata={"source": "daily_log", "role": role})
 
     async def update_user_profile(self, content: str):
-        """
-        Update USER.md (Durable Memory).
-        """
+        """写入用户画像（持久化记忆 USER.md），同时进行向量索引。"""
         file_path = self.user_dir / "USER.md"
         with open(file_path, "a", encoding="utf-8") as f:
             f.write(f"\n- {content}")
-
-        # Also index this important fact
         await self.add_memory(content, metadata={"source": "user_profile", "type": "fact"})
+
+    # ─────────────────────────────────────────────
+    # 读取流 (Read Path) — 三层级联检索
+    # ─────────────────────────────────────────────
 
     async def get_context(self, query: str = None) -> str:
         """
-        Assemble context: Static Files + Daily Logs + Vector Search Results.
+        三层级联检索，组装出最丰富的上下文用于喂给 LLM。
+
+        级联顺序:
+            1. 用户画像 (USER.md) — 始终优先注入
+            2. Tier-1 Radar — 毫秒级摘要导航，提炼出命中的标签
+            3. Tier-2 Graph — 以 Radar 标签为起点，捞取图谱关联邻居
+            4. Tier-3 Vector — 精确向量语义召回，兜底任何遗漏细节
+            5. 今日日志 — 补充当前最新上下文
+
+        Returns:
+            str: 组合后的上下文字符串（送入 Prompt 的 context 部分）
         """
-        context = []
+        from app.services.memory.tier.abstract_index import abstract_index
+        from app.services.memory.tier.graph_index import graph_index
 
-        # 1. User Profile (Always Top Priority)
-        if (self.user_dir / "USER.md").exists():
-            profile = (self.user_dir / "USER.md").read_text(encoding="utf-8")
-            context.append(f"--- USER PROFILE ---\n{profile}")
+        context_blocks = []
 
-        # 2. Vector Search (Relevant Past)
+        # ── Block 1: 用户画像（始终最高优先）
+        profile_path = self.user_dir / "USER.md"
+        if profile_path.exists():
+            profile = profile_path.read_text(encoding="utf-8")
+            if profile.strip():
+                context_blocks.append(f"--- USER PROFILE ---\n{profile}")
+
         if query:
-            results = memory_collection.query(
-                query_texts=[query],
-                n_results=3,
-                where={"user_id": self.user_id},  # Filter by user
-            )
-            if results["documents"]:
-                retrieved = "\n".join([doc for doc in results["documents"][0]])
-                context.append(f"--- RELEVANT MEMORY ---\n{retrieved}")
+            # ── Block 2: Tier-1 Radar — 摘要级路由
+            # 用 LLM 从问题里快速提取关键词，走毫秒级集合碰撞
+            radar_tags = await self._extract_query_tags(query)
+            if radar_tags:
+                hits = abstract_index.route_query(tags=radar_tags, limit=5)
+                if hits:
+                    radar_lines = "\n".join(
+                        f"- [{h['type']}] {h['title']} (tags: {', '.join(h['tags'])})"
+                        for h in hits
+                    )
+                    context_blocks.append(f"--- HOT MEMORY (Tier-1 Radar) ---\n{radar_lines}")
 
-        # 3. Recent Logs (Immediate Context)
+                # ── Block 3: Tier-2 Graph — 图谱关系邻居
+                graph_neighbors = await graph_index.get_neighborhood(radar_tags)
+                if graph_neighbors:
+                    graph_lines = "\n".join(graph_neighbors)
+                    context_blocks.append(f"--- KNOWLEDGE GRAPH (Tier-2) ---\n{graph_lines}")
+
+            # ── Block 4: Tier-3 Deep Vector — 精确语义召回
+            try:
+                results = memory_collection.query(
+                    query_texts=[query],
+                    n_results=3,
+                    where={"user_id": self.user_id},
+                )
+                if results.get("documents") and results["documents"][0]:
+                    retrieved = "\n---\n".join(results["documents"][0])
+                    context_blocks.append(f"--- DEEP MEMORY (Tier-3 Vector) ---\n{retrieved}")
+            except Exception as e:
+                logger.warning(f"Tier-3 vector search failed: {e}")
+
+        # ── Block 5: 今日日志 — Ephemeral / 最近上下文
         daily_log = self._get_daily_log_path()
         if daily_log.exists():
-            # Read last 2000 chars roughly
             logs = daily_log.read_text(encoding="utf-8")[-2000:]
-            context.append(f"--- TODAY'S LOGS ---\n...{logs}")
+            if logs.strip():
+                context_blocks.append(f"--- TODAY'S LOG (Ephemeral) ---\n...{logs}")
 
-        return "\n\n".join(context)
+        return "\n\n".join(context_blocks)
+
+    async def _extract_query_tags(self, query: str) -> list[str]:
+        """
+        [辅助] 从用户查询中快速提取关键词（作为 Tier-1 Radar 检索的标签）。
+        使用 FAST 级别模型以降低延迟。失败时静默返回空列表。
+        """
+        from app.core.llm import get_llm_service
+        import json
+        try:
+            llm = get_llm_service()
+            prompt = f"""Extract 2-4 lowercase technical keywords from this query. 
+Return ONLY a JSON array: ["keyword1", "keyword2"]
+Query: {query}"""
+            resp = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
+            tags = json.loads(resp)
+            return [t.lower().strip() for t in tags if isinstance(t, str)]
+        except Exception:
+            return []
 
     async def search_memory(self, query: str, limit: int = 5) -> list[str]:
         """
-        Expose search capability to Agents.
+        对外暴露给 Agent Tools 使用的直接向量搜索接口。
+        （简单场景不需要完整的 get_context，直接检索 Tier-3 即可）
         """
-        results = memory_collection.query(query_texts=[query], n_results=limit, where={"user_id": self.user_id})
-        return results["documents"][0] if results["documents"] else []
+        try:
+            results = memory_collection.query(
+                query_texts=[query],
+                n_results=limit,
+                where={"user_id": self.user_id}
+            )
+            return results["documents"][0] if results.get("documents") else []
+        except Exception as e:
+            logger.warning(f"search_memory failed: {e}")
+            return []

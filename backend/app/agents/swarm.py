@@ -27,15 +27,19 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from app.agents.tools import NATIVE_TOOLS
+from app.agents.agentic_search import SEARCH_TOOLS
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.checkpoint.memory import MemorySaver 
 from loguru import logger
+from app.services.cache_service import CacheService # --- Guaranteed Import ---
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.agents.memory import SharedMemoryManager
 from app.agents.llm_router import LLMRouter, ModelTier
+from app.services.cache_service import CacheService
 
 
 # ============================================================
@@ -96,6 +100,9 @@ class SwarmState(TypedDict):
     # Current task description (can be refined by Supervisor)
     current_task: str
 
+    # Conversation ID for persistence/TODO linkage
+    conversation_id: str
+
     # Number of reflection/retry cycles
     reflection_count: int
 
@@ -115,6 +122,9 @@ class SwarmState(TypedDict):
     retrieval_trace: List[str]
     retrieved_docs: List[dict]
 
+    # --- Phase 5: Task Progress ---
+    status_update: str | None
+
 
 # ============================================================
 #  Structured Outputs
@@ -126,6 +136,8 @@ class RoutingDecision(BaseModel):
     uncertainty: float = Field(description="Confidence score (0.0 = confident, 1.0 = uncertain)")
     reasoning: str = Field(description="Reason for this routing decision")
     task_refinement: str = Field(description="Refined description of the task for the agent")
+    # --- Phase 5: Task Decomposition (Architecture Layer 4 Intelligence) ---
+    planned_steps: list[str] = Field(default_factory=list, description="Optional: decompose complex task into sub-tasks")
 
 
 class ReflectionResult(BaseModel):
@@ -259,6 +271,9 @@ class SwarmOrchestrator:
         except Exception as e:
             logger.error(f"Failed to initialize MCP or Skills: {e}")
 
+        # 0.4 Add Pre-processor Node (Caching & JIT prep)
+        workflow.add_node("pre_processor", self._pre_processor_node)
+
         # 0.5 Add Retrieval Node
         workflow.add_node("retrieval", self._retrieval_node)
 
@@ -273,7 +288,12 @@ class SwarmOrchestrator:
         workflow.add_node("reflection", self._reflection_node)
 
         # 4. Define Edges
-        workflow.set_entry_point("supervisor")
+        workflow.set_entry_point("pre_processor")
+        workflow.add_conditional_edges(
+            "pre_processor",
+            lambda state: state["next_step"],
+            {"supervisor": "supervisor", "FINISH": END}
+        )
         workflow.add_edge("retrieval", "supervisor")
 
         # Add Platform Action Node (for UI navigation/modal requests)
@@ -304,12 +324,30 @@ class SwarmOrchestrator:
             {"supervisor": "supervisor", "FINISH": END}
         )
 
-        self._graph = workflow.compile()
-        logger.info("🕸️ Swarm Graph compiled successfully")
+        # 5. Compile with Checkpointer (Phase 5)
+        checkpointer = MemorySaver()
+        self._graph = workflow.compile(checkpointer=checkpointer)
+        logger.info("🕸️ Swarm Graph compiled with Checkpointer Persistence")
 
     # ============================================================
     #  Supervisor Node — uses PromptEngine
     # ============================================================
+
+    async def _pre_processor_node(self, state: SwarmState) -> dict:
+        """Entry node for caching and JIT context checks."""
+        query = state.get("original_query", "")
+        
+        # --- Semantic Cache Lookup (Architecture Layer 5 Middleware) ---
+        cached = await CacheService.get_cached_response(query)
+        if cached:
+            logger.info(f"⚡ [Phase 4] Semantic Cache Hit: {query[:50]}...")
+            return {
+                "messages": [AIMessage(content=cached["content"])],
+                "agent_outputs": {"cache": cached["content"]},
+                "next_step": "FINISH"
+            }
+            
+        return {"next_step": "supervisor"}
 
     async def _supervisor_node(self, state: SwarmState) -> dict:
         """
@@ -320,10 +358,13 @@ class SwarmOrchestrator:
         这是为了极大降低平台操作（如页面跳转、弹窗提示）的响应延迟，避免 RAG 幻觉。
         
         [🛡️ AI-LOCKED (AI 修改禁区)]:
-        绝对不要把这里的 Fast Path 逻辑给删掉，也不要强行用 LLM 覆盖这个兜底逻辑。如果需要新增快速匹配命令，请在 `PLATFORM_INTENTS` 数组中追加。
+        绝对不要把这里的 Fast Path 逻辑给删掉，也不要强行用 LLM覆盖这个兜底逻辑。如果需要新增快速匹配命令，请在 `PLATFORM_INTENTS` 数组中追加。
         """
+        # --- Context Compaction (2.1H) ---
+        state["messages"] = self._prune_messages(state["messages"])
+        
         messages = state["messages"]
-        user_query = state.get("original_query", "") or (messages[-1].content if messages else "")
+        user_query = str(state.get("original_query", "") or (messages[-1].content if messages else ""))
         
         # === Fast Path: Keyword-based Platform Action Detection ===
         # Intercept navigation intents BEFORE calling LLM for routing.
@@ -395,9 +436,19 @@ class SwarmOrchestrator:
         )
 
         next_step = decision.next_agent
-        if decision.uncertainty > 0.7:
-            # High uncertainty — could trigger debate in future
-            pass
+        # --- Phase 5: Task Scaffolding (Architecture Layer 2 Persistence) ---
+        # If the LLM proposed a multi-step plan, persist it as a shared TODO list
+        if decision.planned_steps:
+             from app.models.agents import TodoItem, TodoStatus, TodoPriority
+             for step in decision.planned_steps:
+                 await self.memory.add_todo(TodoItem(
+                     title=step,
+                     status=TodoStatus.PENDING,
+                     created_by="supervisor",
+                     assigned_to=next_step,
+                     source_conversation_id=state.get("conversation_id")
+                 ))
+             logger.info(f"📝 [Phase 5] Supervisor persisted plan with {len(decision.planned_steps)} steps to Memory.")
 
         import uuid
         node_id = f"supervisor_{uuid.uuid4().hex[:6]}"
@@ -414,6 +465,7 @@ class SwarmOrchestrator:
             "uncertainty_level": decision.uncertainty,
             "current_task": decision.task_refinement,
             "last_node_id": node_id,
+            "status_update": f"🗺️ Supervisor planned {len(decision.planned_steps)} steps" if decision.planned_steps else None
         }
 
     # ============================================================
@@ -425,7 +477,18 @@ class SwarmOrchestrator:
 
         async def agent_node(state: SwarmState) -> dict:
             task = state.get("current_task", "")
+            conv_id = state.get("conversation_id", "")
             logger.info(f"🤖 Agent [{agent_def.name}] working on: {task[:80]}")
+
+            # --- Phase 5: Task Progress Tracking (Persistent) ---
+            # Mark assigned pending tasks as In Progress
+            from app.models.agents import TodoStatus
+            if conv_id:
+                todos = await self.memory.get_todos(status=TodoStatus.PENDING)
+                for todo in todos:
+                    if todo.source_conversation_id == conv_id and todo.assigned_to == agent_def.name:
+                        await self.memory.update_todo(todo.id, status=TodoStatus.IN_PROGRESS)
+                        logger.debug(f"📉 Task '{todo.title}' marked as IN_PROGRESS")
 
             # 1. Prepare Tools
             # Combine native tools with agent-specific tools, and MCP tools
@@ -433,12 +496,15 @@ class SwarmOrchestrator:
             if agent_def.name != "supervisor":
                 # Add memory tools to all business agents
                 available_tools.extend(NATIVE_TOOLS)
+                # Add agentic search tools (Tier 0)
+                available_tools.extend(SEARCH_TOOLS)
                 # Add discovered MCP tools
                 available_tools.extend(self.mcp.get_tools())
                 # Add dynamically loaded Skills
                 available_tools.extend(self.skills.get_all_tools())
 
-            # 2. Build prompt via PromptEngine
+            # --- Tool Auditing (Phase 3) ---
+            from app.services.security.sanitizer import ToolAuditor, SecuritySanitizer
             system_prompt = self.prompt_engine.build_agent_prompt(
                 agent_name=agent_def.name,
                 task=task,
@@ -451,6 +517,9 @@ class SwarmOrchestrator:
             llm = self._get_llm_for_agent(agent_def)
             if available_tools:
                 llm = llm.bind_tools(available_tools)
+
+            # --- Context Compaction (2.1H) ---
+            state["messages"] = self._prune_messages(state["messages"])
 
             # 4. Invoke LLM (with tool-calling loop)
             # We perform a simple ReAct loop inside the node for native tools
@@ -477,8 +546,13 @@ class SwarmOrchestrator:
                         # Append agent name if tool supports it (for memory logging)
                         if "agent_name" in tool_args:
                             tool_args["agent_name"] = agent_def.name
+                    
+                        # Audit tool call (Phase 3)
+                        if not ToolAuditor.audit_tool_call(tool_name, tool_args):
+                            result = "Error: Tool call blocked by security policy."
+                        else:
+                            result = await tool_obj.ainvoke(tool_args)
                             
-                        result = await tool_obj.ainvoke(tool_args)
                         current_messages.append(ToolMessage(
                             tool_call_id=tool_call["id"],
                             content=str(result)
@@ -489,11 +563,12 @@ class SwarmOrchestrator:
                             content=f"Error: Tool '{tool_name}' not found."
                         ))
 
-            # 5. Extract results
-            # The final AI message is usually the last one, but we might have tool results last
             # We want the content of the most recent AIMessage for agent_outputs
             final_ai_msg = next((m for m in reversed(current_messages) if isinstance(m, AIMessage)), None)
             final_content = final_ai_msg.content if final_ai_msg else "Task completed with tools."
+
+            # --- Output Sanitization (Phase 3) ---
+            final_content = SecuritySanitizer.mask_text(str(final_content))
 
             new_msgs_count = len(current_messages) - (1 + len(state["messages"]))
             new_messages = current_messages[-new_msgs_count:] if new_msgs_count > 0 else []
@@ -514,10 +589,20 @@ class SwarmOrchestrator:
                 # or just use sequential linking if we want.
                 pass
 
+            # --- Phase 5: Task Progress Completion ---
+            if conv_id:
+                # Mark In Progress tasks as Completed
+                todos = await self.memory.get_todos(status=TodoStatus.IN_PROGRESS)
+                for todo in todos:
+                    if todo.source_conversation_id == conv_id and todo.assigned_to == agent_def.name:
+                        await self.memory.update_todo(todo.id, status=TodoStatus.COMPLETED)
+                        logger.info(f"✅ Task '{todo.title}' marked as COMPLETED by {agent_def.name}")
+
             return {
                 "messages": new_messages,
                 "agent_outputs": {agent_def.name: str(final_content)},
                 "last_node_id": node_id,
+                "status_update": f"✅ {agent_def.name} finished work."
             }
 
         return agent_node
@@ -579,26 +664,38 @@ class SwarmOrchestrator:
         )
 
         # Invoke LLM for quality check (using BALANCED or FAST)
-        llm = self.router.get_model(ModelTier.BALANCED)
-        response = await llm.ainvoke([
-            SystemMessage(content=reflection_prompt),
-        ])
-
-        # Parse reflection result
-        reflection = self._parse_reflection_result(response.content)
-
-        logger.info(
-            f"🪞 Reflection: score={reflection.quality_score:.2f}, "
-            f"verdict={reflection.verdict}"
+        # --- Advanced Multi-Grader Evaluation (Phase 3) ---
+        from app.services.evaluation.multi_grader import MultiGraderEval
+        evaluator = MultiGraderEval()
+        
+        eval_result = await evaluator.evaluate(
+            query=state.get("original_query", ""),
+            response=last_message.content,
+            context=state.get("context_data", "")
         )
 
-        # Decide next step based on reflection
-        if reflection.verdict == "APPROVE" or reflection.quality_score >= 0.7:
+        # --- Automatic Semantic Caching (Phase 4) ---
+        if eval_result.verdict in ["PASS", "EXCELLENT"] and eval_result.composite_score >= 0.8:
+            from app.services.cache_service import CacheService
+            import asyncio
+            # background task to cache the result
+            asyncio.create_task(CacheService.set_cached_response(
+                query=state.get("original_query", ""),
+                response=last_message.content,
+                metadata={"agent": last_agent_name, "score": eval_result.composite_score}
+            ))
+            logger.info(f"💾 [Phase 4] Queued high-quality response for semantic cache.")
+
+        # Decide next step based on composite score
+        if eval_result.verdict in ["PASS", "EXCELLENT"]:
             next_step = "FINISH"
-        elif reflection.verdict == "ESCALATE":
-            next_step = "supervisor"  # Route to a different agent
         else:
-            next_step = "supervisor"  # REVISE — let supervisor re-route
+            next_step = "supervisor" # REVISE
+            
+        logger.info(
+            f"🧪 [MultiGrader] Verdict: {eval_result.verdict} "
+            f"(score={eval_result.composite_score:.2f})"
+        )
 
         import uuid
         node_id = f"reflection_{uuid.uuid4().hex[:6]}"
@@ -716,6 +813,51 @@ class SwarmOrchestrator:
         }
 
     # ============================================================
+    #  Context Compaction Utilities (2.1H)
+    # ============================================================
+
+    def _prune_messages(self, messages: List[BaseMessage], max_messages: int = 20) -> List[BaseMessage]:
+        """
+        Prunes message history to stay within token limits.
+        Uses 'Tool Result Clearing' for older tool calls.
+        """
+        if len(messages) <= max_messages:
+            return messages
+
+        logger.info(f"🧹 [Compaction] Pruning conversation history (current: {len(messages)})")
+
+        # Keep system message, and last N messages
+        system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+        other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+        
+        # We'll keep the last 15 messages intact
+        keep_intact = 15
+        
+        # For messages older than that, we perform Tool Result Clearing
+        pruned = []
+        for i, msg in enumerate(other_msgs[:-keep_intact]):
+            if isinstance(msg, ToolMessage):
+                # Replace content with summary
+                content_str = str(msg.content)
+                if len(content_str) > 200:
+                    pruned.append(ToolMessage(
+                        tool_call_id=msg.tool_call_id,
+                        content=f"[Previous tool output cleared to save context. Content was: {content_str[:50]}...]",
+                        status=getattr(msg, "status", "success")
+                    ))
+                else:
+                    pruned.append(msg)
+            else:
+                # Keep other messages (Human/AI) as they are usually more critical for context
+                # though we could summarize them too in a more advanced version.
+                pruned.append(msg)
+        
+        # Add the intact messages
+        pruned.extend(other_msgs[-keep_intact:])
+        
+        return system_msgs + pruned
+
+    # ============================================================
     #  JSON Parsing Helpers
     # ============================================================
 
@@ -771,16 +913,10 @@ class SwarmOrchestrator:
         self,
         user_message: str,
         context: dict[str, Any] | None = None,
+        conversation_id: str = "default_user"
     ) -> dict[str, Any]:
         """
         Main entry point — process a user request through the swarm.
-
-        Args:
-            user_message: The user's input message
-            context: Optional context (e.g., from Pipeline upstream artifacts)
-
-        Returns:
-            Final SwarmState dict containing messages, agent_outputs, etc.
         """
         if not self._graph:
             await self.build_graph()
@@ -799,22 +935,25 @@ class SwarmOrchestrator:
 
         initial_state: SwarmState = {
             "messages": [HumanMessage(content=augmented_message)],
-            "next_step": "supervisor",
+            "next_step": "pre_processor",
             "agent_outputs": {},
             "uncertainty_level": 0.0,
             "current_task": user_message,
+            "conversation_id": conversation_id,
             "reflection_count": 0,
             "original_query": user_message,
             "context_data": "",
-            "kb_ids": [],
+            "kb_ids": context.get("knowledge_base_ids", []) if context else [],
             "last_node_id": "",
             "retrieval_trace": [],
             "retrieved_docs": [],
+            "status_update": None,
         }
 
-        # Execute the graph
+        # Execute the graph with config for checkpointer
+        config = {"configurable": {"thread_id": conversation_id}}
         assert self._graph is not None, "Graph must be compiled"
-        final_state = await self._graph.ainvoke(initial_state)
+        final_state = await self._graph.ainvoke(initial_state, config=config)
         return final_state
 
     async def invoke_stream(
@@ -822,6 +961,7 @@ class SwarmOrchestrator:
         user_message: str,
         context: dict[str, Any] | None = None,
         history: list[BaseMessage] | None = None,
+        conversation_id: str = "default_stream"
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Streaming version of invoke — yields intermediate updates/events.
@@ -847,20 +987,24 @@ class SwarmOrchestrator:
 
         initial_state: SwarmState = {
             "messages": messages,
-            "next_step": "supervisor",
+            "next_step": "pre_processor",
             "agent_outputs": {},
             "uncertainty_level": 0.0,
             "current_task": user_message,
+            "conversation_id": conversation_id,
             "reflection_count": 0,
             "original_query": user_message,
             "context_data": "",
             "kb_ids": kb_ids, # Pass to state
             "last_node_id": "", # Init empty
             "retrieval_trace": [],
+            "retrieved_docs": [],
+            "status_update": None,
         }
 
-        # Use LangGraph's streaming mode
+        # Use LangGraph's streaming mode with config
+        config = {"configurable": {"thread_id": conversation_id}}
         assert self._graph is not None, "Graph must be compiled before invocation"
-        async for output in self._graph.astream(initial_state):
+        async for output in self._graph.astream(initial_state, config=config):
             # output is a dict like {'node_name': {state_updates}}
             yield output

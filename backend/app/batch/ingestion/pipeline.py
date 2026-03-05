@@ -37,11 +37,12 @@ class PipelineFactory:
             StageDefinition(name="audit_content", description="Quality check.", required_inputs=["parse_content"]),
             StageDefinition(name="desensitization", description="Security redaction.", required_inputs=["parse_content"]),
             StageDefinition(name="chunk_content", description="Recursive chunking.", required_inputs=["desensitization"]),
-            StageDefinition(name="vectorize", description="Vector indexing.", required_inputs=["chunk_content"])
+            StageDefinition(name="situation_enrichment", description="Add situational context.", required_inputs=["chunk_content", "desensitization"]),
+            StageDefinition(name="vectorize", description="Vector indexing.", required_inputs=["situation_enrichment"])
         ]
         return PipelineDefinition(
             name="GeneralDocumentationPipeline",
-            description="Best for most documents (PDF, Word, TXT). Includes full auditing and security.",
+            description="Best for most documents (PDF, Word, TXT). Includes full auditing, security, and Contextual Retrieval.",
             stages=stages
         )
 
@@ -56,11 +57,12 @@ class PipelineFactory:
             # Audit often fails for pure code if not configured, or we can skip it for tech-only.
             StageDefinition(name="desensitization", description="Keep code secrets safe.", required_inputs=["parse_content"]),
             StageDefinition(name="chunk_content", description="Code-aware chunking.", required_inputs=["desensitization"]),
-            StageDefinition(name="vectorize", description="Store vectors.", required_inputs=["chunk_content"])
+            StageDefinition(name="situation_enrichment", description="Add technical context.", required_inputs=["chunk_content", "desensitization"]),
+            StageDefinition(name="vectorize", description="Store vectors.", required_inputs=["situation_enrichment"])
         ]
         return PipelineDefinition(
             name="TechnicalDocumentationPipeline",
-            description="Optimized for Markdown with code blocks and technical manuals.",
+            description="Optimized for Markdown with code blocks and technical manuals. Includes Contextual Retrieval.",
             stages=stages
         )
 
@@ -75,11 +77,12 @@ class PipelineFactory:
             StageDefinition(name="audit_content", description="Compliance & Quality Audit.", required_inputs=["parse_content"]),
             StageDefinition(name="desensitization", description="Deep PII/BSI scrubbing.", required_inputs=["audit_content"]),
             StageDefinition(name="chunk_content", description="Logical section chunking.", required_inputs=["desensitization"]),
-            StageDefinition(name="vectorize", description="Final storage.", required_inputs=["chunk_content"])
+            StageDefinition(name="situation_enrichment", description="Legal context enrichment.", required_inputs=["chunk_content", "desensitization"]),
+            StageDefinition(name="vectorize", description="Final storage.", required_inputs=["situation_enrichment"])
         ]
         return PipelineDefinition(
             name="LegalCompliancePipeline",
-            description="Strict adherence to security and quality standards for sensitive contracts.",
+            description="Strict adherence to security, quality, and Contextual Retrieval standards for sensitive contracts.",
             stages=stages
         )
 
@@ -91,11 +94,12 @@ class PipelineFactory:
         stages = [
             StageDefinition(name="parse_content", description="Table & Grid extraction."),
             StageDefinition(name="chunk_content", description="Table-aware chunking.", required_inputs=["parse_content"]),
-            StageDefinition(name="vectorize", description="Store table vectors.", required_inputs=["chunk_content"])
+            StageDefinition(name="situation_enrichment", description="Table context enrichment.", required_inputs=["chunk_content", "parse_content"]),
+            StageDefinition(name="vectorize", description="Store table vectors.", required_inputs=["situation_enrichment"])
         ]
         return PipelineDefinition(
             name="StructuredDataPipeline",
-            description="Ideal for Excel and CSV, or documents with heavy table content.",
+            description="Ideal for Excel and CSV. Enhanced with Contextual Retrieval.",
             stages=stages
         )
 

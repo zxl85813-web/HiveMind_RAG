@@ -19,7 +19,9 @@ class LLMService:
         self, 
         messages: List[Dict[str, str]], 
         temperature: float = 0.7,
-        json_mode: bool = False
+        json_mode: bool = False,
+        extra_headers: Dict[str, str] | None = None,
+        extra_body: Dict[str, Any] | None = None
     ) -> str:
         """
         Non-streaming chat completion.
@@ -32,6 +34,10 @@ class LLMService:
             }
             if json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
+            if extra_headers:
+                kwargs["extra_headers"] = extra_headers
+            if extra_body:
+                kwargs["extra_body"] = extra_body
                 
             response = await self.client.chat.completions.create(**kwargs)
             return response.choices[0].message.content

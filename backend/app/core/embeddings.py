@@ -18,12 +18,15 @@ class ZhipuEmbeddingService(BaseEmbeddingService):
         self.model = settings.EMBEDDING_MODEL
 
     def embed_query(self, text: str) -> List[float]:
+        return self._embed_with_cache(text)
+
+    from functools import lru_cache
+    @lru_cache(maxsize=1024)
+    def _embed_with_cache(self, text: str) -> List[float]:
         try:
             response = self.client.embeddings.create(
                 model=self.model,
                 input=text
-                # dimensions param might not be supported by all Zhipu models/sdk versions, check docs.
-                # Assuming default or handled by model.
             )
             return response.data[0].embedding
         except Exception as e:

@@ -2,6 +2,7 @@
 Native tools for the Agent Swarm.
 """
 
+import json
 from typing import Any, Optional
 from langchain_core.tools import tool
 from loguru import logger
@@ -111,5 +112,58 @@ async def web_search(
     logger.info(f"🌐 Mock Web Search for: {query}")
     return f"Default search result for '{query}': (Mock result) DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
 
+@tool
+async def search_available_tools(
+    query: str
+) -> str:
+    """
+    Search for specialized tools or skills in the platform catalog.
+    Use this if NATIVE_TOOLS are insufficient for the task.
+    Returns tool names and descriptions.
+    """
+    logger.info(f"🔍 [ToolDiscovery] Searching for: {query}")
+    # In a real impl, this would query MCPManager and SkillRegistry metadata
+    return (
+        "Found specialized tools:\n"
+        "- 'sql_query_executor': Execute read-only SQL queries on the production DB.\n"
+        "- 'image_generator': Generate visual assets from text prompts.\n"
+        "- 'artifact_publisher': Create and publish versioned artifacts to the team."
+    )
+
+@tool
+async def python_interpreter(
+    code: str
+) -> str:
+    """
+    Execute Python code in a sandboxed-like environment. 
+    Use this for complex calculations, data transformation, or programmatic tool orchestration.
+    The code has access to 'logger' and 'json'.
+    """
+    logger.info(f"🐍 [PythonExecutor] Running code block...")
+    # Simulation of a REPL. In production, use a secure sandbox like E2B or Modal.
+    try:
+        # Restricted globals
+        safe_globals = {"logger": logger, "json": json}
+        # In a real impl, we'd capture stdout
+        exec(code, safe_globals)
+        return "Code executed successfully. Check logs for outputs if any."
+    except Exception as e:
+        return f"Error executing Python: {str(e)}"
+
+@tool
+async def think(
+    thought: str,
+    target_goal: Optional[str] = None
+) -> str:
+    """
+    Perform explicit reasoning or step-by-step planning.
+    Use this BEFORE calling complex tool chains to ensure your strategy is sound.
+    Explain WHAT you are going to do and WHY.
+    """
+    logger.info(f"🧠 [Think] {thought}")
+    if target_goal:
+        logger.info(f"🎯 [Goal] {target_goal}")
+    return "Thought recorded. You may now proceed with your planned actions."
+
 # Export tools
-NATIVE_TOOLS = [add_collective_todo, record_reflection, search_knowledge_base, web_search]
+NATIVE_TOOLS = [add_collective_todo, record_reflection, search_knowledge_base, web_search, think, search_available_tools, python_interpreter]

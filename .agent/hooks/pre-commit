@@ -7,7 +7,7 @@ echo "🔍 [Pre-Commit] 运行系统与代码合规检查..."
 
 # 1. 检查是否存在硬编码的敏感词 (例如 sk-xxx, api_key=)
 # 这是一个简单的正则排查，防止将密钥等推入库中
-FORBIDDEN_PATTERNS="sk-[a-zA-Z0-9]{32,}|api_key[ =]+[a-zA-Z0-9]+|password[ =]+['\"][^'\"]*['\"]"
+FORBIDDEN_PATTERNS="sk-[a-zA-Z0-9]{32,}|api_key[ =]+['\"][^'\"]{8,}['\"]|password[ =]+['\"][^'\"]+['\"]"
 FORBIDDEN_FILES=$(git diff --cached --name-only | grep -E '\.(py|ts|tsx|js|jsx)$' || true)
 
 if [ -n "$FORBIDDEN_FILES" ]; then

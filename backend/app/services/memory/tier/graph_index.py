@@ -1,30 +1,60 @@
+"""
+Tier-2 Memory: The Graph Overview Layer (GraphIndex).
+
+职责:
+- 从对话/文档文本中异步提取实体三元组，写入 Neo4j。
+- 在检索时，从图谱中顺藤摸瓜找出指定实体的关联邻居（关系跳跃）。
+
+注意事项:
+- 所有 Neo4j 阻塞调用用 run_in_executor 包裹，防止阻塞 asyncio 事件循环。
+- Neo4j 驱动不可用时，所有方法静默降级返回空，不干扰主业务。
+
+参见: REGISTRY.md > 后端 > services/memory/tier > GraphIndex
+参见: docs/design/tier2_graph_memory.md
+所属模块: services.memory.tier
+"""
 import json
+import asyncio
 from typing import List, Dict, Any
 from loguru import logger
 from app.core.graph_store import get_graph_store
 from app.core.llm import get_llm_service
 
+
 class GraphIndex:
     """
-    Tier-2 Memory: The Graph Overview Layer.
-    Extracts structured entities and relationships from text using an LLM
-    and stores them in Neo4j for semantic neighbor retrieval.
+    Tier-2 图谱记忆层。
+
+    使用场景:
+        # 写入（在 MemoryService.add_memory 中）
+        await graph_index.extract_and_store(doc_id, content)
+
+        # 读取（在 ChatService/get_context 中）
+        neighbors = await graph_index.get_neighborhood(["PostgreSQL", "Auth模块"])
     """
+
     def __init__(self):
         self.store = get_graph_store()
-        
+
+    def _is_available(self) -> bool:
+        """检查 Neo4j 是否可用（开发环境下可能未部署）。"""
+        return bool(self.store and getattr(self.store, 'driver', None))
+
     async def extract_and_store(self, doc_id: str, content: str) -> None:
         """
-        Asynchronously extract graph structures (nodes/edges) from text and inject them into Neo4j.
+        从文本中异步提取图结构（节点/边），注入 Neo4j。
+
+        Args:
+            doc_id: 内存段的唯一 ID（用于日志追踪）
+            content: 原始文本内容
         """
-        # If Neo4j isn't available, fail silently
-        if not self.store or not getattr(self.store, 'driver', None):
+        if not self._is_available():
             return
 
         llm = get_llm_service()
         prompt = f"""
         Analyze the following text and extract important entities and their relationships.
-        Return ONLY valid JSON matching this schema:
+        Return ONLY valid JSON matching this exact schema:
         {{
             "nodes": [
                 {{"id": "EntityName", "label": "Concept/Person/Technology", "name": "EntityName"}}
@@ -33,7 +63,6 @@ class GraphIndex:
                 {{"source": "Entity1", "target": "Entity2", "type": "VERB_RELATION", "description": "how they relate"}}
             ]
         }}
-        
         Text to analyze:
         {content}
         """
@@ -41,57 +70,66 @@ class GraphIndex:
         try:
             resp_text = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
             data = json.loads(resp_text)
-            
             nodes = data.get("nodes", [])
             edges = data.get("edges", [])
-            
             if nodes or edges:
-                self.store.import_subgraph(nodes, edges)
-                logger.info(f"🕸️ Tier-2 (Graph) Indexed {len(nodes)} nodes, {len(edges)} edges for {doc_id}.")
+                # 在线程池中执行阻塞的图数据库写入，保护事件循环
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, lambda: self.store.import_subgraph(nodes, edges)
+                )
+                logger.info(f"🕸️ Tier-2 Indexed {len(nodes)} nodes, {len(edges)} edges for doc: {doc_id}.")
         except Exception as e:
-            logger.warning(f"Failed to extract/store graph for {doc_id}: {e}")
+            logger.warning(f"Tier-2 graph extraction failed for {doc_id}: {e}")
 
-    def get_neighborhood(self, entity_names: List[str], depth: int = 1) -> List[str]:
+    async def get_neighborhood(self, entity_names: List[str], depth: int = 1) -> List[str]:
         """
-        Query Neo4j for the immediate graph neighborhood around the specified entities (tags).
-        """
-        if not self.store or not getattr(self.store, 'driver', None):
-            return []
-            
-        if not entity_names:
-            return []
-            
-        # Clean entities for cypher passing
-        safe_entities = [str(x).strip() for x in entity_names if x.strip()]
-        if not safe_entities: return []
+        查询 Neo4j 中指定实体集合的图谱邻居（关系跳跃），组装为自然语言描述列表。
 
-        # Find any relationships where the source OR target name is in our entity list
-        # We look up by 'name' or 'id' property based on label Entity or generic
+        Args:
+            entity_names: 实体名称列表（通常来自 Tier-1 Radar 提取的标签）
+            depth: 跳跃深度，当前固定 1 跳
+
+        Returns:
+            List[str]: 每行一个关系描述: "(A) -[REL]-> (B)  /* 描述 */"
+                       Neo4j 不可用或无结果时返回 []
+        """
+        if not self._is_available() or not entity_names:
+            return []
+
+        safe_entities = [str(x).strip() for x in entity_names if x and x.strip()]
+        if not safe_entities:
+            return []
+
         cypher = """
         MATCH (a)-[r]-(b)
         WHERE a.name IN $entities OR a.id IN $entities
         RETURN a.id AS source, type(r) AS rel, b.id AS target, r.description AS descr
-        LIMIT 10
+        LIMIT 15
         """
-        
+
         try:
-            results = self.store.query(cypher, {"entities": safe_entities})
-            
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None, lambda: self.store.query(cypher, {"entities": safe_entities})
+            )
+
             neighborhood_str = []
             for item in results:
                 src = item.get("source", "Unknown")
                 rel = item.get("rel", "RELATED")
                 tgt = item.get("target", "Unknown")
                 desc = item.get("descr", "")
-                
-                info = f"({src}) -[{rel}]-> ({tgt})"
+                line = f"({src}) -[{rel}]-> ({tgt})"
                 if desc:
-                    info += f"  /* {desc} */"
-                neighborhood_str.append(info)
-                
+                    line += f"  /* {desc} */"
+                neighborhood_str.append(line)
+
             return neighborhood_str
         except Exception as e:
-            logger.warning(f"Graph neighborhood query failed: {e}")
+            logger.warning(f"Tier-2 graph neighborhood query failed: {e}")
             return []
 
+
+# 单例访问
 graph_index = GraphIndex()

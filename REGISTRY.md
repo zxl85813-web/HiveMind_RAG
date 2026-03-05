@@ -74,9 +74,9 @@
 
 | 名称 | 职责 | 文件 | 状态 |
 |------|------|------|------|
-| `SwarmOrchestrator` | Agent 蜂巢编排 | `agents/swarm.py` | ✅ MVP |
+| `SwarmOrchestrator` | Agent 蜂巢编排 (含持久化任务跟踪) | `agents/swarm.py` | ✅ Phase 5 MVP |
 | `AgentDefinition` | Agent 定义数据类 | `agents/swarm.py` | ✅ |
-| `SharedMemoryManager` | 共享记忆管理 | `agents/memory.py` | ✅ |
+| `SharedMemoryManager` | 共享记忆管理 (含 TODO/Trace 持久化) | `agents/memory.py` | ✅ |
 | `TodoItem` | 共享 TODO 数据模型 | `models/agents.py` | ✅ |
 | `ReflectionEntry` | 自省日志数据模型 | `models/agents.py` | ✅ |
 | `LLMRouter` | 多 LLM 路由 | `agents/llm_router.py` | 🔲 框架 |
@@ -280,8 +280,8 @@
 
 | 需求 | 设计文档 | 核心代码 | 测试 | API 文档 | 状态 |
 |------|---------|---------|------|---------|------|
-| REQ-001 Agent 蜂巢 | DES-001 (待) | `agents/swarm.py` | 待编写 | `docs/api/agents.md` (待) | 🔲 |
-| REQ-002 共享记忆 | DES-002 (待) | `agents/memory.py` | 待编写 | `docs/api/agents.md` (待) | 🔲 |
+| REQ-001 Agent 蜂巢 | DES-001 (待) | `agents/swarm.py` | ✅ 任务持久化 | `docs/api/agents.md` (待) | 🚧 |
+| REQ-002 共享记忆 | DES-002 (待) | `agents/memory.py` | ✅ TODO/自省持久化 | `docs/api/agents.md` (待) | 🚧 |
 | REQ-003 对外学习 | DES-003 (待) | `agents/learning.py` | 待编写 | `docs/api/learning.md` (待) | 🔲 |
 | REQ-004 多 LLM | — | `agents/llm_router.py` | 待编写 | — | 🔲 |
 | REQ-005 MCP+Skills | — | `agents/mcp_manager.py`, `agents/skills.py` | 待编写 | — | 🔲 |

@@ -277,7 +277,7 @@ class ChatService:
             swarm_step = tracer.start_step("Swarm Orchestration", "agent", input_data=request.message)
             try:
                 current_sub_step = None
-                async for output in _swarm.invoke_stream(request.message, context=context, history=history):
+                async for output in _swarm.invoke_stream(request.message, context=context, history=history, conversation_id=conversation_id):
                     if "retrieval" in output:
                         ret_data = output["retrieval"]
                         ret_logs = ret_data.get("retrieval_trace", [])
@@ -299,6 +299,11 @@ class ChatService:
                         if next_agent and next_agent != "FINISH":
                             tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
                             yield f"data: {json.dumps({'type': 'status', 'content': f'👨‍✈️ 编排器决策: 由 {next_agent} 处理回复'})}\n\n"
+                    
+                    # Handle Phase 5: Task Progress Updates
+                    for node_name, updates in output.items():
+                        if isinstance(updates, dict) and "status_update" in updates and updates["status_update"]:
+                            yield f"data: {json.dumps({'type': 'status', 'content': updates['status_update']})}\n\n"
                     
                     for node_name, updates in output.items():
                         if node_name not in ["retrieval", "supervisor", "reflection"]:
