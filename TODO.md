@@ -249,6 +249,12 @@
 - ✅ **Graph Refactor**: Entry point moved to Supervisor; Retrieval is now a routeable strategy node.
 - ✅ **Self-Refinement Loop**: Agents can report context quality issues, triggering re-retrieval via Supervisor.
 
+#### 变更履历 RAG (P1) — REQ-011 ⬜
+- ⬜ **ChangelogAwareParser**: 实现 Excel/Word 变更履历自动提取逻辑
+- ⬜ **Context Multi-Stitching**: 将提取的变更信息 (Version/Date) 注入关联章节 Chunk 的 Metadata
+- ⬜ **Changelog Summary Search**: 实现按时间、版本号、作者等条件的结构化 RAG 检索
+- ✅ **GitHub Issues Sync**: 已同步 REQ-011 及子任务至 GitHub (Issue #1-#4)
+
 ### 2.1G RAG 治理与数据契约 ⬜ (NEW ARCH)
 
 > 📑 参考文档: `docs/architecture/rag_data_interface_design.md` & `arag_microservice_governance.md`
@@ -395,9 +401,19 @@
 - ⬜ **暗色/亮色模式切换** — 当前仅有暗色模式
 - ⬜ **移动端适配** — 侧边栏折叠、Chat 面板浮动
 
+## 四、⚡ Phase 6: 性能优化 (Performance) — 进度跟踪
+
+- ✅ **并行检索 (Parallel Retrieval)** — `HybridRetrievalStep` 支持并发查询多个 KB 与扩展 Query
+- ✅ **上下文压缩 (Contextual Compression)** — 新增 `ContextualCompressionStep` 抽取式压缩 Context，节省 Token
+- ✅ **显存/显量管理 (Token Budgeting)** — `SwarmOrchestrator` 实现基于字符预算的激进消息剪枝
+- ✅ **SQL 查询优化** — 解决 `ChatService` 会话列表 N+1 查询问题，并增加 `TodoItem` 索引
+- ✅ **异步预热 (Async Pre-warming)** — `SwarmOrchestrator` 实现推测式并行检索，并跳过冗余节点
+- ✅ **SSE 批次优化 (SSE Batching)** — `ChatService` 支持数据包微批次发送，大幅降低网络开销
+- ⬜ **MCP 智能路由** — 根据 Tool 描述自动选择最优 MCP 节点
+
 ---
 
-## 四、🧪 测试 — 待完成
+## 五、🧪 测试 — 待完成
 
 - ✅ **E2E 测试框架** — Playwright 已集成
 - ✅ **集成测试矩阵** — `integration.spec.ts` 已创建

@@ -71,21 +71,39 @@ class HybridRetrievalStep(BaseRetrievalStep):
     Equivalent to 'Ingestion' but reversed (Store -> Memory).
     """
     async def execute(self, ctx: RetrievalContext):
+        import asyncio
         store = get_vector_store()
-        all_docs = []
         
+        # Create tasks for all combinations of queries and KBs
+        tasks = []
         for q in ctx.expanded_queries:
             for kb_id in ctx.kb_ids:
-                try:
-                    docs = await store.search(
+                tasks.append(
+                    store.search(
                         query=q,
                         search_type=ctx.search_type,
                         k=ctx.top_k,
                         collection_name=kb_id
                     )
-                    all_docs.extend(docs)
-                except Exception as e:
-                    ctx.log("Retrieval", f"Error querying {kb_id}: {e}")
+                )
+        
+        if not tasks:
+            ctx.candidates = []
+            return
+
+        # Execute parallel searches
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            all_docs = []
+            for i, res in enumerate(results):
+                if isinstance(res, Exception):
+                    ctx.log("Retrieval", f"Parallel task failed: {res}")
+                    continue
+                all_docs.extend(res)
+        except Exception as e:
+            ctx.log("Retrieval", f"Parallel retrieval failed: {e}")
+            all_docs = []
                     
         # Dedup by content
         unique_docs = {}
@@ -94,7 +112,7 @@ class HybridRetrievalStep(BaseRetrievalStep):
                 unique_docs[d.page_content] = d
                 
         ctx.candidates = list(unique_docs.values())
-        ctx.log("Retrieval", f"Found {len(ctx.candidates)} unique candidates from {len(ctx.kb_ids)} KBs")
+        ctx.log("Retrieval", f"Found {len(ctx.candidates)} unique candidates from {len(ctx.kb_ids)} KBs (Parallelized)")
 
 class RerankingStep(BaseRetrievalStep):
     """
@@ -292,6 +310,49 @@ class PromptInjectionFilterStep(BaseRetrievalStep):
                 clean_results.append(doc)
                 
         ctx.final_results = clean_results
-        if suspicious > 0:
-            ctx.log("Security", f"Dropped {suspicious} chunks due to suspected Prompt Injection.")
+
+class ContextualCompressionStep(BaseRetrievalStep):
+    """
+    Compression Phase: Reduce Token usage by keeping only relevant sentences.
+    (M2.1H Advanced Compaction)
+    """
+    async def execute(self, ctx: RetrievalContext):
+        if not ctx.final_results:
+            return
+            
+        import re
+        
+        # Get keywords from QueryPreProcessingStep if available
+        keywords = getattr(ctx, "keywords", [])
+        if not keywords:
+            # Fallback: simple split of the original query
+            keywords = [w.strip() for w in re.split(r'[,.\s]+', ctx.query) if len(w.strip()) > 2]
+            
+        compressed_results = []
+        reduction_total = 0
+        
+        for doc in ctx.final_results:
+            original_text = doc.page_content
+            # Split into sentences (simple rule-based)
+            sentences = re.split(r'(?<=[。？！.?!])\s+', original_text)
+            
+            # Keep sentences that contain any keyword
+            relevant_sentences = []
+            for sent in sentences:
+                if any(kw.lower() in sent.lower() for kw in keywords):
+                    relevant_sentences.append(sent)
+            
+            # If nothing was matched, keep the first 2 sentences as fallback
+            if not relevant_sentences and len(sentences) > 0:
+                relevant_sentences = sentences[:2]
+                
+            new_content = " ".join(relevant_sentences)
+            reduction_total += (len(original_text) - len(new_content))
+            
+            doc.page_content = new_content
+            doc.metadata["compressed"] = True
+            compressed_results.append(doc)
+            
+        ctx.final_results = compressed_results
+        ctx.log("Compression", f"Reduced context by {reduction_total} chars using keyword extraction.")
 

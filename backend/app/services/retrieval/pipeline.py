@@ -3,7 +3,7 @@ Retrieval Pipeline — Orchestrator for RAG Retrieval.
 """
 from typing import List
 from .protocol import RetrievalContext
-from .steps import BaseRetrievalStep, HybridRetrievalStep, RerankingStep, ParentChunkExpansionStep, GraphRetrievalStep, AclFilterStep, PromptInjectionFilterStep
+from .steps import BaseRetrievalStep, HybridRetrievalStep, RerankingStep, ParentChunkExpansionStep, GraphRetrievalStep, AclFilterStep, PromptInjectionFilterStep, ContextualCompressionStep
 from .preprocessing import QueryPreProcessingStep
 from app.core.vector_store import VectorDocument, SearchType
 
@@ -15,6 +15,7 @@ class RetrievalPipeline:
     2. Hybrid Retrieval (Recall)
     3. Cross-Encoder Reranking (Precision)
     4. Parent Chunk Expansion (Contextualization)
+    5. Contextual Compression (Optimization)
     """
     
     def __init__(self):
@@ -26,6 +27,7 @@ class RetrievalPipeline:
             AclFilterStep(),       # 权限校验 (ACL Document Filtering)
             RerankingStep(),
             ParentChunkExpansionStep(),
+            ContextualCompressionStep(), # 压缩上下文 (P2 Performance)
             PromptInjectionFilterStep() # 注入防护
         ]
 

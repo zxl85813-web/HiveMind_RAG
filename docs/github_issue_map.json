@@ -1,0 +1,18 @@
+{
+    "REQ-011: 变更履历 RAG (Changelog-Aware RAG)": {
+        "number": 1,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/1"
+    },
+    "REQ-011: ChangelogAwareParser": {
+        "number": 2,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/2"
+    },
+    "REQ-011: Context Multi-Stitching": {
+        "number": 3,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/3"
+    },
+    "REQ-011: Changelog Summary Search": {
+        "number": 4,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/4"
+    }
+}

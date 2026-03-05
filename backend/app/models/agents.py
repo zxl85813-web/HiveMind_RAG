@@ -32,9 +32,9 @@ class TodoItem(SQLModel, table=True):
     title: str = Field(index=True)
     description: str = ""
     priority: TodoPriority = Field(default=TodoPriority.MEDIUM)
-    status: TodoStatus = Field(default=TodoStatus.PENDING)
+    status: TodoStatus = Field(default=TodoStatus.PENDING, index=True)
     created_by: str = ""  # Agent name or "user"
-    assigned_to: str = ""  # Agent name
+    assigned_to: str = Field(default="", index=True)  # Agent name
     source_conversation_id: str | None = Field(default=None, foreign_key="conversations.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     due_at: datetime | None = None

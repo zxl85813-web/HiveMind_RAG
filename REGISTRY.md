@@ -290,6 +290,7 @@
 | REQ-008 RAG Pipeline & 质量体系 | REQ-008 ✅ | `services/retrieval/`, `services/indexing.py` | 待编写 | — | 🔲 |
 | REQ-009 RAG 进阶能力 | REQ-009 ✅ | `services/retrieval/`, `core/graph_store.py`, `services/memory/` | 待编写 | — | 🔲 |
 | REQ-010 数据脱敏体系 | REQ-010 ✅ | 待实现 | 待编写 | — | 🔲 |
+| REQ-011 变更履历 RAG | — | `services/indexing.py` | 待编写 | — | 🟡 |
 
 ---
 

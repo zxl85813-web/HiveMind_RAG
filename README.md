@@ -1,333 +1,212 @@
-# 🐝 HiveMind RAG Platform
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/node-18+-green?logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/FastAPI-latest-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/LangGraph-Agent_Orchestration-7C3AED" alt="LangGraph" />
+  <img src="https://img.shields.io/badge/license-Private-red" alt="License" />
+</p>
 
-> **AI-First 企业级智能助手平台** — 基于 Agent Swarm 蜂巢架构与自省学习机制。
+# 🐝 HiveMind — Agentic RAG Platform
 
----
-
-## 🏗️ 架构概览 (Architecture Overview)
-
-本项目采用 **AI-First Modular Monolith (模块化单体)** 架构，以 Agent 为核心驱动业务流转，辅以 RAG 知识增强和 MCP 工具扩展。
-
-### 核心分层设计
-
-```mermaid
-graph TD
-    User((User)) <--> Frontend["⚛️ React Frontend<br>(AI-First UI/ChatPanel)"]
-    
-    subgraph "Backend (FastAPI)"
-        API["🌐 API Gateway<br>(Routes + Deps)"]
-        
-        subgraph "Application Layer"
-            Service["💼 Business Services<br>(User/Chat/KB)"]
-            Auth["🔐 Auth & Audit<br>(RBAC/Log/Sanitizer)"]
-        end
-        
-        subgraph "Intelligence Layer (Agent Swarm)"
-            Supervisor["🧠 Manager Agent<br>(Router)"]
-            Workers["👷 Worker Agents<br>(RAG/Code/Web/Reflection)"]
-            Memory["💾 Shared Memory<br>(Redis/Vector)"]
-        end
-        
-        subgraph "Infrastructure Layer"
-            Core["⚙️ Core Infra<br>(Config/DB/Log)"]
-            LLM["🧠 LLM Gateway<br>(Router/Guardrails)"]
-            Tools["🛠️ Tools<br>(MCP/Skills/Learning)"]
-        end
-    end
-
-    Frontend <-->|"SSE Stream"| API
-    Frontend <-->|"WebSocket"| API
-    API --> Service
-    Service --> Supervisor
-    Supervisor --> Workers
-    Workers --> Tools
-    Workers --> LLM
-```
+> **一个以 Agent 为核心驱动力的 RAG 系统。**
+> 数据的入库、检索、治理、生成，全部由 Agent Swarm 协作完成。
 
 ---
 
-## 🧩 核心设计理念 (Core Philosophy)
+## 这是什么？
 
-HiveMind 不仅仅是一个 RAG 系统，它是一套基于 **函数式编程**、**微服务治理** 与 **Anthropic Agent 工程最佳实践** 构建的 AI 协作架构。
+HiveMind 是一套 **Agentic RAG** 平台。与传统 RAG 的区别在于：
 
-> 📑 **技术参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方工程博客的系统化提炼。
-
-### 1. 行为模型：Agent (副作用) × Skill (纯函数)
-*   **Skill (纯函数)**: 系统中的每一个工具都是一个**无状态、幂等、可测试**的原子函数。Skill 支持**渐进式披露 (Progressive Disclosure)** — Agent 初始只看到名称和描述，按需加载完整文档和脚本。
-*   **Agent (副作用函数)**: Agent 是**状态机**的载体。它们遵循 **Gather Context → Take Action → Verify Work** 的核心循环，通过 `think` 工具进行显式推理，通过调用 Skill 产生可审计的副作用。
-*   **价值**: 这种分离确保了复杂 AI 系统的高可靠性与透明度，让 Skill 变得极易复用，Agent 变得逻辑可预测。
-
-### 2. 数据治理：从"存储"到"编译" (Compilation)
-*   传统 RAG 把数据治理看作"文档整理"，而在 HiveMind 中，数据治理被定义为 **"知识编译"**。
-*   **源码**: 原始 PDF/Word 是人类可读的"源代码"。
-*   **编译器 (Compiler)**: 我们的 Ingestion Pipeline 即编译器。它执行词法分析（OCR/解析）、语法分析（结构提取）、**上下文增强 (Contextual Enrichment)**、语义优化（总结/标签/版本化）。
-*   **目标代码**: 最终存入向量库/图谱的 **Situational Chunks (带背景分块)** 是"机器可执行"的知识。
-
-### 3. 系统形态：数据治理 ≈ 微服务治理 (Isomorphism)
-*   **垂直分区**: 每一个知识库 (KB) 被视为一个独立的**数据微服务**，拥有独立的隔离边界和治理桶。
-*   **API Gateway**: `RAGGateway` 作为统一的知识网关，负责请求路由、负载均衡和审计。
-*   **熔断与降级**: 当某个知识库质量下降时，系统会自动触发熔断，降级到通用知识库。
-
-### 4. 上下文工程 (Context Engineering)
-*   **核心原则**: 在有限的注意力预算中，找到最小的高信噪比 Token 集合。
-*   **JIT 加载**: Agent 优先使用 `grep`/`glob`/`head` 等文件系统原语按需加载上下文，而非预载全部索引。
-*   **双层检索**: Agentic Search (精准但慢) + Semantic Search (快速但需索引) 混合策略。
-*   **长会话治理**: Compaction (消息摘要) + Tool Result Clearing (工具输出擦除) + Structured Note-taking (结构化笔记)。
-
-### 5. 安全与生产韧性 (Safety & Reliability)
-*   **沙箱隔离**: 所有 Skill 执行在 OS 级沙箱 (bubblewrap/seatbelt) 中运行，文件系统 + 网络双重隔离。
-*   **彩虹发布**: 长运行 Agent 不受热更新干扰，新旧版本平滑过渡。
-*   **评估驱动**: Multi-Grader (Code + Model + Human) 评估体系，Regression + Capability 双轨验证。
-
----
-
-## 📂 项目结构 (Directory Structure)
-
-
-本项目采用了 **AI-Native Modular Monolith** 架构。我们不再按单纯的技术层（Controller/Service/Dao）分包，而是按 **"Agent Capability" (能力域)** 进行组织。
-
-### 1. 后端 (Backend) - `backend/app/`
-
-| 核心领域 | 目录 | 职责说明 | 关键组件 |
-| :--- | :--- | :--- | :--- |
-| **大脑 (Brain)** | **`agents/`** | 决策与编排。负责意图识别、Agent 路由、多 Agent 协作。 | `SwarmOrchestrator`, `Supervisor` |
-| **四肢 (Action)** | **`batch/`** | 异步执行引擎。负责长时间运行的任务调度与 DAG 依赖管理。 | `JobManager` (LangGraph), `TaskQueue` |
-| **技能 (Skills)** | **`skills/`** | 动态工具箱。存放无状态的、可热插拔的业务逻辑函数。 | `SkillRegistry`, `StandardizedTools` |
-| **记忆 (Memory)** | **`rag/`** | 知识检索与增强。管理向量数据库和语义索引。 | `VectorStore`, `RAGPipeline` |
-| **连接 (Connect)** | **`mcp/`** | 外部世界接口。通过 Model Context Protocol 连接文件系统或外部 API。 | `MCPClient` |
-| **中枢 (Infra)** | `llm/` | 语言模型网关。统一管理 Token、以及安全护栏 (Guardrails)。 | `LLMGateway` |
-
-辅助目录：
-*   `api/`: HTTP 接口定义 (Routes)。
-*   `core/`: 全局基础设施 (Config, DB, Log)。
-*   `common/`: 通用工具 (Utils, Constants)。
-
-### 2. 前端 (Frontend) - `frontend/src/`
-
-前端呈现为 "Copilot OS" 形态，而非传统的 CRUD 页面。
-
-| 层级 | 目录 | 职责说明 |
+| | 传统 RAG | HiveMind (Agentic RAG) |
 | :--- | :--- | :--- |
-| **UI State** | **`stores/`** | **Zustand**. 管理 "界面状态" (Sidebar 开关) 和 "交互上下文" (当前在哪个页面)。 |
-| **Server Data** | **`hooks/queries/`** | **React Query**. 管理 "业务数据" (用户列表、文档库)，处理缓存与同步。 |
-| **AI Components** | **`components/chat/`** | **Native UI**. `ChatPanel` 是常驻伴随式组件，`ActionButton` 负责执行 AI 指令。 |
-| **Pages** | `pages/` | 业务页面。它们是 AI 的操作对象，通过 Context 告知 AI 当前环境。 |
+| **入库** | 固定 Pipeline 切块 → 向量化 | Agent 调度多 Skill 解析 → **上下文增强 (Contextual Chunks)** → 向量化 + 图谱抽取 |
+| **检索** | 单一向量相似度 | **三层渐进式检索**：抽象索引扫描 → 图谱关联扩展 → 向量精排 |
+| **生成** | 拼接 Prompt 一次生成 | Worker Agent 起草 → Critic Agent **自省纠错** → 输出终稿 |
+| **治理** | 人工维护 | Agent 自动打标签、抽实体、建图谱、**版本化追踪** |
 
-### 3. 研发治理 (.agent)
-位于根目录 `.agent/`，这是我们的数字化研发规范：
-*   `workflows/`: 这里的 Markdown 文件定义了标准作业流程 (SOP)。
-*   `rules/`: AI 辅助编程的硬性约束 (Lint Rules)。
+一句话：**Agent 不只回答问题，它管理整个知识生命周期。**
 
 ---
 
-## 🛡️ 研发治理体系 (Engineering Governance)
-
-为了保证代码质量和架构一致性，我们建立了完整的数字化治理体系框架。不仅约束人类开发者，也高度约束 AI Agent。
-
-### 1. 多角色协同与 GitHub 绑定 (Collaboration & Binding)
-通过在 `.agent/rules/team-collaboration-standards.md` 中定义的双向绑定机制：
-- **向下驱动**: 使用 `/opsx-explore --issue={ID}` 让 AI 解析 GitHub Issue 并产出代码。
-- **向上报警**: AI 在生成遇到难以解决的阻塞时，会自动生成 `[BLOCKED]` Issue，指引人工介入。
-- **Issue Templates**: 强制打领域标签和架构评审标记。
-
-### 2. 强制性 Git Hooks (Commit Guards)
-位于 `.agent/hooks/`，用于防范代码级灾难：
-- **`commit-msg`**: 强制所有提交必须关联 Issue (如 `Resolves #42`) 且符合 Conventional Commits 语义化规范。
-- **`pre-commit`**: 扫描缓存区的 `.py/.ts` 文件，一旦发现硬编码的敏感密钥 (`sk-xxx`) 立即熔断并阻止 push。
-
-### 3. 代码生成流与标准 (Templates & Rules)
-不从零写代码，使用标准工作流避免大模型的“发散随机性”。
-- **API & Component 设计**: 必须通过 `.agent/workflows/create-*` 命令。
-- **代码规范溯源**: 代码级别的 JSDoc / Docstring 顶部必须加 `@see REGISTRY.md`。
-
-### 4. 质量门禁与测试体系 (Quality Gates & Tests)
-遵循“.agent/testing_guidelines.md”开展契约+容错的双视角测试。
-```bash
-# 一键运行所有检查 (Lint + Type Check + Pytest)
-./.agent/checks/run_checks.ps1
-```
-
-### 5. 数据库演进 (Database Evolution)
-严禁手动改表，所有变更必须通过 Alembic 迁移脚本。
-```bash
-# 生成迁移脚本 (开发环境)
-alembic revision --autogenerate -m "add_table"
-```
-
----
-
-## 🧠 AI-First 核心特性
-
-### 1. 蜂巢与自省 (Swarm & Reflection)
-不仅仅是简单的 Chain，而是拥有路由 (Supervisor) 和自省 (Reflection) 能力的 Agent 集群。
-- **Supervisor**: 分析意图，分发给 RagAgent / CodeAgent / WebAgent。含 **Fast Path** 关键字拦截，避免 RAG 幻觉。
-- **Reflection**: 检查 Worker 的输出质量，不合格打回重做。支持 **Hybrid Grading** (规则校验 + LLM 裁判)。
-- **Think Tool**: Agent 在执行复杂工具链前进行显式推理记录，提高决策透明度。
-
-### 2. 混合通信架构 (Hybrid Communication)
-- **SSE (Server-Sent Events)**: 用于 AI 回复的打字机流式输出。
-- **WebSocket**: 用于后端主动推送状态变更 (Agent 思考过程、任务进度、通知)。
-
-### 3. 多层渐进式记忆架构 (Multi-Tier Memory Architecture)
-独创的三层混合记忆检索机制，彻底解决传统 RAG 的"大海捞针"和"缺乏上下文全局视野"问题：
-- **Tier 0 - Agentic Search (JIT)**: Agent 使用 `grep`/`glob`/`head` 按需探索文件系统，无需预索引，适用于日志分析和代码导航。
-- **Tier 1 - 索引雷达层 (Hot Radar)**: 纯内存抽象索引 (`InMemoryAbstractIndex`)，利用标签与实体做极速集合碰撞，在检索底层海量文本前率先明确意图和方向。
-- **Tier 2 - 知识图谱层 (Overview Graph)**: 基于 **Neo4j** 构建实体关系网。当命中线索时，系统顺藤摸瓜拉取图谱邻居，赋予 Agent 类似人类大脑的关联能力，洞悉隐式关系。
-- **Tier 3 - 向量细节层 (Deep Detail)**: 基于 **Contextual Retrieval** 增强的 Situational Chunks + BM25 混合检索，经 **Cross-Encoder Reranker** 精排后注入 LLM。
-
-### 4. 长会话稳定性 (Long-Horizon Resilience)
-- **Context Compaction**: 自动总结旧消息 + 清除过时工具输出，防止 Token 溢出。
-- **State Checkpointing**: LangGraph 持久化快照，支持断点续传。
-- **Feature-based Scaffolding**: `progress.json` 状态追踪，确保跨会话的增量执行。
-
-### 5. 工具效率革命 (Tool Efficiency)
-- **Dynamic Tool Loading**: 海量工具按需发现加载，初始仅占 ~2K Token。
-- **MCP Code Mode**: Agent 编写代码直接批量调度工具，Token 节省 98.7%。
-- **Skill Self-Evolution**: Agent 将通用编排模式自动沉淀为可复用 Skill。
-
----
-
-## 🧠 批处理与调度引擎 (Batch & Scheduling Engine)
-
-本项目引入了基于 **LangGraph** 的下一代批处理引擎 (`JobManager`)，用于替代传统的轮询控制器。
-
-### 1. 核心架构 (Core Architecture)
-*   **JobManager (Graph Orchestrator)**: 一个持久化的 LangGraph 状态机。它负责管理整个 Job 的生命周期。
-*   **双节点循环 (Scheduler-Worker Loop)**:
-    *   **Scheduler Node**: **纯决策者**。它重建依赖图，检查哪些任务 (TaskUnit) 的前置依赖已满足，并分配任务给 Worker。它使用 **状态重放 (State Replay)** 机制来确保 TaskQueue 的状态与 Job 的持久化状态一致。
-    *   **Worker Node**: **执行者**。它并行执行被分配的任务，将结果写回 Job 状态。
-*   **Skill System (Skills)**: Worker 通过动态加载 **无状态技能 (Stateless Skills)** 来执行具体业务逻辑。
-
-### 2. 状态管理 (State Management)
-*   **Persistence**: Job 的状态 (Running/Completed/Failed) 持久化在数据库中。即便服务重启，LangGraph 也能从断点恢复调度。
-*   **Dependency Resolution**: 支持复杂的 DAG (有向无环图) 依赖。任务 B 只有在 任务 A 成功后才会进入 `QUEUED` 状态。
-
----
-
-## 📚 RAG 知识引擎流程 (Knowledge Engine Flow)
-
-我们的 RAG 系统分为 **异步入库 (Write Path)** 和 **实时检索 (Read Path)** 两条独立链路。
+## 系统架构
 
 ```mermaid
-graph TD
-    %% --- Ingestion Flow (入库) ---
-    subgraph "Ingestion Pipeline (Write Path)"
-        Upload["User Upload"] -->|1. Upload File| API["API Gateway"]
-        API -->|2. Create Job| JobManager["Job Manager"]
-        
-        JobManager -->|3. Schedule| Worker["Ingestion Worker"]
-        Worker -->|4. Load Skill| Plugins["Parser Plugins\n(Mineru/Excel/PDF)"]
-        
-        Plugins -->|5. Parse & Chunk| Chunks["Text Chunks"]
-        Chunks -->|6. Embed| EmbedModel["Embedding Model"]
-        EmbedModel -->|7. Upsert| VectorDB[("pgvector\nVector Core")]
+graph LR
+    User((用户)) --> Frontend["⚛️ React Copilot UI"]
+    Frontend -->|SSE / WebSocket| API["🌐 FastAPI Gateway"]
+
+    subgraph "Agent Swarm (核心)"
+        API --> Supervisor["🧠 Supervisor<br/>意图路由"]
+        Supervisor --> RAG["📚 RAG Agent"]
+        Supervisor --> Code["💻 Code Agent"]
+        Supervisor --> Web["🌐 Web Agent"]
+        RAG --> Reflection["🪞 Reflection<br/>自省纠错"]
+        Code --> Reflection
     end
 
-    %% --- Query & Generation Flow (检索与生成) ---
-    subgraph "Retrieval & Generation Loop (Read Path)"
-        User["User Query"] -->|8. Chat| Swarm["Swarm Orchestrator"]
-        Swarm -->|9. Route| Supervisor["Supervisor Agent"]
-        
-        Supervisor -->|"10. Call Tool"| Service["Generation/Retrieval Service"]
-        Service -->|"11. Hybrid Search (Vector+BM25)"| VectorDB
-        
-        VectorDB -->|12. Top K Candidates| Reranker["Reranker (Cross-Encoder)"]
-        Reranker -->|"13. Context (Top N)"| Generator["Drafting Agent"]
-        Generator -->|"14. Self-Correction"| Reviewer["Critic Agent"]
-        Reviewer -->|"15. Final Artifact (Excel/Text)"| User
+    subgraph "记忆与检索"
+        RAG --> T1["Tier 1: 抽象索引<br/>(内存标签碰撞)"]
+        RAG --> T2["Tier 2: 知识图谱<br/>(Neo4j 关联扩展)"]
+        RAG --> T3["Tier 3: 向量精排<br/>(pgvector + BM25 + Reranker)"]
+    end
+
+    subgraph "数据治理 (Agent 驱动)"
+        Ingestion["📥 Ingestion Pipeline"] --> Parser["解析 Skills<br/>(PDF/Excel/图片)"]
+        Parser --> Enrichment["上下文增强<br/>(Contextual Chunks)"]
+        Enrichment --> GraphExtract["实体/关系抽取<br/>(图谱构建)"]
+        Enrichment --> VectorStore["向量入库<br/>(pgvector)"]
+    end
+
+    subgraph "基础设施"
+        LLM["🤖 LLM Gateway<br/>(多模型路由)"]
+        Skills["🛠️ Skill Registry<br/>(热插拔工具)"]
+        MCP["🔌 MCP 外部连接"]
     end
 ```
 
-### 关键特性 (Key Features)
-1.  **Agentic RAG Pipeline**: 不止于检索。支持 **Active Creating (自主生成)** 和 **Self-Correction (自我修正)**，可直接生成 Excel/Word 制品。
-2.  **Contextual Retrieval**: 每个分块在索引前由 LLM 注入文档背景信息 (Situational Chunks)，召回失败率降低 **49%**。
-3.  **Hybrid Search**: 结合 **Contextual Vector** 和 **Contextual BM25**，经 **Cross-Encoder Reranker** 精排 (Top 150 → Top 20)，显著提升专业领域的召回率。
-4.  **Multimodal Ingestion**: 支持 PDF、Excel、图片等多模态文档解析与其他 Agent 技能的无缝集成。
-5.  **Async Processing**: 入库过程完全异步，由 `JobManager` 调度，支持断点续传。
+### 数据流：Agent 如何驱动数据治理
+
+```
+文档上传 → JobManager (LangGraph 状态机) 调度
+         → Parser Skill 解析原始内容
+         → Agent 生成 Contextual Chunks (每个分块注入文档背景)
+         → Agent 抽取实体/关系 → 写入 Neo4j 图谱
+         → 向量化 → 写入 pgvector
+         → Agent 自动打标签、生成摘要
+```
+
+```
+用户提问 → Supervisor 意图识别 + 路由
+         → RAG Agent 启动三层检索
+            ├─ Tier 1: 抽象索引快速定位方向
+            ├─ Tier 2: 图谱扩展关联知识
+            └─ Tier 3: 向量 + BM25 混合检索 → Cross-Encoder 精排
+         → Worker Agent 起草回答
+         → Reflection Agent 质量打分
+            ├── APPROVE → 输出终稿
+            └── REVISE  → 打回重做
+```
 
 ---
 
-## 💻 AI-First 交互体系 (Interactive Copilot System)
+## 核心能力
 
-前端不仅仅是展示层，而是 AI 的"感知手足"。我们实现了 **Copilot OS** 交互范式。
-详见: [Frontend Architecture](docs/design/frontend_architecture.md)
+### 🧠 Agent Swarm 协作
 
-### 1. 伴随式架构 (Persistent Presence)
-*   **设计**: `ChatPanel` 独立于页面路由之外 (在 `AppLayout` 层级)。
-*   **体验**: 无论用户跳转到哪个页面，与 AI 的对话上下文（包括正在生成的流式回答）**永不中断**。
+- **Supervisor** 解析意图，路由到专属 Worker (RAG / Code / Web)
+- **Reflection** 对 Worker 输出做质量评估，不合格自动打回重做
+- **Fast Path** 关键字拦截，直接回答无需 RAG，避免幻觉
+- 基于 **LangGraph StateGraph**，支持状态持久化与断点续传
 
-### 2. 双向上下文感知 (Bidirectional Context)
-*   **Read (AI 读环境)**:
-    *   前端维护 `PAGE_CONTEXT_MAP`。当用户进入 `/knowledge` 页面，AI 自动感知："用户正在管理知识库"，并预加载相关 Skills。
-*   **Write (AI 写操作)**:
-    *   AI 不仅仅回答文本，还能下发 **UI Action**。
-    *   例如：用户说"添加一个订阅"，AI 返回 `{ type: 'open_modal', target: 'add_subscription' }`，前端自动打开弹窗。
+### 📚 三层渐进式记忆检索
 
-### 3. 主动智能 (Proactive Intelligence)
-*   结合 `WebSocket`，系统能在后台任务完成时主动推送："刚才的文档分析完了，发现 3 个风险点，要查看吗？"
-*   打破了 "用户问 -> AI 答" 的被动模式。
+| 层级 | 引擎 | 作用 |
+| :--- | :--- | :--- |
+| Tier 1 | 内存抽象索引 | 标签/实体集合碰撞，极速锁定检索方向 |
+| Tier 2 | Neo4j 图谱 | 关联扩展，发现隐式关系 |
+| Tier 3 | pgvector + BM25 | 混合召回 → Cross-Encoder 精排 → Top N 注入 LLM |
+
+### 🏭 Agent 驱动的数据治理
+
+- **Contextual Retrieval**：入库时 Agent 为每个分块注入文档级背景信息
+- **图谱自动构建**：Agent 从文档中抽取实体和关系，写入 Neo4j
+- **异步批处理引擎**：`JobManager` (LangGraph) 调度 DAG 任务，支持断点续传
+- **多模态解析**：PDF / Excel / 图片，通过 Skill 插件热插拔
+
+### 🛡️ Agent 驱动的研发治理
+
+在 `.agent/` 目录中建立了完整的数字化研发治理体系，约束人类开发者和 AI Agent：
+
+- **标准化工作流** (`workflows/`)：API 创建、组件开发、需求提取等均通过 SOP 执行
+- **Git Hooks 门禁** (`hooks/`)：强制 Conventional Commits + Issue 关联 + 密钥扫描
+- **AI 编码规范** (`rules/`)：约束 AI 代码生成的架构一致性
+- **质量检查** (`checks/`)：一键 Lint + Type Check + Pytest
+
+### 💬 Copilot 交互前端
+
+- **伴随式 ChatPanel**：独立于页面路由，对话上下文跨页面不中断
+- **SSE 流式输出** + **WebSocket 主动推送** (Agent 思考过程、任务进度)
+- **上下文感知**：AI 自动感知用户当前页面，预加载相关能力
 
 ---
 
-## 🤖 AI 开发指南 (AI Development Guide)
+## 项目结构
 
-**Attention AI Agents & Copilots**: 在生成或修改代码时，请严格遵守以下架构规范。
-
-### 1. 状态与副作用 (State & Side Effects)
-*   **Skills MUST be Stateless**: `app/skills/` 下的工具函数必须是纯函数或只依赖传入的 `config`。严禁在 Skill 实例中保存跨请求的状态。
-*   **Agents MUST be Stateful**: `SwarmOrchestrator` 和 LangGraph Nodes 可以维护 `state` (Conversation History, Job Context)。
-*   **Logic Separation**: 
-    *   **Decision**: 在 `Scheduler` 或 `Supervisor` 中进行 (逻辑判断)。
-    *   **Execution**: 在 `Worker` 或 `Tool` 中进行 (副作用操作)。
-
-### 2. 代码规范 (Coding Standards)
-*   **Type Safety**: 前后端交互必须严格遵守 `shared/types.ts` 和 `app/batch/models.py` 的定义。确保 `BatchJob` 和 `TaskUnit` 字段一致。
-*   **Async First**: 所有 I/O 操作 (DB, LLM, File) 必须使用 `async/await`。
-*   **Pydantic V2**: 数据模型统一使用 Pydantic V2 (`model_dump`, `model_validate`)。
+```
+HiveMind_RAG/
+├── backend/app/
+│   ├── agents/            # 🧠 Agent Swarm (Supervisor / Workers / Memory)
+│   ├── services/
+│   │   ├── retrieval/     #    三层检索 Pipeline (Steps 链式执行)
+│   │   ├── generation/    #    生成与制品输出
+│   │   ├── knowledge/     #    知识库管理
+│   │   └── memory/        #    记忆层服务
+│   ├── batch/             # ⚡ 异步批处理引擎 (LangGraph JobManager)
+│   ├── skills/            # 🛠️ 无状态 Skill (解析/生成/图谱抽取)
+│   ├── llm/               # 🤖 LLM Gateway (多模型路由)
+│   ├── mcp/               # 🔌 MCP 外部连接
+│   ├── api/               #    HTTP 路由
+│   └── core/              #    基础设施 (Config / DB / Log)
+├── frontend/src/
+│   ├── components/chat/   # 💬 Copilot ChatPanel
+│   ├── pages/             #    业务页面
+│   ├── stores/            #    Zustand 状态管理
+│   └── hooks/             #    React Query 数据层
+├── docs/                  # 📖 架构文档与设计手册
+├── .agent/                # 🛡️ 研发治理 (Workflows / Rules / Hooks / Checks)
+└── skills/                #    Skill 模板库
+```
 
 ---
 
-## 🚀 快速开始 (Quick Start)
+## 快速开始
 
 ### 环境要求
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL 14+ (矢量插件需启用)
+
+- Python 3.10+ / Node.js 18+
+- PostgreSQL 14+ (需启用 pgvector 扩展)
 - Redis 6+
+- Neo4j (可选，图谱层)
 
-### 1. 后端启动
+### 启动
+
 ```bash
+# 后端
 cd backend
-# 安装依赖
 pip install -r requirements.txt
-
-# 初始化数据库
 python -m scripts.init_db
-
-# 启动服务
 uvicorn app.main:app --reload
-```
 
-### 2. 前端启动
-```bash
+# 前端
 cd frontend
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-### 3. 运维命令
-```bash
-# 创建超级管理员
-python -m backend.scripts.create_superuser <user> <pass>
+### 常用命令
 
-# 运行代码规范检查
-./.agent/checks/run_checks.ps1
+```bash
+python -m backend.scripts.create_superuser <user> <pass>   # 创建管理员
+alembic revision --autogenerate -m "description"            # 数据库迁移
+./.agent/checks/run_checks.ps1                              # 质量检查
 ```
 
 ---
 
-## 📄 License
-Private - All Rights Reserved
+## 文档索引
+
+| 文档 | 说明 |
+| :--- | :--- |
+| [架构设计](docs/architecture/) | 分层架构、Agent 模式、记忆系统 |
+| [前端架构](docs/design/frontend_architecture.md) | Copilot 交互范式 |
+| [系统概览](docs/SYSTEM_OVERVIEW.md) | 全局系统概览 |
+| [路线图](docs/ROADMAP.md) | 开发路线与里程碑 |
+| [REGISTRY.md](REGISTRY.md) | 全局模块注册表 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献者指南 |
+
+---
+
+## License
+
+Private — All Rights Reserved

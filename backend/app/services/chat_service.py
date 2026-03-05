@@ -38,30 +38,44 @@ class ChatService:
 
     @staticmethod
     async def get_conversations(user_id: str, limit: int = 20, offset: int = 0) -> list[ConversationListItem]:
-        """获取用户的会话列表。"""
+        """获取用户的会话列表 (优化 N+1 查询)。"""
+        from sqlalchemy import func
         async for session in get_db_session():
-            statement = (
+            # 1. Fetch conversations
+            stmt = (
                 select(Conversation)
                 .where(Conversation.user_id == user_id)
                 .order_by(desc(Conversation.updated_at))
                 .offset(offset)
                 .limit(limit)
             )
-            results = await session.exec(statement)
+            results = await session.exec(stmt)
             conversations = results.all()
+            if not conversations:
+                return []
 
+            conv_ids = [c.id for c in conversations]
+
+            # 2. Fetch latest messages for all these conversations in one batch
+            # We use a subquery to find the max(created_at) for each conversation
+            subq = (
+                select(Message.conversation_id, func.max(Message.created_at).label("max_created_at"))
+                .where(Message.conversation_id.in_(conv_ids))
+                .group_by(Message.conversation_id)
+                .subquery()
+            )
+            
+            msg_stmt = (
+                select(Message)
+                .join(subq, (Message.conversation_id == subq.c.conversation_id) & (Message.created_at == subq.c.max_created_at))
+            )
+            msg_results = await session.exec(msg_stmt)
+            latest_messages = {m.conversation_id: m for m in msg_results.all()}
+
+            # 3. Assemble results
             items = []
             for c in conversations:
-                # 获取最后一条消息作为预览
-                msg_statement = (
-                    select(Message)
-                    .where(Message.conversation_id == c.id)
-                    .order_by(desc(Message.created_at))
-                    .limit(1)
-                )
-                msg_result = await session.exec(msg_statement)
-                last_msg = msg_result.first()
-                
+                last_msg = latest_messages.get(c.id)
                 preview = last_msg.content[:50] if last_msg else "暂无消息"
                 items.append(
                     ConversationListItem(
@@ -222,19 +236,18 @@ class ChatService:
                     metadata={"timestamp": event.get("timestamp")}
                 )
 
-        # 2. 保存用户消息
+        # 2 & 3. Save User Message & Load History (M6.4 Session Optimization)
+        history = []
         async for session in get_db_session():
             user_msg = Message(conversation_id=conversation_id, role="user", content=request.message)
             session.add(user_msg)
             await session.commit()
 
-        # 3. Load Conversation History (Moved up to ensure 'history' is always defined for Insights)
-        history = []
-        async for session in get_db_session():
+            # Load history in same session
             stmt = select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at).limit(10)
             res = await session.exec(stmt)
             for m in res.all():
-                if m.id == user_msg.id: # Skip the one we just added
+                if m.id == user_msg.id: # Skip current
                     continue
                 if m.role == "user":
                     from langchain_core.messages import HumanMessage
@@ -242,6 +255,7 @@ class ChatService:
                 elif m.role == "assistant":
                     from langchain_core.messages import AIMessage
                     history.append(AIMessage(content=m.content))
+            break
 
         # 4. Semantic Cache Lookup
         cache_step = tracer.start_step("Semantic Cache Check", "tool", input_data=request.message)
@@ -253,9 +267,12 @@ class ChatService:
             yield f"data: {json.dumps({'type': 'status', 'content': '⚡ 语义缓存命中: 正在极速回复...'})}\n\n"
             response_content = cached["content"]
             # Stream the cached content to keep UI experience consistent
-            for char in response_content:
-                yield f"data: {json.dumps({'type': 'content', 'delta': char, 'conversation_id': conversation_id, 'is_cached': True})}\n\n"
-                await asyncio.sleep(0.001)
+            # --- Phase 6: Batch Yielding (M6.3) ---
+            batch_size = 30
+            for i in range(0, len(response_content), batch_size):
+                chunk = response_content[i:i + batch_size]
+                yield f"data: {json.dumps({'type': 'content', 'delta': chunk, 'conversation_id': conversation_id, 'is_cached': True})}\n\n"
+                await asyncio.sleep(0.01) # Faster than per-char but still has progress feel
         else:
             cache_step.complete(output="Cache Miss", status="info")
             # 5. Prepare Context
@@ -327,11 +344,14 @@ class ChatService:
                                 if not content.strip():
                                     continue
                                 
-                                for char in content:
-                                    response_content += char
-                                    yield f"data: {json.dumps({'type': 'content', 'delta': char, 'conversation_id': conversation_id})}\n\n"
-                                    # Optimized delay for better UX (0.005 -> 0.001)
-                                    await asyncio.sleep(0.001)
+                                # --- Phase 6: Batch Yielding (M6.3) ---
+                                batch_size = 15
+                                for i in range(0, len(content), batch_size):
+                                    chunk = content[i:i + batch_size]
+                                    response_content += chunk
+                                    yield f"data: {json.dumps({'type': 'content', 'delta': chunk, 'conversation_id': conversation_id})}\n\n"
+                                    # Optimized delay for smooth typing (M6.3)
+                                    await asyncio.sleep(0.005)
 
                 swarm_step.complete(output="Generation Completed")
                 # 6.5 Set Cache for future similar questions (only if it's a REAL answer, not a tool leak)

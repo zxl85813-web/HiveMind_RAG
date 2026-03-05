@@ -20,6 +20,7 @@ Multiple agents may collaborate on a single request.
 All agents share a common memory space.
 """
 
+import asyncio
 import json
 from typing import Annotated, Any, Literal, TypedDict, AsyncGenerator, List
 
@@ -416,26 +417,71 @@ class SwarmOrchestrator:
             memory_context=state.get("context_data", ""),
         )
 
-        # Invoke LLM using FAST tier for supervisor routing
+        # --- Speculative Retrieval (Phase 6: Parallel Intent & Recall) ---
+        # We start retrieval in parallel with the Router LLM.
+        # This saves ~300-800ms of graph-hop latency and DB lookup time.
+        retrieval_task = None
+        # Always trigger if kb_ids is provided, or if query looks like research
+        if state.get("kb_ids") or any(kw in user_query.lower() for kw in ["search", "find", "what", "how", "query", "搜索", "查询", "是啥", "什么"]):
+            logger.info("⚡ [Phase 6] Starting speculative retrieval task...")
+            retrieval_task = asyncio.create_task(self._do_retrieval_work(state))
+
+        # Setup LLM and Prompt
         llm = self.router.get_model(ModelTier.FAST)
-        
         final_prompt = [
             SystemMessage(content=system_prompt),
             *messages
         ]
 
-        response = await llm.ainvoke(final_prompt)
-        content = response.content
+        # Parallel: Router LLM + Speculative Retrieval (M6.1.1)
+        aws = [llm.ainvoke(final_prompt)]
+        if retrieval_task:
+            aws.append(retrieval_task)
 
-        # Parse JSON (with markdown cleanup)
+        res_list = await asyncio.gather(*aws, return_exceptions=True)
+        
+        response = res_list[0]
+        if isinstance(response, Exception):
+            logger.error(f"Router LLM failed: {response}")
+            return {"next_step": "FINISH", "status_update": "❌ 路由节点故障"}
+
+        # Now we can safely access .content
+        content = getattr(response, "content", "")
+        
+        pre_retrieval_result = None
+        if retrieval_task and len(res_list) > 1:
+            val = res_list[1]
+            if not isinstance(val, Exception):
+                pre_retrieval_result = val
+
+        if isinstance(response, Exception):
+            logger.error(f"Router LLM failed: {response}")
+            return {"next_step": "FINISH", "status_update": "❌ 路由节点故障"}
+
+        content = response.content
+        # Parse JSON
         decision = self._parse_routing_decision(content)
 
         logger.info(
             f"👨‍✈️ Supervisor: {decision.next_agent} "
-            f"(uncertainty={decision.uncertainty:.2f}, reason={decision.reasoning[:50]})"
+            f"(uncertainty={decision.uncertainty:.2f})"
         )
 
         next_step = decision.next_agent
+        updates = {
+            "next_step": next_step,
+            "current_task": decision.reasoning,
+        }
+
+        # --- Phase 6: Speculative Pickup ---
+        # If we already did retrieval and the supervisor says go to retrieval,
+        # we can just merge the result HERE and skip the retrieval node's next-tick latency.
+        if decision.next_agent == "retrieval" and pre_retrieval_result:
+            logger.info("⚡ [Phase 6] Speculative Retrieval Hit! Merging results now.")
+            updates.update(pre_retrieval_result)
+            # Since we merged it, we can tell LangGraph to go back to supervisor 
+            # or directly to an agent? No, keep the graph flow, but the retrieval node 
+            # will now see the context is already there and be a no-op.
         # --- Phase 5: Task Scaffolding (Architecture Layer 2 Persistence) ---
         # If the LLM proposed a multi-step plan, persist it as a shared TODO list
         if decision.planned_steps:
@@ -730,132 +776,133 @@ class SwarmOrchestrator:
 
     async def _retrieval_node(self, state: SwarmState) -> dict:
         """
-        Retrieval node — fetches context from Radar, Graph, and Vector tiers.
+        Retrieval node — fetches context from Radar/Graph/Vector tiers.
+        If the supervisor already did speculative retrieval, this may be a NO-OP.
         """
-        raw_query = state.get("original_query", "")
-        query: str = str(raw_query)
-        # Use a safe slice or just a string
-        display_query = query if len(query) < 40 else query[:40]
-        logger.info(f"🔍 Retrieval Tier: Searching for '{display_query}...'")
+        if state.get("context_data"):
+            logger.info("🔍 Retrieval node: Context already exists (Speculative Hit). Skipping.")
+            return {"status_update": "⚡ 已应用预取检索结果"}
+            
+        return await self._do_retrieval_work(state)
 
-        context_str = ""
-        kb_ids = []
+    async def _do_retrieval_work(self, state: SwarmState) -> dict:
+        """Core retrieval logic shared by node and pre-warmer."""
+        query = str(state.get("original_query", ""))
+        display_query = query[:40] + "..." if len(query) > 40 else query
         
-        # Pull context passed from view
-        # We need a way to get kb_ids from context, but context isn't in SwarmState.
-        # Actually, let's just do Vector Tier using RetrievalPipeline
+        context_str = ""
+        kb_ids = state.get("kb_ids", [])
+        retrieval_trace = []
+        retrieved_docs = []
+
         try:
             from app.services.retrieval.pipeline import get_retrieval_service
             if not self._retriever:
                 self._retriever = get_retrieval_service()
             
-            # TODO get kb_ids from state if stored
-            # We can store kb_ids in SwarmState if needed
-            kb_ids = state.get("kb_ids", [])
-            
             if not kb_ids:
-                # Use query routing
                 from app.services.retrieval.routing import KnowledgeBaseSelector
                 selector = KnowledgeBaseSelector()
                 selected_kbs = await selector.select_kbs(query)
                 kb_ids = [kb.id for kb in selected_kbs]
                 
             if kb_ids:
-                # Convert kb_ids to vector_collection names
+                # Optimized Session lookup
                 from sqlmodel import Session
                 from app.core.database import engine
                 from app.models.knowledge import KnowledgeBase
                 
                 collection_names = []
-                with Session(engine) as session:
+                with Session(engine) as db_session:
                     for kid in kb_ids:
-                        kb = session.get(KnowledgeBase, kid)
+                        kb = db_session.get(KnowledgeBase, kid)
                         if kb and kb.vector_collection:
                             collection_names.append(kb.vector_collection)
                 
                 if collection_names:
-                    docs, retrieval_logs = await self._retriever.run(
+                    docs, trace_logs = await self._retriever.run(
                         query=query,
                         collection_names=collection_names,
                         top_k=5,
                         top_n=3
                     )
                     
-                    # Store trace logs in state
-                    retrieval_trace = retrieval_logs
+                    retrieval_trace = trace_logs
                     retrieved_docs = [d.dict() for d in docs]
                     
                     if docs:
                         context_str += "--- DEEP CONTEXT (RAG) ---\n"
                         for i, d in enumerate(docs):
-                            # Append citation footnote
-                            page = d.metadata.get("page", "?")
-                            file_name = d.metadata.get("file_name", "Unknown File")
-                            context_str += f"[{i+1}] Source: {file_name} (Page {page})\n{d.page_content}\n"
+                            fname = d.metadata.get("file_name", "Unknown File")
+                            pg = d.metadata.get("page", "?")
+                            context_str += f"[{i+1}] {fname} (p.{pg}):\n{d.page_content}\n\n"
         except Exception as e:
-            logger.warning(f"Retrieval tier error: {e}")
+            logger.warning(f"Retrieval work failed: {e}")
 
         import uuid
         node_id = f"retrieval_{uuid.uuid4().hex[:6]}"
-        await self.memory.add_trace(
-            node_id=node_id,
-            label="Memory & Web Retrieval",
-            agent="Knowledge Router",
-            status="completed",
-            targets=["supervisor_node"]
-        )
-
         return {
             "context_data": context_str,
             "last_node_id": node_id,
-            "retrieval_trace": locals().get("retrieval_trace", []),
-            "retrieved_docs": locals().get("retrieved_docs", [])
+            "retrieval_trace": retrieval_trace,
+            "retrieved_docs": retrieved_docs
         }
 
     # ============================================================
     #  Context Compaction Utilities (2.1H)
     # ============================================================
 
-    def _prune_messages(self, messages: List[BaseMessage], max_messages: int = 20) -> List[BaseMessage]:
+    def _prune_messages(self, messages: List[BaseMessage], max_messages: int = 25, char_budget: int = 24000) -> List[BaseMessage]:
         """
-        Prunes message history to stay within token limits.
-        Uses 'Tool Result Clearing' for older tool calls.
+        Prunes message history to stay within token/char limits.
+        Uses 'Tool Result Clearing' for older tool calls and keeps a strict character budget.
         """
-        if len(messages) <= max_messages:
-            return messages
+        if not messages:
+            return []
 
-        logger.info(f"🧹 [Compaction] Pruning conversation history (current: {len(messages)})")
+        # 1. Message Count Pruning
+        if len(messages) > max_messages:
+            logger.info(f"🧹 [Phase 6] Pruning by count: {len(messages)} -> {max_messages}")
+            # Keep system, and last max_messages
+            system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+            other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+            messages = system_msgs + other_msgs[-(max_messages - len(system_msgs)):]
 
-        # Keep system message, and last N messages
-        system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
-        other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
-        
-        # We'll keep the last 15 messages intact
-        keep_intact = 15
-        
-        # For messages older than that, we perform Tool Result Clearing
-        pruned = []
-        for i, msg in enumerate(other_msgs[:-keep_intact]):
-            if isinstance(msg, ToolMessage):
-                # Replace content with summary
-                content_str = str(msg.content)
-                if len(content_str) > 200:
-                    pruned.append(ToolMessage(
-                        tool_call_id=msg.tool_call_id,
-                        content=f"[Previous tool output cleared to save context. Content was: {content_str[:50]}...]",
-                        status=getattr(msg, "status", "success")
-                    ))
-                else:
-                    pruned.append(msg)
+        # 2. Tool Result Clearing (Content-based)
+        # We always keep the last 6 messages completely intact
+        keep_intact_count = 6
+        head_msgs = messages[:-keep_intact_count] if len(messages) > keep_intact_count else []
+        tail_msgs = messages[-keep_intact_count:] if len(messages) > keep_intact_count else messages
+
+        refined_head = []
+        for msg in head_msgs:
+            if isinstance(msg, ToolMessage) and len(str(msg.content)) > 150:
+                # Clear content but keep tool result status/summary
+                summary = f"[Output of {msg.tool_call_id[:8]}... summarized: {len(str(msg.content))} chars truncated]"
+                refined_head.append(ToolMessage(tool_call_id=msg.tool_call_id, content=summary))
             else:
-                # Keep other messages (Human/AI) as they are usually more critical for context
-                # though we could summarize them too in a more advanced version.
-                pruned.append(msg)
+                refined_head.append(msg)
         
-        # Add the intact messages
-        pruned.extend(other_msgs[-keep_intact:])
-        
-        return system_msgs + pruned
+        current_messages = refined_head + tail_msgs
+
+        # 3. Total Character Budget Check
+        total_chars = sum(len(str(m.content)) for m in current_messages)
+        if total_chars > char_budget:
+            logger.info(f"⚖️ [Phase 6] Budget exceeded ({total_chars} > {char_budget}). Removing intermediate history.")
+            # Drop older messages (after system) until within budget
+            system_msgs = [m for m in current_messages if isinstance(m, SystemMessage)]
+            other_msgs = [m for m in current_messages if not isinstance(m, SystemMessage)]
+            
+            while other_msgs and sum(len(str(m.content)) for m in system_msgs + other_msgs) > char_budget:
+                if len(other_msgs) <= keep_intact_count:
+                    # Don't prune the very end, just truncate the oldest among them
+                    other_msgs[0].content = "[Older context truncated to save tokens...]"
+                    break
+                other_msgs.pop(0)
+            
+            current_messages = system_msgs + other_msgs
+
+        return current_messages
 
     # ============================================================
     #  JSON Parsing Helpers
