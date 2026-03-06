@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-05
+> 📅 最后更新: 2026-03-06
 
 ---
 
@@ -480,6 +480,11 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ---
 
 ## 八、📝 变更日志 (按日期倒序)
+
+### 2026-03-06
+- ✅ **数据底座隔离** — 实现知识库读写与管理独立权限管理 (KB ACL)，从 API 层面拦截越权操作。
+- ✅ **Agents Context 隔离** — 在 Swarm retrieval work 阶段中加入用户上下文过滤，Agent 本身只能检索用户有权限的库。
+- ✅ **前端接入界面** — 增补 `KBPermissionsModal` 协作控制面板。
 
 ### 2026-02-24
 - ✅ **Trace 深度集成** — 实现 Trace Modal 中检索分块的预览
