@@ -5,6 +5,7 @@
 .env.*
 !.env.example
 !.env.mock
+!frontend/.env.production
 .venv/
 venv/
 env/
