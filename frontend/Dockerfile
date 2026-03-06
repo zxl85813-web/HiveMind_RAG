@@ -17,9 +17,9 @@ COPY . .
 RUN npm run build
 
 # --- Servre Stage ---
-FROM nginx:alpine
+FROM nginx:stable-alpine
 
-# Copy custom nginx configuration
+# Copy custom nginx configuration to the correct location
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy build artifacts to nginx public directory
