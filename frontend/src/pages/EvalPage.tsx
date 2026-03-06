@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, Tooltip, Divider } from 'antd';
+import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography } from 'antd';
 import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { evalApi } from '../services/evalApi';
@@ -58,7 +58,6 @@ function generateReportHTML(
     reports: EvaluationReport[],
     leaderboard: any[],
     badCases: any[],
-    sets: EvaluationSet[],
     exportTime: string
 ): string {
     const completedReports = reports.filter(r => r.status === 'completed');
@@ -385,7 +384,7 @@ export const EvalPage: React.FC = () => {
     const handleExportReport = useCallback(() => {
         const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
         const lb = getLeaderboard();
-        const html = generateReportHTML(reports, lb, badCases, sets, now);
+        const html = generateReportHTML(reports, lb, badCases, now);
 
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);

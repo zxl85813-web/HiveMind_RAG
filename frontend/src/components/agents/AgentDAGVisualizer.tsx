@@ -3,13 +3,6 @@ import ForceGraph2D from 'react-force-graph-2d';
 import type { ForceGraphMethods } from 'react-force-graph-2d';
 import { useWindowSize } from '../../hooks/useWindowSize';
 import { Space, Badge, Typography } from 'antd';
-import {
-    CheckCircleFilled,
-    SyncOutlined,
-    ClockCircleOutlined,
-    CloseCircleFilled,
-    ExclamationCircleFilled
-} from '@ant-design/icons';
 
 const { Text } = Typography;
 
