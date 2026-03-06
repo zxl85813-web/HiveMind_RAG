@@ -63,8 +63,7 @@ services:
       - redis
       - chroma
       - minio
-    ports:
-      - "8888:8888"
+    # Remove ports for background access, now proxied by frontend
     env_file:
       - ./backend/.env.production
     environment:
