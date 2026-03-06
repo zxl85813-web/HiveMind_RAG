@@ -59,8 +59,12 @@ jobs:
             docker compose version
             
             echo "Building and restarting containers..."
-            # 使用 docker compose (V2) 替代 docker-compose (V1) 解决 KeyError: 'ContainerConfig'
-            docker compose -f docker-compose.prod.yml up -d --build
+            # 使用 docker compose (V2)
+            # 先停止并清理旧容器，防止重名冲突 (Conflict)
+            docker compose -f docker-compose.prod.yml down --remove-orphans
+            
+            # 重新构建并后台启动
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             
             # Cleanup old unused images and builder cache to save space
             docker image prune -f
