@@ -23,7 +23,7 @@ jobs:
 
   deploy:
     name: 🚀 Deploy to Azure Server
-    needs: sonarQube-analysis # 恢复依赖：必须先过扫描，才开始部署
+    needs: sonarQube-analysis # Must pass Sonar scan before deploying
     runs-on: ubuntu-latest
     steps:
       - name: SSH and Deploy
@@ -40,12 +40,22 @@ jobs:
             
             cd "$PROJECT_DIR"
             git fetch origin
-            # 这里我加了一个逻辑：如果是 master 推送就部署 master，如果是 feature 推送就部署 feature
             DEPLOY_BRANCH=${GITHUB_REF##*/}
             git checkout $DEPLOY_BRANCH
             git pull origin $DEPLOY_BRANCH
             
-            # TODO: 如果需要重启服务，请取消注释下面这行
-            # docker-compose up -d --build
+            # --- Container Management ---
+            # If backend/.env.production doesn't exist, use .env.example
+            if [ ! -f "backend/.env.production" ]; then
+              cp backend/.env.example backend/.env.production
+              echo "Created default backend/.env.production from example"
+            fi
+            
+            # Rebuild and restart all services
+            echo "Building and restarting containers..."
+            docker-compose -f docker-compose.prod.yml up -d --build
+            
+            # Cleanup old unused images to save space
+            docker image prune -f
             
             echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"

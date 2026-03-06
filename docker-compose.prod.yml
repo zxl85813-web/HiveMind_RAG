@@ -1,0 +1,90 @@
+version: '3.9'
+
+services:
+  # === Database (PostgreSQL) ===
+  postgres:
+    image: postgres:16-alpine
+    container_name: hivemind-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hivemind}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+
+  # === Cache (Redis) ===
+  redis:
+    image: redis:7-alpine
+    container_name: hivemind-redis-prod
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_prod:/data
+
+  # === Vector Store (ChromaDB) ===
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: hivemind-chroma-prod
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data_prod:/chroma/chroma
+
+  # === Object Store (MinIO) ===
+  # Moved to 9010 because SonarQube is usually on 9000
+  minio:
+    image: minio/minio:latest
+    container_name: hivemind-minio-prod
+    restart: always
+    command: server /data --console-address ":9011"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9010:9000"
+      - "9011:9011"
+    volumes:
+      - minio_data_prod:/data
+
+  # === Backend (FastAPI) ===
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hivemind-backend-prod
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+      - chroma
+      - minio
+    ports:
+      - "8888:8888"
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
+      REDIS_URL: redis://redis:6379/0
+
+  # === Frontend (React / Vite / Nginx) ===
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hivemind-frontend-prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:
+  chroma_data_prod:
+  minio_data_prod:
