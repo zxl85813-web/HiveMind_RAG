@@ -65,6 +65,14 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       REDIS_URL: redis://redis:6379/0
+    # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
+    # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/health/')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
@@ -75,8 +83,10 @@ services:
     restart: always
     ports:
       - "80:80"
+    # 等待 backend 健康检查通过后才启动，确保 Nginx 能解析到 backend 主机名
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data_prod:
