@@ -276,7 +276,9 @@ class ChatService:
         else:
             cache_step.complete(output="Cache Miss", status="info")
             # 5. Prepare Context
-            context = {}
+            context = {
+                "user_id": user_id  # Inject user identity for Phase 7 KB Access Control
+            }
             if request.knowledge_base_ids:
                 context["knowledge_base_ids"] = request.knowledge_base_ids
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { App, Drawer, Table, Button, Space, Tag, Upload, Typography, Tooltip, List, Tabs, Spin, Empty, Input, Popover, Select } from 'antd';
-import { DeleteOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined, InboxOutlined, SafetyCertificateOutlined, InfoCircleOutlined, RightOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined, InboxOutlined, SafetyCertificateOutlined, InfoCircleOutlined, RightOutlined, SearchOutlined, PlusOutlined, UserAddOutlined } from '@ant-design/icons';
 import { GraphVisualizer } from './GraphVisualizer';
+import { KBPermissionsModal } from './KBPermissionsModal';
 import { useTranslation } from 'react-i18next';
 import { securityApi } from '../../services/securityApi';
 import { evalApi } from '../../services/evalApi';
@@ -39,6 +40,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [allTags, setAllTags] = useState<PCTag[]>([]);
+    const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
 
     useEffect(() => {
         loadTags();
@@ -324,6 +326,9 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             size="large"
             extra={
                 <Space>
+                    <Button icon={<UserAddOutlined />} onClick={() => setIsPermissionsOpen(true)}>
+                        权限共享
+                    </Button>
                     <Button icon={<SyncOutlined />} onClick={() => {
                         if (kb) {
                             if (activeTab === 'files') loadDocs(kb.id);
@@ -568,6 +573,14 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                     </div>
                 )}
             </Drawer>
+
+            {kb && (
+                <KBPermissionsModal
+                    kbId={kb.id}
+                    open={isPermissionsOpen}
+                    onClose={() => setIsPermissionsOpen(false)}
+                />
+            )}
         </Drawer>
     );
 };

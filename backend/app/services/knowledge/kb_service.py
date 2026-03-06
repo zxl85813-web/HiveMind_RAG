@@ -7,8 +7,10 @@ Knowledge Base Service — Manages KB and Document persistence.
 """
 from typing import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, or_
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
+from app.models.security import KnowledgeBasePermission
+from app.models.chat import User
 from app.core.exceptions import NotFoundError
 
 class KnowledgeService:
@@ -19,6 +21,18 @@ class KnowledgeService:
         self.session.add(kb)
         await self.session.commit()
         await self.session.refresh(kb)
+        
+        # Add Owner ACL rule
+        kb_perm = KnowledgeBasePermission(
+            kb_id=kb.id,
+            user_id=kb.owner_id,
+            can_read=True,
+            can_write=True,
+            can_manage=True
+        )
+        self.session.add(kb_perm)
+        await self.session.commit()
+        
         return kb
 
     async def get_kb(self, kb_id: str) -> KnowledgeBase:
@@ -27,10 +41,71 @@ class KnowledgeService:
             raise NotFoundError(resource="knowledge_base", id=kb_id)
         return kb
 
-    async def list_kbs(self, owner_id: str) -> Sequence[KnowledgeBase]:
-        statement = select(KnowledgeBase).where(KnowledgeBase.owner_id == owner_id)
+    async def list_kbs(self, current_user: User) -> Sequence[KnowledgeBase]:
+        """List all knowledge bases that the user has read access to."""
+        if current_user.role == "admin":
+            statement = select(KnowledgeBase)
+        else:
+            # Accessible if user is owner, or public, or has read permission based on user/role/department
+            conditions = [
+                KnowledgeBase.owner_id == current_user.id,
+                KnowledgeBase.is_public == True
+            ]
+            
+            # ACL Subquery
+            acl_stmt = select(KnowledgeBasePermission.kb_id).where(
+                KnowledgeBasePermission.can_read == True,
+                or_(
+                    KnowledgeBasePermission.user_id == current_user.id,
+                    KnowledgeBasePermission.role_id == current_user.role,
+                    KnowledgeBasePermission.department_id == current_user.department_id if current_user.department_id else False
+                )
+            )
+            conditions.append(KnowledgeBase.id.in_(acl_stmt))
+            
+            statement = select(KnowledgeBase).where(or_(*conditions))
+            
         res = await self.session.execute(statement)
         return res.scalars().all()
+        
+    async def get_user_accessible_kbs(self, current_user: User) -> list[str]:
+        """Return a list of KB IDs that the user can read."""
+        kbs = await self.list_kbs(current_user)
+        return [kb.id for kb in kbs]
+        
+    async def check_kb_access(self, kb_id: str, user: User, level: str = "read") -> bool:
+        """Check if user has specific access level to KB."""
+        if user.role == "admin":
+            return True
+            
+        kb = await self.session.get(KnowledgeBase, kb_id)
+        if not kb:
+            return False
+            
+        if kb.is_public and level == "read":
+            return True
+            
+        if kb.owner_id == user.id:
+            return True
+            
+        # Check ACL
+        acl_stmt = select(KnowledgeBasePermission).where(
+            KnowledgeBasePermission.kb_id == kb_id,
+            or_(
+                KnowledgeBasePermission.user_id == user.id,
+                KnowledgeBasePermission.role_id == user.role,
+                KnowledgeBasePermission.department_id == user.department_id if user.department_id else False
+            )
+        )
+        res = await self.session.execute(acl_stmt)
+        perms = res.scalars().all()
+        
+        for p in perms:
+            if level == "read" and p.can_read: return True
+            if level == "write" and p.can_write: return True
+            if level == "manage" and p.can_manage: return True
+            
+        return False
 
     async def create_document(self, doc: Document) -> Document:
         """Create a new global document entry."""

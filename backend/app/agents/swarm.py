@@ -125,6 +125,9 @@ class SwarmState(TypedDict):
 
     # --- Phase 5: Task Progress ---
     status_update: str | None
+    
+    # --- Phase 7: Permission Guard ---
+    user_id: str | None
 
 
 # ============================================================
@@ -808,14 +811,31 @@ class SwarmOrchestrator:
                 
             if kb_ids:
                 # Optimized Session lookup
-                from sqlmodel import Session
-                from app.core.database import engine
+                from sqlalchemy.ext.asyncio import AsyncSession
+                from app.core.database import async_session_factory
                 from app.models.knowledge import KnowledgeBase
+                from app.models.chat import User
+                from app.services.knowledge.kb_service import KnowledgeService
                 
                 collection_names = []
-                with Session(engine) as db_session:
+                async with async_session_factory() as db_session:
+                    user_id = state.get("user_id")
+                    
+                    # 1. If user context exists, get accessible KBs to filter
+                    accessible_kbs = None
+                    if user_id:
+                        user = await db_session.get(User, user_id)
+                        if user:
+                            svc = KnowledgeService(db_session)
+                            accessible_kbs = await svc.get_user_accessible_kbs(user)
+                    
+                    # 2. Add collection names for allowed KBs
                     for kid in kb_ids:
-                        kb = db_session.get(KnowledgeBase, kid)
+                        if accessible_kbs is not None and kid not in accessible_kbs:
+                            logger.warning(f"Skipping KB {kid} due to missing permissions for user {user_id}")
+                            continue
+                            
+                        kb = await db_session.get(KnowledgeBase, kid)
                         if kb and kb.vector_collection:
                             collection_names.append(kb.vector_collection)
                 

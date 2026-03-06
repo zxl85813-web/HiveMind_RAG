@@ -18,6 +18,14 @@ class KnowledgeBaseUpdate(SQLModel):
     description: str | None = None
     is_public: bool | None = None
 
+class KBPermissionInput(SQLModel):
+    user_id: str | None = None
+    role_id: str | None = None
+    department_id: str | None = None
+    can_read: bool = True
+    can_write: bool = False
+    can_manage: bool = False
+
 class DocumentCreate(SQLModel):
     filename: str
     file_type: str

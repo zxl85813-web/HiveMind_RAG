@@ -11,7 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from app.schemas.knowledge import KnowledgeBaseCreate, KnowledgeBaseUpdate, DocumentCreate, DocumentResponse
+from app.schemas.knowledge import KnowledgeBaseCreate, KnowledgeBaseUpdate, DocumentCreate, DocumentResponse, KBPermissionInput
+from app.models.security import KnowledgeBasePermission
 from app.services.knowledge.kb_service import KnowledgeService
 from app.services.indexing import index_document_task
 from app.models.chat import User
@@ -59,7 +60,7 @@ async def list_knowledge_bases(
 ):
     """List all knowledge bases owned by user."""
     service = KnowledgeService(db)
-    kbs = await service.list_kbs(current_user.id)
+    kbs = await service.list_kbs(current_user)
     return ApiResponse.ok(data=kbs)
 
 # ----------------------------------------------------------------------------
@@ -89,8 +90,11 @@ async def search_knowledge_base(
     async with async_session_factory() as session:
         kb = await session.get(KnowledgeBase, kb_id)
         if not kb:
-            raise NotFoundError("Knowledge Base", kb_id)
-        # TODO: Add ownership/permission check
+            raise NotFoundError(resource="Knowledge Base", id=kb_id)
+        
+        service = KnowledgeService(session)
+        if not await service.check_kb_access(kb_id, current_user, level="read"):
+            raise HTTPException(status_code=403, detail="Not authorized to search this knowledge base")
 
     gateway = RAGGateway()
     
@@ -130,10 +134,83 @@ async def get_knowledge_base(
     """Get knowledge base details."""
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
-    if kb.owner_id != current_user.id and not kb.is_public:
+    if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
     return ApiResponse.ok(data=kb)
 
+
+@router.get("/{kb_id}/permissions", response_model=ApiResponse[Sequence[KnowledgeBasePermission]])
+async def get_knowledge_base_permissions(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all permissions for a knowledge base."""
+    service = KnowledgeService(db)
+    if not await service.check_kb_access(kb_id, current_user, level="manage"):
+        raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
+        
+    from sqlmodel import select
+    stmt = select(KnowledgeBasePermission).where(KnowledgeBasePermission.kb_id == kb_id)
+    res = await db.execute(stmt)
+    return ApiResponse.ok(data=res.scalars().all())
+
+
+@router.post("/{kb_id}/permissions", response_model=ApiResponse[KnowledgeBasePermission])
+async def add_knowledge_base_permission(
+    kb_id: str,
+    perm_in: KBPermissionInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a new permission rule to a knowledge base."""
+    service = KnowledgeService(db)
+    if not await service.check_kb_access(kb_id, current_user, level="manage"):
+        raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
+        
+    # Either user, role or department must be specified
+    if not perm_in.user_id and not perm_in.role_id and not perm_in.department_id:
+        raise HTTPException(status_code=400, detail="Must specify user_id, role_id, or department_id")
+        
+    perm = KnowledgeBasePermission(
+        kb_id=kb_id,
+        user_id=perm_in.user_id,
+        role_id=perm_in.role_id,
+        department_id=perm_in.department_id,
+        can_read=perm_in.can_read,
+        can_write=perm_in.can_write,
+        can_manage=perm_in.can_manage
+    )
+    db.add(perm)
+    await db.commit()
+    await db.refresh(perm)
+    return ApiResponse.ok(data=perm)
+
+
+@router.delete("/{kb_id}/permissions/{perm_id}")
+async def delete_knowledge_base_permission(
+    kb_id: str,
+    perm_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a permission rule from a knowledge base."""
+    service = KnowledgeService(db)
+    if not await service.check_kb_access(kb_id, current_user, level="manage"):
+        raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
+        
+    perm = await db.get(KnowledgeBasePermission, perm_id)
+    if not perm or perm.kb_id != kb_id:
+        raise HTTPException(status_code=404, detail="Permission not found")
+        
+    # Prevent owner from removing themselves
+    kb = await db.get(KnowledgeBase, kb_id)
+    if perm.user_id == kb.owner_id:
+        raise HTTPException(status_code=400, detail="Cannot remove owner's permission")
+        
+    await db.delete(perm)
+    await db.commit()
+    return ApiResponse.ok(data={"status": "success", "message": "Permission removed"})
 
 @router.post("/documents", response_model=ApiResponse[DocumentResponse])
 async def upload_document_global(
@@ -187,8 +264,8 @@ async def link_document(
     service = KnowledgeService(db)
     # Check ownership
     kb = await service.get_kb(kb_id)
-    if kb.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if not await service.check_kb_access(kb_id, current_user, level="write"):
+        raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
         
     link = await service.link_document_to_kb(kb_id, doc_id)
     
@@ -208,7 +285,7 @@ async def list_documents_in_kb(
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     # Access control
-    if kb.owner_id != current_user.id and not kb.is_public:
+    if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
         
     docs = await service.list_documents_in_kb(kb_id)
@@ -226,8 +303,8 @@ async def unlink_document(
     """Unlink a document from a knowledge base."""
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
-    if kb.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if not await service.check_kb_access(kb_id, current_user, level="write"):
+        raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
     
     await service.unlink_document(kb_id, doc_id)
     
@@ -253,7 +330,7 @@ async def get_knowledge_graph(
     
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
-    if kb.owner_id != current_user.id and not kb.is_public:
+    if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
         
     store = get_graph_store()

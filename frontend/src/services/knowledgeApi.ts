@@ -2,7 +2,7 @@
  * Knowledge Base API Client.
  */
 import api from './api';
-import type { ApiResponse, KnowledgeBase, Document, KBLink } from '../types';
+import type { ApiResponse, KnowledgeBase, Document, KBLink, KnowledgeBasePermission } from '../types';
 
 export interface CreateKnowledgeBaseParams {
     name: string;
@@ -17,6 +17,11 @@ export const knowledgeApi = {
     listKBs: () => api.get<ApiResponse<KnowledgeBase[]>>('/knowledge'),
     createKB: (data: CreateKnowledgeBaseParams) => api.post<ApiResponse<KnowledgeBase>>('/knowledge', data),
     getKB: (id: string) => api.get<ApiResponse<KnowledgeBase>>(`/knowledge/${id}`),
+
+    // Permissions
+    getPermissions: (kbId: string) => api.get<ApiResponse<KnowledgeBasePermission[]>>(`/knowledge/${kbId}/permissions`),
+    addPermission: (kbId: string, data: Partial<KnowledgeBasePermission>) => api.post<ApiResponse<KnowledgeBasePermission>>(`/knowledge/${kbId}/permissions`, data),
+    deletePermission: (kbId: string, permId: string) => api.delete<ApiResponse<{ status: string }>>(`/knowledge/${kbId}/permissions/${permId}`),
 
     // Global Documents
     uploadDoc: (file: File) => {

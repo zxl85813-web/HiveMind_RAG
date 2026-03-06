@@ -86,6 +86,26 @@ class DocumentReview(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class KnowledgeBasePermission(SQLModel, table=True):
+    """ACL for KnowledgeBase-level access control."""
+    __tablename__ = "kb_permissions"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    kb_id: str = Field(foreign_key="knowledge_bases.id", index=True)
+    
+    # Target entity
+    user_id: Optional[str] = Field(default=None, index=True)
+    role_id: Optional[str] = Field(default=None, index=True)
+    department_id: Optional[str] = Field(default=None, index=True)
+    
+    # Permissions
+    can_read: bool = Field(default=True)
+    can_write: bool = Field(default=False)
+    can_manage: bool = Field(default=False)
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class DocumentPermission(SQLModel, table=True):
     """ACL for document-level access control."""
     __tablename__ = "document_permissions"

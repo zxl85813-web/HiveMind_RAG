@@ -143,6 +143,18 @@ export interface KnowledgeBase {
     created_at: string;
 }
 
+export interface KnowledgeBasePermission {
+    id: string;
+    kb_id: string;
+    user_id?: string;
+    role_id?: string;
+    department_id?: string;
+    can_read: boolean;
+    can_write: boolean;
+    can_manage: boolean;
+    created_at: string;
+}
+
 export interface TagCategory {
     id: number;
     name: string;

@@ -9,10 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies using pip (since we have pyproject.toml)
-COPY pyproject.toml .
+# Install CPU-only PyTorch first (prevents pip from resolving the ~5GB CUDA variant)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install project dependencies (will reuse the already-installed CPU torch)
+COPY pyproject.toml .
+RUN pip install --no-cache-dir .
 
 # --- Runtime Stage ---
 FROM python:3.11-slim
