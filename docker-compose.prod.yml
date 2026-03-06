@@ -10,8 +10,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-hivemind}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5432:5432"
+    # No ports exposed to host to avoid conflicts
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
 
@@ -20,8 +19,7 @@ services:
     image: redis:7-alpine
     container_name: hivemind-redis-prod
     restart: always
-    ports:
-      - "6379:6379"
+    # No ports exposed to host
     volumes:
       - redis_data_prod:/data
 
@@ -30,13 +28,11 @@ services:
     image: chromadb/chroma:latest
     container_name: hivemind-chroma-prod
     restart: always
-    ports:
-      - "8000:8000"
+    # No ports exposed to host
     volumes:
       - chroma_data_prod:/chroma/chroma
 
   # === Object Store (MinIO) ===
-  # Moved to 9010 because SonarQube is usually on 9000
   minio:
     image: minio/minio:latest
     container_name: hivemind-minio-prod
@@ -46,7 +42,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9010:9000"
+      - "9010:9000" # Keep MinIO access if needed for management
       - "9011:9011"
     volumes:
       - minio_data_prod:/data
