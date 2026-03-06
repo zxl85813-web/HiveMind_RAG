@@ -12,9 +12,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-# 获取脚本所在目录的根目录 (project root)
-$CurrentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot = Split-Path -Parent (Split-Path -Parent $CurrentDir)
+# Project Root
+$ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 
 Write-Host ""
 Write-Host "  🐝 HiveMind Code Quality Checker" -ForegroundColor Cyan
@@ -27,51 +26,29 @@ if ($Quick) {
     
     # 后端检查
     Write-Host "  [Backend] Ruff lint..." -ForegroundColor Yellow -NoNewline
-    $BackendDir = Join-Path $ProjectRoot "backend"
-    Push-Location $BackendDir
-    try {
-        $ruffResult = python -m ruff check app/ 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host " ✅" -ForegroundColor Green
-        }
-        else {
-            Write-Host " ❌" -ForegroundColor Red
-            $ruffResult | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
-        }
-    }
-    finally {
-        Pop-Location
-    }
+    Set-Location "$ProjectRoot\backend"
+    python -m ruff check app/
+    if ($?) { Write-Host " ✅" -ForegroundColor Green } else { Write-Host " ❌" -ForegroundColor Red }
     
     # 前端检查
     Write-Host "  [Frontend] ESLint..." -ForegroundColor Yellow -NoNewline
-    $FrontendDir = Join-Path $ProjectRoot "frontend"
-    Push-Location $FrontendDir
-    try {
-        $eslintResult = npx eslint . 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host " ✅" -ForegroundColor Green
-        }
-        else {
-            Write-Host " ❌" -ForegroundColor Red
-            $eslintResult | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
-        }
-    }
-    finally {
-        Pop-Location
-    }
+    Set-Location "$ProjectRoot\frontend"
+    npx eslint .
+    if ($?) { Write-Host " ✅" -ForegroundColor Green } else { Write-Host " ❌" -ForegroundColor Red }
     
+    Set-Location $ProjectRoot
     Write-Host ""
+    exit
 }
-else {
-    # 完整检查: 调用 Python 脚本
-    $args_list = @()
-    if ($Backend) { $args_list += "--backend" }
-    if ($Frontend) { $args_list += "--frontend" }
-    if ($Report) { $args_list += "--report" }
-    if ($Fix) { $args_list += "--fix" }
-    if ($Verbose) { $args_list += "--verbose" }
 
-    $CheckScript = Join-Path $ProjectRoot ".agent\checks\code_quality.py"
-    python $CheckScript @args_list
-}
+# 完整检查
+$args_list = @()
+if ($Backend) { $args_list += "--backend" }
+if ($Frontend) { $args_list += "--frontend" }
+if ($Report) { $args_list += "--report" }
+if ($Fix) { $args_list += "--fix" }
+if ($Verbose) { $args_list += "--verbose" }
+
+Set-Location $ProjectRoot
+python .agent\checks\code_quality.py $args_list
+Write-Host ""
