@@ -66,6 +66,11 @@ jobs:
             # 重新构建并后台启动
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             
+            # --- Database Migration ---
+            # 启动后自动同步数据库表结构
+            echo "Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
+            
             # Cleanup old unused images and builder cache to save space
             docker image prune -f
             docker builder prune -f

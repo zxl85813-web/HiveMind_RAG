@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hivemind}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
     # No ports exposed to host to avoid conflicts
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
@@ -68,7 +68,7 @@ services:
     # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
     # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/health/')" ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/api/v1/health/')" ]
       interval: 10s
       timeout: 5s
       retries: 10
