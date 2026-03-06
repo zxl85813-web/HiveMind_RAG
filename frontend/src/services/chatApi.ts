@@ -47,7 +47,7 @@ export const chatApi = {
         const { message, conversationId, knowledgeBaseIds, clientEvents, onDelta, onStatus, onInsight, onSessionCreated, onFinish, onError, controller } = params;
 
         // Use the baseURL from import.meta.env via a clean string construction
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
         try {
             await fetchEventSource(`${baseUrl}/chat/completions`, {
