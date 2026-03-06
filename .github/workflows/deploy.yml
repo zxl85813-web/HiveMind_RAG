@@ -4,27 +4,26 @@ on:
   push:
     branches:
       - master
-      - feature/agent-shared-memory # 临时开启，用于测试部署
+      - feature/agent-shared-memory # 准备合入前，保留此触发用于验证 Sonar+Deploy 全流程
 
 jobs:
   sonarQube-analysis:
     name: 🛡️ SonarQube Code Quality Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Skip for now (test mode)
-        run: echo "Skipping Sonar Scan for quick deployment test"
-      # - uses: actions/checkout@v4
-      #   with:
-      #     fetch-depth: 0
-      # - name: SonarQube Scan
-      #   uses: SonarSource/sonarqube-scan-action@master
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Important for SonarQube to analyze history
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
   deploy:
     name: 🚀 Deploy to Azure Server
-    # needs: sonarQube-analysis # 临时注释掉依赖，直接跑部署
+    needs: sonarQube-analysis # 恢复依赖：必须先过扫描，才开始部署
     runs-on: ubuntu-latest
     steps:
       - name: SSH and Deploy
@@ -40,9 +39,13 @@ jobs:
             fi
             
             cd "$PROJECT_DIR"
-            # 自动拉取当前所在的测试分支，或者 master
             git fetch origin
-            git checkout feature/agent-shared-memory
-            git pull origin feature/agent-shared-memory
+            # 这里我加了一个逻辑：如果是 master 推送就部署 master，如果是 feature 推送就部署 feature
+            DEPLOY_BRANCH=${GITHUB_REF##*/}
+            git checkout $DEPLOY_BRANCH
+            git pull origin $DEPLOY_BRANCH
             
-            echo "Deployment finished successfully on $(hostname)"
+            # TODO: 如果需要重启服务，请取消注释下面这行
+            # docker-compose up -d --build
+            
+            echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"
