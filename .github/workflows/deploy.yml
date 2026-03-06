@@ -53,11 +53,17 @@ jobs:
               echo "Created default backend/.env.production from example"
             fi
             
-            # Rebuild and restart all services
-            echo "Building and restarting containers..."
-            docker-compose -f docker-compose.prod.yml up -d --build
+            # Rebuild and restart all services using Docker Compose V2
+            echo "Checking Docker version..."
+            docker version
+            docker compose version
             
-            # Cleanup old unused images to save space
+            echo "Building and restarting containers..."
+            # 使用 docker compose (V2) 替代 docker-compose (V1) 解决 KeyError: 'ContainerConfig'
+            docker compose -f docker-compose.prod.yml up -d --build
+            
+            # Cleanup old unused images and builder cache to save space
             docker image prune -f
+            docker builder prune -f
             
             echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"
