@@ -9,3 +9,4 @@ from .finetuning import FineTuningItem
 from .sync import SyncTask
 from .pipeline_config import PipelineConfig
 from .pipeline_log import PipelineJob, PipelineStageLog
+from .observability import IngestionBatch, FileTrace, AgentSpan

@@ -40,38 +40,7 @@ class SharedMemoryManager:
 
     def __init__(self) -> None:
         self._working_memory: dict[str, Any] = {}
-        self._traces: list[dict] = [] # Memory store for DAG traces
         logger.info("🧠 SharedMemoryManager initialized")
-
-    # --- DAG Trace Memory (Session-scoped) ---
-    async def add_trace(self, node_id: str, label: str, agent: str, status: str, targets: list[str] | None = None) -> None:
-        """Record a trace node for the Agent Supervisor visualization."""
-        if len(self._traces) > 100:
-            self._traces = self._traces[-50:] # Keep last 50
-        
-        # Determine targets defaults. Usually links to 'supervisor' or 'reflection' unless specified
-        targets = targets if targets is not None else []
-            
-        self._traces.append({
-            "id": node_id,
-            "label": label,
-            "agent": agent,
-            "status": status,
-            "targets": targets
-        })
-
-    async def get_traces(self) -> dict:
-        """Get formatted nodes and links for DAG Visualizer."""
-        nodes = []
-        links = []
-        for t in self._traces:
-            nodes.append({"id": t["id"], "label": t["label"], "agent": t["agent"], "status": t["status"]})
-            for target in t["targets"]:
-                links.append({"source": t["id"], "target": target})
-        return {"nodes": nodes, "links": links}
-        
-    async def clear_traces(self) -> None:
-        self._traces.clear()
 
     # --- Working Memory (Session-scoped) ---
 

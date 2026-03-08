@@ -51,6 +51,10 @@ Supervisor Agent 是整个系统的大脑。它解析用户意图、分配任务
 
 → 详见 [开发治理文档](docs/DEV_GOVERNANCE.md)
 
+### 🛡️ 架构治理 — 高可用与资产防腐
+
+真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **Agent-Native LLM 智能路由 (ClawRouter 模式)**，多维度动态分流与熔断降级，保障 99.99% 的核心可用率。同时基于 **CQRS** 将读写服务解耦，并在底座实施 **Code Vault (代码知识管理)**，将 AI 的有效引用转化为开发者的“打赏飞轮”，防腐防锈。
+
 ---
 
 ## 系统全局图
@@ -61,7 +65,8 @@ graph TD
     UI -->|SSE 流式| API["🌐 FastAPI Gateway"]
 
     subgraph "🧭 Agent 治理层 — 指挥系统"
-        API --> Supervisor["🧠 Supervisor\n意图路由 & 任务分发"]
+        API --> Router["⚖️ LLM Router\n智能路由 / 熔断降级"]
+        Router --> Supervisor["🧠 Supervisor\n意图路由 & 任务分发"]
         Supervisor --> RAG["📚 RAG Agent"]
         Supervisor --> Code["💻 Code Agent"]
         Supervisor --> Web["🌐 Web Agent"]
@@ -72,9 +77,10 @@ graph TD
         RAG --> T1["Tier 1\n抽象索引"]
         RAG --> T2["Tier 2\nNeo4j 知识图谱"]
         RAG --> T3["Tier 3\npgvector + BM25 + Reranker"]
-        Ingestion["📥 文档上传"] --> JobMgr["⚡ JobManager\nLangGraph DAG"]
-        JobMgr --> Parse["解析 Skills\nPDF / Excel / 图片"]
-        Parse --> Enrich["上下文增强\nContextual Chunks"]
+        Ingestion["📥 全量/增量文档接入\n(Queue / Batch)"] --> Dispatcher["⚡ 任务粉碎与分发网关\n(Celery/Redis)"]
+        Dispatcher --> JobMgr["🧠 分布式 Ingestion Swarm\n(原生 LangGraph StateGraph)"]
+        JobMgr --> Parse["动态 Agent Nodes\n(Code/Doc/Data/Critic)"]
+        Parse --> Enrich["知识融合算子\n(人工复核 / 经验黑板)"]
         Enrich --> T2
         Enrich --> T3
     end

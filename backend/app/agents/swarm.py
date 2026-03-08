@@ -499,15 +499,7 @@ class SwarmOrchestrator:
                  ))
              logger.info(f"📝 [Phase 5] Supervisor persisted plan with {len(decision.planned_steps)} steps to Memory.")
 
-        import uuid
-        node_id = f"supervisor_{uuid.uuid4().hex[:6]}"
-        await self.memory.add_trace(
-            node_id=node_id,
-            label="Intent Analysis & Routing",
-            agent="Supervisor",
-            status="completed",
-            targets=[f"{next_step}_node"] if next_step != "FINISH" else []
-        )
+        logger.info(f"🗺️ Supervisor planned {len(decision.planned_steps)} steps")
 
         return {
             "next_step": next_step,
@@ -624,13 +616,6 @@ class SwarmOrchestrator:
 
             import uuid
             node_id = f"{agent_def.name}_{uuid.uuid4().hex[:6]}"
-            await self.memory.add_trace(
-                node_id=node_id,
-                label=f"Task Execution",
-                agent=agent_def.name,
-                status="completed",
-                targets=["reflection_node"]
-            )
 
             # Record node linkage for frontend DAG trace
             if state.get("last_node_id"):
@@ -748,13 +733,6 @@ class SwarmOrchestrator:
 
         import uuid
         node_id = f"reflection_{uuid.uuid4().hex[:6]}"
-        await self.memory.add_trace(
-            node_id=node_id,
-            label="Quality Reflection",
-            agent="Reflection",
-            status="completed" if next_step == "FINISH" else "warning",
-            targets=[f"{next_step}_node"] if next_step != "FINISH" else []
-        )
 
         return {
             "reflection_count": reflection_count,
