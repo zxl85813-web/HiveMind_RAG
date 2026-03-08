@@ -10,23 +10,30 @@
  * @see skills/frontend-design/SKILL.md
  */
 
+import { lazy, Suspense } from 'react';
 import { ConfigProvider, theme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { Routes, Route } from 'react-router-dom';
+
 import { AppLayout } from './components/common/AppLayout';
-import { DashboardPage } from './pages/DashboardPage';
-import { KnowledgePage } from './pages/KnowledgePage';
-import { AgentsPage } from './pages/AgentsPage';
-import { StudioPage } from './pages/StudioPage';
-import { LearningPage } from './pages/LearningPage';
-import { AuditPage } from './pages/AuditPage';
-import { EvalPage } from './pages/EvalPage';
-import { FineTuningPage } from './pages/FineTuningPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { BatchPage } from './pages/BatchPage';
-import { SecurityPage } from './pages/SecurityPage';
-import { PipelineBuilderPage } from './pages/PipelineBuilderPage';
+import { LoadingState } from './components/common/LoadingState';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MockControl } from './components/common/MockControl';
+
+// 🚀 [Architecture-Gate]: 路由级代码分割 (Code Splitting)
+// 所有页面组件采用 React.lazy 按需加载，优化首屏 TTI。
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const KnowledgePage = lazy(() => import('./pages/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
+const AgentsPage = lazy(() => import('./pages/AgentsPage').then(m => ({ default: m.AgentsPage })));
+const StudioPage = lazy(() => import('./pages/StudioPage').then(m => ({ default: m.StudioPage })));
+const LearningPage = lazy(() => import('./pages/LearningPage').then(m => ({ default: m.LearningPage })));
+const AuditPage = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })));
+const EvalPage = lazy(() => import('./pages/EvalPage').then(m => ({ default: m.EvalPage })));
+const FineTuningPage = lazy(() => import('./pages/FineTuningPage').then(m => ({ default: m.FineTuningPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m.BatchPage })));
+const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
+const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -96,24 +103,28 @@ function App() {
   return (
     <ConfigProvider theme={appTheme} locale={zhCN}>
       <AntApp>
-        <Routes>
-          <Route path="/" element={<AppLayout />}>
-            {/* Dashboard 是默认首页 */}
-            <Route index element={<DashboardPage />} />
-            {/* 功能页面 — Chat Panel 始终跟随 */}
-            <Route path="knowledge" element={<KnowledgePage />} />
-            <Route path="studio" element={<StudioPage />} />
-            <Route path="agents" element={<AgentsPage />} />
-            <Route path="batch" element={<BatchPage />} />
-            <Route path="learning" element={<LearningPage />} />
-            <Route path="audit" element={<AuditPage />} />
-            <Route path="security" element={<SecurityPage />} />
-            <Route path="evaluation" element={<EvalPage />} />
-            <Route path="finetuning" element={<FineTuningPage />} />
-            <Route path="pipelines" element={<PipelineBuilderPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
+            <Routes>
+              <Route path="/" element={<AppLayout />}>
+                {/* Dashboard 是默认首页 */}
+                <Route index element={<DashboardPage />} />
+                {/* 功能页面 — Chat Panel 始终跟随 */}
+                <Route path="knowledge" element={<KnowledgePage />} />
+                <Route path="studio" element={<StudioPage />} />
+                <Route path="agents" element={<AgentsPage />} />
+                <Route path="batch" element={<BatchPage />} />
+                <Route path="learning" element={<LearningPage />} />
+                <Route path="audit" element={<AuditPage />} />
+                <Route path="security" element={<SecurityPage />} />
+                <Route path="evaluation" element={<EvalPage />} />
+                <Route path="finetuning" element={<FineTuningPage />} />
+                <Route path="pipelines" element={<PipelineBuilderPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
         <MockControl />
       </AntApp>
     </ConfigProvider>

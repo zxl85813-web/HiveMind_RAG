@@ -65,52 +65,13 @@ export const DashboardPage: React.FC = () => {
             color: '#FFD166',
         },
     ];
-    const [stats, setStats] = useState({
-        kbs: 0,
-        agents: 0,
-        requests: 0,
-        discoveries: 0
-    });
-    const [recentReports, setRecentReports] = useState<any[]>([]);
-    const [loadingReports, setLoadingReports] = useState(false);
+    const { data: stats, isLoading: statsLoading } = useDashboardStats();
+    const { data: reports, isLoading: reportsLoading } = useRecentReports();
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const [statsRes, kbRes] = await Promise.all([
-                    agentApi.getStats(),
-                    knowledgeApi.listKBs()
-                ]);
-                setStats({
-                    kbs: kbRes.data.data.length,
-                    agents: statsRes.data.data.active_agents,
-                    requests: statsRes.data.data.today_requests,
-                    discoveries: statsRes.data.data.reflection_logs // Using reflection logs as a proxy for activity
-                });
-            } catch (err) {
-                console.error("Failed to fetch dashboard stats", err);
-            }
-        };
-
-        const fetchReports = async () => {
-            setLoadingReports(true);
-            try {
-                const res = await evalApi.getReports();
-                setRecentReports(res.data.data.slice(0, 3));
-            } catch (err) {
-                // Mock data if empty
-                setRecentReports([
-                    { id: '1', kb_name: 'Core Docs', total_score: 0.85, created_at: new Date().toISOString() },
-                    { id: '2', kb_name: 'API Reference', total_score: 0.42, created_at: new Date().toISOString() }
-                ]);
-            } finally {
-                setLoadingReports(false);
-            }
-        };
-
-        fetchStats();
-        fetchReports();
-    }, []);
+    const recentReports = reports || [
+        { id: '1', kb_name: 'Core Docs', total_score: 0.85, created_at: new Date().toISOString() },
+        { id: '2', kb_name: 'API Reference', total_score: 0.42, created_at: new Date().toISOString() }
+    ];
 
     return (
         <div className={styles.container}>

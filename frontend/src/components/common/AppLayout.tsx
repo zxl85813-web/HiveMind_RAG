@@ -1,18 +1,9 @@
 /**
- * AppLayout — AI-First 全局布局。
- *
- * 双模式设计:
- *   🤖 AI 模式 (默认): Chat 居中占满，侧边栏自动收缩为图标
- *   📊 传统模式: 侧边栏展开，页面内容在中间，Chat 在右侧面板
- *
- * 右上角提供模式切换按钮。
- *
- * @module components/common
- * @see docs/design/ai-first-frontend.md
+ * AppLayout — AI-First 全局布局 (修正版)。
  */
 
 import React, { useEffect } from 'react';
-import { Layout, Menu, Flex, Badge, Tooltip } from 'antd';
+import { Layout, Menu, Flex, Badge, Tooltip, App } from 'antd';
 import {
     AppstoreOutlined,
     DatabaseOutlined,
@@ -34,8 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/chatStore';
 import { ChatPanel } from '../chat/ChatPanel';
 import { CreateKBModal } from '../knowledge/CreateKBModal';
-import { knowledgeApi } from '../../services/knowledgeApi';
-import type { CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
+import { useCreateKnowledgeBase } from '../../hooks/useDashboardData';
 import styles from './AppLayout.module.css';
 
 const { Sider, Content } = Layout;
@@ -44,6 +34,8 @@ export const AppLayout: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
+    const { message } = App.useApp();
+
     const {
         viewMode,
         toggleViewMode,
@@ -55,6 +47,7 @@ export const AppLayout: React.FC = () => {
     } = useChatStore();
 
     const isAIMode = viewMode === 'ai';
+    const createKBMutation = useCreateKnowledgeBase();
 
     /** 导航项 */
     const navItems = [
@@ -88,44 +81,33 @@ export const AppLayout: React.FC = () => {
         ? '/'
         : '/' + (location.pathname.split('/')[1] || '');
 
-    /** 处理侧边栏导航: 点击则切到传统模式并导航 */
+    /** 处理侧边栏导航 */
     const handleNavClick = ({ key }: { key: string }) => {
         if (isAIMode) {
-            // 从 AI 模式切走 → 自动进入传统模式
             useChatStore.getState().setViewMode('classic');
         }
         navigate(key);
     };
 
     /** 全局创建知识库处理 */
-    const handleCreateKB = async (values: CreateKnowledgeBaseParams) => {
+    const handleCreateKB = async (values: any) => {
         try {
-            await knowledgeApi.createKB(values);
-            // 这里使用了 AntApp.useApp() 中的 message，但在 App.tsx 中已经包裹了 AntApp
-            // 我们需要确保 AppLayout 能获取到 message
-            // 简单起见，这里先用 console.log，或者确保 AppLayout 在 AntApp 下
-            console.log("KB Created successfully");
+            await createKBMutation.mutateAsync(values);
+            message.success(t('knowledge.createSuccess') || "知识库申请已提交并就绪");
             setCreateKBModalOpen(false);
-            // 如果在知识库页面，可能需要通知它刷新，或者干脆跳转过去
             if (location.pathname !== '/knowledge') {
-                navigate('/knowledge?refresh=1');
+                navigate('/knowledge');
             }
         } catch (e) {
-            console.error("Failed to create KB", e);
+            message.error("创建知识库失败，请检查连接");
         }
     };
 
     return (
         <Layout className={styles.layout}>
-            {/* === 左侧全局导航 Sider (仅在传统模式显示) === */}
             {!isAIMode && (
-                <Sider
-                    width={240}
-                    className={styles.sider}
-                    theme="dark"
-                >
+                <Sider width={240} className={styles.sider} theme="dark">
                     <Flex vertical className={styles.siderInner}>
-                        {/* Top: Logo */}
                         <div className={styles.logo} onClick={() => {
                             useChatStore.getState().setViewMode('ai');
                             navigate('/');
@@ -133,8 +115,6 @@ export const AppLayout: React.FC = () => {
                             <span className={styles.logoMark}>⬡</span>
                             <span className={styles.logoText}>HiveMind</span>
                         </div>
-
-                        {/* Middle: Nav Menu */}
                         <Menu
                             mode="inline"
                             selectedKeys={[activeKey]}
@@ -142,24 +122,16 @@ export const AppLayout: React.FC = () => {
                             items={navItems}
                             className={styles.nav}
                         />
-
-                        {/* Bottom: Tools/Status */}
-                        <Flex
-                            align="center"
-                            justify="space-between"
-                            className={styles.siderFooter}
-                        >
+                        <Flex align="center" justify="space-between" className={styles.siderFooter}>
                             <Flex gap={12}>
                                 <Tooltip title={t('common.language')} placement="top">
                                     <span className={styles.siderAction} onClick={toggleLang}>
                                         {i18n.language.startsWith('zh') ? 'EN' : '中'}
                                     </span>
                                 </Tooltip>
-                                <Tooltip title="通知">
-                                    <Badge count={0} size="small">
-                                        <BellOutlined className={styles.siderAction} />
-                                    </Badge>
-                                </Tooltip>
+                                <Badge count={0} size="small">
+                                    <BellOutlined className={styles.siderAction} />
+                                </Badge>
                             </Flex>
                             <Flex align="center" gap={8}>
                                 <span className={styles.statusText}>Online</span>
@@ -170,9 +142,7 @@ export const AppLayout: React.FC = () => {
                 </Sider>
             )}
 
-            {/* === 主体区域 === */}
             <Layout className={styles.mainLayout}>
-                {/* 右上角: 模式切换按钮 */}
                 <div className={styles.modeSwitcher}>
                     <Tooltip title={isAIMode ? '切换到传统模式' : '切换到 AI 模式'} placement="bottomLeft">
                         <button
@@ -180,48 +150,34 @@ export const AppLayout: React.FC = () => {
                             onClick={toggleViewMode}
                         >
                             {isAIMode ? (
-                                <>
-                                    <DesktopOutlined />
-                                    <span className={styles.modeSwitchLabel}>传统模式</span>
-                                </>
+                                <><DesktopOutlined /><span className={styles.modeSwitchLabel}>传统模式</span></>
                             ) : (
-                                <>
-                                    <RobotOutlined />
-                                    <span className={styles.modeSwitchLabel}>AI 模式</span>
-                                </>
+                                <><RobotOutlined /><span className={styles.modeSwitchLabel}>AI 模式</span></>
                             )}
                         </button>
                     </Tooltip>
                 </div>
 
                 {isAIMode ? (
-                    /* 🤖 AI 模式: Chat 居中全屏 */
                     <Content className={styles.aiModeContent}>
                         <div className={styles.aiModeChatWrap}>
                             <ChatPanel />
                         </div>
                     </Content>
                 ) : (
-                    /* 📊 传统模式: Content + ChatPanel */
                     <>
                         <Content className={styles.content}>
                             <div className={styles.contentInner}>
                                 <Outlet />
                             </div>
                         </Content>
-
-                        {/* 右: AI Chat Panel (侧面板) */}
-                        <div
-                            className={styles.chatPanelWrap}
-                            style={{ width: panelOpen ? panelWidth : 48 }}
-                        >
+                        <div className={styles.chatPanelWrap} style={{ width: panelOpen ? panelWidth : 48 }}>
                             <ChatPanel />
                         </div>
                     </>
                 )}
             </Layout>
 
-            {/* === 全局弹窗 (由 AI 触发) === */}
             <CreateKBModal
                 open={isCreateKBModalOpen}
                 onCancel={() => setCreateKBModalOpen(false)}
