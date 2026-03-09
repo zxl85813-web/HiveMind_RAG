@@ -36,14 +36,14 @@ export const knowledgeApi = {
     linkDoc: (kbId: string, docId: string) => api.post<KBLink>(`/knowledge/${kbId}/documents/${docId}`, {}),
     listDocsInKB: (kbId: string) => api.get<Document[]>(`/knowledge/${kbId}/documents`),
     unlinkDoc: (kbId: string, docId: string) => api.delete<{ status: string }>(`/knowledge/${kbId}/documents/${docId}`),
-    getDocumentReport: (documentId: string) => api.get<ApiResponse<any>>(`/security/reports/document/${documentId}`),
+    getDocumentReport: (documentId: string) => api.get<ApiResponse<Record<string, unknown>>>(`/security/reports/document/${documentId}`),
 
     // Knowledge Graph
-    getKBGraph: (kbId: string) => api.get<ApiResponse<{ nodes: any[], links: any[] }>>(`/knowledge/${kbId}/graph`),
+    getKBGraph: (kbId: string) => api.get<ApiResponse<{ nodes: Record<string, unknown>[], links: Record<string, unknown>[] }>>(`/knowledge/${kbId}/graph`),
 
     // Search
     searchKB: (kbId: string, query: string, search_type: string = 'hybrid', top_k: number = 5) =>
-        api.post<ApiResponse<{ results: any[], context_log: string[] }>>(`/knowledge/${kbId}/search`, { query, search_type, top_k }),
+        api.post<ApiResponse<{ results: unknown[], context_log: string[] }>>(`/knowledge/${kbId}/search`, { query, search_type, top_k }),
 
     // Preview
     getDocumentPreview: (docId: string) => api.get<ApiResponse<{ text: string, job_id: string }>>(`/knowledge/documents/${docId}/preview`)

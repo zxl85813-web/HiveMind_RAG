@@ -24,7 +24,7 @@ export const AuditPage: React.FC = () => {
         try {
             const res = await auditApi.getQueue();
             setReviews(res.data.data);
-        } catch (err) {
+        } catch {
             message.error("无法加载审核队列");
         } finally {
             setLoading(false);
@@ -40,7 +40,7 @@ export const AuditPage: React.FC = () => {
             await auditApi.approve(id);
             message.success("审核已通过");
             fetchQueue();
-        } catch (err) {
+        } catch {
             message.error("操作失败");
         }
     };
@@ -50,7 +50,7 @@ export const AuditPage: React.FC = () => {
             await auditApi.reject(id);
             message.success("已完成驳回操作");
             fetchQueue();
-        } catch (err) {
+        } catch {
             message.error("操作失败");
         }
     };
@@ -63,8 +63,9 @@ export const AuditPage: React.FC = () => {
         try {
             const res = await knowledgeApi.getDocumentPreview(docId);
             setPreviewContent(res.data.data.text);
-        } catch (err: any) {
-            setPreviewContent(err.response?.data?.message || err.message || "无法加载文档预览内容");
+        } catch (err: unknown) {
+            const error = err as any;
+            setPreviewContent(error.response?.data?.message || error.message || "无法加载文档预览内容");
         } finally {
             setPreviewLoading(false);
         }
@@ -114,7 +115,7 @@ export const AuditPage: React.FC = () => {
         {
             title: '质检详情',
             key: 'details',
-            render: (_: any, record: DocumentReview) => (
+            render: (_: unknown, record: DocumentReview) => (
                 <Flex wrap="wrap" gap={6} style={{ padding: '4px 0' }}>
                     <Tag bordered={false} color={record.content_length_ok ? 'success' : 'error'} style={{ margin: 0 }}>
                         长度: {record.content_length_ok ? 'OK' : '过短'}
@@ -171,7 +172,7 @@ export const AuditPage: React.FC = () => {
             key: 'action',
             width: 220,
             align: 'center' as const,
-            render: (_: any, record: DocumentReview) => (
+            render: (_: unknown, record: DocumentReview) => (
                 <Space size="middle">
                     <Button
                         type="primary"

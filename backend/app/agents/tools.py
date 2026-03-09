@@ -135,19 +135,78 @@ async def python_interpreter(
     code: str
 ) -> str:
     """
-    Execute Python code in a sandboxed-like environment. 
-    Use this for complex calculations, data transformation, or programmatic tool orchestration.
-    The code has access to 'logger' and 'json'.
+    Execute Python code in a restricted environment. 
+    ⚠️ WARNING: Use this ONLY for stateless calculations or simple data processing.
+    In production, this should be replaced by a secure sandbox (e.g., E2B, Modal).
+    The code has access to 'logger', 'json', and 'math'.
     """
-    logger.info(f"🐍 [PythonExecutor] Running code block...")
-    # Simulation of a REPL. In production, use a secure sandbox like E2B or Modal.
+    import math
+    import sys
+    import io
+    
+    logger.info(f"🐍 [PythonExecutor] Executing code block (In-process execution)")
+    
+    # Capture stdout
+    stdout = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = stdout
+    
     try:
         # Restricted globals
-        safe_globals = {"logger": logger, "json": json}
-        # In a real impl, we'd capture stdout
-        exec(code, safe_globals)
-        return "Code executed successfully. Check logs for outputs if any."
+        safe_globals = {
+            "logger": logger, 
+            "json": json, 
+            "math": math,
+            "__builtins__": {
+                "print": print,
+                "range": range,
+                "len": len,
+                "int": int,
+                "float": float,
+                "str": str,
+                "list": list,
+                "dict": dict,
+                "set": set,
+                "tuple": tuple,
+                "min": min,
+                "max": max,
+                "sum": sum,
+                "abs": abs,
+                "round": round,
+                "enumerate": enumerate,
+                "zip": zip,
+                "any": any,
+                "all": all,
+                "bool": bool,
+                "Exception": Exception,
+                "ValueError": ValueError,
+                "TypeError": TypeError,
+                "RuntimeError": RuntimeError,
+            }
+        }
+        
+        # We use a clean local scope
+        local_scope = {}
+        
+        # SECURITY NOTE: exec() is inherently unsafe even with restricted globals.
+        # This is strictly for demonstration/MVP purposes.
+        exec(code, safe_globals, local_scope)
+        
+        output = stdout.getvalue()
+        sys.stdout = old_stdout
+        
+        result = "Code executed successfully."
+        if output:
+            result += f"\nOutput:\n{output}"
+        if local_scope:
+            # Filter out non-serializable or private variables
+            clean_locals = {k: v for k, v in local_scope.items() if not k.startswith('_') and isinstance(v, (int, float, str, list, dict, bool, type(None)))}
+            if clean_locals:
+                result += f"\nResult Variables: {json.dumps(clean_locals)}"
+                
+        return result
     except Exception as e:
+        sys.stdout = old_stdout
         return f"Error executing Python: {str(e)}"
 
 @tool

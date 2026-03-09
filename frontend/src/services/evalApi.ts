@@ -18,16 +18,16 @@ export const evalApi = {
         api.get<ApiResponse<EvaluationReport>>(`/evaluation/reports/${reportId}`),
 
     getBadCases: () =>
-        api.get<ApiResponse<any[]>>('/evaluation/badcases'),
+        api.get<ApiResponse<unknown[]>>('/evaluation/badcases'),
 
     updateBadCase: (caseId: string, status: string, expectedAnswer?: string, reason?: string) =>
-        api.put<ApiResponse<any>>(`/evaluation/badcases/${caseId}`, { status, expected_answer: expectedAnswer, reason }),
+        api.put<ApiResponse<Record<string, unknown>>>(`/evaluation/badcases/${caseId}`, { status, expected_answer: expectedAnswer, reason }),
 
     deleteBadCase: (caseId: string) =>
         api.delete<ApiResponse<string>>(`/evaluation/badcases/${caseId}`),
 
     getKBStats: (kbId: string) =>
-        api.get<ApiResponse<any>>(`/evaluation/stats/kb/${kbId}`)
+        api.get<ApiResponse<Record<string, unknown>>>(`/evaluation/stats/kb/${kbId}`)
 };
 
 export default evalApi;

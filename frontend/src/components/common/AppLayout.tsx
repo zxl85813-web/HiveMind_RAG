@@ -26,6 +26,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { ChatPanel } from '../chat/ChatPanel';
 import { CreateKBModal } from '../knowledge/CreateKBModal';
 import { useCreateKnowledgeBase } from '../../hooks/useDashboardData';
+import type { CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
 import styles from './AppLayout.module.css';
 
 const { Sider, Content } = Layout;
@@ -90,7 +91,7 @@ export const AppLayout: React.FC = () => {
     };
 
     /** 全局创建知识库处理 */
-    const handleCreateKB = async (values: any) => {
+    const handleCreateKB = async (values: CreateKnowledgeBaseParams) => {
         try {
             await createKBMutation.mutateAsync(values);
             message.success(t('knowledge.createSuccess') || "知识库申请已提交并就绪");
@@ -98,7 +99,7 @@ export const AppLayout: React.FC = () => {
             if (location.pathname !== '/knowledge') {
                 navigate('/knowledge');
             }
-        } catch (e) {
+        } catch {
             message.error("创建知识库失败，请检查连接");
         }
     };

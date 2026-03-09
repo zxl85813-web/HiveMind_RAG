@@ -1,11 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import api from './api';
 
-export interface ApiResponse<T> {
-    success: boolean;
-    data: T;
-    message: string;
-}
+import type { ApiResponse } from '../types';
 
 export type TaskStatus = 'pending' | 'queued' | 'running' | 'success' | 'failed' | 'cancelled' | 'retry_wait';
 
@@ -13,19 +9,19 @@ export interface TaskStep {
     name: string;
     agent_name?: string;
     prompt_template?: string;
-    config?: Record<string, any>;
+    config?: Record<string, unknown>;
 }
 
 export interface TaskUnit {
     id: string;
     batch_job_id: string;
     name: string;
-    input_data: Record<string, any>;
+    input_data: Record<string, unknown>;
     steps: TaskStep[];
     depends_on: string[];
     priority: number;
     status: TaskStatus;
-    output_data: Record<string, any>;
+    output_data: Record<string, unknown>;
     error_message: string;
     created_at: string;
     started_at?: string;
@@ -58,7 +54,7 @@ export interface BatchJob {
 export interface CreateBatchJobRequest {
     name: string;
     description?: string;
-    tasks: any[];
+    tasks: Record<string, unknown>[];
     max_concurrency?: number;
 }
 
@@ -66,7 +62,7 @@ export const batchApi = {
     /**
      * Create string and start a new batch job
      */
-    createJob: (payload: CreateBatchJobRequest): Promise<AxiosResponse<any>> => {
+    createJob: (payload: CreateBatchJobRequest): Promise<AxiosResponse<ApiResponse<BatchJob>>> => {
         return api.post('/agents/batch/jobs', payload);
     },
 
@@ -87,7 +83,7 @@ export const batchApi = {
     /**
      * Cancel running job
      */
-    cancelJob: (id: string): Promise<AxiosResponse<any>> => {
+    cancelJob: (id: string): Promise<AxiosResponse<ApiResponse<unknown>>> => {
         return api.post(`/agents/batch/jobs/${id}/cancel`);
     }
 };

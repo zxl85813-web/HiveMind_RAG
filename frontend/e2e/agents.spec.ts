@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Agent Swarm Monitoring Page', () => {
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }: any) => {
         await page.goto('/agents');
     });
 
-    test('should show live swarm metrics and agent cards', async ({ page }) => {
+    test('should display agent cards and activity monitor', async ({ page }: any) => {
         // Check Stats Cards (Mock values)
         await expect(page.getByText('活跃 Agent')).toBeVisible();
         await expect(page.locator('.ant-statistic-content-value').filter({ hasText: '5' })).toBeVisible();

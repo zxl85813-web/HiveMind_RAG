@@ -165,7 +165,7 @@ const DnDFlow = () => {
 
     const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
         setSelectedNode(node);
-        const nodeData = node.data as { config?: any; label: string };
+        const nodeData = node.data as { config?: Record<string, unknown>; label: string };
         form.setFieldsValue(nodeData.config || {});
         setConfigVisible(true);
     }, [form]);

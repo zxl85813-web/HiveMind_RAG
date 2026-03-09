@@ -39,7 +39,7 @@ export const SecurityPage: React.FC = () => {
             setPolicies(policyRes.data.data);
             setDetectors(detectorRes.data.data.available_detectors);
             setAuditLogs(auditRes.data.data);
-        } catch (error) {
+        } catch {
             message.error(t('common.error'));
         } finally {
             setLoading(false);
@@ -55,7 +55,7 @@ export const SecurityPage: React.FC = () => {
             await securityApi.activatePolicy(id);
             message.success(t('common.success'));
             loadData();
-        } catch (e) {
+        } catch {
             message.error(t('common.error'));
         }
     };
@@ -94,7 +94,7 @@ export const SecurityPage: React.FC = () => {
             setIsCreateModalOpen(false);
             form.resetFields();
             loadData();
-        } catch (e) {
+        } catch (e: unknown) {
             console.error(e);
         }
     };
@@ -107,7 +107,7 @@ export const SecurityPage: React.FC = () => {
         try {
             const res = await securityApi.getDocumentPermissions(docId);
             setAclPermissions(res.data.data || []);
-        } catch (e) {
+        } catch {
             message.error("无法加载该文档的权限信息");
             setAclPermissions([]);
         } finally {
@@ -120,7 +120,7 @@ export const SecurityPage: React.FC = () => {
             await securityApi.revokePermission(id);
             message.success("已撤销权限");
             handleSearchAcl(aclDocId);
-        } catch (e) {
+        } catch {
             message.error("撤销失败");
         }
     };
@@ -140,7 +140,7 @@ export const SecurityPage: React.FC = () => {
             setIsAclModalOpen(false);
             aclForm.resetFields();
             handleSearchAcl(aclDocId);
-        } catch (e) {
+        } catch (e: unknown) {
             if (e && (e as any).errorFields) return; // form validation error
             message.error("添加失败");
         }
@@ -162,20 +162,22 @@ export const SecurityPage: React.FC = () => {
             title: '规则概览',
             key: 'rules',
             render: (_: any, record: DesensitizationPolicy) => {
-                let rules: any = {};
+                let rules: Record<string, unknown> = {};
                 try {
                     rules = JSON.parse(record.rules_json);
-                } catch { }
+                } catch { /* ignore */ }
                 return (
                     <Space size={[0, 8]} wrap>
                         {Object.entries(rules).map(([k, v]: [string, any]) => {
-                            const action = typeof v === 'string' ? v : v.action;
-                            const severity = typeof v === 'string' ? 'medium' : v.severity;
-                            const whitelistCount = (v.whitelist || []).length;
+                            if (k === 'custom_regex') return null;
+                            const action = typeof v === 'string' ? v : (v as any).action;
+                            const severity = typeof v === 'string' ? 'medium' : (v as any).severity;
+                            const whitelist = typeof v === 'string' ? [] : (v as any).whitelist || [];
+                            const whitelistCount = whitelist.length;
                             const color = severity === 'high' ? 'red' : severity === 'medium' ? 'orange' : 'blue';
 
                             return (
-                                <Tooltip key={k} title={whitelistCount > 0 ? `白名单: ${v.whitelist.join(', ')}` : null}>
+                                <Tooltip key={k} title={whitelistCount > 0 ? `白名单: ${whitelist.join(', ')}` : null}>
                                     <Tag color={color}>
                                         {k}: {action}
                                         {whitelistCount > 0 && <span style={{ opacity: 0.7, marginLeft: 4 }}>({whitelistCount}白)</span>}
@@ -183,7 +185,7 @@ export const SecurityPage: React.FC = () => {
                                 </Tooltip>
                             );
                         })}
-                        {rules.custom_regex && rules.custom_regex.map((cr: any, idx: number) => (
+                        {Array.isArray(rules.custom_regex) && (rules.custom_regex as any[]).map((cr: any, idx: number) => (
                             <Tag key={`cr-${idx}`} color="cyan" icon={<LockOutlined />}>{cr.name}</Tag>
                         ))}
                     </Space>
@@ -193,7 +195,7 @@ export const SecurityPage: React.FC = () => {
         {
             title: '状态',
             key: 'status',
-            render: (_: any, record: DesensitizationPolicy) => (
+            render: (_: unknown, record: DesensitizationPolicy) => (
                 <Switch
                     checked={record.is_active}
                     onChange={() => handleActivate(record.id)}
@@ -320,7 +322,7 @@ export const SecurityPage: React.FC = () => {
                                     columns={[
                                         {
                                             title: '目标实体',
-                                            render: (_: any, r: any) => {
+                                            render: (_: unknown, r: any) => {
                                                 if (r.user_id) return <Tag color="blue">用户: {r.user_id}</Tag>;
                                                 if (r.role_id) return <Tag color="green">角色: {r.role_id}</Tag>;
                                                 if (r.department_id) return <Tag color="orange">部门: {r.department_id}</Tag>;
@@ -330,7 +332,7 @@ export const SecurityPage: React.FC = () => {
                                         {
                                             title: '权限',
                                             key: 'perms',
-                                            render: (_: any, r: any) => (
+                                            render: (_: unknown, r: any) => (
                                                 <Space>
                                                     <Tag color={r.can_read ? 'success' : 'default'}>读取</Tag>
                                                     <Tag color={r.can_write ? 'success' : 'default'}>写入 / 修改</Tag>
@@ -346,7 +348,7 @@ export const SecurityPage: React.FC = () => {
                                         {
                                             title: '操作',
                                             key: 'action',
-                                            render: (_: any, r: any) => (
+                                            render: (_: unknown, r: any) => (
                                                 <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => handleRevokeAcl(r.id)}>移除</Button>
                                             )
                                         }

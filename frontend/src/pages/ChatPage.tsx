@@ -100,7 +100,7 @@ export const ChatPage: React.FC = () => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
                     if (lastMsg && lastMsg.role === 'assistant') {
-                        // @ts-ignore
+                        // @ts-expect-error: actions property might not be in the base message type
                         lastMsg.actions = data.actions;
                     }
                     return newMsgs;

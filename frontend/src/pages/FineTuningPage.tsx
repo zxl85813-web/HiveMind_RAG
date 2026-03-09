@@ -17,7 +17,7 @@ export const FineTuningPage: React.FC = () => {
         try {
             const res = await ftApi.getItems();
             setItems(res.data.data);
-        } catch (err) {
+        } catch {
             message.error("加载失败");
         } finally {
             setLoading(false);
@@ -37,7 +37,7 @@ export const FineTuningPage: React.FC = () => {
                     await ftApi.deleteItem(id);
                     message.success("已删除");
                     fetchData();
-                } catch (err) {
+                } catch {
                     message.error("删除失败");
                 }
             }
@@ -62,12 +62,13 @@ export const FineTuningPage: React.FC = () => {
             dataIndex: 'source_type',
             key: 'source',
             render: (s: string) => {
-                const map: any = {
+                const sourceConfig: Record<string, { text: string, color: string }> = {
                     manual: { text: '手动输入', color: 'blue' },
                     evaluation_correction: { text: '评估修正', color: 'purple' },
                     user_feedback: { text: '用户反馈', color: 'orange' }
                 };
-                return <Tag color={map[s]?.color || 'default'}>{map[s]?.text || s}</Tag>;
+                const config = sourceConfig[s] || { text: s, color: 'default' };
+                return <Tag color={config.color}>{config.text}</Tag>;
             }
         },
         {
@@ -83,7 +84,7 @@ export const FineTuningPage: React.FC = () => {
         {
             title: '操作',
             key: 'action',
-            render: (_: any, record: FineTuningItem) => (
+            render: (_: unknown, record: FineTuningItem) => (
                 <Space>
                     <Button size="small" icon={<ExportOutlined />}>修改</Button>
                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />

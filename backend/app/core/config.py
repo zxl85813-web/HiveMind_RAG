@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # === Knowledge Graph (Neo4j) ===
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "password"
+    NEO4J_PASSWORD: str = ""  # Should be set via .env
 
     # === Multimodal Model (Kimi/Moonshot) ===
     KIMI_API_KEY: str = ""
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     MCP_SERVERS_CONFIG_PATH: str = "mcp_servers.json"
 
     # === Auth ===
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = ""      # CRITICAL: Must be set in .env for production
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes (short-lived)
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 

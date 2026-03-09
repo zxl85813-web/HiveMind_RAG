@@ -83,7 +83,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
         try {
             const res = await knowledgeApi.searchKB(kb.id, searchQuery);
             setSearchResults(res.data.data.results || []);
-        } catch (e) {
+        } catch {
             message.error("搜索失败");
         } finally {
             setIsSearching(false);
@@ -95,7 +95,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
         try {
             const res = await evalApi.getKBStats(id);
             setHealthStats(res.data.data);
-        } catch (e) {
+        } catch {
             // Mock fallback if no real reports exist yet
             setHealthStats({
                 score: 0.82,
@@ -120,7 +120,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             const res = await knowledgeApi.listDocsInKB(id);
             const rawData = res.data as any;
             setDocs(rawData?.data ?? rawData);
-        } catch (e) {
+        } catch {
             message.error(t('common.error'));
         } finally {
             setLoading(false);
@@ -135,7 +135,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             const rawData = res.data as any;
             const gd = rawData?.data ?? rawData;
             setGraphData(gd);
-        } catch (e) {
+        } catch {
             message.error("Failed to load graph data");
         } finally {
             setLoadingGraph(false);
@@ -157,7 +157,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             hide();
             message.success(t('common.success'));
             loadDocs(kb.id);
-        } catch (e) {
+        } catch {
             hide();
             message.error(t('common.error'));
         } finally {
@@ -172,7 +172,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             await knowledgeApi.unlinkDoc(kb.id, docId);
             message.success(t('common.success'));
             loadDocs(kb.id);
-        } catch (e) {
+        } catch {
             message.error(t('common.error'));
         }
     };
@@ -182,7 +182,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             const res = await securityApi.getReport(docId);
             setSelectedDocReport(res.data.data);
             setIsReportOpen(true);
-        } catch (e) {
+        } catch {
             message.info("该文档尚无脱敏记录或无需脱敏");
         }
     };
@@ -192,7 +192,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             await tagApi.attachTag(docId, tagId);
             message.success('添加标签成功');
             loadDocs(kb!.id);
-        } catch (e) { message.error('添加失败') }
+        } catch { message.error('添加失败') }
     };
 
     const handleDetachTag = async (docId: string, tagId: number) => {
@@ -200,7 +200,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
             await tagApi.detachTag(docId, tagId);
             message.success('移除成功');
             loadDocs(kb!.id);
-        } catch (e) { message.error('移除失败') }
+        } catch { message.error('移除失败') }
     };
 
 
@@ -356,7 +356,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                             <>
                                 <div style={{ marginBottom: 24, padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed rgba(6, 214, 160, 0.3)' }}>
                                     <Upload.Dragger
-                                        beforeUpload={handleUpload as any}
+                                        beforeUpload={(file: any) => { handleUpload(file); return false; }}
                                         showUploadList={false}
                                         multiple={false}
                                         disabled={uploading}

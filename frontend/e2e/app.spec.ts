@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('HiveMind Dashboard & Navigation', () => {
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }: any) => {
         // 确保从标准 Mock 数据开始
         await page.addInitScript(() => {
             window.localStorage.removeItem('VITE_MOCK_CASE');
@@ -30,7 +30,7 @@ test.describe('HiveMind Dashboard & Navigation', () => {
 });
 
 test.describe('Special Case Handling (Mock control)', () => {
-    test('空状态测试: 应该显示 Empty 占位图', async ({ page }) => {
+    test('should load the dashboard and show stats', async ({ page }: any) => {
         await page.goto('/');
         // 模拟切换到空状态
         await page.evaluate(() => {
@@ -54,10 +54,8 @@ test.describe('Special Case Handling (Mock control)', () => {
         await page.click('text=Agent 蜂巢');
 
         // 检查是否有错误通知 (antd message/notification)
-        // 根据拦截器，这里会返回 500，axios 拦截器会 console.error
+        // axios 拦截器会 console.error
         // 如果前端有 UI 处理，可以进一步断言
-        const errorLog = page.locator('.ant-message-error');
-        // 目前 DashboardPage 有 catch 块打印 console.error，我们可以验证 console
-        // 或者期待我们之前修复的 UI 提示
+        // await expect(page.locator('.ant-message-error')).toBeVisible();
     });
 });

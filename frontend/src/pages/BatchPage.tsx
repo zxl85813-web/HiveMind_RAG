@@ -23,9 +23,8 @@ export const BatchPage: React.FC = () => {
             if (Array.isArray(jobsData)) {
                 setJobs(jobsData);
             }
-        } catch (error) {
+        } catch {
             notification.error({ message: 'Error loading batch jobs' });
-            console.error(error);
         } finally {
             setLoading(false);
         }
@@ -51,7 +50,7 @@ export const BatchPage: React.FC = () => {
             });
             notification.success({ message: 'Demo Job Created successfully!' });
             fetchJobs();
-        } catch (error) {
+        } catch {
             notification.error({ message: 'Failed to create mock job' });
         }
     };
@@ -61,7 +60,7 @@ export const BatchPage: React.FC = () => {
             await batchApi.cancelJob(jobId);
             notification.success({ message: `Job ${jobId} cancelled` });
             fetchJobs();
-        } catch (error) {
+        } catch {
             notification.error({ message: 'Failed to cancel job' });
         }
     };
@@ -96,7 +95,7 @@ export const BatchPage: React.FC = () => {
         {
             title: 'Progress',
             key: 'progress',
-            render: (_: any, record: BatchJob) => {
+            render: (_: unknown, record: BatchJob) => {
                 const percent = Math.floor(record.success_rate * 100);
                 return <Progress percent={percent} size="small" />;
             }
@@ -104,14 +103,14 @@ export const BatchPage: React.FC = () => {
         {
             title: 'Tasks',
             key: 'tasks',
-            render: (_: any, record: BatchJob) => (
+            render: (_: unknown, record: BatchJob) => (
                 <Text>{Object.keys(record.tasks).length} Total</Text>
             )
         },
         {
             title: 'Actions',
             key: 'actions',
-            render: (_: any, record: BatchJob) => (
+            render: (_: unknown, record: BatchJob) => (
                 <Space>
                     <Button
                         size="small"
@@ -134,7 +133,7 @@ export const BatchPage: React.FC = () => {
     const taskColumns = [
         { title: 'Task Name', dataIndex: 'name', key: 'name' },
         { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <StatusTag status={status} /> },
-        { title: 'Duration (s)', key: 'duration', render: (_: any, record: TaskUnit) => record.duration_seconds?.toFixed(2) || '-' }
+        { title: 'Duration (s)', key: 'duration', render: (_: unknown, record: TaskUnit) => record.duration_seconds?.toFixed(2) || '-' }
     ];
 
     return (

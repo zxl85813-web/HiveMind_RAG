@@ -27,7 +27,7 @@ export const StudioPage: React.FC = () => {
         try {
             const response = await knowledgeApi.listKBs();
             setKbs(response.data.data);
-        } catch (error) {
+        } catch {
             message.error("Failed to load Knowledge Bases");
         }
     };
@@ -55,7 +55,7 @@ export const StudioPage: React.FC = () => {
             setCurrentStep(4); // Complete
             setResult(res);
             message.success("Generation Complete!");
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(error);
             message.error("Generation failed. Check console.");
             setCurrentStep(0);
@@ -153,7 +153,7 @@ export const StudioPage: React.FC = () => {
                                 pagination={false}
                                 size="small"
                                 scroll={{ x: true }}
-                                rowKey={(_, index) => index?.toString() || "0"}
+                                rowKey={(_: unknown, index?: number) => index?.toString() || "0"}
                             />
                         </Card>
                     ) : (

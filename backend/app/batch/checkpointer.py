@@ -29,7 +29,9 @@ class PickleCheckpointer(MemorySaver):
         if os.path.exists(self.filepath):
             try:
                 with open(self.filepath, "rb") as f:
-                    data = pickle.load(f)
+                    # SECURITY NOTE: This is for local persistent state only. 
+                    # Use a secure database checkpointer for multi-tenant production apps.
+                    data = pickle.load(f)  # noqa: S301
                     if isinstance(data, dict):
                         # Restore internal storage
                         # MemorySaver uses self.storage (dict) and self.writes (dict)

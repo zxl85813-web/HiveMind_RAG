@@ -120,9 +120,7 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                     // Draw Node Background (Glassmorphism)
                     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
                     ctx.beginPath();
-                    // @ts-ignore
                     if (ctx.roundRect) {
-                        // @ts-ignore
                         ctx.roundRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1], 4 / globalScale);
                     } else {
                         ctx.rect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
@@ -154,7 +152,9 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                 nodePointerAreaPaint={(node: any, color, ctx) => {
                     ctx.fillStyle = color;
                     const bckgDimensions = node.__bckgDimensions;
-                    bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+                    if (bckgDimensions) {
+                        ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+                    }
                 }}
                 // Link styling
                 linkDirectionalParticles={2}

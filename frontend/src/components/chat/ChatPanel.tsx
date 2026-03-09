@@ -26,7 +26,6 @@ import {
 import { useChatStore } from '../../stores/chatStore';
 import { ActionButton } from './ActionButton';
 import { chatApi } from '../../services/chatApi';
-import { memoryApi } from '../../services/memoryApi';
 import { GraphVisualizer } from '../knowledge/GraphVisualizer';
 import { matchQuickCommand } from '../../config/quickCommands';
 import { useConversations, useConversationDetails, useSubmitFeedback } from '../../hooks/useChatData';
@@ -77,10 +76,9 @@ export const ChatPanel: React.FC = () => {
 
     // === 内部状态 ===
     const [inputValue, setInputValue] = useState('');
-    const [radarTags, setRadarTags] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
-    const [graphData, setGraphData] = useState<any>(null);
+    const [graphData] = useState<any>(null);
     const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
     const [currentTrace] = useState<any[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -113,7 +111,6 @@ export const ChatPanel: React.FC = () => {
     const handleSend = async (value: string) => {
         if (!value.trim() || isGenerating) return;
         setInputValue('');
-        setRadarTags([]);
 
         if (tryQuickCommand(value)) return;
 
@@ -127,7 +124,7 @@ export const ChatPanel: React.FC = () => {
 
         setIsGenerating(true);
         let fullContent = '';
-        let thoughtChainItems: any[] = [];
+        const statuses: string[] = [];
 
         try {
             await chatApi.streamChat({
@@ -147,7 +144,7 @@ export const ChatPanel: React.FC = () => {
                             const actionData = JSON.parse(match[1]);
                             foundActions.push(actionData);
                             displayContent = displayContent.replace(match[0], '');
-                        } catch (e) { /* partial */ }
+                        } catch { /* partial */ }
                     }
 
                     setMessage(assistantMsgId, {
@@ -156,32 +153,32 @@ export const ChatPanel: React.FC = () => {
                     });
                 },
                 onStatus: (status) => {
-                    const tagMatch = status.match(/Tags: \[(.*?)\]/);
+                    const tagMatch = status.match(/Tags: \[(.*?)\\]/);
                     if (tagMatch && tagMatch[1]) {
-                        const tags = tagMatch[1].split(',').map(t => t.trim());
-                        setRadarTags(prev => [...new Set([...prev, ...tags])]);
+                        // Tags are currently just logged/extracted but not displayed in graph
                     } else {
-                        // Handle think tags or generic status
-                        let title = status;
-                        let content = undefined;
+                        statuses.push(status);
+                        const thoughtChainItems = statuses.map((s, index) => {
+                            let title = s;
+                            let content = undefined;
 
-                        if (status.includes('🤔') || status.includes('💡') || status.includes('💭') || status.includes('⚡')) {
-                            title = status;
-                        } else if (status.startsWith('<think>')) {
-                            title = '🤔 内部思考';
-                            content = status.replace(/<\/?think>/g, '').trim();
-                        } else {
-                            title = `⚡ ${status}`;
-                        }
-
-                        thoughtChainItems.push({
-                            key: `thought-${thoughtChainItems.length}`,
-                            title,
-                            content,
-                            status: 'success'
+                            if (s.includes('🤔') || s.includes('💡') || s.includes('💭') || s.includes('⚡')) {
+                                title = s;
+                            } else if (s.startsWith('<think>')) {
+                                title = '🤔 内部思考';
+                                content = s.replace(/<\/?think>/g, '').trim();
+                            } else {
+                                title = `⚡ ${s}`;
+                            }
+                            return {
+                                key: `thought-${index}`,
+                                title,
+                                content,
+                                status: 'success'
+                            };
                         });
 
-                        setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: [...thoughtChainItems] } } : m));
+                        setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } } : m));
                     }
                 },
                 onSessionCreated: (id) => {
@@ -205,27 +202,13 @@ export const ChatPanel: React.FC = () => {
                     message.error(err.message || '对话出错');
                 }
             });
-        } catch (err: any) {
+        } catch (e: unknown) {
+            console.error(e);
             setIsGenerating(false);
             setMessage(assistantMsgId, { status: 'error' });
         }
     };
 
-    // @ts-ignore: Keep for memory graph feature
-    const fetchRealGraph = async () => {
-        if (radarTags.length === 0) return;
-        try {
-            const res = await memoryApi.getGraph(radarTags);
-            if (res.data.nodes.length > 0) {
-                setGraphData(res.data);
-                setIsGraphModalOpen(true);
-            } else {
-                message.info("未找到关联图谱节点");
-            }
-        } catch (err) {
-            message.error("无法获取图谱数据");
-        }
-    };
 
     const historyContent = (
         <div style={{ width: 280, maxHeight: 400, overflowY: 'auto', padding: '4px 0' }}>
@@ -308,7 +291,7 @@ export const ChatPanel: React.FC = () => {
                                                 remarkPlugins={[remarkGfm]}
                                                 rehypePlugins={[rehypeHighlight]}
                                                 components={{
-                                                    code({ node, inline, className, children, ...props }: any) {
+                                                    code({ inline, className, children, ...props }: any) {
                                                         const match = /language-(\w+)/.exec(className || '');
                                                         return !inline && match ? (
                                                             <CodeHighlighter lang={match[1]} {...props}>

@@ -40,7 +40,7 @@ export const KnowledgePage: React.FC = () => {
                     setIsDetailOpen(true);
                 }
             }
-        } catch (error) {
+        } catch {
             message.error(t('common.error'));
         } finally {
             setLoading(false);
@@ -57,7 +57,7 @@ export const KnowledgePage: React.FC = () => {
             message.success(t('common.success'));
             setIsCreateModalOpen(false);
             loadData();
-        } catch (e) {
+        } catch {
             message.error(t('common.error'));
         }
     };

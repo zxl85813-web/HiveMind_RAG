@@ -25,7 +25,7 @@ export const LearningPage: React.FC = () => {
             ]);
             setDiscoveries(discRes.data.data);
             setSubscriptions(subRes.data.data);
-        } catch (e) {
+        } catch {
             message.error("加载数据失败");
         } finally {
             setLoading(false);
@@ -44,7 +44,7 @@ export const LearningPage: React.FC = () => {
             setNewTopic('');
             setIsSubModalOpen(false);
             loadData();
-        } catch (e) {
+        } catch {
             message.error("订阅失败");
         }
     };
@@ -54,7 +54,7 @@ export const LearningPage: React.FC = () => {
             await learningApi.deleteSubscription(id);
             message.success("已取消订阅");
             loadData();
-        } catch (e) {
+        } catch {
             message.error("操作失败");
         }
     };

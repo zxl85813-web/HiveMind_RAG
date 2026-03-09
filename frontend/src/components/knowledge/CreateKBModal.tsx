@@ -19,7 +19,7 @@ export const CreateKBModal: React.FC<Props> = ({ open, onCancel, onSubmit, loadi
             const values = await form.validateFields();
             // Clear form after submit? Or let parent handle closing
             onSubmit(values);
-        } catch (e) {
+        } catch {
             // validation error
         }
     };
