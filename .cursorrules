@@ -36,7 +36,15 @@
 - **前端**：不准在组件内直接写 `fetch` 或 `axios`，必须通过封装好的 `services/` 层进行数据获取（如利用 `react-query`）。
 - **样式**：坚持使用 Vanilla CSS Modules (`.module.css`)，不要引入 Tailwind 或随便写行内样式，遵守 Design Token 语义化。
 
-### 5. 迷路时的自救
+### 5. 🤖 AI 对话与大模型交互红线 (X-Skills vs Frontend Design)
+在处理任何与大模型对话交互、AI 生成动态卡片相关的任务时，必须遵守以下铁律：
+1. **状态流管理**：严禁在前端用原生的 `useState` 或 `zustand` 手写 SSE 流解析协议，涉及会话部分必须无条件使用 `@ant-design/x` 的原生 Hook（如 `useXChat`, `useXAgent`）。
+2. **拒绝正则解析**：严禁通过正则表达式（如 `[ACTION:...]`）劫持 Markdown 内容来渲染 UI。
+   - 所有后端大模型驱动的具体业务卡片，必须包装为一个纯 React 组件。
+   - 并在入口处注册到 `@ant-design/x-skill` 体系中，通过协议规范自动召唤。
+3. **视觉美学挂载**：这些作为插件挂载的 React 视图卡片组件，其样式设计必须服从 `frontend-design` Skill 所定义的美学大纲（比如使用 CSS Modules 叠加玻璃质感、悬浮动画、投影等），保证卡片在对话流里足够惊艳。
+
+### 6. 迷路时的自救
 如果用户说了模糊的指令，或者你不知道该参考什么规范，请主动阅读：
 - `.agent/rules/coding-standards.md`
 - `.agent/workflows/` 下的工作流文件。

@@ -40,8 +40,9 @@ dependencies = [
     # === MCP ===
     "mcp>=1.0.0",
 
-    # === Observability ===
+    # === Observability & Tasks ===
     "loguru>=0.7.0",
+    "celery>=5.3.0",
 
     # === Knowledge Graph ===
     "neo4j>=5.14.0",

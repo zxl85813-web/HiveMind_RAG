@@ -14,5 +14,25 @@
     "REQ-011: Changelog Summary Search": {
         "number": 4,
         "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/4"
+    },
+    "REQ-012: Code Vault (代码资产知识库)": {
+        "number": 5,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/5"
+    },
+    "REQ-012: Task 1 - 基础设施扩展": {
+        "number": 6,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/6"
+    },
+    "REQ-012: Task 2 - 定制化 Ingestion": {
+        "number": 7,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/7"
+    },
+    "REQ-012: Task 3 - 独立状态流转 API 及 UI": {
+        "number": 8,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/8"
+    },
+    "REQ-012: Task 4 - RAG 路由注入与积分打赏": {
+        "number": 9,
+        "url": "https://github.com/zxl85813-web/HiveMind_RAG/issues/9"
     }
 }

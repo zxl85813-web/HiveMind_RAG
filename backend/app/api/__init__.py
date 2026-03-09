@@ -4,7 +4,7 @@ API Router — aggregates all route modules.
 
 from fastapi import APIRouter
 
-from app.api.routes import agents, chat, health, knowledge, learning, websocket, generation, memory, tags, security, audit, evaluation, finetuning, pipelines, settings
+from app.api.routes import agents, chat, health, knowledge, learning, websocket, generation, memory, tags, security, audit, audit_v3, evaluation, finetuning, pipelines, settings
 
 router = APIRouter()
 
@@ -19,6 +19,7 @@ router.include_router(memory.router, prefix="/memory", tags=["Memory"])
 router.include_router(tags.router, prefix="/tags", tags=["Knowledge Tags"])
 router.include_router(security.router, prefix="/security", tags=["Security & Desensitization"])
 router.include_router(audit.router, prefix="/audit", tags=["Data Quality Audit"])
+router.include_router(audit_v3.router, prefix="/audit/v3", tags=["V3 Swarm Audit"])
 router.include_router(evaluation.router, prefix="/evaluation", tags=["RAG Evaluation"])
 router.include_router(finetuning.router, prefix="/finetuning", tags=["Fine-tuning SFT Data"])
 router.include_router(pipelines.router, prefix="/pipelines", tags=["Pipelines"])

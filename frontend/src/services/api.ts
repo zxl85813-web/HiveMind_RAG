@@ -10,6 +10,7 @@
  */
 
 import axios from 'axios';
+import { notification } from 'antd';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -18,6 +19,10 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
 });
+
+// 🔒 [Architecture-Gate]: 全局网关与错误拦截
+// 职责: 统一处理 HTTP 异常，特别是身份过期 (401) 和服务端崩溃 (5xx)。
+// 设计决策: 使用 antd static notification 确保非 React 环境下也能触发 UI 反馈。
 
 // === Mock Interceptor ===
 if (import.meta.env.VITE_USE_MOCK === 'true') {
@@ -105,9 +110,40 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // TODO: 统一错误提示 (通过 antd message)
-        // TODO: 401 自动跳转到登录
-        console.error('[API Error]', error.response?.status, error.response?.data);
+        const { response } = error;
+        const status = response?.status;
+        const msg = response?.data?.message || response?.data?.detail || '网络请求异常，请稍后再试';
+
+        if (status === 401) {
+            // 令牌过期或未登录
+            notification.warning({
+                message: '登录已过期',
+                description: '您的身份凭证已失效，请重新登录。',
+                placement: 'topRight',
+            });
+            localStorage.removeItem('access_token');
+            // 延迟跳转，给用户看一眼通知的时间
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+        } else if (status === 403) {
+            notification.error({
+                message: '权限不足',
+                description: msg || '您没有权限执行此操作。',
+            });
+        } else if (status >= 500) {
+            notification.error({
+                message: '服务器错误',
+                description: msg || `后端服务响应异常 (${status})，请稍后重试。`,
+            });
+        } else if (!response) {
+            notification.error({
+                message: '连接失败',
+                description: '无法连接到远程服务器，请检查您的网络设置。',
+            });
+        }
+
+        console.error('[API Error]', status, response?.data);
         return Promise.reject(error);
     },
 );

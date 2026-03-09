@@ -55,9 +55,13 @@ class Settings(BaseSettings):
     
     # === Generic LLM Configuration (Global Fallback) ===
     LLM_PROVIDER: str = "siliconflow"  # openai | deepseek | siliconflow | moonshot
-    LLM_MODEL: str = "deepseek-ai/DeepSeek-V3.2"
+    LLM_MODEL: str = "deepseek-ai/DeepSeek-V3"
     LLM_BASE_URL: str | None = None
     LLM_API_KEY: str | None = None
+
+    # SiliconFlow Specific Models for Routing
+    MODEL_GLM5: str = "Pro/zai-org/GLM-5"
+    MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
     # === Tier Specific Providers (Optional overrides) ===
     REASONING_PROVIDER: str | None = "moonshot" 

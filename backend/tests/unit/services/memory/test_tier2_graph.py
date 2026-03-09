@@ -43,20 +43,22 @@ async def test_extract_and_store(mock_graph_store, mock_llm_service):
     assert len(args[1]) == 1 # exactly 1 edge
     assert args[1][0]["type"] == "KNOWS"
 
-def test_get_neighborhood(mock_graph_store):
+@pytest.mark.asyncio
+async def test_get_neighborhood(mock_graph_store):
     """Verify neighborhood query formatting and empty handling."""
     from app.services.memory.tier.graph_index import GraphIndex
     
     index = GraphIndex()
     index.store = mock_graph_store
     
-    # Mock Cypher output
+    # Mock Cypher output (must handle run_in_executor mock if we were mocking that, 
+    # but here we mock index.store.query which is called inside lambda)
     mock_graph_store.query.return_value = [
         {"source": "Alice", "rel": "KNOWS", "target": "Bob", "descr": "Friends since 2020"},
         {"source": "Bob", "rel": "USES", "target": "Postgres", "descr": ""}
     ]
     
-    results = index.get_neighborhood(["Alice"])
+    results = await index.get_neighborhood(["Alice"])
     
     assert len(results) == 2
     assert "(Alice) -[KNOWS]-> (Bob)" in results[0]
@@ -69,12 +71,13 @@ def test_get_neighborhood(mock_graph_store):
     assert "entities" in params
     assert params["entities"] == ["Alice"]
 
-def test_get_neighborhood_empty_input(mock_graph_store):
+@pytest.mark.asyncio
+async def test_get_neighborhood_empty_input(mock_graph_store):
     from app.services.memory.tier.graph_index import GraphIndex
     index = GraphIndex()
     index.store = mock_graph_store
     
     # Should not trigger DB
-    results = index.get_neighborhood([])
+    results = await index.get_neighborhood([])
     assert results == []
     mock_graph_store.query.assert_not_called()

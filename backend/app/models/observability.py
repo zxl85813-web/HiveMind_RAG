@@ -18,6 +18,8 @@ class TraceStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
     PENDING_REVIEW = "pending_review"  # HITL condition
+    REJECTED = "rejected"
+    APPROVED = "approved"
 
 
 class IngestionBatch(SQLModel, table=True):
@@ -49,6 +51,13 @@ class FileTrace(SQLModel, table=True):
     total_tokens: int = Field(default=0)
     latency_ms: float = Field(default=0.0)
     error_message: str | None = None
+    
+    # Context
+    kb_id: str | None = Field(default=None, index=True)
+    doc_id: str | None = Field(default=None, index=True)
+    
+    # Final consolidated output for the file (e.g. extracted text or full markdown)
+    result_data: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column_kwargs={"onupdate": datetime.utcnow})
@@ -82,3 +91,26 @@ class AgentSpan(SQLModel, table=True):
     is_error: bool = Field(default=False)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HITLTask(SQLModel, table=True):
+    """
+    Queue for Human-in-the-Loop review of ambiguous or low-confidence data.
+    """
+    __tablename__ = "obs_hitl_tasks"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    trace_id: str = Field(foreign_key="obs_file_traces.id", index=True)
+    
+    # Snapshot of the extraction for user to verify
+    extracted_data: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    reason: str = Field(default="low_confidence")
+    
+    # Reviewer info
+    reviewed_by: str | None = Field(default=None, index=True)
+    reviewer_comment: str | None = None
+    final_verdict: str | None = None  # APPROVED, RETRY, REJECTED
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: datetime | None = None
+

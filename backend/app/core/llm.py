@@ -15,6 +15,23 @@ class LLMService:
         self.model = settings.LLM_MODEL
         # print(f"🧠 LLM Service initialized with model: {self.model} at {settings.LLM_BASE_URL}")
 
+    def _route_model(self, messages: List[Dict[str, str]]) -> str:
+        """
+        Intelligence Router: Select model based on prompt content.
+        - GLM-5: Complex reasoning, architecture, design, multi-role.
+        - DeepSeek-V3: Coding, testing, general chat.
+        """
+        # Extract full text for keyword analysis
+        full_text = " ".join([m.get("content", "").lower() for m in messages])
+        
+        # High-complexity keywords (Priority: GLM-5)
+        reasoning_keywords = ["架构", "设计", "流程", "why", "reasoning", "swarm", "蜂群", "思维", "分析"]
+        if any(kw in full_text for kw in reasoning_keywords):
+            return settings.MODEL_GLM5
+            
+        # Coding/Standard keywords (Default: DeepSeek-V3)
+        return settings.MODEL_DEEPSEEK_V3
+
     async def chat_complete(
         self, 
         messages: List[Dict[str, str]], 
@@ -24,11 +41,14 @@ class LLMService:
         extra_body: Dict[str, Any] | None = None
     ) -> str:
         """
-        Non-streaming chat completion.
+        Non-streaming chat completion with intelligent routing.
         """
         try:
+            target_model = self._route_model(messages)
+            # print(f"🚀 [Router] Selected model: {target_model}")
+            
             kwargs = {
-                "model": self.model,
+                "model": target_model,
                 "messages": messages,
                 "temperature": temperature
             }
@@ -51,11 +71,13 @@ class LLMService:
         temperature: float = 0.7
     ) -> AsyncGenerator[str, None]:
         """
-        Streaming chat completion.
+        Streaming chat completion with intelligent routing.
         """
         try:
+            target_model = self._route_model(messages)
+            
             stream = await self.client.chat.completions.create(
-                model=self.model,
+                model=target_model,
                 messages=messages,
                 temperature=temperature,
                 stream=True

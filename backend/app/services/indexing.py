@@ -11,10 +11,8 @@ from loguru import logger
 
 from app.core.database import engine
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from app.models.pipeline_config import PipelineConfig
-from app.batch.ingestion.executor import IngestionExecutor
-from app.batch.ingestion.pipeline import create_ingestion_pipeline
-from app.batch.pipeline import ArtifactType
+from app.services.ingestion.dispatcher import IngestionDispatcher
+from app.models.observability import FileTrace, TraceStatus
 
 async def index_document_task(kb_id: str, doc_id: str):
     """
@@ -39,82 +37,29 @@ async def index_document_task(kb_id: str, doc_id: str):
             return
 
         try:
-            # 2. Pipeline Execution (M2.1B Preset Templates)
-            pipeline_type = kb.pipeline_type if hasattr(kb, "pipeline_type") else "general"
-            pipeline_def = create_ingestion_pipeline(pipeline_type)
-            # --- Logging & Monitoring (M2.1B) ---
-            from app.batch.monitor import PipelineMonitor
-            job_id = await PipelineMonitor.create_job(
-                pipeline_name=pipeline_def.name,
-                kb_id=kb_id,
-                doc_id=doc_id
-            )
-            monitor = PipelineMonitor(job_id)
+            # 2. V3 Dispatcher (Extreme Parallelism & Swarm Orchestration)
+            logger.info(f"🧠 [V3 Refactor] Dispatching Doc {doc_id} to Native Swarm...")
             
-            executor = IngestionExecutor(pipeline_def)
-            executor.on_job_start = monitor.on_job_start
-            executor.on_job_end = monitor.on_job_end
-            executor.on_stage_start = monitor.on_stage_start
-            executor.on_stage_end = monitor.on_stage_end
+            from app.core.database import async_session_factory
+            from app.services.ingestion.dispatcher import IngestionDispatcher
             
-            # Prepare metadata and context
-            file_metadata = {
-                "filename": doc.filename,
-                "file_path": doc.file_path,
-                "doc_id": doc_id,
-                "kb_id": kb_id
-            }
-            pipeline_context = {
-                "kb_id": kb_id,
-                "policy_id": kb.desensitization_policy_id,
-                "chunking_strategy": kb.chunking_strategy or "recursive"
-            }
-
-            # Run!
-            artifacts = await executor.execute(
-                raw_content="", # Step 1 (parse_content) will read from file_path
-                file_metadata=file_metadata,
-                pipeline_context=pipeline_context
-            )
-
-            # 3. Finalize Status (with Audit Awareness)
-            all_arts = executor.get_all_artifacts()
-            final_stage_name = list(all_arts.keys())[-1] if all_arts else None
-            final_art = all_arts.get(final_stage_name) if final_stage_name else None
-            
-            if final_art:
-                status = final_art.data.get("status")
+            # Use AsyncSession for the dispatcher
+            async with async_session_factory() as async_db:
+                dispatcher = IngestionDispatcher(async_db)
+                batch_id = await dispatcher.dispatch_batch(
+                    file_paths=[doc.file_path],
+                    kb_id=kb_id,
+                    description=f"Automatic indexing for {doc.filename}"
+                )
                 
-                if status == "success":
-                    link.status = "completed"
-                    logger.success(f"✅ Pipeline completed for {doc.filename}")
-                elif status == "pending":
-                    link.status = "pending_review"
-                    link.error_message = final_art.data.get("comment") or "Pending manual quality audit."
-                    logger.warning(f"🟡 Doc {doc_id} requires manual review: {link.error_message}")
-                elif status == "rejected":
-                    link.status = "rejected"
-                    link.error_message = final_art.data.get("comment") or "Rejected by automated quality audit."
-                    logger.error(f"🔴 Doc {doc_id} rejected: {link.error_message}")
-                elif final_art.artifact_type == ArtifactType.ERROR:
-                    link.status = "failed"
-                    link.error_message = final_art.data.get("error", "Unknown error")
-                else:
-                    # Fallback for unexpected success-like states
-                    link.status = "completed"
-            else:
-                link.status = "failed"
-                link.error_message = "Pipeline failed to produce any artifacts"
-
+            # Update legacy link status
+            link.status = "processing"
+            link.error_message = f"V3 Swarm Batch: {batch_id}"
             session.add(link)
             session.commit()
 
-            # 4. Optional: GraphRAG Post-processing (Triggered separately or as a stage)
-            # For now, we keep it simple. If 'vectorize' finished, we are largely done.
-            # Graph extraction could be a stage in create_ingestion_pipeline.
-
         except Exception as e:
-            logger.exception(f"💥 Critical Pipeline Error during Doc {doc_id} indexing")
+            logger.exception(f"💥 Critical Error during V3 Swarm Dispatch for Doc {doc_id}")
             link.status = "failed"
             link.error_message = str(e)
             session.add(link)

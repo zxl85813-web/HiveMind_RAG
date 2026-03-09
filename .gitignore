@@ -96,3 +96,12 @@ Thumbs.db
 
 # Docker overrides
 docker-compose.override.yml
+
+# Temporary/Backup Files
+tmp/
+*.bak
+routes.json
+backend/test_fastapi_request.py
+backend/routes_output.txt
+backend/start_data/chroma_db/
+*.sqlite3

@@ -1,0 +1,78 @@
+name: PR Auto Assigner
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+
+jobs:
+  assign_reviewers:
+    name: Assign Reviewers Based on Changed Files
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v44
+
+      - name: Auto Assign Reviewers via GitHub Script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 获取所有变更的文件列表
+            const changedFiles = '${{ steps.changed.outputs.all_changed_files }}'.split(' ');
+            
+            // 定义规则：如果你想让某个朋友专门 Review 前端，或者后端架构
+            // 把换成真实的 GitHub Username，例如 'your_friend_github_id'
+            const rules = [
+              {
+                paths: ['backend/app/schemas/', 'backend/app/models/', 'docs/architecture/'],
+                reviewers: ['zxl85813-web'], // 替换为项目架构负责人的 GitHub ID
+                message: '⚠️ **[Auto-Assign]** 检测到核心架构/API契约发生改变，已自动邀请架构负责人 Review。'
+              },
+              {
+                paths: ['frontend/src/components/', 'frontend/src/styles/'],
+                reviewers: [], // 替换为前端负责人的 GitHub ID，例如 ['frontend-dev-id']
+                message: '🎨 **[Auto-Assign]** 检测到核心 UI 组件发生改变，建议前端负责人 Review。'
+              }
+            ];
+
+            let reviewersToAdd = new Set();
+            let messages = [];
+
+            // 匹配文件
+            for (const file of changedFiles) {
+              for (const rule of rules) {
+                if (rule.paths.some(path => file.includes(path))) {
+                  rule.reviewers.forEach(r => reviewersToAdd.add(r));
+                  if (!messages.includes(rule.message)) {
+                    messages.push(rule.message);
+                  }
+                }
+              }
+            }
+
+            // 过滤掉 PR 提交者自己
+            const prAuthor = context.payload.pull_request.user.login;
+            reviewersToAdd.delete(prAuthor);
+
+            if (reviewersToAdd.size > 0) {
+              // 发送请求分配 Reviewers
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                reviewers: Array.from(reviewersToAdd)
+              });
+
+              // 在 PR 下方发表评论解释为何自动分配
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: messages.join('\n\n')
+              });
+            }

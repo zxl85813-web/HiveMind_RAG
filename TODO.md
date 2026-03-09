@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-06
+> 📅 最后更新: 2026-03-07
 
 ---
 
@@ -282,6 +282,17 @@
 - [x] ** Context Optimization**: 实现 "Lost in the Middle" 结果重排算法
 - [ ] ** Streaming UI 优化**: 增强打字机效果的流畅度与 Markdown 渲染性能
 
+#### Phase 5: 服务治理与高可用 (Service Governance) ⬜
+- ⬜ **读写分离与 CQRS 切分**: RAG Ingestion Pipeline (重IO) 与 Retrieval (低延迟读) 物理/微服务级别隔离，避免资源争抢。
+- ⬜ **动态熔断器 (Circuit Breaker)**: 针对 LLM/ES/Neo4j 设置超时与错误率阈值，触发时自动降级 (Fallback)至本地轻量级或缓存数据，防止雪崩。
+- ⬜ **分布式流控与压测**: 提供 API 路由级别的 Rate Limiting 与 Token 令牌桶机制配置。
+- ⬜ **Agent-Native LLM 智能路由 (ClawRouter 模式)**: 引入多维度加权评分引擎（Token量、复杂度、响应速度等），动态决定 Agent 请求走 `Eco` (如 GLM-4-flash) 还是 `Premium` 模型。
+- ⬜ **无感 LLM 降级容错**: 商业/主 API 不可用时，隐式回退至端侧开源模型或备用廉价线路，确保对话体验零中断。
+
+#### Phase 6: 前端与交互韧性 (Frontend Resilience) ⬜
+- ⬜ **组件级容错与断路 (Error Boundaries)**: Agent 流式请求失败时，停止空窗阻塞，展示可读的降级页面（例如离线/维护状态UI）。
+- ⬜ **状态树切分 (State Segmentation)**: 剥离重度计算的渲染状态 (如 ForceGraph) 与高频交互状态 (Chat Stream)，避免连锁卡顿渲染。
+
 #### 架构底座 (Philosophy Implementation)
 - ⬜ **Skill 纯函数化审计**: 确保 `app/skills/` 下所有逻辑无状态、无副作用
 - ⬜ **Agent 副作用隔离**: 统一由 `SwarmState` 和 `MemoryManager` 管理 Agent 的状态变迁
@@ -319,6 +330,42 @@
 - ⬜ **Self-Evolving Skills**: 实现“技能沉淀”机制，当 Agent 发现一种通用的工具编排模式时，自动将其保存为新的 `Skill` 并写入 `.agent/skills/` 目录。
 - ⬜ **End-to-End Visual Verification**: 为 Coding/UI Agent 集成 Puppeteer 视觉反馈，确保功能不仅“代码绿”而且“运行绿”。
 - ⬜ **Observability Trace Analytics**: 统计分析 Agent 的决策链路 (Thought -> Tool -> Result)，自动识别并标记“低效工具调用”或“逻辑循环陷阱”。
+
+### 2.1K Code Vault (代码资产知识库) (P1) — REQ-012 ⬜
+
+> 📄 需求文档: `docs/requirements/REQ-012-code-vault.md`
+
+- ⬜ **基础设施扩展**: 数据库新增 `AssetReview` 记录表，Neo4j 新增 `CodeAsset` 节点支持状态机流动（Draft -> Cross-Reviewing -> Online -> Deprecated）。
+- ⬜ **双引擎基座 (切分)**: ES/pgvector 负责海量代码片段和文档的语义匹配；Neo4j 构建代码本体依赖库（连通代码实现、功能设计、API设计文档）。
+- ⬜ **多维度映射追踪**: 在图谱中建立清晰的 `(Developer)-[:WROTE]->(CodeAsset)` 和 `(Designer)-[:DESIGNED]->(API)` 关系。
+- ⬜ **AI 打赏与正向反馈飞轮**: 当大模型成功引用了被用户赞(Liked)的底层资产时，自动给原代码/设计贡献者积分打赏奖励，形成防锈飞轮。
+- ⬜ **专项资产防重收口**: 开发前强校验并提取 `SQL` 脚本库和 `Common Utils` (通用工具集)，入库前通过 AST 分析与语义哈希阻止“重复造轮子”。 
+- ⬜ **定制化 Ingestion**: 开发 `CodeASTParserSkill` 和 `SwaggerIngestionSkill` 提取资产，区分 Common/Biz/SQL 类型。
+- ⬜ **RAG 引擎适配**: 检索时强制高优注入相关的 `SQL` 和 `Common` 资产供 AI 参考，并过滤低质量/未审核代码。
+- ⬜ **积分溯源回授**: 实现 AI 辅助生成代码后，对提供 Few-shot 上下文的源节点开发者给与积分打赏奖励飞轮。
+
+### 2.1L 数据入库微服务与 Swarm 重构 (V3 Ingestion) ⬜ (REQ-013)
+
+> 📄 详情参见开发日志: `docs/changelog/devlog/DEV-REQ-013-v3-architecture-refactor.md`
+> 🏛️ 契约与断路参考: `docs/architecture/data_microservice_governance.md`
+
+- ✅ **Phase 1: 监控与健康检查换核** 
+  - 移除 Langfuse，开发基于 Redis + PostgreSQL 的极简溯源(FileTrace/AgentSpan)系统。
+  - **[Governance]** 新增 KB 级健康检查接口: `GET /knowledge/{kb_id}/health` (结合检索精度与用户反馈评分)。
+- ✅ **Phase 2: 任务分片与调度 (Task Sharding)** 
+  - 引入 Celery/Redis 作为后台处理引擎，将 10 万大任务粉碎切分 (Sharding) 分发给独立 Worker。
+- ✅ **Phase 3: Native Swarm 流水线与断路器 (Circuit Breakers)** 
+  - 废弃僵化 `IngestionExecutor`，开发纯血 LangGraph 非线性 `IngestionOrchestrator`。
+  - **[Governance]** 针对外部不可控数据源（如外部爬虫/解析失败），引发超过设定阈值的异常时，在节点间引入容错与熔断降级。
+- ✅ **Phase 4: 全局隔离与人工抽检 (Data Isolation & HITL)** 
+  - 建立抽检队列表暂存置信度低的数据（取代让系统强行消化）；将修正后的经验推入 Redis 黑板进行集群共享同步。
+- ✅ **Phase 5: 清理遗留资产** 
+  - 彻底移除旧版基于代码插件遍历的编排层（`IngestionExecutor`、`PipelineMonitor` 等）。
+  - 已将 `knowledge.py` 预览接口切换至 V3 Observability 体系。
+
+> [!TIP]
+> **V3 Swarm 架构已正式上线**。系统现在具备极高的并行处理能力（Celery），并拥有原生 LangGraph 驱动的灵巧 Agent 协作能力。
+
 
 ### 2.2 对话与 AI 核心
 
@@ -480,6 +527,9 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ---
 
 ## 八、📝 变更日志 (按日期倒序)
+
+### 2026-03-07
+- 🚧 **架构重构规划** — 生成 V3 版分布式数据入库流转集群架构，产出 `DEV-REQ-013` 拆解方案，决议剥离 Langfuse、全面替换线型管道。
 
 ### 2026-03-06
 - ✅ **数据底座隔离** — 实现知识库读写与管理独立权限管理 (KB ACL)，从 API 层面拦截越权操作。

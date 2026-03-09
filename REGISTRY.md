@@ -144,7 +144,9 @@
 | `EmptyState` | Card + Typography | 统一空状态展示 | ✅ |
 | `StatusTag` | Tag | 统一状态标签 (8 种状态) | ✅ |
 
-### 领域组件
+### 领域组件 (⚠️ 注意: 涉及 AI 会话必须遵循 X-Skills 规范)
+
+> **[UI 组件红线]**: 所有在聊天交互流中出现的生成卡片，禁止手写正则匹配(例如 `[ACTION: xxx]`)。必须将组件注册到 `@ant-design/x-skill` 标准协议中，同时强制应用 `frontend-design` Skill 赋予高级视觉质感。
 
 | 名称 | 领域 | 描述 | 目录 | 状态 |
 |------|------|------|------|------|
@@ -291,6 +293,7 @@
 | REQ-009 RAG 进阶能力 | REQ-009 ✅ | `services/retrieval/`, `core/graph_store.py`, `services/memory/` | 待编写 | — | 🔲 |
 | REQ-010 数据脱敏体系 | REQ-010 ✅ | 待实现 | 待编写 | — | 🔲 |
 | REQ-011 变更履历 RAG | — | `services/indexing.py` | 待编写 | — | 🟡 |
+| REQ-012 Code Vault | REQ-012 ✅ | 待实现 | 待编写 | — | 🟡 |
 
 ---
 

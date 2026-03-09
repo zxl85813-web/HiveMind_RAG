@@ -375,32 +375,26 @@ async def get_document_preview(
     current_user: User = Depends(get_current_user),
 ):
     """Get the parsed text content of a document for preview."""
-    from app.models.pipeline_log import PipelineJob, PipelineStageLog
+    from app.models.observability import FileTrace, TraceStatus
     from sqlmodel import select, desc
-    import json
     
-    # 1. Get latest job for this doc
-    stmt = select(PipelineJob).where(PipelineJob.doc_id == doc_id).order_by(desc(PipelineJob.start_time))
+    # 1. Get latest trace for this doc_id
+    stmt = select(FileTrace).where(FileTrace.doc_id == doc_id).order_by(desc(FileTrace.created_at))
     res = await db.execute(stmt)
-    job = res.scalars().first()
-    if not job:
-        raise HTTPException(status_code=404, detail="No indexing job found for this document")
+    trace = res.scalars().first()
+    
+    if not trace:
+        raise HTTPException(status_code=404, detail="No indexing trace found for this document in V3 Swarm")
         
-    # 2. Get parse_content stage log
-    stmt = select(PipelineStageLog).where(
-        PipelineStageLog.job_id == job.id,
-        PipelineStageLog.stage_name == "parse_content"
-    )
-    res = await db.execute(stmt)
-    log = res.scalars().first()
-    if not log or not log.artifact_data_json:
-        raise HTTPException(status_code=404, detail="No parsed content found")
-        
-    try:
-        data = json.loads(log.artifact_data_json)
-        text = data.get("raw_text", "No raw text extracted.")
-        return ApiResponse.ok(data={"text": text, "job_id": job.id})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # 2. Extract preview text from result_data
+    result = trace.result_data or {}
+    text = result.get("raw_text", "No raw text extracted by Swarm.")
+    
+    return ApiResponse.ok(data={
+        "text": text, 
+        "trace_id": trace.id,
+        "status": trace.status,
+        "kb_id": trace.kb_id
+    })
 
 

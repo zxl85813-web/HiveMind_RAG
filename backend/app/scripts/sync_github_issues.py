@@ -64,11 +64,28 @@ def sync_req_to_github():
             else:
                 print(f"ℹ️ Skip: '{title}' already synced.")
 
-    # 2. Sync REQ-011 Subtasks from TODO.md
+    # 1.5. Sync REQ-012 Main Document
+    req_file_012 = get_base_dir() / "docs" / "requirements" / "REQ-012-code-vault.md"
+    if req_file_012.exists():
+        with open(req_file_012, "r", encoding="utf-8") as f:
+            content_012 = f.read()
+            title_012 = "REQ-012: Code Vault (代码资产知识库)"
+            if title_012 not in sync_map:
+                issue_num, url = create_issue(token, owner, repo, title_012, content_012, labels=["requirement", "P1"])
+                if issue_num:
+                    sync_map[title_012] = {"number": issue_num, "url": url}
+            else:
+                print(f"ℹ️ Skip: '{title_012}' already synced.")
+
+    # 2. Sync Subtasks from TODO.md
     subtasks = [
         ("REQ-011: ChangelogAwareParser", "Implement Excel/Word changelog extraction logic."),
         ("REQ-011: Context Multi-Stitching", "Inject extracted changelog info (Version/Date) into metadata of related chapter chunks."),
-        ("REQ-011: Changelog Summary Search", "Implement structured RAG search by time range, version, author, etc.")
+        ("REQ-011: Changelog Summary Search", "Implement structured RAG search by time range, version, author, etc."),
+        ("REQ-012: Task 1 - 基础设施扩展", "DB新增 AssetReview, Neo4j新增 CodeAsset, 增加状态机及资产类型枚举"),
+        ("REQ-012: Task 2 - 定制化 Ingestion", "开发 CodeASTParserSkill 和 SwaggerIngestionSkill，并实现 SQLAssetExtractor"),
+        ("REQ-012: Task 3 - 独立状态流转 API 及 UI", "开发资产审核状态机及各角色的管理控制台页面的 API"),
+        ("REQ-012: Task 4 - RAG 路由注入与积分打赏", "RAG 检索阶段强制注入 Common/SQL 资产，生成采用后计算贡献打赏源码作者")
     ]
     
     for st_title, st_desc in subtasks:
