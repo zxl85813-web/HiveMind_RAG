@@ -11,7 +11,7 @@ class InMemoryAbstractIndex:
 
     def route_query(self, tags):
         results = []
-        for doc_id, data in self.index.items():
+        for _doc_id, data in self.index.items():
             if set(tags).issubset(set(data["tags"])):
                 results.append(data)
         return results
