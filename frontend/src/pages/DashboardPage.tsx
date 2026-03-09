@@ -12,7 +12,7 @@
  * @see docs/design/ai-first-frontend.md
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Row, Col, Card, Typography, Flex } from 'antd';
 import {
     DatabaseOutlined,
@@ -26,9 +26,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { StatCard } from '../components/common';
-import { agentApi } from '../services/agentApi';
-import { knowledgeApi } from '../services/knowledgeApi';
-import { evalApi } from '../services/evalApi';
+// Removed unused API imports
 import { Tag, List, Progress } from 'antd';
 import styles from './DashboardPage.module.css';
 
@@ -65,10 +63,12 @@ export const DashboardPage: React.FC = () => {
             color: '#FFD166',
         },
     ];
-    const { data: stats, isLoading: statsLoading } = useDashboardStats();
-    const { data: reports, isLoading: reportsLoading } = useRecentReports();
+    // Mock stats until hooks are implemented
+    const stats = { kbs: 12, agents: 5, requests: 1250, discoveries: 34 };
+    const reports: any[] | undefined = undefined;
+    const loadingReports = false;
 
-    const recentReports = reports || [
+    const recentReports: any[] = reports || [
         { id: '1', kb_name: 'Core Docs', total_score: 0.85, created_at: new Date().toISOString() },
         { id: '2', kb_name: 'API Reference', total_score: 0.42, created_at: new Date().toISOString() }
     ];

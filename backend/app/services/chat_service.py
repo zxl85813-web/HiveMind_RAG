@@ -212,7 +212,7 @@ class ChatService:
         """
         from app.api.routes.agents import _swarm
         from app.services.cache_service import CacheService, TokenService
-        from app.services.trace_service import ChatTracer
+        from app.core.tracing import ChatTracer
         import time
 
         start_time = time.time()
@@ -297,35 +297,40 @@ class ChatService:
             try:
                 current_sub_step = None
                 async for output in _swarm.invoke_stream(request.message, context=context, history=history, conversation_id=conversation_id):
-                    if "retrieval" in output:
-                        ret_data = output["retrieval"]
-                        ret_logs = ret_data.get("retrieval_trace", [])
-                        ret_docs = ret_data.get("retrieved_docs", [])
-                        tracer.add_quick_step(
-                            "Memory Retrieval", 
-                            "Searching Radar/Graph/Vector Store", 
-                            "retrieval",
-                            metadata={
-                                "logs": ret_logs,
-                                "docs": ret_docs
-                            } if (ret_logs or ret_docs) else None
-                        )
-                        yield f"data: {json.dumps({'type': 'status', 'content': '🔍 正在检索多级记忆库 (Radar/Graph/Vector)...'})}\n\n"
-                    
-                    if "supervisor" in output:
-                        decision = output["supervisor"]
-                        next_agent = decision.get("next_step")
-                        if next_agent and next_agent != "FINISH":
-                            tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
-                            yield f"data: {json.dumps({'type': 'status', 'content': f'👨‍✈️ 编排器决策: 由 {next_agent} 处理回复'})}\n\n"
-                    
-                    # Handle Phase 5: Task Progress Updates
+                    # --- Thought Chain & Status Mapping ---
                     for node_name, updates in output.items():
-                        if isinstance(updates, dict) and "status_update" in updates and updates["status_update"]:
+                        if not isinstance(updates, dict):
+                            continue
+                            
+                        # 1. Primary Thought Log (Architecture Internal)
+                        if "thought_log" in updates and updates["thought_log"]:
+                            yield f"data: {json.dumps({'type': 'status', 'content': updates['thought_log']})}\n\n"
+                            
+                        # 2. Legacy Status Updates
+                        if "status_update" in updates and updates["status_update"]:
                             yield f"data: {json.dumps({'type': 'status', 'content': updates['status_update']})}\n\n"
+
+                        # 3. Node Specific Mapping
+                        if node_name == "retrieval":
+                            ret_logs = updates.get("retrieval_trace", [])
+                            ret_docs = updates.get("retrieved_docs", [])
+                            tracer.add_quick_step(
+                                "Memory Retrieval", 
+                                "Searching Radar/Graph/Vector Store", 
+                                "retrieval",
+                                metadata={"logs": ret_logs, "docs": ret_docs} if (ret_logs or ret_docs) else None
+                            )
+                            yield f"data: {json.dumps({'type': 'status', 'content': '🔍 检索核心资产库中...' if not ret_docs else f'📚 找到 {len(ret_docs)} 相关条目'})}\n\n"
+                        
+                        if node_name == "supervisor":
+                            next_agent = updates.get("next_step")
+                            if next_agent and next_agent != "FINISH":
+                                tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
+                                # yield f"data: {json.dumps({'type': 'status', 'content': f'👨‍✈️ 编排决策: 由 {next_agent} 处理回复'})}\n\n" # Combined with thought_log now
                     
+                    # --- Content Stream Handling ---
                     for node_name, updates in output.items():
-                        if node_name not in ["retrieval", "supervisor", "reflection"]:
+                        if node_name not in ["retrieval", "supervisor", "reflection", "pre_processor"]:
                             if "messages" in updates:
                                 raw_content = updates["messages"][-1].content
                                 if policy_rules:
@@ -336,11 +341,21 @@ class ChatService:
                                 
                                 # --- AI-First Refinement: Clean up internal model tags (M2.1H) ---
                                 import re
+                                
+                                # Detect and yield thinking content if model uses <think> or <thought> tags
+                                # (Note: This is a simplified version; real-time extraction from partial chunks is harder)
+                                thinking_match = re.search(r'<(think|thought)>(.*?)</\1>', content, re.DOTALL)
+                                if thinking_match:
+                                    think_content = thinking_match.group(2).strip()
+                                    if think_content:
+                                        yield f"data: {json.dumps({'type': 'status', 'content': f'🤔 思考: {think_content[:150]}...'})}\n\n"
+                                
                                 # Remove common leaked internal tags from models like DeepSeek (e.g., <|tool_calls_begin|>)
-                                # Added Unicode variants check (｜ and |) for robustness
                                 content = re.sub(r'<[\|｜].*?[\|｜]>', '', content)
                                 content = content.replace('< | tool_calls_begin | >', '')
                                 content = content.replace('< | tool_calls_end | >', '')
+                                # Also strip the thinking tags for final display
+                                content = re.sub(r'<(think|thought)>.*?</\1>', '', content, flags=re.DOTALL)
                                 
                                 # Skip if result is just empty tags or whitespace
                                 if not content.strip():

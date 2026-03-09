@@ -15,6 +15,7 @@ import { ConfigProvider, theme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { Routes, Route } from 'react-router-dom';
 
+import { XProvider } from '@ant-design/x';
 import { AppLayout } from './components/common/AppLayout';
 import { LoadingState } from './components/common/LoadingState';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -101,33 +102,35 @@ const appTheme = {
 
 function App() {
   return (
-    <ConfigProvider theme={appTheme} locale={zhCN}>
-      <AntApp>
-        <ErrorBoundary>
-          <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
-            <Routes>
-              <Route path="/" element={<AppLayout />}>
-                {/* Dashboard 是默认首页 */}
-                <Route index element={<DashboardPage />} />
-                {/* 功能页面 — Chat Panel 始终跟随 */}
-                <Route path="knowledge" element={<KnowledgePage />} />
-                <Route path="studio" element={<StudioPage />} />
-                <Route path="agents" element={<AgentsPage />} />
-                <Route path="batch" element={<BatchPage />} />
-                <Route path="learning" element={<LearningPage />} />
-                <Route path="audit" element={<AuditPage />} />
-                <Route path="security" element={<SecurityPage />} />
-                <Route path="evaluation" element={<EvalPage />} />
-                <Route path="finetuning" element={<FineTuningPage />} />
-                <Route path="pipelines" element={<PipelineBuilderPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-              </Route>
-            </Routes>
-          </Suspense>
-        </ErrorBoundary>
-        <MockControl />
-      </AntApp>
-    </ConfigProvider>
+    <XProvider>
+      <ConfigProvider theme={appTheme} locale={zhCN}>
+        <AntApp>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
+              <Routes>
+                <Route path="/" element={<AppLayout />}>
+                  {/* Dashboard 是默认首页 */}
+                  <Route index element={<DashboardPage />} />
+                  {/* 功能页面 — Chat Panel 始终跟随 */}
+                  <Route path="knowledge" element={<KnowledgePage />} />
+                  <Route path="studio" element={<StudioPage />} />
+                  <Route path="agents" element={<AgentsPage />} />
+                  <Route path="batch" element={<BatchPage />} />
+                  <Route path="learning" element={<LearningPage />} />
+                  <Route path="audit" element={<AuditPage />} />
+                  <Route path="security" element={<SecurityPage />} />
+                  <Route path="evaluation" element={<EvalPage />} />
+                  <Route path="finetuning" element={<FineTuningPage />} />
+                  <Route path="pipelines" element={<PipelineBuilderPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+          <MockControl />
+        </AntApp>
+      </ConfigProvider>
+    </XProvider>
   );
 }
 

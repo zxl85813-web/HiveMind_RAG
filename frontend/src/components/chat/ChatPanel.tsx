@@ -3,8 +3,8 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, List, Modal, Timeline } from 'antd';
-import { Bubble, Sender, Prompts } from '@ant-design/x';
+import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Modal, Timeline } from 'antd';
+import { Bubble, Sender, Prompts, ThoughtChain, Welcome, Conversations, Actions, CodeHighlighter } from '@ant-design/x';
 import { useXChat } from '@ant-design/x-sdk';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,7 +21,6 @@ import {
     DislikeFilled,
     HistoryOutlined,
     PlusOutlined,
-    DeleteOutlined,
 } from '@ant-design/icons';
 
 import { useChatStore } from '../../stores/chatStore';
@@ -30,7 +29,7 @@ import { chatApi } from '../../services/chatApi';
 import { memoryApi } from '../../services/memoryApi';
 import { GraphVisualizer } from '../knowledge/GraphVisualizer';
 import { matchQuickCommand } from '../../config/quickCommands';
-import { useConversations, useConversationDetails, useDeleteConversation, useSubmitFeedback } from '../../hooks/useChatData';
+import { useConversations, useConversationDetails, useSubmitFeedback } from '../../hooks/useChatData';
 import styles from './ChatPanel.module.css';
 import { useTranslation } from 'react-i18next';
 
@@ -53,7 +52,6 @@ export const ChatPanel: React.FC = () => {
     // === React Query Hooks ===
     const { data: conversations, refetch: refetchConversations } = useConversations();
     const { data: historyMessages } = useConversationDetails(currentConversationId);
-    const deleteMutation = useDeleteConversation();
     const feedbackMutation = useSubmitFeedback();
 
     // === X-Chat Hook ===
@@ -84,7 +82,7 @@ export const ChatPanel: React.FC = () => {
     const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
     const [graphData, setGraphData] = useState<any>(null);
     const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
-    const [currentTrace, setCurrentTrace] = useState<any[]>([]);
+    const [currentTrace] = useState<any[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     /** 滚动触底 */
@@ -129,6 +127,7 @@ export const ChatPanel: React.FC = () => {
 
         setIsGenerating(true);
         let fullContent = '';
+        let thoughtChainItems: any[] = [];
 
         try {
             await chatApi.streamChat({
@@ -161,6 +160,28 @@ export const ChatPanel: React.FC = () => {
                     if (tagMatch && tagMatch[1]) {
                         const tags = tagMatch[1].split(',').map(t => t.trim());
                         setRadarTags(prev => [...new Set([...prev, ...tags])]);
+                    } else {
+                        // Handle think tags or generic status
+                        let title = status;
+                        let content = undefined;
+
+                        if (status.includes('🤔') || status.includes('💡') || status.includes('💭') || status.includes('⚡')) {
+                            title = status;
+                        } else if (status.startsWith('<think>')) {
+                            title = '🤔 内部思考';
+                            content = status.replace(/<\/?think>/g, '').trim();
+                        } else {
+                            title = `⚡ ${status}`;
+                        }
+
+                        thoughtChainItems.push({
+                            key: `thought-${thoughtChainItems.length}`,
+                            title,
+                            content,
+                            status: 'success'
+                        });
+
+                        setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: [...thoughtChainItems] } } : m));
                     }
                 },
                 onSessionCreated: (id) => {
@@ -190,6 +211,7 @@ export const ChatPanel: React.FC = () => {
         }
     };
 
+    // @ts-ignore: Keep for memory graph feature
     const fetchRealGraph = async () => {
         if (radarTags.length === 0) return;
         try {
@@ -206,25 +228,15 @@ export const ChatPanel: React.FC = () => {
     };
 
     const historyContent = (
-        <div style={{ width: 280, maxHeight: 400, overflowY: 'auto' }}>
-            <List
-                dataSource={conversations}
-                size="small"
-                renderItem={(item: any) => (
-                    <List.Item
-                        className={styles.historyItem}
-                        style={{ background: currentConversationId === item.id ? 'var(--ant-color-primary-bg)' : 'transparent', cursor: 'pointer' }}
-                        onClick={() => setCurrentConversation(item.id)}
-                        actions={[
-                            <DeleteOutlined key="delete" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(item.id); }} />
-                        ]}
-                    >
-                        <List.Item.Meta
-                            title={<Text strong ellipsis={{ tooltip: item.title }}>{item.title}</Text>}
-                            description={<Text type="secondary" style={{ fontSize: 12 }} ellipsis>{item.last_message_preview}</Text>}
-                        />
-                    </List.Item>
-                )}
+        <div style={{ width: 280, maxHeight: 400, overflowY: 'auto', padding: '4px 0' }}>
+            <Conversations
+                items={(conversations || []).map((item: any) => ({
+                    key: item.id,
+                    label: item.title,
+                    description: item.last_message_preview,
+                }))}
+                activeKey={currentConversationId || undefined}
+                onActiveChange={(key) => setCurrentConversation(key)}
             />
         </div>
     );
@@ -265,14 +277,17 @@ export const ChatPanel: React.FC = () => {
 
             <div className={styles.messagesArea}>
                 {messages.length === 0 ? (
-                    <Flex vertical align="center" justify="center" className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>⬡</div>
-                        <Text className={styles.emptyTitle}>HiveMind AI</Text>
-                        <Text type="secondary">当前在「{context.pageTitle}」页面，有什么可以帮你的？</Text>
+                    <div className={styles.emptyState}>
+                        <Welcome
+                            variant="borderless"
+                            icon={<div className={styles.emptyIcon}>⬡</div>}
+                            title="HiveMind AI"
+                            description={`当前在「${context.pageTitle}」页面，有什么可以帮你的？`}
+                        />
                         {contextPrompts.length > 0 && (
                             <Prompts items={contextPrompts} onItemClick={(info) => { if (info.data.description) handleSend(info.data.description as string); }} wrap className={styles.contextPrompts} />
                         )}
-                    </Flex>
+                    </div>
                 ) : (
                     <Bubble.List
                         items={messages.map((msg: any, idx) => {
@@ -285,8 +300,28 @@ export const ChatPanel: React.FC = () => {
                                 loading: loading && !msg.message,
                                 content: (
                                     <Flex vertical gap={8}>
+                                        {msg.metadata?.thoughtChain && msg.metadata.thoughtChain.length > 0 && (
+                                            <ThoughtChain items={msg.metadata.thoughtChain} />
+                                        )}
                                         <div className={styles.markdownBody}>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                rehypePlugins={[rehypeHighlight]}
+                                                components={{
+                                                    code({ node, inline, className, children, ...props }: any) {
+                                                        const match = /language-(\w+)/.exec(className || '');
+                                                        return !inline && match ? (
+                                                            <CodeHighlighter lang={match[1]} {...props}>
+                                                                {String(children).replace(/\n$/, '')}
+                                                            </CodeHighlighter>
+                                                        ) : (
+                                                            <code className={className} {...props}>
+                                                                {children}
+                                                            </code>
+                                                        );
+                                                    }
+                                                }}
+                                            >
                                                 {msg.message || (loading ? '...' : '')}
                                             </ReactMarkdown>
                                         </div>
@@ -296,14 +331,20 @@ export const ChatPanel: React.FC = () => {
                                             </Flex>
                                         )}
                                         {msg.role === 'assistant' && msg.id && msg.id.indexOf('usr-') === -1 && !loading && (
-                                            <Flex gap={8}>
-                                                <Tooltip title={t('chat.feedback.good')}>
-                                                    {msg.rating === 1 ? <LikeFilled style={{ color: '#1890ff', cursor: 'pointer' }} /> : <LikeOutlined style={{ cursor: 'pointer' }} onClick={() => handleFeedback(msg.id!, 1)} />}
-                                                </Tooltip>
-                                                <Tooltip title={t('chat.feedback.bad')}>
-                                                    {msg.rating === -1 ? <DislikeFilled style={{ color: '#ff4d4f', cursor: 'pointer' }} /> : <DislikeOutlined style={{ cursor: 'pointer' }} onClick={() => handleFeedback(msg.id!, -1)} />}
-                                                </Tooltip>
-                                            </Flex>
+                                            <Actions
+                                                items={[
+                                                    {
+                                                        key: 'good',
+                                                        icon: msg.rating === 1 ? <LikeFilled style={{ color: '#1890ff' }} /> : <LikeOutlined />,
+                                                        onItemClick: () => handleFeedback(msg.id!, 1)
+                                                    },
+                                                    {
+                                                        key: 'bad',
+                                                        icon: msg.rating === -1 ? <DislikeFilled style={{ color: '#ff4d4f' }} /> : <DislikeOutlined />,
+                                                        onItemClick: () => handleFeedback(msg.id!, -1)
+                                                    }
+                                                ]}
+                                            />
                                         )}
                                     </Flex>
                                 ),

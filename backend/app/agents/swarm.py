@@ -125,6 +125,7 @@ class SwarmState(TypedDict):
 
     # --- Phase 5: Task Progress ---
     status_update: str | None
+    thought_log: str | None
     
     # --- Phase 7: Permission Guard ---
     user_id: str | None
@@ -400,6 +401,7 @@ class SwarmOrchestrator:
                     "current_task": action,
                     "context_data": reply_template,  # Pass template to the action node
                     "last_node_id": "supervisor_fast",
+                    "thought_log": f"⚡ 快速匹配: 检测到平台操作指令 '{keywords[0]}'"
                 }
 
         # === Regular Path: Use LLM for routing ===
@@ -501,12 +503,16 @@ class SwarmOrchestrator:
 
         logger.info(f"🗺️ Supervisor planned {len(decision.planned_steps)} steps")
 
+        import uuid
+        node_id = f"supervisor_{uuid.uuid4().hex[:6]}"
+
         return {
             "next_step": next_step,
             "uncertainty_level": decision.uncertainty,
             "current_task": decision.task_refinement,
             "last_node_id": node_id,
-            "status_update": f"🗺️ Supervisor planned {len(decision.planned_steps)} steps" if decision.planned_steps else None
+            "status_update": f"🗺️ Supervisor planned {len(decision.planned_steps)} steps" if decision.planned_steps else None,
+            "thought_log": f"👨‍✈️ 决策路径: {decision.reasoning}"
         }
 
     # ============================================================
@@ -575,7 +581,12 @@ class SwarmOrchestrator:
                 if not response.tool_calls:
                     break
                 
-                logger.info(f"🛠️ Agent [{agent_def.name}] calling tools: {[tc['name'] for tc in response.tool_calls]}")
+                tool_names = [tc['name'] for tc in response.tool_calls]
+                logger.info(f"🛠️ Agent [{agent_def.name}] calling tools: {tool_names}")
+                
+                # --- Immediate Thought Update for Tools ---
+                # We can't easily yield from here, but we can put it in a log list if we use Annotated
+                # For now, we rely on the node completion or the next iteration
                 
                 for tool_call in response.tool_calls:
                     tool_name = tool_call["name"]
@@ -993,6 +1004,8 @@ class SwarmOrchestrator:
             "retrieval_trace": [],
             "retrieved_docs": [],
             "status_update": None,
+            "thought_log": None,
+            "user_id": context.get("user_id") if context else None,
         }
 
         # Execute the graph with config for checkpointer
@@ -1045,6 +1058,8 @@ class SwarmOrchestrator:
             "retrieval_trace": [],
             "retrieved_docs": [],
             "status_update": None,
+            "thought_log": None,
+            "user_id": context.get("user_id") if context else None,
         }
 
         # Use LangGraph's streaming mode with config
