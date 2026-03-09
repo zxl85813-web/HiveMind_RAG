@@ -49,6 +49,7 @@
 - ⬜ **A3.1（提示词结构）**：Head-Tail Prompt Anchoring（关键约束前后锚点）
 - ⬜ **A4（反馈闭环）**：正向反馈自动沉淀为 EvaluationItem
 - ⬜ **A5（观测收口）**：V3 Trace + 质量监控面板接入
+- ⬜ **A6（边做边学）**：按 `docs/LEARNING_PATH.md` 逐关完成实操练习，补全中级/进阶检验项
 
 ### 0.3 Agent 完成定义（DoD）
 
