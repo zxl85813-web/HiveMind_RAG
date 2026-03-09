@@ -6,8 +6,6 @@ Create Date: 2026-02-24 14:00:36.642419
 
 """
 
-# ruff: noqa: E501
-
 from collections.abc import Sequence
 
 import sqlalchemy as sa
