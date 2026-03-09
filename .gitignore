@@ -105,3 +105,4 @@ backend/test_fastapi_request.py
 backend/routes_output.txt
 backend/start_data/chroma_db/
 *.sqlite3
+.checkpoints/
