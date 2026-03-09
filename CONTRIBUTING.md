@@ -136,6 +136,12 @@ npm run test:unit
 3. **所有 CI 检查绿色通过**。
 4. **0 个未解决的 Review 评论**。
 
+### ✅ 极简 PR Checklist（提交前 30 秒）
+
+- [ ] **任务态已更新**：`TODO.md` 已标记本次任务进度（完成/阻塞/搁置）
+- [ ] **资产态已同步**：若有 API/模型/服务/组件变更，`REGISTRY.md` 已登记
+- [ ] **闭环已建立**：PR 描述已关联对应 Issue/REQ/DES/OpenSpec 之一
+
 ### Review 检查项
 
 #### 🔍 逻辑审查

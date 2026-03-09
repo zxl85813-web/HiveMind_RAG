@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-07
+> 📅 最后更新: 2026-03-09
 
 ---
 
@@ -22,6 +22,38 @@
 | 🔴 | 已废弃 / 不再需要 |
 | 🐛 | 已知 Bug / 需要修复 |
 | ⏸️ | 暂时搁置 (有明确原因) |
+
+---
+
+## 0、🤖 Agent 架构重整看板（系统入口）
+
+> 目标：把“功能清单式 TODO”重整为“Agent 分层执行看板”，便于 Supervisor 统一编排、Worker 并行执行、Reflection 验收闭环。
+> 说明：本节是**唯一调度入口**；原有各章节继续保留为实现明细。
+
+### 0.1 分层视图（Now / Next / Later）
+
+| 层级 | 负责人 Agent | Now（本周） | Next（下阶段） | Later（储备） |
+|------|-------------|-------------|----------------|---------------|
+| 编排层（Orchestration） | Supervisor | ⬜ 建立任务路由矩阵（RAG/Code/Web/Ops）并绑定优先级 | ⬜ 引入“阻塞自动升级”策略（BLOCKED 自动建单） | ⬜ 任务成本感知路由（按延迟/费用动态分派） |
+| 执行层（Workers） | RAG/Code/Web Worker | ⬜ 完成检索策略 A/B 测试基线 | ⬜ 标签→Pipeline 自动匹配规则 | ⬜ Self-RAG 自适应策略增强 |
+| 记忆层（Memory） | Memory Agent | ⬜ 明确会话短记忆与评估长记忆写入边界 | ⬜ 正向反馈自动沉淀到评估集（M2.1F） | ⬜ 跨会话用户画像记忆治理 |
+| 评审层（Reflection） | Reflection Agent | ⬜ 将自动审核规则引擎接入统一评分卡 | ⬜ Multi-Grader 三评分器联调（Code/Model/Human） | ⬜ 失败样本自动回灌提示词优化 |
+| 治理层（Governance） | Governance Agent | ⬜ 修复 BUG-004（同步 Session → AsyncSession） | ⬜ 脱敏策略按知识库隔离配置 | ⬜ 安全等级 L1-L4 全链路联动 |
+| 可观测层（Observability） | Observability Agent | ⬜ 增加检索命中率/空结果率/延迟指标面板 | ⬜ LangFuse 全链路 Trace 集成 | ⬜ 质量-成本联合优化看板 |
+
+### 0.2 本周执行序列（按依赖排序）
+
+- ⬜ **A1（阻塞修复）**：`BUG-004` 异步化改造（先解除潜在性能阻塞）
+- ⬜ **A2（质量基线）**：自动审核规则引擎 + 三档路由联调
+- ⬜ **A3（检索效果）**：Retrieval A/B 对照实验 + 指标落库
+- ⬜ **A4（反馈闭环）**：正向反馈自动沉淀为 EvaluationItem
+- ⬜ **A5（观测收口）**：LangFuse + 质量监控面板接入
+
+### 0.3 Agent 完成定义（DoD）
+
+- ⬜ 每项任务必须包含：路由归属（Supervisor 决策）+ 执行日志（Worker）+ 评审结论（Reflection）
+- ⬜ 每项任务必须关联：Issue/REQ/DES/OpenSpec 至少一种工件
+- ⬜ 每项任务完成后必须更新：`TODO.md` + `REGISTRY.md`（若涉及接口/模型变更）
 
 ---
 
