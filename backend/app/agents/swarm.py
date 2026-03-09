@@ -522,9 +522,9 @@ class SwarmOrchestrator:
             "uncertainty_level": decision.uncertainty,
             "current_task": decision.task_refinement,
             "last_node_id": node_id,
-            "status_update": f"🗺️ Supervisor planned {len(decision.planned_steps)} steps"
-            if decision.planned_steps
-            else None,
+            "status_update": (
+                f"🗺️ Supervisor planned {len(decision.planned_steps)} steps" if decision.planned_steps else None
+            ),
             "thought_log": f"👨‍✈️ 决策路径: {decision.reasoning}",
         }
 

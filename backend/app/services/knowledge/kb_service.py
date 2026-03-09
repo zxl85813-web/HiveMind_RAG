@@ -55,9 +55,11 @@ class KnowledgeService:
                 or_(
                     KnowledgeBasePermission.user_id == current_user.id,
                     KnowledgeBasePermission.role_id == current_user.role,
-                    KnowledgeBasePermission.department_id == current_user.department_id
-                    if current_user.department_id
-                    else False,
+                    (
+                        KnowledgeBasePermission.department_id == current_user.department_id
+                        if current_user.department_id
+                        else False
+                    ),
                 ),
             )
             conditions.append(KnowledgeBase.id.in_(acl_stmt))

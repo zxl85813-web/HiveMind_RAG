@@ -2,7 +2,6 @@
 Knowledge Base management endpoints.
 """
 
-
 import os
 import uuid
 from collections.abc import Sequence
@@ -355,16 +354,12 @@ async def get_knowledge_graph(
             if r:
                 links.append(
                     {
-                        "source": r[0].element_id
-                        if hasattr(r[0], "element_id")
-                        else r[0].id
-                        if hasattr(r[0], "id")
-                        else r[0],
-                        "target": r[2].element_id
-                        if hasattr(r[2], "element_id")
-                        else r[2].id
-                        if hasattr(r[2], "id")
-                        else r[2],
+                        "source": (
+                            r[0].element_id if hasattr(r[0], "element_id") else r[0].id if hasattr(r[0], "id") else r[0]
+                        ),
+                        "target": (
+                            r[2].element_id if hasattr(r[2], "element_id") else r[2].id if hasattr(r[2], "id") else r[2]
+                        ),
                         "type": r[1].type if hasattr(r[1], "type") else "RELATED",
                     }
                 )

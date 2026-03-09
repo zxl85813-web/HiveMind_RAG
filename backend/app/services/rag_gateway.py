@@ -20,9 +20,9 @@ class RAGGateway:
     """
 
     _instances: ClassVar[dict[str, "RAGGateway"]] = {}
-    _circuit_breakers: ClassVar[
-        dict[str, dict[str, float | int | str]]
-    ] = {}  # kb_id -> {fail_count, last_fail_time, state}
+    _circuit_breakers: ClassVar[dict[str, dict[str, float | int | str]]] = (
+        {}
+    )  # kb_id -> {fail_count, last_fail_time, state}
 
     def __init__(self):
         self.pipeline = RetrievalPipeline()

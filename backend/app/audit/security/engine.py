@@ -113,9 +113,11 @@ class DesensitizationEngine:
             preview_len = min(6, len(item.original_text))
             record = {
                 "detector_type": item.detector_type,
-                "original_text_preview": item.original_text[:preview_len] + "..."
-                if len(item.original_text) > preview_len
-                else item.original_text,
+                "original_text_preview": (
+                    item.original_text[:preview_len] + "..."
+                    if len(item.original_text) > preview_len
+                    else item.original_text
+                ),
                 "redacted_text": redacted_value,
                 "start_index": item.start_index,
                 "end_index": item.end_index,

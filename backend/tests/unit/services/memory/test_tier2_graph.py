@@ -26,14 +26,12 @@ async def test_extract_and_store(mock_graph_store, mock_llm_service):
     from app.services.memory.tier.graph_index import GraphIndex
 
     # Mock LLM returning valid schema
-    mock_llm_service.chat_complete = AsyncMock(
-        return_value="""
+    mock_llm_service.chat_complete = AsyncMock(return_value="""
     {
         "nodes": [{"id": "Alice", "label": "Person", "name": "Alice"}],
         "edges": [{"source": "Alice", "target": "Bob", "type": "KNOWS", "description": "friends"}]
     }
-    """
-    )
+    """)
 
     index = GraphIndex()
     # Need to mock the internal store to be our mock_graph_store
