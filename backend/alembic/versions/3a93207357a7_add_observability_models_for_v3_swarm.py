@@ -5,18 +5,18 @@ Revises: 5385c217a208
 Create Date: 2026-03-07 14:43:04.390119
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 import sqlmodel
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '3a93207357a7'
-down_revision: Union[str, None] = '5385c217a208'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = '5385c217a208'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -25,7 +25,11 @@ def upgrade() -> None:
     sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('batch_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('file_path', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'PENDING_REVIEW', name='tracestatus'), nullable=False),
+    sa.Column(
+        'status',
+        sa.Enum('PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'PENDING_REVIEW', name='tracestatus'),
+        nullable=False,
+    ),
     sa.Column('total_tokens', sa.Integer(), nullable=False),
     sa.Column('latency_ms', sa.Float(), nullable=False),
     sa.Column('error_message', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
@@ -50,7 +54,11 @@ def upgrade() -> None:
     sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('trace_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('agent_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('action_type', sa.Enum('LLM_CALL', 'TOOL_INVOKE', 'ROUTER', 'AGENT_NODE', name='spantype'), nullable=False),
+    sa.Column(
+        'action_type',
+        sa.Enum('LLM_CALL', 'TOOL_INVOKE', 'ROUTER', 'AGENT_NODE', name='spantype'),
+        nullable=False,
+    ),
     sa.Column('payload', sa.JSON(), nullable=False),
     sa.Column('tokens', sa.Integer(), nullable=False),
     sa.Column('latency_ms', sa.Float(), nullable=False),

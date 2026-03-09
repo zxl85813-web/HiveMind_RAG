@@ -6,12 +6,14 @@ from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from sqlmodel import SQLModel
 
 from alembic import context
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.models.pipeline_log import PipelineJob, PipelineStageLog  # noqa: F401
+
 from app.core.config import settings
 from app.models.agents import ReflectionEntry, TodoItem  # noqa: F401
 
@@ -25,7 +27,6 @@ from app.models.knowledge import (  # noqa: F401
     KnowledgeBaseDocumentLink,
 )
 from app.models.pipeline_config import PipelineConfig  # noqa: F401
-from app.models.pipeline_log import PipelineJob, PipelineStageLog  # noqa: F401
 from app.models.security import (  # noqa: F401
     AuditLog,
     DesensitizationPolicy,
