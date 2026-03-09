@@ -121,6 +121,28 @@ Hook 文件位于 `.agent/hooks/`。
 
 ---
 
+## 团队协作与交付自动化（已合并）
+
+以下协作与交付内容已统一收敛到：
+
+- [collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
+
+其中包含：
+
+- Issue 驱动协作与 PR 规则
+- 分支保护与 CI 门禁
+- GitHub 自动化（Dependabot、Projects、PR 自动标注）
+- TODO 到 Milestone 的同步脚本使用方式
+- 高可用里程碑任务模板（路由熔断、CQRS、前端韧性、Code Vault）
+
+执行要求（强制）：
+
+- 所有功能开发必须绑定 Issue，并在 PR 中使用 `Closes #ID`
+- `main` 分支禁止直推，必须经 PR + 状态检查
+- Sprint 计划必须落到 Milestone 或 TODO（至少一处可追踪）
+
+---
+
 ## 代码位置索引
 
 | 组件 | 路径 |
@@ -132,6 +154,7 @@ Hook 文件位于 `.agent/hooks/`。
 | 需求文档 | `docs/requirements/REQ-NNN.md` |
 | 模块注册表 | `REGISTRY.md` |
 | TODO 看板 | `TODO.md` |
+| 协作与交付手册 | `docs/guides/collaboration_and_delivery_playbook.md` |
 
 ---
 

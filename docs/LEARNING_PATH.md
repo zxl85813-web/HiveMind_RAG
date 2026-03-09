@@ -17,6 +17,85 @@
 
 ---
 
+## 渐进式披露（防脱节版）
+
+这份文档按 **L0 -> L4** 层层展开。规则只有一条：
+**每一层都必须同时给出「上层入口、当前实现、下层深挖、验证方式」**。
+
+### L0：系统地图（先知道全局）
+
+- 目标：5 分钟看懂系统边界和核心组件
+- 文档入口：
+   - [docs/SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md)
+   - [docs/architecture.md](./architecture.md)
+- 代码入口：
+   - [backend/app/main.py](../backend/app/main.py)
+   - [frontend/src](../frontend/src)
+- 验证方式：能说清「请求从 API 到 Agent 到检索再回包」的主链路
+
+### L1：能力地图（再看模块职责）
+
+- 目标：知道每个能力由谁负责、边界在哪
+- 文档入口：
+   - [docs/AGENT_GOVERNANCE.md](./AGENT_GOVERNANCE.md)
+   - [docs/DATA_GOVERNANCE.md](./DATA_GOVERNANCE.md)
+   - [docs/DEV_GOVERNANCE.md](./DEV_GOVERNANCE.md)
+- 代码入口：
+   - [backend/app/agents](../backend/app/agents)
+   - [backend/app/services/retrieval](../backend/app/services/retrieval)
+   - [skills/](../skills/)
+- 验证方式：能指出一个需求应落到哪个模块而不是“全仓库搜索乱改”
+
+### L2：流程地图（再看运行时怎么流动）
+
+- 目标：理解一个问题在系统里经过的步骤
+- 文档入口：本文件各章节（RAG、Swarm、LangGraph、Prompt、MCP）
+- 代码入口：
+   - [backend/app/agents/swarm.py](../backend/app/agents/swarm.py)
+   - [backend/app/services/retrieval/pipeline.py](../backend/app/services/retrieval/pipeline.py)
+   - [backend/app/prompts/templates/agent_task.j2](../backend/app/prompts/templates/agent_task.j2)
+- 验证方式：能画出一条时序并定位关键状态字段（如 `SwarmState`）
+
+### L3：实现地图（最后看具体实现点）
+
+- 目标：能改动一个点并预测影响
+- 文档要求（每个模块最少写这 4 行）：
+   - `上层关联`：我属于哪个 L1/L2 能力或流程
+   - `代码锚点`：精确到文件 + 类/函数名
+   - `测试锚点`：对应测试文件或验证脚本
+   - `下层入口`：继续深挖要看哪个文件
+- 验证方式：改一行逻辑后，能快速找到需要回归的测试
+
+### L4：证据层（测试、日志、实验）
+
+- 目标：让结论可复现，不靠“感觉”
+- 证据入口：
+   - `backend/tests/`
+   - `tmp/ruff_backend_report*.json`
+   - `docs/reviews/` 与 `docs/changelog/`
+- 验证方式：任何文档结论都能追溯到测试或实验记录
+
+### 双向追踪最小规范（建议执行）
+
+每个重要文档段落都加一行：
+
+```text
+实现锚点: backend/app/services/retrieval/pipeline.py::_resolve_steps
+测试锚点: backend/tests/.../test_xxx.py::test_xxx
+上层文档: docs/architecture.md
+下层文档: docs/LEARNING_PATH.md
+```
+
+每个关键代码模块都加一行注释或模块文档指针（任选其一）：
+
+```python
+# Doc: docs/LEARNING_PATH.md#第二关检索管道的-8-个步骤
+```
+
+这样做的结果是：从文档能跳到代码，从代码也能回到文档，不会出现“看懂概念却找不到实现”的断层。
+
+---
+
 ## 第一关：RAG 是什么？为什么需要它？
 
 ### 概念（2 分钟）

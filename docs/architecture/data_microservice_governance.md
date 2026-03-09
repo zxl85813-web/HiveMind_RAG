@@ -483,8 +483,8 @@ ARAG 系统可靠性
 
 | 文档 | 核心主题 | 理念范围 |
 |------|---------|---------|
-| [Agent×Skill×RAG 架构](../../.gemini/antigravity/brain/86f5a95c-ba4c-4a7d-a8ba-20c745eafea9/agent_skill_rag_architecture.md) | 函数式 + 六层架构 | 理念 1 + 3 |
-| [数据治理四维哲学](../../.gemini/antigravity/brain/86f5a95c-ba4c-4a7d-a8ba-20c745eafea9/data_governance_as_compilation.md) | 编译器 + 状态机 + 降噪 + 权责 | 理念 2 完整展开 |
+| [Agent×Skill×RAG 架构](./agent_skill_rag_philosophy.md) | 函数式 + 六层架构 | 理念 1 + 3 |
+| [数据治理四维哲学](./data_governance_philosophy.md) | 编译器 + 状态机 + 降噪 + 权责 | 理念 2 完整展开 |
 | **本文档** | 微服务同构性 + 分区策略 + 陷阱警示 | 理念 3 + 全融合 |
 
 > **三份文档共同构成一个三角支撑**：

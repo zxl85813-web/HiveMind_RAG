@@ -1,5 +1,9 @@
 # 💡 进阶版 GitHub 协同与自动化指南
 
+> 本文已并入统一手册：
+> [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
+> 当前文件保留为历史记录，新增内容请更新统一手册。
+
 既然我们的 CI（自动测试和 Lint）、Issue 模板已经非常完善了，那么要想发挥一两三个高素质开发者的小队威力，可以进一步启用这几个 **"不写代码也能大幅提高幸福感"** 的 GitHub 进阶功能。
 
 这些功能不需要写复杂的集成脚本，大多是点几下鼠标开启的配置：

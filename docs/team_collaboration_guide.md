@@ -1,5 +1,9 @@
 # 🤝 Github 协同开发指南 (1-3人小团队)
 
+> 本文已并入统一手册：
+> [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
+> 当前文件保留为历史记录，新增内容请更新统一手册。
+
 对于你和一两个朋友一起开发 `HiveMind RAG` 这个项目，我们可以充分利用 GitHub 提供的轻量级但强大的协作功能，结合我们体系中已有的规范，让合作即顺畅又规范。
 
 以下是我为你整理的协作全景图和推荐功能：

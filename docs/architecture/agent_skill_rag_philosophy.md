@@ -346,4 +346,4 @@ Tier-3 Deep Vector(Chroma) → 数据仓库  / 50-200ms / 语义精排
 
 > **核心洞察：** 用 **Skill 的确定性** 对冲 **Agent 的不确定性**，用 **Pipeline 的可观测性** 驯服 **RAG 的黑盒性**，用 **传统软件工程的治理模式** 管理 **AI 原生系统的复杂度**。
 
-> 详细版本见: [artifact](../../.gemini/antigravity/brain/86f5a95c-ba4c-4a7d-a8ba-20c745eafea9/agent_skill_rag_architecture.md)
+> 详细版本见: [architecture.md](../architecture.md)

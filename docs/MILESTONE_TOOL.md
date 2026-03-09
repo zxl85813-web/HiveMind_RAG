@@ -1,5 +1,9 @@
 # GitHub Milestone 工具
 
+> 本文已并入统一手册：
+> [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
+> 当前文件保留为工具详细说明，新增内容优先更新统一手册。
+
 用于把 `TODO.md` 指定章节自动同步到 GitHub Milestone，并可选创建任务 Issues。
 
 ## 脚本位置

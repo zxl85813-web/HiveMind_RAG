@@ -1,6 +1,6 @@
 # 🌿 HiveMind RAG — 分支管理与 CI/CD 流水线设计
 
-> 关联文档: [`.agent/rules/team-collaboration-standards.md`](../.agent/rules/team-collaboration-standards.md)
+> 关联文档: [team_collaboration_guide.md](../team_collaboration_guide.md)
 > 本规范定义了项目所有分支的命名规则、生命周期和各自触发的 Pipeline。
 
 ---
