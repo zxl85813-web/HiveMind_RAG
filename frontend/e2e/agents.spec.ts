@@ -11,7 +11,6 @@ test.describe('Agent Swarm Monitoring Page', () => {
         await expect(page.locator('.ant-statistic-content-value').filter({ hasText: '5' })).toBeVisible();
 
         // Check Agent Grid
-        const cards = page.locator('.ant-card-head-title:has-text("Agent [")');
         // Based on mockData.ts, should have 5 agents
         // Wait for list to load
         await expect(page.locator('.ant-card')).toHaveCount(9); // 4 stat cards + 5 agents

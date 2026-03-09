@@ -89,7 +89,7 @@ interface ChatState {
     setMessages: (messages: ChatMessage[]) => void;
     addMessage: (message: ChatMessage) => void;
     updateLastMessage: (content: string) => void;
-    updateLastMessageMetadata: (meta: any) => void;
+    updateLastMessageMetadata: (meta: Record<string, unknown>) => void;
     appendStatusToLastMessage: (status: string) => void;
     setGenerating: (value: boolean) => void;
     clearMessages: () => void;
@@ -111,7 +111,7 @@ interface ChatState {
 
     // === Client Event Logging ===
     clientEvents: ClientEvent[];
-    logEvent: (name: string, data?: any) => void;
+    logEvent: (name: string, data?: unknown) => void;
     clearEvents: () => void;
 }
 
@@ -203,7 +203,7 @@ export const useChatStore = create<ChatState>((set) => ({
             }
             return { messages: msgs };
         }),
-    updateLastMessageMetadata: (meta: any) =>
+    updateLastMessageMetadata: (meta: Record<string, unknown>) =>
         set((state) => {
             const msgs = [...state.messages];
             if (msgs.length > 0) {

@@ -6,7 +6,7 @@ export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
     created_at: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
 }
 
 export interface ConversationDetail {
@@ -37,10 +37,10 @@ export const chatApi = {
         knowledgeBaseIds?: string[];
         onDelta: (delta: string) => void;
         onStatus?: (status: string) => void;
-        onInsight?: (data: any) => void;
+        onInsight?: (data: Record<string, unknown>) => void;
         onSessionCreated?: (id: string, title: string) => void;
         onFinish?: (metrics?: { latency_ms?: number; is_cached?: boolean }) => void;
-        clientEvents?: any[];
+        clientEvents?: Record<string, unknown>[];
         onError?: (err: unknown) => void;
         controller?: AbortController;
     }) {

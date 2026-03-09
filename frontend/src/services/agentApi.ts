@@ -1,18 +1,14 @@
 import type { AxiosResponse } from 'axios';
 import api from './api';
 
-export interface ApiResponse<T> {
-    success: boolean;
-    data: T;
-    message: string;
-}
+import type { ApiResponse } from '../types';
 
 export interface ReflectionEntry {
     id: string;
     type: string;
     agent_name: string;
     summary: string;
-    details: any;
+    details: Record<string, unknown>;
     confidence_score: number;
     action_taken: string;
     created_at: string;

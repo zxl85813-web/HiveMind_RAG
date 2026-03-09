@@ -19,7 +19,7 @@ export const securityApi = {
 
     // 激活指定策略
     activatePolicy: (id: number) =>
-        api.put<ApiResponse<any>>(`/security/policies/${id}/activate`),
+        api.put<ApiResponse<void>>(`/security/policies/${id}/activate`),
 
     // 获取文档脱敏报告
     getReport: (documentId: string) =>
@@ -27,18 +27,18 @@ export const securityApi = {
 
     // 获取系统可用的检测器列表
     getDetectors: () =>
-        api.get<ApiResponse<{ available_detectors: any[] }>>('/security/detectors'),
+        api.get<ApiResponse<{ available_detectors: string[] }>>('/security/detectors'),
 
     // --- ACL & Governance (P1) ---
     getDocumentPermissions: (documentId: string) =>
-        api.get<ApiResponse<any[]>>(`/security/permissions/document/${documentId}`),
+        api.get<ApiResponse<unknown[]>>(`/security/permissions/document/${documentId}`),
 
-    grantPermission: (data: any) =>
-        api.post<ApiResponse<any>>('/security/permissions', data),
+    grantPermission: (data: Record<string, unknown>) =>
+        api.post<ApiResponse<unknown>>('/security/permissions', data),
 
     revokePermission: (id: string) =>
-        api.delete<ApiResponse<any>>(`/security/permissions/${id}`),
+        api.delete<ApiResponse<unknown>>(`/security/permissions/${id}`),
 
     listAuditLogs: (limit: number = 50) =>
-        api.get<ApiResponse<any[]>>(`/security/audit/logs?limit=${limit}`),
+        api.get<ApiResponse<unknown[]>>(`/security/audit/logs?limit=${limit}`),
 };

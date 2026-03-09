@@ -26,9 +26,22 @@ export const useConversationDetails = (id: string | null) => {
             if (!id) return null;
             const res = await chatApi.getConversation(id);
             // 归一化后端消息格式
-            return res.data.messages.map((m: any) => ({
+            return res.data.messages.map((m: {
+                id: string;
+                role: string;
+                content: string;
+                created_at: string;
+                rating?: number;
+                metadata?: unknown;
+                prompt_tokens?: number;
+                completion_tokens?: number;
+                total_tokens?: number;
+                latency_ms?: number;
+                is_cached?: boolean;
+                trace_data?: string;
+            }) => ({
                 id: m.id,
-                role: m.role,
+                role: m.role as 'user' | 'assistant' | 'system',
                 content: m.content,
                 created_at: m.created_at,
                 rating: m.rating,

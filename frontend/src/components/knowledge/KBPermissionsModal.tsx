@@ -32,8 +32,9 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
         try {
             const res = await knowledgeApi.getPermissions(kbId);
             setPermissions(res.data.data);
-        } catch (e: any) {
-            if (e.response?.status !== 403) {
+        } catch (e: unknown) {
+            const err = e as { response?: { status?: number } };
+            if (err.response?.status !== 403) {
                 message.error('Failed to load permissions');
             }
         } finally {
@@ -41,7 +42,7 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
         }
     };
 
-    const handleAdd = async (values: any) => {
+    const handleAdd = async (values: Record<string, unknown>) => {
         if (!values.user_id && !values.department_id && !values.role_id) {
             message.error('Please specify at least a User ID, Role ID, or Department ID');
             return;
@@ -53,8 +54,9 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
             form.resetFields();
             form.setFieldsValue({ can_read: true, can_write: false, can_manage: false });
             loadPermissions();
-        } catch (e: any) {
-            message.error(e.response?.data?.message || 'Failed to add permission');
+        } catch (e: unknown) {
+            const err = e as { response?: { data?: { message?: string } } };
+            message.error(err.response?.data?.message || 'Failed to add permission');
         } finally {
             setAdding(false);
         }
@@ -65,8 +67,9 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
             await knowledgeApi.deletePermission(kbId, permId);
             message.success('Permission removed');
             loadPermissions();
-        } catch (e: any) {
-            message.error(e.response?.data?.message || 'Failed to remove permission');
+        } catch (e: unknown) {
+            const err = e as { response?: { data?: { message?: string } } };
+            message.error(err.response?.data?.message || 'Failed to remove permission');
         }
     };
 
@@ -74,7 +77,7 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
         {
             title: 'Target',
             key: 'target',
-            render: (_: any, record: KnowledgeBasePermission) => {
+            render: (_: unknown, record: KnowledgeBasePermission) => {
                 if (record.user_id) return <Text strong>User: {record.user_id}</Text>;
                 if (record.role_id) return <Text strong>Role: {record.role_id}</Text>;
                 if (record.department_id) return <Text strong>Dept: {record.department_id}</Text>;
@@ -99,7 +102,7 @@ export const KBPermissionsModal: React.FC<Props> = ({ kbId, open, onClose }) => 
         {
             title: 'Actions',
             key: 'actions',
-            render: (_: any, record: KnowledgeBasePermission) => (
+            render: (_: unknown, record: KnowledgeBasePermission) => (
                 <Button
                     type="text"
                     danger
