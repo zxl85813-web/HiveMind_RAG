@@ -118,6 +118,10 @@ class SwarmState(TypedDict):
     # Specific Knowledge Base constraints
     kb_ids: list[str]
 
+    # Prompt/Retrieval experiment variants for A/B testing
+    prompt_variant: str
+    retrieval_variant: str
+
     # Track Last Node Id for visual trace
     last_node_id: str
 
@@ -573,6 +577,7 @@ class SwarmOrchestrator:
                 rag_context=state.get("context_data", ""),
                 memory_context="",  # TODO: inject episodic memory
                 tools_available=[t.name for t in available_tools if hasattr(t, "name")],
+                prompt_variant=state.get("prompt_variant", "default"),
             )
 
             # 3. Get the appropriate LLM and bind tools
@@ -838,7 +843,11 @@ class SwarmOrchestrator:
 
                 if collection_names:
                     docs, trace_logs = await self._retriever.run(
-                        query=query, collection_names=collection_names, top_k=5, top_n=3
+                        query=query,
+                        collection_names=collection_names,
+                        top_k=5,
+                        top_n=3,
+                        variant=state.get("retrieval_variant", "default"),
                     )
 
                     retrieval_trace = trace_logs
@@ -1001,6 +1010,8 @@ class SwarmOrchestrator:
             "original_query": user_message,
             "context_data": "",
             "kb_ids": context.get("knowledge_base_ids", []) if context else [],
+            "prompt_variant": context.get("prompt_variant", "default") if context else "default",
+            "retrieval_variant": context.get("retrieval_variant", "default") if context else "default",
             "last_node_id": "",
             "retrieval_trace": [],
             "retrieved_docs": [],
@@ -1051,6 +1062,8 @@ class SwarmOrchestrator:
             "original_query": user_message,
             "context_data": "",
             "kb_ids": kb_ids,  # Pass to state
+            "prompt_variant": context.get("prompt_variant", "default") if context else "default",
+            "retrieval_variant": context.get("retrieval_variant", "default") if context else "default",
             "last_node_id": "",  # Init empty
             "retrieval_trace": [],
             "retrieved_docs": [],

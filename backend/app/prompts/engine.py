@@ -110,6 +110,7 @@ class PromptEngine:
         rag_context: str = "",
         memory_context: str = "",
         tools_available: list[str] | None = None,
+        prompt_variant: str = "default",
     ) -> str:
         """
         构建 Agent 执行任务 Prompt。
@@ -141,6 +142,7 @@ class PromptEngine:
             rag_context=rag_context,
             memory_context=memory_context,
             tools_available=tools_available or [],
+            prompt_variant=prompt_variant,
         )
 
         self._log_prompt(f"agent_task:{agent_name}", prompt)

@@ -65,7 +65,7 @@
 | **负载均衡** | 知识库路由 | 多 KB 选择器 + 查询路由 |
 | **熔断器** | 检索降级 | Tier-1 Radar → Tier-2 Graph → Tier-3 Vector 级联降级 |
 | **限流** | Token 预算控制 | `LLMRouter` 分级调度 |
-| **链路追踪** | RAG Trace | `RetrievalContext.trace_log` + LangFuse |
+| **链路追踪** | RAG Trace | `RetrievalContext.trace_log` + V3 Trace Hub (`FileTrace`/`AgentSpan`) |
 | **健康检查** | KB 健康度 | M5 评估指标 (Faithfulness / Relevance) |
 | **灰度发布** | Pipeline 灰度 | 可配置 Pipeline Step 组合 |
 | **数据契约** | Chunk Schema | `VectorDocument` + `RetrievalContext` 协议 |
@@ -235,7 +235,7 @@
 │ L1 基础设施层                                                │
 │                                                              │
 │  PostgreSQL (结构化) │ ChromaDB (向量) │ Neo4j (图谱)         │
-│  Redis (缓存/队列)   │ MinIO (对象存储) │ LangFuse (观测)     │
+│  Redis (缓存/队列)   │ MinIO (对象存储) │ V3 Trace Hub (观测) │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -327,7 +327,7 @@ Tier-3 Deep Vector(Chroma) → 数据仓库  / 50-200ms / 语义精排
 | 服务发现 | Semantic Skill Discovery |
 | 熔断器 | Pipeline Step 失败不阻塞 |
 | 限流 | LLM Token Budget |
-| 链路追踪 | Trace Log + DAG + LangFuse |
+| 链路追踪 | Trace Log + DAG + V3 Trace Hub |
 | 数据契约 | Pydantic Schema (Context/State/Document) |
 | 灰度发布 | Pipeline 可配置化 |
 | 健康检查 | KB 健康度评分 |

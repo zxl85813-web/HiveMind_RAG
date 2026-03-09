@@ -30,8 +30,8 @@ class RetrievalPipeline:
     """
 
     def __init__(self):
-        # Default Pipeline Structure
-        self.steps: list[BaseRetrievalStep] = [
+        # Keep a default step chain and expose lightweight A/B variants.
+        self._default_steps: list[BaseRetrievalStep] = [
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
             GraphRetrievalStep(),  # Inject Graph Facts first
             HybridRetrievalStep(),
@@ -42,6 +42,32 @@ class RetrievalPipeline:
             PromptInjectionFilterStep(),  # 注入防护
         ]
 
+    def _resolve_steps(self, variant: str) -> list[BaseRetrievalStep]:
+        """Resolve retrieval chain by variant for A/B experiments."""
+        if variant == "ab_no_graph":
+            return [
+                QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
+                HybridRetrievalStep(),
+                AclFilterStep(),
+                RerankingStep(),
+                ParentChunkExpansionStep(),
+                ContextualCompressionStep(),
+                PromptInjectionFilterStep(),
+            ]
+
+        if variant == "ab_no_compress":
+            return [
+                QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
+                GraphRetrievalStep(),
+                HybridRetrievalStep(),
+                AclFilterStep(),
+                RerankingStep(),
+                ParentChunkExpansionStep(),
+                PromptInjectionFilterStep(),
+            ]
+
+        return self._default_steps
+
     async def run(
         self,
         query: str,
@@ -51,6 +77,7 @@ class RetrievalPipeline:
         search_type: str = SearchType.HYBRID,
         user_id: str | None = None,
         is_admin: bool = False,
+        variant: str = "default",
     ) -> list[VectorDocument]:
         """
         Execute the retrieval pipeline.
@@ -65,7 +92,10 @@ class RetrievalPipeline:
             is_admin=is_admin,
         )
 
-        for step in self.steps:
+        steps = self._resolve_steps(variant)
+        ctx.log("Pipeline", f"variant={variant} steps={len(steps)}")
+
+        for step in steps:
             await step.execute(ctx)
 
         return ctx.final_results, ctx.trace_log

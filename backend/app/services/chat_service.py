@@ -238,6 +238,17 @@ class ChatService:
         tracer = ChatTracer()
         conversation_id = request.conversation_id
         is_cached = False
+        variant_meta = {
+            "prompt_variant": request.prompt_variant,
+            "retrieval_variant": request.retrieval_variant,
+        }
+
+        tracer.add_quick_step(
+            "Experiment Variants",
+            f"prompt={request.prompt_variant}, retrieval={request.retrieval_variant}",
+            "config",
+            metadata=variant_meta,
+        )
 
         # 1. 如果没有会话ID，创建新会话
         if not conversation_id:
@@ -305,7 +316,11 @@ class ChatService:
         else:
             cache_step.complete(output="Cache Miss", status="info")
             # 5. Prepare Context
-            context = {"user_id": user_id}  # Inject user identity for Phase 7 KB Access Control
+            context = {
+                "user_id": user_id,
+                "prompt_variant": request.prompt_variant,
+                "retrieval_variant": request.retrieval_variant,
+            }  # Inject user identity and experiment variants
             if request.knowledge_base_ids:
                 context["knowledge_base_ids"] = request.knowledge_base_ids
 

@@ -39,15 +39,16 @@
 | 记忆层（Memory） | Memory Agent | ⬜ 明确会话短记忆与评估长记忆写入边界 | ⬜ 正向反馈自动沉淀到评估集（M2.1F） | ⬜ 跨会话用户画像记忆治理 |
 | 评审层（Reflection） | Reflection Agent | ⬜ 将自动审核规则引擎接入统一评分卡 | ⬜ Multi-Grader 三评分器联调（Code/Model/Human） | ⬜ 失败样本自动回灌提示词优化 |
 | 治理层（Governance） | Governance Agent | ⬜ 修复 BUG-004（同步 Session → AsyncSession） | ⬜ 脱敏策略按知识库隔离配置 | ⬜ 安全等级 L1-L4 全链路联动 |
-| 可观测层（Observability） | Observability Agent | ⬜ 增加检索命中率/空结果率/延迟指标面板 | ⬜ LangFuse 全链路 Trace 集成 | ⬜ 质量-成本联合优化看板 |
+| 可观测层（Observability） | Observability Agent | ⬜ 增加检索命中率/空结果率/延迟指标面板 | ⬜ V3 Trace 全链路收口（Redis Buffer + FileTrace/AgentSpan） | ⬜ 质量-成本联合优化看板 |
 
 ### 0.2 本周执行序列（按依赖排序）
 
 - ⬜ **A1（阻塞修复）**：`BUG-004` 异步化改造（先解除潜在性能阻塞）
 - ⬜ **A2（质量基线）**：自动审核规则引擎 + 三档路由联调
 - ⬜ **A3（检索效果）**：Retrieval A/B 对照实验 + 指标落库
+- ⬜ **A3.1（提示词结构）**：Head-Tail Prompt Anchoring（关键约束前后锚点）
 - ⬜ **A4（反馈闭环）**：正向反馈自动沉淀为 EvaluationItem
-- ⬜ **A5（观测收口）**：LangFuse + 质量监控面板接入
+- ⬜ **A5（观测收口）**：V3 Trace + 质量监控面板接入
 
 ### 0.3 Agent 完成定义（DoD）
 
@@ -119,6 +120,8 @@
 - 🟡 **Retrieval Pipeline 已有框架** — `services/retrieval/pipeline.py` 已实现三步管线
 - ✅ **每个知识库可独立绑定检索配置** — Query改写策略、检索权重、Reranker 选择 (前端配置页已支持)
 - ⬜ **检索策略 A/B 测试** — 对比不同配置的检索效果
+- 🟡 **链式 A/B 变体开关** — 已支持 `retrieval_variant`（`default` / `ab_no_graph` / `ab_no_compress`）
+- ⬜ **Prompt A/B 变体实验** — 对比 `prompt_variant`（`default` / `head_tail_v1`）在长上下文下的准确率与引用率
 
 ### 2.1C 标签/分类体系 ⬜ (REQ-008)
 
@@ -272,7 +275,7 @@
 - ✅ **Content Dedup**: SHA-256 hash-based strict deduplication implemented.
 
 #### 可观测性 (P2)
-- ⬜ **LangFuse 集成** — RAG 全链路追踪
+- ⬜ **V3 Trace 集成** — RAG 全链路追踪（Redis Buffer + FileTrace/AgentSpan）
 - ⬜ **检索质量监控** — 命中率、延迟、空结果率
 - ⬜ **知识库使用分析** — 热门查询、冷门文档
 

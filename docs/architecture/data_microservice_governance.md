@@ -237,7 +237,7 @@
 │  Distributed    │  → 跨服务请求追踪    │  → RetrievalContext.trace_log│
 │  Tracing        │                      │  → PipelineMonitor           │
 │                 │                      │  → SharedMemoryManager.trace │
-│                 │                      │  → LangFuse 规划中           │
+│                 │                      │  → V3 Trace Hub (Redis + PG) │
 │                 │                      │                             │
 ├─────────────────┼──────────────────────┼─────────────────────────────┤
 │                 │                      │                             │
@@ -428,7 +428,7 @@ ARAG 系统可靠性
 │ API 网关         │ ★★★★☆│ SwarmOrchestrator 统一入口             │
 │ 服务发现/路由    │ ★★★☆☆│ KnowledgeBaseSelector (LLM-based)     │
 │ 数据契约         │ ★★★★☆│ Pydantic Schema 体系完善              │
-│ 链路追踪         │ ★★★☆☆│ trace_log + Monitor，缺 LangFuse     │
+│ 链路追踪         │ ★★★★☆│ trace_log + Monitor + V3 Trace Hub   │
 │ 编译器 (Ingestion)│ ★★★★☆│ 5 步 Pipeline (Parse→Audit→...→Vec)  │
 │ 负载均衡         │ ★★★☆☆│ 多 KB 并行查询                        │
 │ 灰度发布         │ ★★★☆☆│ PipelineFactory 多模板                │

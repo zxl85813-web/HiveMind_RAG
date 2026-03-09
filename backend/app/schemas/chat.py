@@ -16,6 +16,8 @@ class ChatRequest(BaseModel):
     model: str | None = None  # Override default model
     stream: bool = True
     client_events: list[dict] = []  # UI interaction logs (button clicks, navigation, etc.)
+    prompt_variant: str = "default"  # Prompt A/B selector
+    retrieval_variant: str = "default"  # Retrieval chain A/B selector
 
 
 class AIAction(BaseModel):

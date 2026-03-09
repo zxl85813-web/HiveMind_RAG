@@ -54,11 +54,11 @@ graph TD
     %% --- 基础设施层 ---
     subgraph "Infrastructure Layer"
         DB[(Postgres DB\nJob State & Results)]
-        LangFuse[LangFuse\nObservability & Tracing]
+        TraceHub[V3 Trace Hub\nObservability & Tracing]
         
         BatchController -->|Persist State| DB
-        BatchController -->|Log Trace| LangFuse
-        Worker1 -->|Log Steps| LangFuse
+        BatchController -->|Log Trace| TraceHub
+        Worker1 -->|Log Steps| TraceHub
     end
 
     Node_Agg -->|Update Job Status| DB
@@ -76,7 +76,7 @@ sequenceDiagram
     participant G as LangGraph (Orchestrator)
     participant W as Worker Pool (Swarm)
     participant DB as Database
-    participant LF as LangFuse
+    participant LF as V3 Trace Hub
 
     User->>API: Upload "data.xlsx" (Resume + DAO sheets)
     API->>G: Initialize BatchJob (JobId: 101)
@@ -138,7 +138,7 @@ sequenceDiagram
     *   关键在于 **Preprocessor** 节点。它像一个分诊台，把大文件拆开，按内容决定后续去哪个科室（Pipeline）。
     *   这就是您说的“大流程套小流程”——Preprocessor 是第一层，具体 Pipeline 是第二层。
 
-3.  **LangFuse = 黑匣子**:
+3.  **V3 Trace Hub = 黑匣子**:
     *   不管流程多复杂，每一层（Job -> Task -> Step -> LLM Call）都会生成 Trace。
     *   您可以随时点进去看：“为什么那个 DAO 数据清洗失败了？哦，原来是 Python 代码除了 ZeroDivisionError。”
 

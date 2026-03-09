@@ -59,7 +59,7 @@ graph TB
     end
 
     %% --- 观测与反馈 ---
-    Worker -->|11. Trace & Log| LangFuse[LangFuse\nObservability]
+    Worker -->|11. Trace & Log| TraceHub[V3 Trace Hub\nRedis + PostgreSQL]
     JobManager -->|12. Final Report| Report[Artifact Store]
 ```
 
