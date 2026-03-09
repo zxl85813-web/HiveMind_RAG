@@ -82,7 +82,11 @@ class AuditService:
         await db.refresh(review)
 
         logger.info(
-            f"✅ Audit complete for Doc {doc_id}: Score={review.quality_score}, Overlap={review.overlap_score}, Status={review.status}"
+            "✅ Audit complete for Doc {}: Score={}, Overlap={}, Status={}",
+            doc_id,
+            review.quality_score,
+            review.overlap_score,
+            review.status,
         )
         return review
 
@@ -107,7 +111,7 @@ class AuditService:
 
     @staticmethod
     async def update_review_status(
-        db: AsyncSession, review_id: str, status: str, comment: str = "", reviewer_id: str = None
+        db: AsyncSession, review_id: str, status: str, comment: str = "", reviewer_id: str | None = None
     ) -> DocumentReview | None:
         """Manually update the status of a review."""
         review = await db.get(DocumentReview, review_id)

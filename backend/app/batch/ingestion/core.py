@@ -7,10 +7,10 @@ by simply adding a new parser class.
 """
 
 import abc
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.batch.ingestion.protocol import ResourceType, StandardizedResource
 
@@ -24,7 +24,7 @@ class IngestionContext(BaseModel):
     job_id: str
     file_path: str
     kb_id: str | None = None
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class BaseIngestionStep(abc.ABC):
@@ -38,7 +38,7 @@ class BaseIngestionStep(abc.ABC):
 class StepRegistry:
     """Registry for local Python-based steps."""
 
-    _steps: dict[str, type[BaseIngestionStep]] = {}
+    _steps: ClassVar[dict[str, type[BaseIngestionStep]]] = {}
 
     @classmethod
     def register(cls, name: str):
@@ -81,7 +81,7 @@ class ParserRegistry:
     Design Pattern: Registry / Strategy.
     """
 
-    _parsers: list[type[BaseParser]] = []
+    _parsers: ClassVar[list[type[BaseParser]]] = []
 
     @classmethod
     def register(cls, parser_cls: type[BaseParser]):

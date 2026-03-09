@@ -10,13 +10,13 @@
 """
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loguru import logger as app_logger
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     """可审计的操作类型。"""
 
     # Auth

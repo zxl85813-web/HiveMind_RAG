@@ -1,3 +1,5 @@
+# ruff: noqa: W293
+
 import abc
 import csv
 import os

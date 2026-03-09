@@ -67,10 +67,10 @@ def decode_access_token(token: str) -> dict[str, Any]:
         return payload
     except jwt.ExpiredSignatureError:
         logger.warning("Token expired")
-        raise AuthenticationError("Token has expired")
+        raise AuthenticationError("Token has expired") from None
     except jwt.InvalidTokenError as e:
         logger.warning("Invalid token: {}", e)
-        raise AuthenticationError("Invalid token")
+        raise AuthenticationError("Invalid token") from e
 
 
 # === FastAPI 依赖注入 ===

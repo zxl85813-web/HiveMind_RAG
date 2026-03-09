@@ -31,7 +31,12 @@ class GraphCommunityService:
         # 1. Fetch graph for the specific KB
         query = """
         MATCH (n {kb_id: $kb_id})-[r]->(m {kb_id: $kb_id})
-        RETURN n.id AS source, n.name AS source_name, type(r) AS rel_type, r.description AS rel_desc, m.id AS target, m.name AS target_name
+         RETURN n.id AS source,
+             n.name AS source_name,
+             type(r) AS rel_type,
+             r.description AS rel_desc,
+             m.id AS target,
+             m.name AS target_name
         """
         results = self.store.query(query, {"kb_id": kb_id})
 
@@ -39,25 +44,25 @@ class GraphCommunityService:
             return {"status": "skipped", "message": "No connected graph data found for this KB."}
 
         # 2. Build networkx graph
-        G = nx.Graph()
+        graph = nx.Graph()
         node_details = {}
         for row in results:
             src = row["source"]
             tgt = row["target"]
-            G.add_edge(src, tgt, type=row["rel_type"], desc=row["rel_desc"])
+            graph.add_edge(src, tgt, type=row["rel_type"], desc=row["rel_desc"])
             node_details[src] = row["source_name"] or src
             node_details[tgt] = row["target_name"] or tgt
 
-        if len(G.nodes) == 0:
+        if len(graph.nodes) == 0:
             return {"status": "skipped", "message": "Graph is empty."}
 
         # 3. Community Detection (Using Louvain as a fallback for Leiden if leidenalg isn't installed)
         try:
             # networkx >= 2.6 has louvain
-            communities = nx.community.louvain_communities(G, seed=42)
+            communities = nx.community.louvain_communities(graph, seed=42)
         except Exception as e:
             logger.warning(f"Louvain failed, falling back to greedy modularity: {e}")
-            communities = nx.community.greedy_modularity_communities(G)
+            communities = nx.community.greedy_modularity_communities(graph)
 
         # 4. Summarize each community using LLM
         community_summaries = []
@@ -67,7 +72,7 @@ class GraphCommunityService:
 
             # Extract subgraph for this community to provide context to LLM
             subgraph_nodes = list(comm)
-            subgraph = G.subgraph(subgraph_nodes)
+            subgraph = graph.subgraph(subgraph_nodes)
 
             # Create a textual representation of the community
             entities_text = ", ".join([node_details.get(n, str(n)) for n in subgraph_nodes])
@@ -109,7 +114,7 @@ Summary:
             MATCH (n {kb_id: $kb_id})
             WHERE n.id IN $node_ids
             SET n.community = $community_id
-            
+
             MERGE (c:Community {id: $community_id, kb_id: $kb_id})
             SET c.summary = $summary, c.size = $size
             """

@@ -25,13 +25,17 @@ class TraceStep:
 
 
 class ChatTracer:
-    def __init__(self, request_id: str = None):
+    def __init__(self, request_id: str | None = None):
         self.request_id = request_id or str(uuid.uuid4())
         self.steps: list[TraceStep] = []
         self.start_time = time.time()
 
     def start_step(
-        self, name: str, step_type: str, input_data: Any = None, metadata: dict[str, Any] = None
+        self,
+        name: str,
+        step_type: str,
+        input_data: Any = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TraceStep:
         step = TraceStep(name=name, type=step_type, input=input_data, metadata=metadata or {})
         self.steps.append(step)
@@ -40,7 +44,13 @@ class ChatTracer:
     def get_trace_json(self) -> str:
         return json.dumps([asdict(s) for s in self.steps], ensure_ascii=False)
 
-    def add_quick_step(self, name: str, output: str, step_type: str = "info", metadata: dict[str, Any] = None):
+    def add_quick_step(
+        self,
+        name: str,
+        output: str,
+        step_type: str = "info",
+        metadata: dict[str, Any] | None = None,
+    ):
         """Utility for simple logging style steps"""
         step = TraceStep(name=name, type=step_type, output=output, metadata=metadata or {})
         step.complete(output=output)

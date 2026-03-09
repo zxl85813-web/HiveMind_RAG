@@ -20,7 +20,8 @@ class DesensitizationEngine:
 
         Args:
             text: The original text to process.
-            policy_rules: Dictionary mapping detector_type to options (e.g., {"phone": {"action": "mask", "whitelist": []}})
+            policy_rules: Dictionary mapping detector_type to options
+                         (e.g., {"phone": {"action": "mask", "whitelist": []}})
                          Or a legacy flat dict mapping to actions.
 
         Returns:

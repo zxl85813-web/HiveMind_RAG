@@ -18,7 +18,7 @@ router = APIRouter(prefix="/audit", tags=["v3-audit"])
 @router.get("/queue", response_model=ApiResponse[list[HITLTask]])
 async def get_audit_queue(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """List all pending human review tasks."""
-    stmt = select(HITLTask).where(HITLTask.final_verdict == None).order_by(HITLTask.created_at.desc())
+    stmt = select(HITLTask).where(HITLTask.final_verdict is None).order_by(HITLTask.created_at.desc())
     results = db.execute(stmt).scalars().all()
     return ApiResponse.ok(data=results)
 

@@ -10,7 +10,7 @@ Routes requests to the most appropriate LLM based on:
 Supports fallback chains for reliability.
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -18,7 +18,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 
-class TaskType(str, Enum):
+class TaskType(StrEnum):
     """Classification of tasks for routing purposes."""
 
     CHAT = "chat"  # General conversation
@@ -30,7 +30,7 @@ class TaskType(str, Enum):
     EMBEDDING = "embedding"  # Text embedding (separate model type)
 
 
-class ModelProvider(str, Enum):
+class ModelProvider(StrEnum):
     OPENAI = "openai"
     DEEPSEEK = "deepseek"
     QWEN = "qwen"

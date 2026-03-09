@@ -3,6 +3,8 @@ Knowledge Overlap Engine — Detects if document content is already known by the
 Uses Knowledge Probing/Closed-Book Testing (M2.3.6).
 """
 
+# ruff: noqa: W293
+
 import json
 from typing import Any
 
@@ -48,7 +50,7 @@ class KnowledgeOverlapEngine:
         [{{"question": "...", "fact": "..."}}]
         
         Text:
-        {text[:2000]} 
+        {text[:2000]}
         """
 
         try:
@@ -74,7 +76,11 @@ class KnowledgeOverlapEngine:
 
         for p in probes:
             # We use a clean prompt to ensure no leakage
-            prompt_test = f"Answer the following question briefly based on your general knowledge. If you don't know, say 'I don't know'.\nQuestion: {p.question}"
+            prompt_test = (
+                "Answer the following question briefly based on your general knowledge. "
+                "If you don't know, say 'I don't know'.\n"
+                f"Question: {p.question}"
+            )
             res_test = await balanced_model.ainvoke(prompt_test)
             llm_answer = res_test.content
 

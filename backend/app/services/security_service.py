@@ -3,6 +3,8 @@ Security Service — Handles Desensitization policies and reports CRUD operation
 """
 
 import json
+from contextlib import suppress
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,15 +24,16 @@ class SecurityService:
         action: str,
         resource_type: str,
         resource_id: str | None = None,
-        details: dict = {},
+        details: dict[str, Any] | None = None,
     ):
         """Record a security event to the audit trail."""
+        safe_details = details or {}
         log = AuditLog(
             user_id=user_id,
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
-            details=json.dumps(details),
+            details=json.dumps(safe_details),
         )
         db.add(log)
         await db.commit()
@@ -39,7 +42,7 @@ class SecurityService:
     @staticmethod
     async def get_active_policy(db: AsyncSession) -> DesensitizationPolicy | None:
         """Fetch the currently active desensitization policy."""
-        statement = select(DesensitizationPolicy).where(DesensitizationPolicy.is_active == True)
+        statement = select(DesensitizationPolicy).where(DesensitizationPolicy.is_active)
         result = await db.execute(statement)
         return result.scalars().first()
 
@@ -62,10 +65,8 @@ class SecurityService:
                 policy = await SecurityService.get_active_policy(db)
 
             if policy and policy.rules_json:
-                try:
+                with suppress(Exception):
                     rules = json.loads(policy.rules_json)
-                except Exception:
-                    pass
 
         redacted_text, applied_records = DesensitizationEngine.process_text(text, rules)
 

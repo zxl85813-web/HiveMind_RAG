@@ -70,14 +70,13 @@ class AuditEngine:
             if not sections:
                 format_integrity_ok = False
                 integrity_issues.append("No layout sections extracted (PDF/Word)")
-        elif lower_filename.endswith((".xlsx", ".xls", ".csv")):
-            if not tables:
-                format_integrity_ok = False
-                integrity_issues.append("No tables extracted (Excel/CSV)")
+        elif lower_filename.endswith((".xlsx", ".xls", ".csv")) and not tables:
+            format_integrity_ok = False
+            integrity_issues.append("No tables extracted (Excel/CSV)")
 
         # 6. PII Sensitivity Detection
         pii_items = []
-        for detector_type in DetectorRegistry.get_all().keys():
+        for detector_type in DetectorRegistry.get_all():
             detector = DetectorRegistry.get_detector(detector_type)
             if detector:
                 found = detector.detect(text)

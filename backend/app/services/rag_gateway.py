@@ -5,6 +5,7 @@ Implements Circuit Breaker, Unified Entry, and Strategy Routing.
 
 import asyncio
 import time
+from typing import ClassVar
 
 from loguru import logger
 
@@ -18,8 +19,10 @@ class RAGGateway:
     Handles multiple Knowledge Bases with fault tolerance.
     """
 
-    _instances = {}
-    _circuit_breakers = {}  # kb_id -> {fail_count, last_fail_time, state}
+    _instances: ClassVar[dict[str, "RAGGateway"]] = {}
+    _circuit_breakers: ClassVar[
+        dict[str, dict[str, float | int | str]]
+    ] = {}  # kb_id -> {fail_count, last_fail_time, state}
 
     def __init__(self):
         self.pipeline = RetrievalPipeline()
@@ -48,7 +51,7 @@ class RAGGateway:
                 fragments=[],
                 total_found=0,
                 processing_time_ms=(time.time() - start_time) * 1000,
-                warnings=warnings + ["No active KBs available for retrieval."],
+                warnings=[*warnings, "No active KBs available for retrieval."],
             )
 
         # 2. Parallel retrieval from active KBs

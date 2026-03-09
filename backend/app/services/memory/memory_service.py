@@ -1,3 +1,4 @@
+
 """
 分层记忆服务 (Multi-Tier Memory Service).
 
@@ -23,8 +24,10 @@
 """
 
 import asyncio
+from collections.abc import Coroutine
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import chromadb
 from loguru import logger
@@ -55,7 +58,13 @@ class MemoryService:
         self.user_id = user_id
         self.user_dir = DATA_DIR / user_id
         self.logs_dir = self.user_dir / "logs"
+        self._background_tasks: set[asyncio.Task[Any]] = set()
         self._ensure_directories()
+
+    def _track_task(self, coro: Coroutine[Any, Any, Any]) -> None:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _ensure_directories(self):
         """确保用户记忆目录结构存在。"""
@@ -66,7 +75,7 @@ class MemoryService:
             if not fpath.exists():
                 fpath.write_text(f"# {file.split('.')[0]}\n\n", encoding="utf-8")
 
-    def _get_daily_log_path(self, date_str: str = None) -> Path:
+    def _get_daily_log_path(self, date_str: str | None = None) -> Path:
         """获取今日日志文件路径（Ephemeral Memory）。"""
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
@@ -114,7 +123,7 @@ class MemoryService:
 
             abstract_index.add_abstract(doc_id, "Memory Fragment", role, ["fallback"])
 
-    async def add_memory(self, content: str, metadata: dict = None):
+    async def add_memory(self, content: str, metadata: dict[str, Any] | None = None):
         """
         将一段记忆写入所有三层存储。
 
@@ -136,12 +145,12 @@ class MemoryService:
         meta.update({"user_id": self.user_id, "timestamp": datetime.now().isoformat()})
 
         # Tier-1: 摘要索引（异步，不阻塞主流程）
-        asyncio.create_task(self._extract_and_index_abstract(doc_id, content, role))
+        self._track_task(self._extract_and_index_abstract(doc_id, content, role))
 
         # Tier-2: 图谱提取（异步，不阻塞主流程）
         from app.services.memory.tier.graph_index import graph_index
 
-        asyncio.create_task(graph_index.extract_and_store(doc_id, content))
+        self._track_task(graph_index.extract_and_store(doc_id, content))
 
         # Tier-3: 向量存储（同步，本地 ChromaDB，快）
         memory_collection.add(documents=[content], metadatas=[meta], ids=[doc_id])
@@ -174,7 +183,7 @@ class MemoryService:
     # 读取流 (Read Path) — 三层级联检索
     # ─────────────────────────────────────────────
 
-    async def get_context(self, query: str = None) -> str:
+    async def get_context(self, query: str | None = None) -> str:
         """
         三层级联检索，组装出最丰富的上下文用于喂给 LLM。
 
@@ -251,7 +260,7 @@ class MemoryService:
 
         try:
             llm = get_llm_service()
-            prompt = f"""Extract 2-4 lowercase technical keywords from this query. 
+            prompt = f"""Extract 2-4 lowercase technical keywords from this query.
 Return ONLY a JSON array: ["keyword1", "keyword2"]
 Query: {query}"""
             resp = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)

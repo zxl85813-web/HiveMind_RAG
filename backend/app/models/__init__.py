@@ -16,3 +16,32 @@ from .security import (
 )
 from .sync import SyncTask
 from .tags import DocumentTagLink, Tag, TagCategory
+
+__all__ = [
+    "AgentSpan",
+    "Conversation",
+    "DesensitizationPolicy",
+    "DesensitizationReport",
+    "Document",
+    "DocumentPermission",
+    "DocumentReview",
+    "DocumentTagLink",
+    "EvaluationItem",
+    "EvaluationReport",
+    "EvaluationSet",
+    "FileTrace",
+    "FineTuningItem",
+    "IngestionBatch",
+    "KnowledgeBase",
+    "KnowledgeBaseDocumentLink",
+    "KnowledgeBasePermission",
+    "Message",
+    "PipelineConfig",
+    "ReflectionEntry",
+    "SensitiveItem",
+    "SyncTask",
+    "Tag",
+    "TagCategory",
+    "TodoItem",
+    "User",
+]

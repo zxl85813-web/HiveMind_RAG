@@ -56,7 +56,7 @@ async def init_db() -> None:
     # SQLite 需要在 engine.begin() 前确保目录存在
     # (但在 docker/local dev 中通常由挂载解决，或 sqlmodel 自动处理)
 
-    async with engine.begin() as conn:
+    async with engine.begin():
         if settings.DEBUG:
             # 开发环境不再自动同步表结构，全面启用 Alembic
             # await conn.run_sync(SQLModel.metadata.create_all)

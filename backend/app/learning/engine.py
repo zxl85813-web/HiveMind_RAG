@@ -21,14 +21,14 @@ Workflow:
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel
 
 
-class DiscoverySource(str, Enum):
+class DiscoverySource(StrEnum):
     GITHUB_TRENDING = "github_trending"
     GITHUB_RELEASES = "github_releases"
     HACKER_NEWS = "hacker_news"
@@ -39,7 +39,7 @@ class DiscoverySource(str, Enum):
     RSS = "rss"
 
 
-class DiscoveryCategory(str, Enum):
+class DiscoveryCategory(StrEnum):
     FRAMEWORK = "framework"
     LIBRARY = "library"
     TOOL = "tool"

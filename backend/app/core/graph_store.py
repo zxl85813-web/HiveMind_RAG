@@ -38,7 +38,7 @@ class Neo4jStore:
         if self.driver:
             self.driver.close()
 
-    def query(self, cypher: str, parameters: dict[str, Any] = None) -> list[dict[str, Any]]:
+    def query(self, cypher: str, parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         if not self.driver:
             return []
 

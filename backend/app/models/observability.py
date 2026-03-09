@@ -6,13 +6,13 @@ Replaces Langfuse with a lightweight, extreme-throughput PostgreSQL tracing syst
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlmodel import JSON, Field, SQLModel
 
 
-class TraceStatus(str, Enum):
+class TraceStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -65,7 +65,7 @@ class FileTrace(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column_kwargs={"onupdate": datetime.utcnow})
 
 
-class SpanType(str, Enum):
+class SpanType(StrEnum):
     LLM_CALL = "llm_call"
     TOOL_INVOKE = "tool_invoke"
     ROUTER = "router"

@@ -44,6 +44,7 @@ class BaseVectorStore(abc.ABC):
         """Add documents to the vector store."""
         pass
 
+    @abc.abstractmethod
     async def search(
         self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default"
     ) -> list[VectorDocument]:
@@ -71,7 +72,7 @@ class MockVectorStore(BaseVectorStore):
             self._store[collection_name] = []
 
         ids = []
-        for i, doc in enumerate(documents):
+        for _i, doc in enumerate(documents):
             self._store[collection_name].append(doc)
             ids.append(f"{collection_name}_{len(self._store[collection_name])}")
 
@@ -122,9 +123,8 @@ class MockVectorStore(BaseVectorStore):
             for doc in self._store[collection_name]
             if not all(doc.metadata.get(k) == v for k, v in filter_metadata.items())
         ]
-        print(
-            f"📚 [MockVectorStore] Deleted {initial_count - len(self._store[collection_name])} docs from '{collection_name}'"
-        )
+        deleted_count = initial_count - len(self._store[collection_name])
+        print(f"📚 [MockVectorStore] Deleted {deleted_count} docs from '{collection_name}'")
 
 
 class ElasticVectorStore(BaseVectorStore):

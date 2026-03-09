@@ -54,7 +54,11 @@ class ImageParser(BaseParser):
                     content=[
                         {
                             "type": "text",
-                            "text": "Describe this image in detail for a knowledge base. Extract any visible text entirely. If it's a diagram, describe the relationships.",
+                            "text": (
+                                "Describe this image in detail for a knowledge base. "
+                                "Extract any visible text entirely. "
+                                "If it's a diagram, describe the relationships."
+                            ),
                         },
                         {
                             "type": "image_url",

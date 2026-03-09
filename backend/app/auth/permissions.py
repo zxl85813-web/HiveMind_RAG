@@ -9,7 +9,7 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 参见: REGISTRY.md > 后端 > auth > permissions
 """
 
-from enum import Enum
+from enum import StrEnum
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,7 @@ from app.models.chat import User
 from app.models.security import DocumentPermission
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """用户角色。"""
 
     ADMIN = "admin"
@@ -29,7 +29,7 @@ class Role(str, Enum):
     READONLY = "readonly"
 
 
-class Permission(str, Enum):
+class Permission(StrEnum):
     """细粒度权限。"""
 
     # Chat

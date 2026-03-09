@@ -2,6 +2,7 @@
 Security API endpoints.
 """
 
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,8 +12,22 @@ from sqlmodel import select, update
 from app.api.deps import get_current_user, get_db
 from app.common.response import ApiResponse
 from app.models.chat import User
-from app.models.security import DesensitizationPolicy, DesensitizationReport, SensitiveItem
-from app.schemas.security import DesensitizationPolicyCreate, DesensitizationPolicyRead, DesensitizationReportRead
+from app.models.security import (
+    AuditLog,
+    DesensitizationPolicy,
+    DesensitizationReport,
+    DocumentPermission,
+    SensitiveItem,
+)
+from app.schemas.security import (
+    AuditLogRead,
+    DesensitizationPolicyCreate,
+    DesensitizationPolicyRead,
+    DesensitizationReportRead,
+    DocumentPermissionCreate,
+    DocumentPermissionRead,
+)
+from app.services.security_service import SecurityService
 
 router = APIRouter()
 
@@ -110,10 +125,6 @@ async def get_available_detectors(current_user: User = Depends(get_current_user)
 
 
 # --- ACL & Governance (P1) ---
-
-from app.models.security import AuditLog, DocumentPermission
-from app.schemas.security import AuditLogRead, DocumentPermissionCreate, DocumentPermissionRead
-from app.services.security_service import SecurityService
 
 
 @router.get("/permissions/document/{document_id}", response_model=ApiResponse[list[DocumentPermissionRead]])

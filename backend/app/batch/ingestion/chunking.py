@@ -7,6 +7,7 @@ Supports basic recursive splitting, parent-child chunking, and table-aware chunk
 import abc
 import json
 import uuid
+from typing import ClassVar
 
 from langchain_text_splitters import MarkdownTextSplitter, RecursiveCharacterTextSplitter
 from loguru import logger
@@ -30,7 +31,7 @@ class BaseChunkingStrategy(abc.ABC):
 class ChunkingStrategyRegistry:
     """Registry for chunking strategies."""
 
-    _strategies: dict[str, type[BaseChunkingStrategy]] = {}
+    _strategies: ClassVar[dict[str, type[BaseChunkingStrategy]]] = {}
 
     @classmethod
     def register(cls, name: str):

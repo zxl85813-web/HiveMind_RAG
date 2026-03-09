@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import ClassVar
 
 from loguru import logger
 from pydantic import BaseModel
@@ -31,12 +32,12 @@ class LearningService:
     Self-improving AI System and External Learning coordinator.
     """
 
-    _mock_subscriptions = [
+    _mock_subscriptions: ClassVar[list[dict]] = [
         {"id": "sub_1", "topic": "LangChain", "is_active": True, "created_at": datetime.now()},
         {"id": "sub_2", "topic": "React 19", "is_active": True, "created_at": datetime.now()},
     ]
 
-    _mock_discoveries = [
+    _mock_discoveries: ClassVar[list[dict]] = [
         {
             "id": "disc_1",
             "title": "GPT-5 Architecture Leak?",

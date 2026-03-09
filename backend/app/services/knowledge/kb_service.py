@@ -47,11 +47,11 @@ class KnowledgeService:
             statement = select(KnowledgeBase)
         else:
             # Accessible if user is owner, or public, or has read permission based on user/role/department
-            conditions = [KnowledgeBase.owner_id == current_user.id, KnowledgeBase.is_public == True]
+            conditions = [KnowledgeBase.owner_id == current_user.id, KnowledgeBase.is_public]
 
             # ACL Subquery
             acl_stmt = select(KnowledgeBasePermission.kb_id).where(
-                KnowledgeBasePermission.can_read == True,
+                KnowledgeBasePermission.can_read,
                 or_(
                     KnowledgeBasePermission.user_id == current_user.id,
                     KnowledgeBasePermission.role_id == current_user.role,

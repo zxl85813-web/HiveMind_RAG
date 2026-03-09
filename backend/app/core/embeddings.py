@@ -25,7 +25,7 @@ class ZhipuEmbeddingService(BaseEmbeddingService):
 
     from functools import lru_cache
 
-    @lru_cache(maxsize=1024)
+    @lru_cache(maxsize=1024)  # noqa: B019
     def _embed_with_cache(self, text: str) -> list[float]:
         try:
             response = self.client.embeddings.create(model=self.model, input=text)

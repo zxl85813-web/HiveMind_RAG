@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 import abc
 
 from sqlalchemy import select
@@ -101,7 +103,7 @@ class HybridRetrievalStep(BaseRetrievalStep):
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             all_docs = []
-            for i, res in enumerate(results):
+            for _i, res in enumerate(results):
                 if isinstance(res, Exception):
                     ctx.log("Retrieval", f"Parallel task failed: {res}")
                     continue

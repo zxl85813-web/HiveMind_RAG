@@ -49,4 +49,4 @@ async def run_generation(request: GenerateRequest):
         )
     except Exception as e:
         # In production, log error properly
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

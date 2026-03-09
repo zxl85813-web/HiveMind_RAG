@@ -3,6 +3,7 @@ Security Sanitizer for LLM Inputs/Outputs
 """
 
 import re
+from typing import ClassVar
 
 from loguru import logger
 
@@ -13,7 +14,7 @@ class SecuritySanitizer:
     """
 
     # Simple regex patterns for common sensitive data
-    PATTERNS = [
+    PATTERNS: ClassVar[list[tuple[str, str]]] = [
         (r"[\w\.-]+@[\w\.-]+\.\w+", "[EMAIL_MASKED]"),  # Email
         (r"(?i)(api[-_]?key|secret|token)[:\s=]+[a-z0-9]{20,}", "[KEY_MASKED]"),  # Generic Key
         (r"\b(sk|AIza)[-a-zA-Z0-9]{20,}\b", "[KEY_MASKED]"),  # OpenAI/Google Key
@@ -42,7 +43,7 @@ class ToolAuditor:
     Logs and audits tool calls for behavioral policy compliance.
     """
 
-    FORBIDDEN_COMMANDS = ["rm -rf", "format c:", "drop table", "shutdown"]
+    FORBIDDEN_COMMANDS: ClassVar[list[str]] = ["rm -rf", "format c:", "drop table", "shutdown"]
 
     @classmethod
     def audit_tool_call(cls, tool_name: str, args: dict) -> bool:

@@ -33,7 +33,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _swarm.register_agent(
         AgentDefinition(
             name="rag",
-            description="Knowledge Expert. Use this for ANY factual questions, knowledge base lookups, or internal documentation queries. It excels at extracting precise answers with citations.",
+            description=(
+                "Knowledge Expert. Use this for factual questions, knowledge-base lookups, "
+                "or internal documentation queries with citations."
+            ),
             model_hint="balanced",
         )
     )
@@ -54,7 +57,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _swarm.register_agent(
         AgentDefinition(
             name="eval_architect",
-            description="Expert in RAG evaluation systems. Helps users design testsets, expand data with AI, and diagnose quality issues.",
+            description=(
+                "Expert in RAG evaluation systems. Helps design testsets, expand data with AI, "
+                "and diagnose quality issues."
+            ),
             model_hint="reasoning",
         )
     )

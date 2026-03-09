@@ -5,6 +5,7 @@ Detectors Framework — For finding sensitive information in text.
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass
@@ -112,7 +113,7 @@ class PassportDetector(RegexDetector):
 class DetectorRegistry:
     """Registry to hold and retrieve available detectors."""
 
-    _detectors: dict[str, BaseDetector] = {}
+    _detectors: ClassVar[dict[str, BaseDetector]] = {}
 
     @classmethod
     def register(cls, detector: BaseDetector):

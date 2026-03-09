@@ -5,6 +5,7 @@ Chat endpoints — SSE streaming for Q&A.
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from loguru import logger
+from pydantic import BaseModel
 
 from app.common.response import ApiResponse
 
@@ -97,9 +98,6 @@ async def delete_conversation(conversation_id: str):
     if success:
         return ApiResponse.ok(message="Deleted")
     return ApiResponse.error(message="Delete failed", code=400)
-
-
-from pydantic import BaseModel
 
 
 class FeedbackRequest(BaseModel):

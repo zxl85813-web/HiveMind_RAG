@@ -1,9 +1,11 @@
 """
 脚本：创建系统超级管理员。
-用法：python -m backend.scripts.create_superuser --username admin --password "123456"
+用法：python -m backend.scripts.create_superuser --username admin --password "<your_password>"
 
 注意：必须在 backend/ 根目录下运行 (因为 module import 路径问题)。
 """
+
+# ruff: noqa: E402
 
 import asyncio
 import sys
@@ -13,9 +15,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
 
+from app.models.user import User
+
 from app.auth.security import hash_password
 from app.core.database import get_db_session, init_db
-from app.models.user import User
 
 
 async def create_superuser(username: str, password: str, email: str = "admin@example.com"):

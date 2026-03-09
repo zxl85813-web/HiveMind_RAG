@@ -294,7 +294,13 @@ class ChatService:
             batch_size = 30
             for i in range(0, len(response_content), batch_size):
                 chunk = response_content[i : i + batch_size]
-                yield f"data: {json.dumps({'type': 'content', 'delta': chunk, 'conversation_id': conversation_id, 'is_cached': True})}\n\n"
+                cache_chunk_payload = {
+                    "type": "content",
+                    "delta": chunk,
+                    "conversation_id": conversation_id,
+                    "is_cached": True,
+                }
+                yield f"data: {json.dumps(cache_chunk_payload)}\n\n"
                 await asyncio.sleep(0.01)  # Faster than per-char but still has progress feel
         else:
             cache_step.complete(output="Cache Miss", status="info")
@@ -346,56 +352,58 @@ class ChatService:
                                 "retrieval",
                                 metadata={"logs": ret_logs, "docs": ret_docs} if (ret_logs or ret_docs) else None,
                             )
-                            yield f"data: {json.dumps({'type': 'status', 'content': '🔍 检索核心资产库中...' if not ret_docs else f'📚 找到 {len(ret_docs)} 相关条目'})}\n\n"
+                            if not ret_docs:
+                                status_content = "🔍 检索核心资产库中..."
+                            else:
+                                status_content = f"📚 找到 {len(ret_docs)} 相关条目"
+                            yield f"data: {json.dumps({'type': 'status', 'content': status_content})}\n\n"
 
                         if node_name == "supervisor":
                             next_agent = updates.get("next_step")
                             if next_agent and next_agent != "FINISH":
                                 tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
-                                # yield f"data: {json.dumps({'type': 'status', 'content': f'👨‍✈️ 编排决策: 由 {next_agent} 处理回复'})}\n\n" # Combined with thought_log now
 
                     # --- Content Stream Handling ---
+                    non_content_nodes = {"retrieval", "supervisor", "reflection", "pre_processor"}
                     for node_name, updates in output.items():
-                        if node_name not in ["retrieval", "supervisor", "reflection", "pre_processor"]:
-                            if "messages" in updates:
-                                raw_content = updates["messages"][-1].content
-                                if policy_rules:
-                                    from app.audit.security.engine import DesensitizationEngine
+                        if node_name not in non_content_nodes and "messages" in updates:
+                            raw_content = updates["messages"][-1].content
+                            if policy_rules:
+                                from app.audit.security.engine import DesensitizationEngine
 
-                                    content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
-                                else:
-                                    content = raw_content
+                                content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
+                            else:
+                                content = raw_content
 
-                                # --- AI-First Refinement: Clean up internal model tags (M2.1H) ---
-                                import re
+                            # --- AI-First Refinement: Clean up internal model tags (M2.1H) ---
+                            import re
 
-                                # Detect and yield thinking content if model uses <think> or <thought> tags
-                                # (Note: This is a simplified version; real-time extraction from partial chunks is harder)
-                                thinking_match = re.search(r"<(think|thought)>(.*?)</\1>", content, re.DOTALL)
-                                if thinking_match:
-                                    think_content = thinking_match.group(2).strip()
-                                    if think_content:
-                                        yield f"data: {json.dumps({'type': 'status', 'content': f'🤔 思考: {think_content[:150]}...'})}\n\n"
+                            thinking_match = re.search(r"<(think|thought)>(.*?)</\1>", content, re.DOTALL)
+                            if thinking_match:
+                                think_content = thinking_match.group(2).strip()
+                                if think_content:
+                                    think_payload = {"type": "status", "content": f"🤔 思考: {think_content[:150]}..."}
+                                    yield f"data: {json.dumps(think_payload)}\n\n"
 
-                                # Remove common leaked internal tags from models like DeepSeek (e.g., <|tool_calls_begin|>)
-                                content = re.sub(r"<[\|｜].*?[\|｜]>", "", content)
-                                content = content.replace("< | tool_calls_begin | >", "")
-                                content = content.replace("< | tool_calls_end | >", "")
-                                # Also strip the thinking tags for final display
-                                content = re.sub(r"<(think|thought)>.*?</\1>", "", content, flags=re.DOTALL)
+                            content = re.sub(r"<[\|｜].*?[\|｜]>", "", content)
+                            content = content.replace("< | tool_calls_begin | >", "")
+                            content = content.replace("< | tool_calls_end | >", "")
+                            content = re.sub(r"<(think|thought)>.*?</\1>", "", content, flags=re.DOTALL)
 
-                                # Skip if result is just empty tags or whitespace
-                                if not content.strip():
-                                    continue
+                            if not content.strip():
+                                continue
 
-                                # --- Phase 6: Batch Yielding (M6.3) ---
-                                batch_size = 15
-                                for i in range(0, len(content), batch_size):
-                                    chunk = content[i : i + batch_size]
-                                    response_content += chunk
-                                    yield f"data: {json.dumps({'type': 'content', 'delta': chunk, 'conversation_id': conversation_id})}\n\n"
-                                    # Optimized delay for smooth typing (M6.3)
-                                    await asyncio.sleep(0.005)
+                            batch_size = 15
+                            for i in range(0, len(content), batch_size):
+                                chunk = content[i : i + batch_size]
+                                response_content += chunk
+                                content_payload = {
+                                    "type": "content",
+                                    "delta": chunk,
+                                    "conversation_id": conversation_id,
+                                }
+                                yield f"data: {json.dumps(content_payload)}\n\n"
+                                await asyncio.sleep(0.005)
 
                 swarm_step.complete(output="Generation Completed")
                 # 6.5 Set Cache for future similar questions (only if it's a REAL answer, not a tool leak)

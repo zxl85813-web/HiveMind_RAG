@@ -108,4 +108,4 @@ def process_document_chunk(self, task_payload: dict):
         SwarmCircuitBreaker(kb_id=kb_id).record_failure()
 
         # Retry with exponential backoff on transient errors
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc

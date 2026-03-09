@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from typing import Any
 
 from app.services.generation import get_generation_service
@@ -35,7 +37,7 @@ async def generate_design_document(task_description: str, kb_ids: list[str]) -> 
 
 
 def search_abstract_memory(
-    tags: list[str] = None, doc_types: list[str] = None, dates: list[str] = None
+    tags: list[str] | None = None, doc_types: list[str] | None = None, dates: list[str] | None = None
 ) -> list[dict[str, Any]]:
     """
     [Radar Tool] Instantly searches the In-Memory Tier-1 Abstract Index.

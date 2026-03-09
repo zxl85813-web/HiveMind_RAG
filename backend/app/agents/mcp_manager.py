@@ -106,6 +106,6 @@ class MCPManager:
     async def health_check(self) -> dict[str, bool]:
         """Check connectivity to all MCP servers."""
         status = {}
-        for name in self._servers.keys():
+        for name in self._servers:
             status[name] = name in self._sessions
         return status

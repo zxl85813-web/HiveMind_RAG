@@ -7,10 +7,10 @@
 参见: REGISTRY.md > 后端 > common > enums
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Status(str, Enum):
+class Status(StrEnum):
     """通用状态 — 适用于文档处理、任务执行等。"""
 
     PENDING = "pending"
@@ -20,7 +20,7 @@ class Status(str, Enum):
     CANCELLED = "cancelled"
 
 
-class Priority(str, Enum):
+class Priority(StrEnum):
     """通用优先级。"""
 
     LOW = "low"
@@ -29,7 +29,7 @@ class Priority(str, Enum):
     CRITICAL = "critical"
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     """排序方向。"""
 
     ASC = "asc"

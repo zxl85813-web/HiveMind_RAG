@@ -7,6 +7,8 @@ Usage:
     python -m scripts.seed_demo_eval
 """
 
+# ruff: noqa: E501
+
 import asyncio
 import json
 import logging

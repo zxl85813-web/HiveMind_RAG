@@ -2,6 +2,7 @@
 Knowledge Base management endpoints.
 """
 
+
 import os
 import uuid
 from collections.abc import Sequence
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.common.response import ApiResponse
 from app.core.exceptions import NotFoundError
+from app.core.vector_store import get_vector_store
 from app.models.chat import User
 from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
 from app.models.security import KnowledgeBasePermission
@@ -258,7 +260,7 @@ async def link_document(
     """Link an existing document to a knowledge base and start indexing."""
     service = KnowledgeService(db)
     # Check ownership
-    kb = await service.get_kb(kb_id)
+    await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
         raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
 
@@ -278,7 +280,7 @@ async def list_documents_in_kb(
 ):
     """List documents in a knowledge base."""
     service = KnowledgeService(db)
-    kb = await service.get_kb(kb_id)
+    await service.get_kb(kb_id)
     # Access control
     if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -325,7 +327,7 @@ async def get_knowledge_graph(
     from app.core.graph_store import get_graph_store
 
     service = KnowledgeService(db)
-    kb = await service.get_kb(kb_id)
+    await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
 

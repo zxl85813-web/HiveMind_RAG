@@ -4,7 +4,7 @@ Uses Vector Search to find similar answered questions.
 """
 
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 from loguru import logger
 
@@ -12,11 +12,11 @@ from app.core.vector_store import VectorDocument, get_vector_store
 
 
 class CacheService:
-    CACHE_COLLECTION = "semantic_cache"
-    THRESHOLD = 0.96  # High threshold for semantic equivalence
+    CACHE_COLLECTION: ClassVar[str] = "semantic_cache"
+    THRESHOLD: ClassVar[float] = 0.96  # High threshold for semantic equivalence
 
     # Tokens that indicate a corrupted/internal response — NEVER cache or return these
-    POISON_TOKENS = ["tool_calls_begin", "tool_sep", "tool_call_end", "tool▁calls", "tool▁sep"]
+    POISON_TOKENS: ClassVar[list[str]] = ["tool_calls_begin", "tool_sep", "tool_call_end", "tool▁calls", "tool▁sep"]
 
     @staticmethod
     async def get_cached_response(query: str) -> dict[str, Any] | None:
@@ -63,12 +63,14 @@ class CacheService:
             return None
 
     @staticmethod
-    async def set_cached_response(query: str, response: str, metadata: dict[str, Any] = {}):
+    async def set_cached_response(query: str, response: str, metadata: dict[str, Any] | None = None):
         """
         Store a query-response pair in the semantic cache.
         Validates that the response is clean before caching.
         """
         # --- Safety Valve: Never cache poisoned responses ---
+        if metadata is None:
+            metadata = {}
         if any(token in response for token in CacheService.POISON_TOKENS):
             logger.warning(f"🚫 Refusing to cache poisoned response for '{query}'")
             return

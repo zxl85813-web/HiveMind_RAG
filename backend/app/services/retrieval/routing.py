@@ -5,6 +5,8 @@ Responsible for selecting the most appropriate Knowledge Base(s) for a given que
 based on the query intent and descriptions of available KBs.
 """
 
+# ruff: noqa: W293
+
 from sqlmodel import Session, select
 
 from app.core.database import engine

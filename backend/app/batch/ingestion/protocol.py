@@ -3,7 +3,7 @@ Data Protocol — Internal data structures for the Python Ingestion Pipeline.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ from pydantic import BaseModel
 # ============================================================
 
 
-class ResourceType(str, Enum):
+class ResourceType(StrEnum):
     """Types of resources supported by the ingestion system."""
 
     REQUIREMENT = "requirement"  # Word/Excel: 要件定義

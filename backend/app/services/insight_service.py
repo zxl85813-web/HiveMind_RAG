@@ -44,7 +44,7 @@ class InsightService:
         history_trimmed = history[-2000:] if len(history) > 2000 else history
         response_trimmed = last_response[-1000:] if len(last_response) > 1000 else last_response
 
-        prompt = f"""You are the 'Strategic Brain' of a RAG Platform. 
+        prompt = f"""You are the 'Strategic Brain' of a RAG Platform.
 Analyze the recent chat session and provide a PROACTIVE NEXT STEP for the user.
 
 Session History: {history_trimmed}
@@ -61,7 +61,9 @@ IMPORTANT RULES:
 - If the user mentions "创建知识库", provide action with type "open_modal" and target "create_kb", label "立刻创建"
 
 Output ONLY valid JSON:
-{{"summary": "brief summary", "thought": "reasoning", "actions": [{{"type": "navigate", "label": "Button Label", "target": "/path", "variant": "primary"}}]}}"""
+{{"summary": "brief summary", "thought": "reasoning", "actions": [
+    {{"type": "navigate", "label": "Button Label", "target": "/path", "variant": "primary"}}
+]}}"""
 
         try:
             resp = await llm.chat_complete([{"role": "system", "content": prompt}], json_mode=True)
@@ -76,7 +78,7 @@ Output ONLY valid JSON:
                 if json_match:
                     try:
                         data = json.loads(json_match.group(1))
-                    except:
+                    except Exception:
                         return None
                 else:
                     return None

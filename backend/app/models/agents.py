@@ -4,20 +4,20 @@ Database models for Agent Shared Memory (TODOs, Reflections).
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlmodel import JSON, Field, SQLModel
 
 
-class TodoPriority(str, Enum):
+class TodoPriority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class TodoStatus(str, Enum):
+class TodoStatus(StrEnum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     WAITING_USER = "waiting_user"
@@ -41,7 +41,7 @@ class TodoItem(SQLModel, table=True):
     completed_at: datetime | None = None
 
 
-class ReflectionType(str, Enum):
+class ReflectionType(StrEnum):
     SELF_EVAL = "self_evaluation"
     ERROR_CORRECTION = "error_correction"
     KNOWLEDGE_GAP = "knowledge_gap"

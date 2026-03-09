@@ -3,7 +3,7 @@ WebSocket message protocol schemas.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # ==========================================
 
 
-class ServerEventType(str, Enum):
+class ServerEventType(StrEnum):
     """Events pushed from server to client."""
 
     AGENT_STATUS = "agent_status"  # Agent execution progress
@@ -38,7 +38,7 @@ class ServerMessage(BaseModel):
 # ==========================================
 
 
-class ClientEventType(str, Enum):
+class ClientEventType(StrEnum):
     """Events sent from client to server."""
 
     CANCEL = "cancel"  # Cancel ongoing generation

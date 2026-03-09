@@ -4,6 +4,8 @@ Query Analytics and Pre-processing Step.
 Handles intent expansion, normalization, and context enrichment based on memory.
 """
 
+# ruff: noqa: E501, W293
+
 from pydantic import BaseModel, Field
 
 from app.agents.llm_router import ModelTier
@@ -60,10 +62,9 @@ class QueryPreProcessingStep(BaseRetrievalStep):
                 resp = await llm.ainvoke([HumanMessage(content=prompt)])
                 rewritten = resp.content.strip()
 
-                if "\n" not in rewritten and len(rewritten) < 200:
-                    if rewritten != ctx.query:
-                        ctx.expanded_queries.append(rewritten)
-                        ctx.log("QueryRewrite", f"Added rewritten: {rewritten}")
+                if "\n" not in rewritten and len(rewritten) < 200 and rewritten != ctx.query:
+                    ctx.expanded_queries.append(rewritten)
+                    ctx.log("QueryRewrite", f"Added rewritten: {rewritten}")
 
             except Exception as e:
                 ctx.log("QueryRewrite", f"Rewrite failed: {e}")

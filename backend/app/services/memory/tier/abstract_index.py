@@ -19,7 +19,7 @@ class InMemoryAbstractIndex:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(InMemoryAbstractIndex, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
@@ -40,7 +40,14 @@ class InMemoryAbstractIndex:
         self._initialized = True
         logger.info("⚡ In-Memory Abstract Index initialized.")
 
-    def add_abstract(self, doc_id: str, title: str, doc_type: str, tags: list[str], timestamp: str = None) -> None:
+    def add_abstract(
+        self,
+        doc_id: str,
+        title: str,
+        doc_type: str,
+        tags: list[str],
+        timestamp: str | None = None,
+    ) -> None:
         """
         Ingest a new abstract into memory and update all routing indices.
         """
@@ -69,7 +76,11 @@ class InMemoryAbstractIndex:
             self.tag_index[tag_clean].add(doc_id)
 
     def route_query(
-        self, tags: list[str] = None, doc_types: list[str] = None, dates: list[str] = None, limit: int = 10
+        self,
+        tags: list[str] | None = None,
+        doc_types: list[str] | None = None,
+        dates: list[str] | None = None,
+        limit: int = 10,
     ) -> list[dict[str, Any]]:
         """
         Ultra-fast routing based on set intersections.

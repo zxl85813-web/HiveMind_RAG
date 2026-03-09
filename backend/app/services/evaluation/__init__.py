@@ -3,7 +3,6 @@ Evaluation Service — Integrated RAGAS / DeepEval for quality metrics.
 """
 
 import json
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +10,7 @@ from sqlmodel import select
 
 from app.core.llm import get_llm_service
 from app.models.evaluation import EvaluationItem, EvaluationReport, EvaluationSet
-from app.models.knowledge import DocumentChunk, KnowledgeBase, KnowledgeBaseDocumentLink
+from app.models.knowledge import DocumentChunk, KnowledgeBaseDocumentLink
 
 
 class EvaluationService:
@@ -58,17 +57,15 @@ class EvaluationService:
 
         items_created = 0
         for chunk in chunks[:count]:
-            prompt = f"""
-            Based on the following text chunk, generate a realistic question and its definitive answer (ground truth).
-            The question should be something a user would actually ask.
-            The answer must be based ENTIRELY on the provided text.
-            
-            Format as JSON:
-            {{"question": "...", "answer": "..."}}
-            
-            Text Chunk:
-            {chunk.content}
-            """
+            prompt = (
+                "Based on the following text chunk, generate a realistic question and its definitive answer "
+                "(ground truth).\n"
+                "The question should be something a user would actually ask.\n"
+                "The answer must be based ENTIRELY on the provided text.\n\n"
+                "Format as JSON:\n"
+                '{"question": "...", "answer": "..."}\n\n'
+                f"Text Chunk:\n{chunk.content}"
+            )
 
             try:
                 resp = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
@@ -138,9 +135,15 @@ class EvaluationService:
                 contexts = [doc.page_content for doc in docs]
 
                 context_text = "\n\n".join(contexts)
-                gen_prompt = f"Use the context below to answer the question.\nContext: {context_text}\nQuestion: {item.question}\nAnswer:"
+                gen_prompt = (
+                    "Use the context below to answer the question.\n"
+                    f"Context: {context_text}\n"
+                    f"Question: {item.question}\n"
+                    "Answer:"
+                )
 
-                # Perform Generation (using the specific model if possible, here using model_name as parameter if LLMService supports it)
+                # Perform Generation using the specific model when possible.
+                # For now, `model_name` is treated as a hint if the LLM service supports it.
                 # For MVP, we pass it as a hint or just use it to label the report
                 answer = await llm.chat_complete([{"role": "user", "content": gen_prompt}])
 
@@ -168,24 +171,22 @@ class EvaluationService:
         prec_scores = []
         recall_scores = []
 
-        for res, item in zip(results, items, strict=False):
+        for res, _item in zip(results, items, strict=False):
             try:
                 # Optimized multi-judge prompt to save tokens (AI-First efficiency)
-                judge_prompt = f"""
-                Analyze the RAG result:
-                Q: {res["question"]}
-                GT: {res["ground_truth"]}
-                AI: {res["answer"]}
-                Context: {res["contexts"][:3]}
-                
-                Rate 0.0-1.0 for:
-                1. Faithfulness (AI based on Context)
-                2. Relevance (AI matches Q)
-                3. Precision (Context matches Q)
-                4. Recall (Context contains GT)
-                
-                Return JSON only: {{"f": 0.0, "r": 0.0, "p": 0.0, "rec": 0.0}}
-                """
+                judge_prompt = (
+                    "Analyze the RAG result:\n"
+                    f"Q: {res['question']}\n"
+                    f"GT: {res['ground_truth']}\n"
+                    f"AI: {res['answer']}\n"
+                    f"Context: {res['contexts'][:3]}\n\n"
+                    "Rate 0.0-1.0 for:\n"
+                    "1. Faithfulness (AI based on Context)\n"
+                    "2. Relevance (AI matches Q)\n"
+                    "3. Precision (Context matches Q)\n"
+                    "4. Recall (Context contains GT)\n\n"
+                    'Return JSON only: {"f": 0.0, "r": 0.0, "p": 0.0, "rec": 0.0}'
+                )
                 j_resp = await judge.chat_complete([{"role": "user", "content": judge_prompt}], json_mode=True)
                 scores = json.loads(j_resp)
 

@@ -20,12 +20,12 @@ async def extract_graph_from_image(image_url: str, context_id: str = "default") 
     prompt = """
     You are a Process Analyst.
     Analyze this flowchart/diagram image carefully.
-    
+
     Task:
     1. Identification: Identify all nodes (steps, decisions, start/end) and relationships (arrows).
     2. Extraction: Return a structured JSON object.
     3. Summary: Provide a comprehensive textual summary of the process flow.
-    
+
     Output Format (JSON only):
     {
       "summary": "The process starts at X, checks for condition Y...",

@@ -20,9 +20,11 @@ Multiple agents may collaborate on a single request.
 All agents share a common memory space.
 """
 
+# ruff: noqa: E501, N806
+
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.language_models import BaseChatModel
@@ -179,6 +181,7 @@ class SwarmOrchestrator:
     def __init__(self) -> None:
         self._agents: dict[str, AgentDefinition] = {}
         self._graph = None  # Compiled LangGraph StateGraph
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # --- LLM Router (Tiered Selection) ---
         self.router = LLMRouter()
@@ -203,6 +206,11 @@ class SwarmOrchestrator:
         self.skills = SkillRegistry()
 
         logger.info("🐝 SwarmOrchestrator initialized with Tiered LLM Routing, MCP, and Skills")
+
+    def _track_task(self, coro: Coroutine[Any, Any, Any]) -> None:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     # ============================================================
     #  Agent Management
@@ -315,7 +323,7 @@ class SwarmOrchestrator:
             "supervisor",
             lambda state: state["next_step"],
             {
-                **{name: name for name in self._agents.keys()},
+                **{name: name for name in self._agents},
                 "retrieval": "retrieval",
                 "FINISH": END,
                 "REFLECTION": "reflection",
@@ -324,7 +332,7 @@ class SwarmOrchestrator:
         )
 
         # All agents → Reflection
-        for name in self._agents.keys():
+        for name in self._agents:
             workflow.add_edge(name, "reflection")
 
         # Reflection → Supervisor or END
@@ -705,7 +713,7 @@ class SwarmOrchestrator:
         last_agent_name = list(agent_outputs.keys())[-1] if agent_outputs else "unknown"
 
         # Build reflection prompt via PromptEngine
-        reflection_prompt = self.prompt_engine.build_reflection_prompt(
+        self.prompt_engine.build_reflection_prompt(
             user_query=state.get("original_query", ""),
             agent_name=last_agent_name,
             agent_response=last_message.content[:1500],  # Truncate to save tokens
@@ -724,12 +732,10 @@ class SwarmOrchestrator:
 
         # --- Automatic Semantic Caching (Phase 4) ---
         if eval_result.verdict in ["PASS", "EXCELLENT"] and eval_result.composite_score >= 0.8:
-            import asyncio
-
             from app.services.cache_service import CacheService
 
             # background task to cache the result
-            asyncio.create_task(
+            self._track_task(
                 CacheService.set_cached_response(
                     query=state.get("original_query", ""),
                     response=last_message.content,
@@ -739,10 +745,7 @@ class SwarmOrchestrator:
             logger.info("💾 [Phase 4] Queued high-quality response for semantic cache.")
 
         # Decide next step based on composite score
-        if eval_result.verdict in ["PASS", "EXCELLENT"]:
-            next_step = "FINISH"
-        else:
-            next_step = "supervisor"  # REVISE
+        next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
 
         logger.info(f"🧪 [MultiGrader] Verdict: {eval_result.verdict} (score={eval_result.composite_score:.2f})")
 
@@ -785,7 +788,6 @@ class SwarmOrchestrator:
     async def _do_retrieval_work(self, state: SwarmState) -> dict:
         """Core retrieval logic shared by node and pre-warmer."""
         query = str(state.get("original_query", ""))
-        display_query = query[:40] + "..." if len(query) > 40 else query
 
         context_str = ""
         kb_ids = state.get("kb_ids", [])
@@ -984,7 +986,6 @@ class SwarmOrchestrator:
         augmented_message = user_message
         if context:
             # Inject pipeline context as additional info
-            pipeline_info = context.get("pipeline_context", {})
             stage_info = context.get("stage", "")
             if stage_info:
                 augmented_message = f"[Pipeline Stage: {stage_info}]\n\n{user_message}"
@@ -1032,7 +1033,6 @@ class SwarmOrchestrator:
 
         kb_ids = []
         if context:
-            pipeline_info = context.get("pipeline_context", {})
             stage_info = context.get("stage", "")
             if stage_info:
                 augmented_message = f"[Pipeline Stage: {stage_info}]\n\n{user_message}"

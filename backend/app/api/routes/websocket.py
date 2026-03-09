@@ -3,13 +3,11 @@ WebSocket endpoint — persistent connection for proactive push notifications.
 """
 
 from fastapi import APIRouter, WebSocket
-
-router = APIRouter()
-
-
 from starlette.websockets import WebSocketDisconnect
 
 from app.services.ws_manager import ws_manager
+
+router = APIRouter()
 
 
 @router.websocket("/connect")

@@ -10,7 +10,7 @@ Concept: Cost-Aware Swarm Orchestration.
 High-end reasoning is only invoked for ambiguous or high-stakes reasoning phases.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
@@ -19,7 +19,7 @@ from loguru import logger
 from app.core.config import settings
 
 
-class ModelTier(str, Enum):
+class ModelTier(StrEnum):
     """Classification of models by capability and cost."""
 
     FAST = "fast"  # Simple reasoning, extremely cheap
@@ -127,7 +127,7 @@ class LLMRouter:
 
         # Absolute fallback to first available
         if self._instances:
-            return list(self._instances.values())[0]
+            return next(iter(self._instances.values()))
 
         raise RuntimeError("No LLM instances available in router.")
 

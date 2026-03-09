@@ -15,7 +15,7 @@ Storage Backends:
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loguru import logger
@@ -26,14 +26,14 @@ from pydantic import BaseModel
 # ==========================================
 
 
-class TodoPriority(str, Enum):
+class TodoPriority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class TodoStatus(str, Enum):
+class TodoStatus(StrEnum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     WAITING_USER = "waiting_user"  # Needs user input
@@ -62,7 +62,7 @@ class TodoItem(BaseModel):
 # ==========================================
 
 
-class ReflectionType(str, Enum):
+class ReflectionType(StrEnum):
     SELF_EVAL = "self_evaluation"  # Quality assessment of own output
     ERROR_CORRECTION = "error_correction"  # Detected and corrected an error
     KNOWLEDGE_GAP = "knowledge_gap"  # Identified missing knowledge

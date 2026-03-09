@@ -25,10 +25,10 @@ async def get_memory_graph(entities: list[str] = Query(None)):
     # Query Neo4j for nodes and relationships
     cypher = """
     MATCH (n)-[r]-(m)
-    WHERE n.name IN $entities OR n.id IN $entities 
+     WHERE n.name IN $entities OR n.id IN $entities
        OR m.name IN $entities OR m.id IN $entities
-    RETURN DISTINCT n {.*} as source, labels(n)[0] as s_label, 
-                    type(r) as rel, 
+     RETURN DISTINCT n {.*} as source, labels(n)[0] as s_label,
+                          type(r) as rel,
                     m {.*} as target, labels(m)[0] as t_label
     LIMIT 50
     """

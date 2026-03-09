@@ -78,7 +78,7 @@ class EvaluationReport(SQLModel, table=True):
 
 
 class BadCase(SQLModel, table=True):
-    """Answers marked as poor quality (e.g. from user thumbs-down or low eval scores), used for fine-tuning or prompt fixing."""
+    """Answers marked as poor quality, used for fine-tuning or prompt fixing."""
 
     __tablename__ = "bad_cases"
 

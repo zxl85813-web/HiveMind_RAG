@@ -101,7 +101,10 @@ async def web_search(query: str) -> str:
     """
     # Mock for now - in production, integrate with Tavily or Serper
     logger.info(f"🌐 Mock Web Search for: {query}")
-    return f"Default search result for '{query}': (Mock result) DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
+    return (
+        f"Default search result for '{query}': (Mock result) "
+        "DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
+    )
 
 
 @tool

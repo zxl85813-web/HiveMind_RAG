@@ -30,7 +30,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loguru import logger
@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 # ============================================================
 
 
-class ArtifactType(str, Enum):
+class ArtifactType(StrEnum):
     """产物类型。"""
 
     EXTRACTED_DATA = "extracted_data"  # 结构化提取 (JSON)

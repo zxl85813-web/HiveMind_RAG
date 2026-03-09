@@ -7,7 +7,7 @@ TaskUnit 之间可以有依赖关系 (DAG)。
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 # ============================================================
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """任务状态机: PENDING → QUEUED → RUNNING → SUCCESS/FAILED/CANCELLED"""
 
     PENDING = "pending"  # 等待依赖完成
@@ -36,7 +36,7 @@ class TaskPriority(int, Enum):
     CRITICAL = 10
 
 
-class BatchStatus(str, Enum):
+class BatchStatus(StrEnum):
     CREATED = "created"
     RUNNING = "running"
     COMPLETED = "completed"  # 所有任务成功
