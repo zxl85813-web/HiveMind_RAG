@@ -11,36 +11,42 @@ import asyncio
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Add backend to path
 backend_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(backend_dir))
-
-from dotenv import load_dotenv
 load_dotenv(backend_dir / ".env")
 
-from loguru import logger
-from app.core.config import settings
-from app.agents.swarm import SwarmOrchestrator, AgentDefinition
+from loguru import logger  # noqa: E402
+
+from app.agents.swarm import AgentDefinition, SwarmOrchestrator  # noqa: E402
+from app.core.config import settings  # noqa: E402
 
 
 async def main():
     # Accept custom prompt from command line
     user_input = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "用Python写一个斐波那契数列函数"
 
-    logger.info(f"🚀 Swarm Test (PromptEngine integration)")
+    logger.info("🚀 Swarm Test (PromptEngine integration)")
     logger.info(f"Config: Provider={settings.LLM_PROVIDER}, Model={settings.LLM_MODEL}")
 
     # 1. Create Swarm
     swarm = SwarmOrchestrator()
 
     # 2. Register Agents (model_hint auto-loaded from YAML)
-    swarm.register_agent(AgentDefinition(
-        name="rag_agent",
-        description="Knowledge base retrieval and question answering",
-    ))
-    swarm.register_agent(AgentDefinition(
-        name="code_agent",
-        description="Code generation, execution, and debugging",
-    ))
+    swarm.register_agent(
+        AgentDefinition(
+            name="rag_agent",
+            description="Knowledge base retrieval and question answering",
+        )
+    )
+    swarm.register_agent(
+        AgentDefinition(
+            name="code_agent",
+            description="Code generation, execution, and debugging",
+        )
+    )
 
     # 3. Build graph
     await swarm.build_graph()
@@ -51,9 +57,9 @@ async def main():
 
     # 5. Display results
     messages = final_state.get("messages", [])
-    logger.success(f"\n{'='*60}")
+    logger.success(f"\n{'=' * 60}")
     logger.success(f"📊 Results ({len(messages)} messages)")
-    logger.success(f"{'='*60}")
+    logger.success(f"{'=' * 60}")
 
     for msg in messages:
         role = msg.type.upper()
