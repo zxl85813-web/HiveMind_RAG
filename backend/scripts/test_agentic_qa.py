@@ -23,7 +23,9 @@ async def run():
     swarm = SwarmOrchestrator()
     qa_agent = AgentDefinition(
         name="qa_tester",
-        description="Expert QA Test Engineer. Used exclusively to generate pytest scaffolding from markdown design docs.",
+        description=(
+            "Expert QA Test Engineer. Used exclusively to generate pytest scaffolding from markdown design docs."
+        ),
         model_hint="balanced",  # Use default model for now
     )
     swarm.register_agent(qa_agent)
@@ -31,12 +33,13 @@ async def run():
     # 3. Instruct the QA Agent
     user_prompt = f"""
     Please generate a complete, runnable `pytest` file to test the following design document.
-    Follow all constraints of your DDT (Design-Driven Testing) philosophy. Include mocks since we cannot connect to real Elasticsearch or Neo4j in Unit Tests.
+    Follow all constraints of your DDT (Design-Driven Testing) philosophy.
+    Include mocks since we cannot connect to real Elasticsearch or Neo4j in Unit Tests.
 
     [DOCUMENT START]
     {doc_content}
     [DOCUMENT END]
-    
+
     Return ONLY the raw Python code.
     """
 
