@@ -113,7 +113,8 @@ graph TD
 ```bash
 # 后端
 cd backend
-pip install -r requirements.txt
+pip install -e ".[dev]"  # 推荐（基于 pyproject.toml）
+# 或兼容方式：pip install -r requirements.txt
 python -m scripts.init_db
 uvicorn app.main:app --reload
 
@@ -142,6 +143,7 @@ alembic revision --autogenerate -m "description"            # 数据库迁移
 | [🏭 开发治理](docs/DEV_GOVERNANCE.md) | `.agent/` 规范体系、SOP 工作流、Git 门禁 |
 | [系统概览](docs/SYSTEM_OVERVIEW.md) | 全局设计哲学与技术选型 |
 | [路线图](docs/ROADMAP.md) | 开发里程碑与规划 |
+| [Milestone 工具](docs/MILESTONE_TOOL.md) | 从 TODO 自动创建 GitHub Milestone/Issues |
 | [模块注册表](REGISTRY.md) | 全局模块与 Skill 注册表 |
 | [贡献指南](CONTRIBUTING.md) | 提交规范、工作流、协作约定 |
 

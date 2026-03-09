@@ -1,0 +1,3 @@
+# Compatibility requirements file for environments expecting requirements.txt
+# Installs this backend package with development dependencies from pyproject.toml
+-e .[dev]

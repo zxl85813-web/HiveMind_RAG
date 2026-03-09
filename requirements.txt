@@ -1,0 +1,3 @@
+# Root compatibility entrypoint
+# Delegates Python dependencies to backend project requirements
+-r backend/requirements.txt

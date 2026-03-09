@@ -248,7 +248,8 @@ graph TD
 ```bash
 cd backend
 # 安装依赖
-pip install -r requirements.txt
+pip install -e ".[dev]"  # 推荐（基于 pyproject.toml）
+# 或兼容方式：pip install -r requirements.txt
 
 # 初始化数据库
 python -m scripts.init_db
