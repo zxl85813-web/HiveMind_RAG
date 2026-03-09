@@ -9,11 +9,10 @@ Task Queue — DAG 依赖管理 + 优先级调度。
 """
 
 from collections import defaultdict
-from typing import Any
 
 from loguru import logger
 
-from app.batch.models import TaskUnit, TaskStatus, TaskPriority
+from app.batch.models import TaskStatus, TaskUnit
 
 
 class TaskQueue:
@@ -151,13 +150,9 @@ class TaskQueue:
             elif self._on_failure == "ignore":
                 # 移除失败的依赖，检查剩余依赖
                 remaining_deps = [
-                    d for d in dependent.depends_on
-                    if self._tasks.get(d) and self._tasks[d].status != TaskStatus.FAILED
+                    d for d in dependent.depends_on if self._tasks.get(d) and self._tasks[d].status != TaskStatus.FAILED
                 ]
-                all_met = all(
-                    self._tasks[d].status == TaskStatus.SUCCESS
-                    for d in remaining_deps
-                )
+                all_met = all(self._tasks[d].status == TaskStatus.SUCCESS for d in remaining_deps)
                 if all_met:
                     dependent.status = TaskStatus.QUEUED
 

@@ -34,8 +34,8 @@ from loguru import logger
 from app.batch.models import (
     BatchJob,
     BatchStatus,
-    TaskUnit,
     TaskStatus,
+    TaskUnit,
 )
 from app.batch.task_queue import TaskQueue
 from app.batch.worker_pool import WorkerPool
@@ -44,12 +44,14 @@ from app.batch.worker_pool import WorkerPool
 class BatchController:
     """
     [DEPRECATED] 批处理引擎的顶层控制器。
-    
+
     Replaced by: app.batch.engine.JobManager
     Please use JobManager for all new batch processing tasks.
     """
+
     def __init__(self, swarm_invoke_fn: Any = None) -> None:
         import warnings
+
         warnings.warn("BatchController is deprecated, use JobManager instead", DeprecationWarning, stacklevel=2)
 
         """
@@ -245,6 +247,7 @@ class BatchController:
             3. 调用 Swarm
             4. 解析结果
         """
+
         async def execute(task: TaskUnit) -> dict[str, Any]:
             if self._swarm_invoke_fn:
                 # 真实执行: 调用 Swarm
@@ -309,10 +312,7 @@ class BatchController:
             "success_rate": f"{job.success_rate:.0%}",
             "active_workers": pool.active_count if pool else 0,
             "started_at": job.started_at.isoformat() if job.started_at else None,
-            "elapsed_seconds": (
-                (datetime.utcnow() - job.started_at).total_seconds()
-                if job.started_at else 0
-            ),
+            "elapsed_seconds": ((datetime.utcnow() - job.started_at).total_seconds() if job.started_at else 0),
         }
 
     def list_jobs(self) -> list[dict[str, Any]]:

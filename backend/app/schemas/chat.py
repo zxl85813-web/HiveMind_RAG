@@ -20,12 +20,14 @@ class ChatRequest(BaseModel):
 
 class AIAction(BaseModel):
     """AI suggested action button."""
+
     type: str  # navigate | open_modal | execute | suggest | show_data
     label: str
     target: str
     icon: str | None = None
     params: dict | None = None
-    variant: str = "default" # primary | default | link
+    variant: str = "default"  # primary | default | link
+
 
 class ChatMessage(BaseModel):
     """A single message in a conversation."""
@@ -36,7 +38,7 @@ class ChatMessage(BaseModel):
     created_at: datetime
     metadata: dict | None = None  # sources, agent trace, etc.
     actions: list[AIAction] | None = None
-    
+
     # P2: Performance Metrics
     prompt_tokens: int = 0
     completion_tokens: int = 0

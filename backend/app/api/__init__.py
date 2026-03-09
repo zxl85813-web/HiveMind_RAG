@@ -4,7 +4,24 @@ API Router — aggregates all route modules.
 
 from fastapi import APIRouter
 
-from app.api.routes import agents, chat, health, knowledge, learning, websocket, generation, memory, tags, security, audit, audit_v3, evaluation, finetuning, pipelines, settings
+from app.api.routes import (
+    agents,
+    audit,
+    audit_v3,
+    chat,
+    evaluation,
+    finetuning,
+    generation,
+    health,
+    knowledge,
+    learning,
+    memory,
+    pipelines,
+    security,
+    settings,
+    tags,
+    websocket,
+)
 
 router = APIRouter()
 

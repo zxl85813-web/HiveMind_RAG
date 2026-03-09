@@ -2,14 +2,12 @@
 Tag Service — Logic for managing tags and document categorizing.
 """
 
-from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, delete
-from loguru import logger
+from sqlmodel import delete, select
 
-from app.models.tags import Tag, TagCategory, DocumentTagLink
-from app.schemas.tags import TagCreate, TagCategoryCreate
 from app.core.exceptions import NotFoundError
+from app.models.tags import DocumentTagLink, Tag, TagCategory
+from app.schemas.tags import TagCategoryCreate, TagCreate
 
 
 class TagService:
@@ -25,7 +23,7 @@ class TagService:
         return db_category
 
     @staticmethod
-    async def get_categories(db: AsyncSession) -> List[TagCategory]:
+    async def get_categories(db: AsyncSession) -> list[TagCategory]:
         """List all tag categories."""
         statement = select(TagCategory)
         result = await db.execute(statement)
@@ -46,7 +44,7 @@ class TagService:
         return db_tag
 
     @staticmethod
-    async def get_tags(db: AsyncSession, category_id: Optional[int] = None) -> List[Tag]:
+    async def get_tags(db: AsyncSession, category_id: int | None = None) -> list[Tag]:
         """List tags, optionally filtered by category."""
         statement = select(Tag)
         if category_id:
@@ -71,11 +69,10 @@ class TagService:
         tag = await db.get(Tag, tag_id)
         if not tag:
             raise NotFoundError("Tag", tag_id)
-            
+
         # check if already exists
         statement = select(DocumentTagLink).where(
-            DocumentTagLink.document_id == document_id,
-            DocumentTagLink.tag_id == tag_id
+            DocumentTagLink.document_id == document_id, DocumentTagLink.tag_id == tag_id
         )
         existing = (await db.execute(statement)).first()
         if existing:
@@ -91,15 +88,14 @@ class TagService:
     async def detach_tag_from_document(db: AsyncSession, document_id: str, tag_id: int) -> bool:
         """Remove a tag from a document."""
         statement = delete(DocumentTagLink).where(
-            DocumentTagLink.document_id == document_id,
-            DocumentTagLink.tag_id == tag_id
+            DocumentTagLink.document_id == document_id, DocumentTagLink.tag_id == tag_id
         )
         await db.execute(statement)
         await db.commit()
         return True
 
     @staticmethod
-    async def get_document_tags(db: AsyncSession, document_id: str) -> List[Tag]:
+    async def get_document_tags(db: AsyncSession, document_id: str) -> list[Tag]:
         """Get all tags for a specific document."""
         statement = select(Tag).join(DocumentTagLink).where(DocumentTagLink.document_id == document_id)
         result = await db.execute(statement)

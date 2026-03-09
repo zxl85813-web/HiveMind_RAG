@@ -14,18 +14,17 @@ Storage Backends:
 - TODO List       → PostgreSQL
 """
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 from loguru import logger
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 
 from app.core.database import async_session_factory
 from app.models.agents import (
     ReflectionEntry,
-    ReflectionType,
     TodoItem,
-    TodoPriority,
     TodoStatus,
 )
 
@@ -70,14 +69,14 @@ class SharedMemoryManager:
             todo = await session.get(TodoItem, todo_id)
             if not todo:
                 return None
-            
+
             for key, value in updates.items():
                 if hasattr(todo, key):
                     setattr(todo, key, value)
-            
+
             if updates.get("status") == TodoStatus.COMPLETED:
                 todo.completed_at = datetime.utcnow()
-                
+
             session.add(todo)
             await session.commit()
             await session.refresh(todo)
@@ -91,7 +90,7 @@ class SharedMemoryManager:
             if status:
                 statement = statement.where(TodoItem.status == status)
             statement = statement.limit(limit)
-            
+
             results = await session.execute(statement)
             return results.scalars().all()
 

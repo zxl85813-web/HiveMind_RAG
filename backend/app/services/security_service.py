@@ -1,15 +1,15 @@
 """
 Security Service — Handles Desensitization policies and reports CRUD operations.
 """
-from typing import List, Optional, Dict
+
 import json
+
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from loguru import logger
 
-from app.models.security import DesensitizationPolicy, DesensitizationReport, SensitiveItem, AuditLog, DocumentPermission
-from app.models.chat import User
 from app.audit.security.engine import DesensitizationEngine
+from app.models.security import AuditLog, DesensitizationPolicy, DesensitizationReport, SensitiveItem
 
 
 class SecurityService:
@@ -17,12 +17,12 @@ class SecurityService:
 
     @staticmethod
     async def log_audit(
-        db: AsyncSession, 
-        user_id: Optional[str], 
-        action: str, 
-        resource_type: str, 
-        resource_id: Optional[str] = None,
-        details: dict = {}
+        db: AsyncSession,
+        user_id: str | None,
+        action: str,
+        resource_type: str,
+        resource_id: str | None = None,
+        details: dict = {},
     ):
         """Record a security event to the audit trail."""
         log = AuditLog(
@@ -30,15 +30,14 @@ class SecurityService:
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
-            details=json.dumps(details)
+            details=json.dumps(details),
         )
         db.add(log)
         await db.commit()
         logger.info(f"🛡️ Audit: User {user_id} performed {action} on {resource_type}:{resource_id}")
 
-
     @staticmethod
-    async def get_active_policy(db: AsyncSession) -> Optional[DesensitizationPolicy]:
+    async def get_active_policy(db: AsyncSession) -> DesensitizationPolicy | None:
         """Fetch the currently active desensitization policy."""
         statement = select(DesensitizationPolicy).where(DesensitizationPolicy.is_active == True)
         result = await db.execute(statement)
@@ -46,10 +45,7 @@ class SecurityService:
 
     @staticmethod
     async def apply_desensitization(
-        text: str,
-        policy_id: Optional[str] = None,
-        db: Optional[AsyncSession] = None,
-        doc_id: Optional[str] = None
+        text: str, policy_id: str | None = None, db: AsyncSession | None = None, doc_id: str | None = None
     ) -> tuple[str, list[dict]]:
         """
         Generic entry point for desensitization.
@@ -64,18 +60,18 @@ class SecurityService:
                 policy = await db.get(DesensitizationPolicy, policy_id)
             else:
                 policy = await SecurityService.get_active_policy(db)
-            
+
             if policy and policy.rules_json:
                 try:
                     rules = json.loads(policy.rules_json)
                 except Exception:
                     pass
-        
+
         redacted_text, applied_records = DesensitizationEngine.process_text(text, rules)
 
         if applied_records and db and doc_id:
             await SecurityService.save_desensitization_report(db, doc_id, applied_records)
-            
+
         return redacted_text, applied_records
 
     @staticmethod
@@ -85,7 +81,7 @@ class SecurityService:
             document_id=doc_id,
             total_items_found=len(applied_records),
             total_items_redacted=len(applied_records),
-            status="completed"
+            status="completed",
         )
         db.add(report)
         await db.commit()
@@ -99,7 +95,7 @@ class SecurityService:
                 redacted_text=record["redacted_text"],
                 start_index=record["start_index"],
                 end_index=record["end_index"],
-                action_taken=record["action_taken"]
+                action_taken=record["action_taken"],
             )
             for record in applied_records
         ]

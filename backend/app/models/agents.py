@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from sqlmodel import Field, SQLModel, JSON
+from sqlmodel import JSON, Field, SQLModel
 
 
 class TodoPriority(str, Enum):

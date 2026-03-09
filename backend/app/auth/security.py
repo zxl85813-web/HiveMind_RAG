@@ -84,4 +84,3 @@ def decode_access_token(token: str) -> dict[str, Any]:
     except jwt.InvalidTokenError as e:
         logger.warning("Invalid token: {}", e)
         raise AuthenticationError("Invalid token")
-

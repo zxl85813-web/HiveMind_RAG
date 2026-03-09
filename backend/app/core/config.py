@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # === Vector Store ===
     VECTOR_STORE_TYPE: str = "elasticsearch"  # chroma | milvus | qdrant | elasticsearch
-    
+
     # Elasticsearch (Matches .env keys)
     ES_HOST: str = "localhost"
     ES_PORT: int = 9200
@@ -50,9 +50,9 @@ class Settings(BaseSettings):
 
     # Default LLM for different tasks (HVM - HiveMind Architecture)
     DEFAULT_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V3.2"  # Flagship Balanced
-    DEFAULT_REASONING_MODEL: str = "kimi-k2.5"            # Specialized Reasoning
+    DEFAULT_REASONING_MODEL: str = "kimi-k2.5"  # Specialized Reasoning
     DEFAULT_EMBEDDING_MODEL: str = "embedding-3"
-    
+
     # === Generic LLM Configuration (Global Fallback) ===
     LLM_PROVIDER: str = "siliconflow"  # openai | deepseek | siliconflow | moonshot
     LLM_MODEL: str = "deepseek-ai/DeepSeek-V3"
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
     # === Tier Specific Providers (Optional overrides) ===
-    REASONING_PROVIDER: str | None = "moonshot" 
+    REASONING_PROVIDER: str | None = "moonshot"
     BALANCED_PROVIDER: str | None = "siliconflow"
     FAST_PROVIDER: str | None = "siliconflow"
 
@@ -75,14 +75,14 @@ class Settings(BaseSettings):
 
     # === Multimodal Model (Kimi/Moonshot) ===
     KIMI_API_KEY: str = ""
-    KIMI_API_BASE: str = "https://api.moonshot.cn/v1" # Match .env name
+    KIMI_API_BASE: str = "https://api.moonshot.cn/v1"  # Match .env name
     KIMI_MODEL: str = "moonshot-v1-8k"
 
     # === MCP ===
     MCP_SERVERS_CONFIG_PATH: str = "mcp_servers.json"
 
     # === Auth ===
-    SECRET_KEY: str = ""      # CRITICAL: Must be set in .env for production
+    SECRET_KEY: str = ""  # CRITICAL: Must be set in .env for production
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes (short-lived)
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
@@ -95,13 +95,9 @@ class Settings(BaseSettings):
     def __init__(self, **data):
         super().__init__(**data)
         # 强制从环境变量重新加载以确保覆盖
-        if (
-            self.POSTGRES_SERVER
-            and self.POSTGRES_USER
-            and self.POSTGRES_PASSWORD
-            and self.POSTGRES_DB
-        ):
+        if self.POSTGRES_SERVER and self.POSTGRES_USER and self.POSTGRES_PASSWORD and self.POSTGRES_DB:
             from urllib.parse import quote_plus
+
             # URL-encode 密码，防止 @ 等特殊字符破坏 URL 解析
             encoded_password = quote_plus(str(self.POSTGRES_PASSWORD))
             self.DATABASE_URL = (
@@ -109,6 +105,7 @@ class Settings(BaseSettings):
                 f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
             import sys
+
             # logger 可能还未完全初始化，使用 stderr 打印关键配置路径
             print(f"[DB] Database mapped to PostgreSQL: {self.POSTGRES_SERVER}", file=sys.stderr)
 

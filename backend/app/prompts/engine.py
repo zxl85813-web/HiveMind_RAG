@@ -36,9 +36,7 @@ from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-
 from loguru import logger
-
 
 PROMPT_DIR = Path(__file__).parent
 
@@ -206,10 +204,7 @@ class PromptEngine:
         agents_dir = self._prompt_dir / "agents"
         if not agents_dir.exists():
             return []
-        return [
-            f.stem for f in agents_dir.glob("*.yaml")
-            if f.stem != "__init__"
-        ]
+        return [f.stem for f in agents_dir.glob("*.yaml") if f.stem != "__init__"]
 
     # ============================================================
     #  热更新
@@ -267,12 +262,7 @@ class PromptEngine:
         """记录 Prompt 的摘要信息 (用于调试和追踪)。"""
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
         lines = prompt.strip().split("\n")
-        logger.debug(
-            f"📝 Prompt [{label}] | "
-            f"hash={prompt_hash} | "
-            f"lines={len(lines)} | "
-            f"chars={len(prompt)}"
-        )
+        logger.debug(f"📝 Prompt [{label}] | hash={prompt_hash} | lines={len(lines)} | chars={len(prompt)}")
 
 
 # ============================================================

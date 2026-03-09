@@ -1,25 +1,27 @@
-import re
 import hashlib
-from typing import Dict, Any, List
+import re
+from typing import Any
+
 from app.audit.security.detectors import DetectorRegistry
+
 
 class AuditEngine:
     """Engine for performing automatic data quality audits (M2.3)."""
-    
+
     @staticmethod
     def calculate_hash(text: str) -> str:
         """Calculates SHA-256 hash of text for deduplication."""
-        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def audit_text(resource_data: Dict[str, Any]) -> Dict[str, Any]:
+    def audit_text(resource_data: dict[str, Any]) -> dict[str, Any]:
         """
         Analyzes a StandardizedResource for quality metrics.
         Returns a dictionary of scores and status.
         """
         text = resource_data.get("raw_text", "")
         filename = resource_data.get("meta", {}).get("filename", "")
-        
+
         if not text or not text.strip():
             return {
                 "quality_score": 0.0,
@@ -30,26 +32,26 @@ class AuditEngine:
                 "format_integrity_ok": False,
                 "pii_count": 0,
                 "status": "rejected",
-                "message": "Empty content"
+                "message": "Empty content",
             }
 
         text_len = len(text)
-        
+
         # 1. Content Length (Requirement: >= 100 chars)
         content_length_ok = text_len >= 100
-        
+
         # 2. Blank Ratio (White space / Total)
-        whitespace_count = len(re.findall(r'\s', text))
+        whitespace_count = len(re.findall(r"\s", text))
         blank_ratio = whitespace_count / text_len if text_len > 0 else 1.0
-        
+
         # 3. Garble Ratio (Non-printable characters or unusual encoding artifacts)
         # We look for a high density of non-printable chars or sequences typical of failed OCR/Parsing
         garbled_chars = len([c for c in text if not c.isprintable() and not c.isspace()])
         garble_ratio = garbled_chars / text_len if text_len > 0 else 0.0
-        
+
         # 4. Duplicate Ratio (Strict block-based duplication check)
         block_size = 50
-        blocks = [text[i:i+block_size] for i in range(0, text_len, block_size)]
+        blocks = [text[i : i + block_size] for i in range(0, text_len, block_size)]
         if blocks:
             unique_blocks = len(set(blocks))
             duplicate_ratio = (len(blocks) - unique_blocks) / len(blocks)
@@ -62,13 +64,13 @@ class AuditEngine:
         tables = resource_data.get("tables", [])
         format_integrity_ok = True
         integrity_issues = []
-        
+
         lower_filename = filename.lower()
-        if lower_filename.endswith(('.pdf', '.docx')):
+        if lower_filename.endswith((".pdf", ".docx")):
             if not sections:
                 format_integrity_ok = False
                 integrity_issues.append("No layout sections extracted (PDF/Word)")
-        elif lower_filename.endswith(('.xlsx', '.xls', '.csv')):
+        elif lower_filename.endswith((".xlsx", ".xls", ".csv")):
             if not tables:
                 format_integrity_ok = False
                 integrity_issues.append("No tables extracted (Excel/CSV)")
@@ -80,10 +82,10 @@ class AuditEngine:
             if detector:
                 found = detector.detect(text)
                 pii_items.extend(found)
-        
+
         pii_count = len(pii_items)
         pii_density = (pii_count / text_len) * 1000 if text_len > 0 else 0
-            
+
         # 7. Composite Quality Score
         score = 1.0
         issues = []
@@ -91,22 +93,22 @@ class AuditEngine:
         if not content_length_ok:
             score -= 0.4
             issues.append(f"Content too short ({text_len} chars)")
-        
+
         if duplicate_ratio > 0.3:
             penalty = (duplicate_ratio - 0.3) * 1.5
             score -= penalty
             issues.append(f"High duplication ({duplicate_ratio:.1%})")
-            
+
         if garble_ratio > 0.05:
-            penalty = (garble_ratio * 10)
+            penalty = garble_ratio * 10
             score -= penalty
             issues.append(f"High garble ratio ({garble_ratio:.1%})")
-            
+
         if blank_ratio > 0.4:
-            penalty = (blank_ratio - 0.4)
+            penalty = blank_ratio - 0.4
             score -= penalty
             issues.append(f"Too much whitespace ({blank_ratio:.1%})")
-            
+
         if not format_integrity_ok:
             score -= 0.3
             issues.extend(integrity_issues)
@@ -117,18 +119,18 @@ class AuditEngine:
             issues.append(f"High PII density ({pii_density:.1f}/1k chars)")
 
         quality_score = max(0.0, min(1.0, score))
-        
+
         # 8. Status Routing (3-tier)
         if quality_score < 0.4:
             status = "rejected"
             message = "Rejected: " + "; ".join(issues)
         elif quality_score < 0.85 or is_sensitive or not format_integrity_ok:
-            status = "pending" # Needs human review
+            status = "pending"  # Needs human review
             message = "Pending Review: " + "; ".join(issues)
         else:
             status = "approved"
             message = "Auto-approved"
-            
+
         return {
             "quality_score": quality_score,
             "content_length_ok": content_length_ok,
@@ -139,5 +141,5 @@ class AuditEngine:
             "pii_count": pii_count,
             "status": status,
             "message": message,
-            "content_hash": AuditEngine.calculate_hash(text)
+            "content_hash": AuditEngine.calculate_hash(text),
         }

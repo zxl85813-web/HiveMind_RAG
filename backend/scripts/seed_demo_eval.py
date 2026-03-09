@@ -6,17 +6,18 @@ Usage:
     cd backend
     python -m scripts.seed_demo_eval
 """
+
 import asyncio
-import logging
-from datetime import datetime, timedelta
 import json
-import uuid
+import logging
 import random
+import uuid
+from datetime import datetime, timedelta
 
 from app.core.database import async_session_factory
-from app.models.knowledge import KnowledgeBase
-from app.models.evaluation import EvaluationSet, EvaluationItem, EvaluationReport, BadCase
 from app.models.chat import User
+from app.models.evaluation import BadCase, EvaluationItem, EvaluationReport, EvaluationSet
+from app.models.knowledge import KnowledgeBase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,42 +30,42 @@ FINANCE_QA = [
     {
         "q": "研发费用的加计扣除比例是多少？",
         "gt": "根据2023年新规，符合条件的研发费用加计扣除比例已统一提高至100%。企业开展研发活动中实际发生的研发费用，未形成无形资产计入当期损益的，可按照实际发生额的100%在税前加计扣除。",
-        "ctx": "《国家税务总局关于优化预缴申报研发费用加计扣除政策的公告》：将研发费用税前加计扣除比例统一提高至100%，适用于除烟草制造业等负面清单以外的所有行业。"
+        "ctx": "《国家税务总局关于优化预缴申报研发费用加计扣除政策的公告》：将研发费用税前加计扣除比例统一提高至100%，适用于除烟草制造业等负面清单以外的所有行业。",
     },
     {
         "q": "差旅补助是否需要缴纳个人所得税？",
         "gt": "合理的差旅补贴和误餐补助不属于工资薪金性质的补贴，不征收个人所得税。但超出合理标准的部分需要按照工资薪金所得缴纳个税。",
-        "ctx": "《个人所得税法实施条例》第十三条：个人因公务出差取得的差旅费津贴、误餐补助，不属于纳税人本人工资薪金所得项目的收入，不征税。"
+        "ctx": "《个人所得税法实施条例》第十三条：个人因公务出差取得的差旅费津贴、误餐补助，不属于纳税人本人工资薪金所得项目的收入，不征税。",
     },
     {
         "q": "企业固定资产折旧的最低年限分别是多少？",
         "gt": "房屋建筑物20年，飞机火车轮船设备10年，与生产经营相关的器具工具5年，电子设备3年。",
-        "ctx": "《企业所得税法实施条例》第六十条规定了各类固定资产计算折旧的最低年限。"
+        "ctx": "《企业所得税法实施条例》第六十条规定了各类固定资产计算折旧的最低年限。",
     },
     {
         "q": "小型微利企业所得税优惠政策是什么？",
         "gt": "对年应纳税所得额不超过300万元的小型微利企业，减按25%计入应纳税所得额，按20%的税率缴纳企业所得税，实际税负率为5%。",
-        "ctx": "《财政部 税务总局关于小微企业和个体工商户所得税优惠政策的公告》2023年第6号。"
+        "ctx": "《财政部 税务总局关于小微企业和个体工商户所得税优惠政策的公告》2023年第6号。",
     },
     {
         "q": "增值税留抵退税政策适用于哪些行业？",
         "gt": "2022年起，增值税留抵退税政策扩大至所有行业。符合条件的小微企业和制造业等6个行业可以申请一次性退还存量留抵税额，并按月退还增量留抵税额。",
-        "ctx": "《财政部 税务总局关于进一步加大增值税期末留抵退税政策实施力度的公告》。"
+        "ctx": "《财政部 税务总局关于进一步加大增值税期末留抵退税政策实施力度的公告》。",
     },
     {
         "q": "企业年金缴费的税前扣除标准是多少？",
         "gt": "企业缴费部分在不超过职工工资总额5%标准内的部分，在计算企业所得税应纳税所得额时准予扣除。个人缴费不超过本人缴费工资计税基数4%的部分，暂从个人当期的应纳税所得额中扣除。",
-        "ctx": "《企业年金试行办法》及《关于企业年金 职业年金个人所得税有关问题的通知》。"
+        "ctx": "《企业年金试行办法》及《关于企业年金 职业年金个人所得税有关问题的通知》。",
     },
     {
         "q": "跨境电商综合税率如何计算？",
         "gt": "跨境电商零售进口商品的综合税率=关税×0%+增值税×70%+消费税×70%。单次限额5000元，年度限额26000元以内可享受优惠税率。",
-        "ctx": "《关于跨境电子商务零售进口税收政策的通知》（财关税〔2016〕18号）。"
+        "ctx": "《关于跨境电子商务零售进口税收政策的通知》（财关税〔2016〕18号）。",
     },
     {
         "q": "合同印花税的税率是多少？",
         "gt": "2022年7月1日起施行的《印花税法》中，买卖合同税率为价款的万分之三，借款合同为借款金额的万分之零点五，技术合同为价款的万分之三，财产租赁合同为租金的千分之一。",
-        "ctx": "《中华人民共和国印花税法》（2022年7月1日起施行）。"
+        "ctx": "《中华人民共和国印花税法》（2022年7月1日起施行）。",
     },
 ]
 
@@ -75,37 +76,37 @@ HR_QA = [
     {
         "q": "员工试用期最长可以设置多久？",
         "gt": "劳动合同期限三个月以上不满一年的，试用期不得超过一个月；一年以上不满三年的，试用期不得超过二个月；三年以上固定期限和无固定期限的，试用期不得超过六个月。",
-        "ctx": "《劳动合同法》第十九条。"
+        "ctx": "《劳动合同法》第十九条。",
     },
     {
         "q": "公司解除劳动合同需要提前多少天通知？",
         "gt": "用人单位提前三十日以书面形式通知劳动者本人或者额外支付劳动者一个月工资后，可以解除劳动合同。经济性裁员需要提前三十日向工会或者全体职工说明情况。",
-        "ctx": "《劳动合同法》第四十条、第四十一条。"
+        "ctx": "《劳动合同法》第四十条、第四十一条。",
     },
     {
         "q": "年假天数如何计算？",
         "gt": "职工累计工作已满1年不满10年的，年休假5天；已满10年不满20年的，年休假10天；已满20年的，年休假15天。国家法定休假日和休息日不计入年休假的假期。",
-        "ctx": "《企业职工带薪年休假实施办法》。"
+        "ctx": "《企业职工带薪年休假实施办法》。",
     },
     {
         "q": "产假法定天数是多少？",
         "gt": "女职工生育享受98天产假，其中产前15天可以休假。难产的增加15天产假。生育多胞胎的，每多一个婴儿增加15天产假。各省市可能有额外奖励假期。",
-        "ctx": "《女职工劳动保护特别规定》第七条。"
+        "ctx": "《女职工劳动保护特别规定》第七条。",
     },
     {
         "q": "加班费的计算标准是什么？",
         "gt": "工作日加班按不低于工资的150%支付；休息日加班又不能安排补休的，按不低于工资的200%支付；法定休假日加班的，按不低于工资的300%支付。",
-        "ctx": "《劳动法》第四十四条。"
+        "ctx": "《劳动法》第四十四条。",
     },
     {
         "q": "员工医疗期如何确定？",
         "gt": "实际工作年限10年以下、在本单位工作年限5年以下的为3个月；5年以上的为6个月。实际工作年限10年以上、在本单位5年以下的为6个月；5年以上10年以下的为9个月；10年以上15年以下的为12个月；15年以上20年以下的为18个月；20年以上的为24个月。",
-        "ctx": "《企业职工患病或非因工负伤医疗期规定》。"
+        "ctx": "《企业职工患病或非因工负伤医疗期规定》。",
     },
     {
         "q": "竞业限制补偿金不低于多少？",
         "gt": "用人单位按月给予劳动者经济补偿，补偿金不低于劳动者在劳动合同解除或终止前十二个月平均工资的30%。若不足当地最低工资标准，按最低工资标准支付。竞业限制期限不得超过二年。",
-        "ctx": "《最高人民法院关于审理劳动争议案件适用法律问题的解释(一)》。"
+        "ctx": "《最高人民法院关于审理劳动争议案件适用法律问题的解释(一)》。",
     },
 ]
 
@@ -197,16 +198,18 @@ def _gen_detail(qa_pairs, model_name, conf):
         else:
             answer = random.choice(BAD_ANSWER_TEMPLATES)
 
-        details.append({
-            "question": qa["q"],
-            "ground_truth": qa["gt"],
-            "answer": answer,
-            "faithfulness": round(faith, 2),
-            "relevance": round(relev, 2),
-            "context_precision": round(ctx_prec, 2),
-            "context_recall": round(ctx_recall, 2),
-            "contexts": [qa["ctx"][:80] + "..."]
-        })
+        details.append(
+            {
+                "question": qa["q"],
+                "ground_truth": qa["gt"],
+                "answer": answer,
+                "faithfulness": round(faith, 2),
+                "relevance": round(relev, 2),
+                "context_precision": round(ctx_prec, 2),
+                "context_recall": round(ctx_recall, 2),
+                "contexts": [qa["ctx"][:80] + "..."],
+            }
+        )
     return details
 
 
@@ -231,7 +234,7 @@ async def seed_eval_data():
                 description="包含 2024-2025 年度财务准则、税务合规及预算管理规范。涵盖企业所得税、增值税、印花税等核心税种。",
                 owner_id=user.id,
                 vector_collection="demo_finance_collection",
-                created_at=datetime.utcnow() - timedelta(days=15)
+                created_at=datetime.utcnow() - timedelta(days=15),
             )
             session.add(kb1)
             logger.info("✅ Created KB: 智能财务专家知识库")
@@ -244,7 +247,7 @@ async def seed_eval_data():
                 description="企业 HR 常见问题、劳动法规、薪酬福利政策，覆盖劳动合同法、社保公积金等内容。",
                 owner_id=user.id,
                 vector_collection="demo_hr_collection",
-                created_at=datetime.utcnow() - timedelta(days=12)
+                created_at=datetime.utcnow() - timedelta(days=12),
             )
             session.add(kb2)
             logger.info("✅ Created KB: HR 政策与劳动法知识库")
@@ -255,42 +258,78 @@ async def seed_eval_data():
         set_finance_adv_id = "evalset-finance-advanced"
 
         for set_id, kb_id, name, desc, days_ago in [
-            (set_finance_id, kb_finance_id, "Q4 财务合规性评估测试集",
-             "针对财务报表审计、税务扣除项、印花税等核心财务知识的专项测试集。共8组QA对。", 10),
-            (set_hr_id, kb_hr_id, "HR 劳动法应答质量评估集",
-             "覆盖试用期、年假、产假、加班、竞业限制等常见 HR 问题。共7组QA对。", 8),
-            (set_finance_adv_id, kb_finance_id, "高级财务场景综合测试集",
-             "综合测试跨境电商税率、企业年金等进阶财务场景。", 5),
+            (
+                set_finance_id,
+                kb_finance_id,
+                "Q4 财务合规性评估测试集",
+                "针对财务报表审计、税务扣除项、印花税等核心财务知识的专项测试集。共8组QA对。",
+                10,
+            ),
+            (
+                set_hr_id,
+                kb_hr_id,
+                "HR 劳动法应答质量评估集",
+                "覆盖试用期、年假、产假、加班、竞业限制等常见 HR 问题。共7组QA对。",
+                8,
+            ),
+            (
+                set_finance_adv_id,
+                kb_finance_id,
+                "高级财务场景综合测试集",
+                "综合测试跨境电商税率、企业年金等进阶财务场景。",
+                5,
+            ),
         ]:
             existing = await session.get(EvaluationSet, set_id)
             if not existing:
-                session.add(EvaluationSet(
-                    id=set_id, kb_id=kb_id, name=name, description=desc,
-                    created_at=datetime.utcnow() - timedelta(days=days_ago)
-                ))
+                session.add(
+                    EvaluationSet(
+                        id=set_id,
+                        kb_id=kb_id,
+                        name=name,
+                        description=desc,
+                        created_at=datetime.utcnow() - timedelta(days=days_ago),
+                    )
+                )
                 logger.info(f"  📝 Testset: {name}")
 
         # ── 3. Create Evaluation Items ──
         from sqlmodel import select
+
         existing_items = await session.execute(select(EvaluationItem).limit(1))
         if not existing_items.scalars().first():
             items = []
             for qa in FINANCE_QA:
-                items.append(EvaluationItem(
-                    id=str(uuid.uuid4()), set_id=set_finance_id,
-                    question=qa["q"], ground_truth=qa["gt"], reference_context=qa["ctx"]
-                ))
+                items.append(
+                    EvaluationItem(
+                        id=str(uuid.uuid4()),
+                        set_id=set_finance_id,
+                        question=qa["q"],
+                        ground_truth=qa["gt"],
+                        reference_context=qa["ctx"],
+                    )
+                )
             for qa in HR_QA:
-                items.append(EvaluationItem(
-                    id=str(uuid.uuid4()), set_id=set_hr_id,
-                    question=qa["q"], ground_truth=qa["gt"], reference_context=qa["ctx"]
-                ))
+                items.append(
+                    EvaluationItem(
+                        id=str(uuid.uuid4()),
+                        set_id=set_hr_id,
+                        question=qa["q"],
+                        ground_truth=qa["gt"],
+                        reference_context=qa["ctx"],
+                    )
+                )
             # Advanced set reuses some finance QA
             for qa in FINANCE_QA[5:]:
-                items.append(EvaluationItem(
-                    id=str(uuid.uuid4()), set_id=set_finance_adv_id,
-                    question=qa["q"], ground_truth=qa["gt"], reference_context=qa["ctx"]
-                ))
+                items.append(
+                    EvaluationItem(
+                        id=str(uuid.uuid4()),
+                        set_id=set_finance_adv_id,
+                        question=qa["q"],
+                        ground_truth=qa["gt"],
+                        reference_context=qa["ctx"],
+                    )
+                )
             session.add_all(items)
             logger.info(f"  ✅ Created {len(items)} evaluation items")
 
@@ -309,23 +348,25 @@ async def seed_eval_data():
                 avg_recall_1 = sum(d["context_recall"] for d in details_1) / len(details_1)
                 score_1 = (avg_faith_1 + avg_relev_1 + avg_prec_1 + avg_recall_1) / 4
 
-                reports.append(EvaluationReport(
-                    id=str(uuid.uuid4()),
-                    set_id=set_finance_id,
-                    kb_id=kb_finance_id,
-                    model_name=model_name,
-                    faithfulness=round(avg_faith_1, 4),
-                    answer_relevance=round(avg_relev_1, 4),
-                    context_precision=round(avg_prec_1, 4),
-                    context_recall=round(avg_recall_1, 4),
-                    total_score=round(score_1, 4),
-                    latency_ms=round(_rand(*conf["latency_range"]), 1),
-                    cost=round(_rand(*conf["cost_range"]), 4),
-                    token_usage=random.randint(*conf["token_range"]),
-                    details_json=json.dumps(details_1, ensure_ascii=False),
-                    status="completed",
-                    created_at=datetime.utcnow() - timedelta(days=7, hours=random.randint(0, 23))
-                ))
+                reports.append(
+                    EvaluationReport(
+                        id=str(uuid.uuid4()),
+                        set_id=set_finance_id,
+                        kb_id=kb_finance_id,
+                        model_name=model_name,
+                        faithfulness=round(avg_faith_1, 4),
+                        answer_relevance=round(avg_relev_1, 4),
+                        context_precision=round(avg_prec_1, 4),
+                        context_recall=round(avg_recall_1, 4),
+                        total_score=round(score_1, 4),
+                        latency_ms=round(_rand(*conf["latency_range"]), 1),
+                        cost=round(_rand(*conf["cost_range"]), 4),
+                        token_usage=random.randint(*conf["token_range"]),
+                        details_json=json.dumps(details_1, ensure_ascii=False),
+                        status="completed",
+                        created_at=datetime.utcnow() - timedelta(days=7, hours=random.randint(0, 23)),
+                    )
+                )
 
                 # --- HR KB Report ---
                 details_hr = _gen_detail(HR_QA, model_name, conf)
@@ -335,23 +376,25 @@ async def seed_eval_data():
                 avg_recall_hr = sum(d["context_recall"] for d in details_hr) / len(details_hr)
                 score_hr = (avg_faith_hr + avg_relev_hr + avg_prec_hr + avg_recall_hr) / 4
 
-                reports.append(EvaluationReport(
-                    id=str(uuid.uuid4()),
-                    set_id=set_hr_id,
-                    kb_id=kb_hr_id,
-                    model_name=model_name,
-                    faithfulness=round(avg_faith_hr, 4),
-                    answer_relevance=round(avg_relev_hr, 4),
-                    context_precision=round(avg_prec_hr, 4),
-                    context_recall=round(avg_recall_hr, 4),
-                    total_score=round(score_hr, 4),
-                    latency_ms=round(_rand(*conf["latency_range"]), 1),
-                    cost=round(_rand(*conf["cost_range"]), 4),
-                    token_usage=random.randint(*conf["token_range"]),
-                    details_json=json.dumps(details_hr, ensure_ascii=False),
-                    status="completed",
-                    created_at=datetime.utcnow() - timedelta(days=5, hours=random.randint(0, 23))
-                ))
+                reports.append(
+                    EvaluationReport(
+                        id=str(uuid.uuid4()),
+                        set_id=set_hr_id,
+                        kb_id=kb_hr_id,
+                        model_name=model_name,
+                        faithfulness=round(avg_faith_hr, 4),
+                        answer_relevance=round(avg_relev_hr, 4),
+                        context_precision=round(avg_prec_hr, 4),
+                        context_recall=round(avg_recall_hr, 4),
+                        total_score=round(score_hr, 4),
+                        latency_ms=round(_rand(*conf["latency_range"]), 1),
+                        cost=round(_rand(*conf["cost_range"]), 4),
+                        token_usage=random.randint(*conf["token_range"]),
+                        details_json=json.dumps(details_hr, ensure_ascii=False),
+                        status="completed",
+                        created_at=datetime.utcnow() - timedelta(days=5, hours=random.randint(0, 23)),
+                    )
+                )
 
                 # --- Finance KB Report #2 (recent, slightly different) ---
                 details_2 = _gen_detail(FINANCE_QA, model_name, conf)
@@ -361,23 +404,25 @@ async def seed_eval_data():
                 avg_recall_2 = sum(d["context_recall"] for d in details_2) / len(details_2)
                 score_2 = (avg_faith_2 + avg_relev_2 + avg_prec_2 + avg_recall_2) / 4
 
-                reports.append(EvaluationReport(
-                    id=str(uuid.uuid4()),
-                    set_id=set_finance_id,
-                    kb_id=kb_finance_id,
-                    model_name=model_name,
-                    faithfulness=round(avg_faith_2, 4),
-                    answer_relevance=round(avg_relev_2, 4),
-                    context_precision=round(avg_prec_2, 4),
-                    context_recall=round(avg_recall_2, 4),
-                    total_score=round(score_2, 4),
-                    latency_ms=round(_rand(*conf["latency_range"]), 1),
-                    cost=round(_rand(*conf["cost_range"]), 4),
-                    token_usage=random.randint(*conf["token_range"]),
-                    details_json=json.dumps(details_2, ensure_ascii=False),
-                    status="completed",
-                    created_at=datetime.utcnow() - timedelta(days=2, hours=random.randint(0, 23))
-                ))
+                reports.append(
+                    EvaluationReport(
+                        id=str(uuid.uuid4()),
+                        set_id=set_finance_id,
+                        kb_id=kb_finance_id,
+                        model_name=model_name,
+                        faithfulness=round(avg_faith_2, 4),
+                        answer_relevance=round(avg_relev_2, 4),
+                        context_precision=round(avg_prec_2, 4),
+                        context_recall=round(avg_recall_2, 4),
+                        total_score=round(score_2, 4),
+                        latency_ms=round(_rand(*conf["latency_range"]), 1),
+                        cost=round(_rand(*conf["cost_range"]), 4),
+                        token_usage=random.randint(*conf["token_range"]),
+                        details_json=json.dumps(details_2, ensure_ascii=False),
+                        status="completed",
+                        created_at=datetime.utcnow() - timedelta(days=2, hours=random.randint(0, 23)),
+                    )
+                )
 
             session.add_all(reports)
             logger.info(f"  📊 Created {len(reports)} evaluation reports across {len(MODEL_CONFIGS)} models")

@@ -10,8 +10,8 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
 from langchain_mcp_adapters.tools import load_mcp_tools
+from loguru import logger
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -41,11 +41,11 @@ class MCPManager:
         if not path.exists():
             logger.warning(f"MCP config not found at {config_path}")
             return
-            
+
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-                self._servers = data.get("mcpServers", data) 
+                self._servers = data.get("mcpServers", data)
                 logger.info(f"Loaded {len(self._servers)} MCP servers from config")
         except Exception as e:
             logger.error(f"Failed to load MCP config: {e}")
@@ -71,17 +71,17 @@ class MCPManager:
                     # Enter stdio transport
                     stdio_transport = await self._exit_stack.enter_async_context(stdio_client(server_params))
                     read, write = stdio_transport[0], stdio_transport[1]
-                    
+
                     # Enter client session
                     session = await self._exit_stack.enter_async_context(ClientSession(read, write))
                     await session.initialize()
                     self._sessions[name] = session
-                    
+
                     # Discover tools
                     agent_tools_iterable = await load_mcp_tools(session)
                     agent_tools = list(agent_tools_iterable) if agent_tools_iterable else []
                     self._tools.extend(agent_tools)
-                    
+
                     logger.info(f"Connected to MCP Server: {name} with {len(agent_tools)} tools.")
                 else:
                     logger.warning(f"Unsupported MCP transport: {server_type} for server {name}")

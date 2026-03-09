@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime
 
 from sqlmodel import Field, Relationship, SQLModel
-from .tags import DocumentTagLink, Tag
 
+from .tags import DocumentTagLink, Tag
 
 
 class KnowledgeBaseDocumentLink(SQLModel, table=True):
@@ -48,14 +48,16 @@ class Document(SQLModel, table=True):
     file_type: str  # pdf | docx | txt | md | xlsx
     file_size: int  # bytes
     storage_path: str  # Path in object storage
-    content_hash: str | None = Field(index=True) # Content hash for deduplication
+    content_hash: str | None = Field(index=True)  # Content hash for deduplication
     chunk_count: int = 0
     status: str = "pending"  # Global parsing status: pending | processing | parsed | failed
     error_message: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    knowledge_bases: list[KnowledgeBase] = Relationship(back_populates="documents", link_model=KnowledgeBaseDocumentLink)
+    knowledge_bases: list[KnowledgeBase] = Relationship(
+        back_populates="documents", link_model=KnowledgeBaseDocumentLink
+    )
     chunks: list["DocumentChunk"] = Relationship(back_populates="document")
     tags: list[Tag] = Relationship(back_populates="documents", link_model=DocumentTagLink)
     tag_links: list[DocumentTagLink] = Relationship(back_populates="document")

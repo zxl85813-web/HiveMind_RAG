@@ -13,7 +13,6 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -36,10 +35,7 @@ else:
     db_config["max_overflow"] = 20
     db_config["pool_recycle"] = 3600
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    **db_config
-)
+engine = create_async_engine(settings.DATABASE_URL, **db_config)
 
 # === Session 工厂 ===
 async_session_factory = async_sessionmaker(
@@ -56,10 +52,10 @@ async def init_db() -> None:
     开发环境: 自动创建表 (生产环境请用 Alembic 迁移)。
     """
     logger.info("Initializing database connection...")
-    
+
     # SQLite 需要在 engine.begin() 前确保目录存在
     # (但在 docker/local dev 中通常由挂载解决，或 sqlmodel 自动处理)
-    
+
     async with engine.begin() as conn:
         if settings.DEBUG:
             # 开发环境不再自动同步表结构，全面启用 Alembic

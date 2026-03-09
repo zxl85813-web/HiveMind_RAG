@@ -1,17 +1,20 @@
+from datetime import datetime
+
 from loguru import logger
+from pydantic import BaseModel
 from sqlmodel import select
 
-from datetime import datetime
-from pydantic import BaseModel
 from app.core.database import async_session_factory
 from app.models.chat import Message
 from app.services.memory.memory_service import MemoryService
+
 
 class Subscription(BaseModel):
     id: str
     topic: str
     is_active: bool = True
     created_at: datetime = datetime.now()
+
 
 class TechDiscovery(BaseModel):
     id: str
@@ -22,15 +25,17 @@ class TechDiscovery(BaseModel):
     relevance_score: float
     discovered_at: datetime = datetime.now()
 
+
 class LearningService:
     """
     Self-improving AI System and External Learning coordinator.
     """
+
     _mock_subscriptions = [
         {"id": "sub_1", "topic": "LangChain", "is_active": True, "created_at": datetime.now()},
         {"id": "sub_2", "topic": "React 19", "is_active": True, "created_at": datetime.now()},
     ]
-    
+
     _mock_discoveries = [
         {
             "id": "disc_1",
@@ -39,7 +44,7 @@ class LearningService:
             "url": "https://example.com/gpt5",
             "category": "paper",
             "relevance_score": 0.95,
-            "discovered_at": datetime.now()
+            "discovered_at": datetime.now(),
         },
         {
             "id": "disc_2",
@@ -48,8 +53,8 @@ class LearningService:
             "url": "https://github.com/hivemind/core",
             "category": "tool",
             "relevance_score": 0.88,
-            "discovered_at": datetime.now()
-        }
+            "discovered_at": datetime.now(),
+        },
     ]
 
     @staticmethod
@@ -59,12 +64,8 @@ class LearningService:
     @staticmethod
     async def add_subscription(topic: str):
         import uuid
-        new_sub = {
-            "id": f"sub_{uuid.uuid4().hex[:6]}",
-            "topic": topic,
-            "is_active": True,
-            "created_at": datetime.now()
-        }
+
+        new_sub = {"id": f"sub_{uuid.uuid4().hex[:6]}", "topic": topic, "is_active": True, "created_at": datetime.now()}
         LearningService._mock_subscriptions.append(new_sub)
         return new_sub
 
@@ -76,7 +77,6 @@ class LearningService:
     @staticmethod
     async def get_discoveries():
         return LearningService._mock_discoveries
-
 
     @staticmethod
     async def record_feedback(message_id: str, rating: int, comment: str | None = None):

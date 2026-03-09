@@ -5,28 +5,27 @@ Indexing Service — Handles background parsing and vectorization using the Pipe
 依赖模块: core.vector_store, batch.ingestion.executor, models.knowledge
 注册位置: REGISTRY.md > Services > IndexingService
 """
-import json
-from sqlmodel import Session, select
+
 from loguru import logger
+from sqlmodel import Session
 
 from app.core.database import engine
-from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from app.services.ingestion.dispatcher import IngestionDispatcher
-from app.models.observability import FileTrace, TraceStatus
+from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
+
 
 async def index_document_task(kb_id: str, doc_id: str):
     """
     Background task to parse and index a document using the Flexible Pipeline Engine.
     """
     logger.info(f"🚀 [Pipeline] Starting task: Doc {doc_id} -> KB {kb_id}")
-    
+
     with Session(engine) as session:
         # 1. Initialization
         link = session.get(KnowledgeBaseDocumentLink, (kb_id, doc_id))
         if not link:
             logger.error(f"Link not found for KB {kb_id}, Doc {doc_id}")
             return
-        
+
         doc = session.get(Document, doc_id)
         kb = session.get(KnowledgeBase, kb_id)
         if not doc or not kb:
@@ -39,19 +38,17 @@ async def index_document_task(kb_id: str, doc_id: str):
         try:
             # 2. V3 Dispatcher (Extreme Parallelism & Swarm Orchestration)
             logger.info(f"🧠 [V3 Refactor] Dispatching Doc {doc_id} to Native Swarm...")
-            
+
             from app.core.database import async_session_factory
             from app.services.ingestion.dispatcher import IngestionDispatcher
-            
+
             # Use AsyncSession for the dispatcher
             async with async_session_factory() as async_db:
                 dispatcher = IngestionDispatcher(async_db)
                 batch_id = await dispatcher.dispatch_batch(
-                    file_paths=[doc.file_path],
-                    kb_id=kb_id,
-                    description=f"Automatic indexing for {doc.filename}"
+                    file_paths=[doc.file_path], kb_id=kb_id, description=f"Automatic indexing for {doc.filename}"
                 )
-                
+
             # Update legacy link status
             link.status = "processing"
             link.error_message = f"V3 Swarm Batch: {batch_id}"

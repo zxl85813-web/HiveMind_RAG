@@ -13,10 +13,12 @@ Tier-2 Memory: The Graph Overview Layer (GraphIndex).
 参见: docs/design/tier2_graph_memory.md
 所属模块: services.memory.tier
 """
-import json
+
 import asyncio
-from typing import List, Dict, Any
+import json
+
 from loguru import logger
+
 from app.core.graph_store import get_graph_store
 from app.core.llm import get_llm_service
 
@@ -38,7 +40,7 @@ class GraphIndex:
 
     def _is_available(self) -> bool:
         """检查 Neo4j 是否可用（开发环境下可能未部署）。"""
-        return bool(self.store and getattr(self.store, 'driver', None))
+        return bool(self.store and getattr(self.store, "driver", None))
 
     async def extract_and_store(self, doc_id: str, content: str) -> None:
         """
@@ -75,14 +77,12 @@ class GraphIndex:
             if nodes or edges:
                 # 在线程池中执行阻塞的图数据库写入，保护事件循环
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    None, lambda: self.store.import_subgraph(nodes, edges)
-                )
+                await loop.run_in_executor(None, lambda: self.store.import_subgraph(nodes, edges))
                 logger.info(f"🕸️ Tier-2 Indexed {len(nodes)} nodes, {len(edges)} edges for doc: {doc_id}.")
         except Exception as e:
             logger.warning(f"Tier-2 graph extraction failed for {doc_id}: {e}")
 
-    async def get_neighborhood(self, entity_names: List[str], depth: int = 1) -> List[str]:
+    async def get_neighborhood(self, entity_names: list[str], depth: int = 1) -> list[str]:
         """
         查询 Neo4j 中指定实体集合的图谱邻居（关系跳跃），组装为自然语言描述列表。
 
@@ -110,9 +110,7 @@ class GraphIndex:
 
         try:
             loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None, lambda: self.store.query(cypher, {"entities": safe_entities})
-            )
+            results = await loop.run_in_executor(None, lambda: self.store.query(cypher, {"entities": safe_entities}))
 
             neighborhood_str = []
             for item in results:

@@ -10,6 +10,7 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 """
 
 from enum import Enum
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -18,6 +19,7 @@ from app.api.deps import get_current_user
 from app.core.exceptions import ForbiddenError
 from app.models.chat import User
 from app.models.security import DocumentPermission
+
 
 class Role(str, Enum):
     """用户角色。"""
@@ -85,19 +87,16 @@ def require_permission(permission: Permission):
         async def create_kb(...):
             ...
     """
+
     async def checker(current_user: User = Depends(get_current_user)):
         # Role defaults to string since DB maps it. Here we safely check.
         if not has_permission(current_user.role, permission):
             raise ForbiddenError(message=f"Missing permission: {permission.value}")
+
     return checker
 
 
-async def has_document_permission(
-    db: AsyncSession, 
-    user: User, 
-    doc_id: str, 
-    required_level: str = "read"
-) -> bool:
+async def has_document_permission(db: AsyncSession, user: User, doc_id: str, required_level: str = "read") -> bool:
     """
     Check if user has 'read' or 'write' access to a specific document.
     """

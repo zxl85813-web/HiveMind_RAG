@@ -10,14 +10,14 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
 from app.core.config import settings
 from app.models.security import (
-    DesensitizationPolicy,
     AuditLog,
+    DesensitizationPolicy,
 )
 
 
@@ -42,12 +42,15 @@ async def seed():
                 name="默认企业脱敏策略",
                 description="覆盖身份证、手机号、银行卡、邮箱等常见敏感信息",
                 is_active=True,
-                rules_json=json.dumps([
-                    {"type": "id_card", "action": "mask", "enabled": True},
-                    {"type": "phone", "action": "mask", "enabled": True},
-                    {"type": "email", "action": "mask", "enabled": True},
-                    {"type": "bank_card", "action": "mask", "enabled": True},
-                ], ensure_ascii=False),
+                rules_json=json.dumps(
+                    [
+                        {"type": "id_card", "action": "mask", "enabled": True},
+                        {"type": "phone", "action": "mask", "enabled": True},
+                        {"type": "email", "action": "mask", "enabled": True},
+                        {"type": "bank_card", "action": "mask", "enabled": True},
+                    ],
+                    ensure_ascii=False,
+                ),
                 created_at=now - timedelta(days=30),
                 updated_at=now - timedelta(days=5),
             ),
@@ -55,9 +58,12 @@ async def seed():
                 name="最小化脱敏策略",
                 description="仅检测身份证号，适用于内部文档",
                 is_active=False,
-                rules_json=json.dumps([
-                    {"type": "id_card", "action": "mask", "enabled": True},
-                ], ensure_ascii=False),
+                rules_json=json.dumps(
+                    [
+                        {"type": "id_card", "action": "mask", "enabled": True},
+                    ],
+                    ensure_ascii=False,
+                ),
                 created_at=now - timedelta(days=20),
                 updated_at=now - timedelta(days=20),
             ),
@@ -65,14 +71,17 @@ async def seed():
                 name="严格审计策略",
                 description="全类型检测 + 替换模式，适用于对外发布文档",
                 is_active=False,
-                rules_json=json.dumps([
-                    {"type": "id_card", "action": "replace", "enabled": True},
-                    {"type": "phone", "action": "replace", "enabled": True},
-                    {"type": "email", "action": "replace", "enabled": True},
-                    {"type": "bank_card", "action": "replace", "enabled": True},
-                    {"type": "address", "action": "replace", "enabled": True},
-                    {"type": "name", "action": "replace", "enabled": True},
-                ], ensure_ascii=False),
+                rules_json=json.dumps(
+                    [
+                        {"type": "id_card", "action": "replace", "enabled": True},
+                        {"type": "phone", "action": "replace", "enabled": True},
+                        {"type": "email", "action": "replace", "enabled": True},
+                        {"type": "bank_card", "action": "replace", "enabled": True},
+                        {"type": "address", "action": "replace", "enabled": True},
+                        {"type": "name", "action": "replace", "enabled": True},
+                    ],
+                    ensure_ascii=False,
+                ),
                 created_at=now - timedelta(days=10),
                 updated_at=now - timedelta(days=10),
             ),

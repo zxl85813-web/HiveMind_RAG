@@ -21,9 +21,10 @@
 参见: REGISTRY.md > 后端 > services > MemoryService
 参见: docs/design/multi_tier_memory.md
 """
+
+import asyncio
 from datetime import datetime
 from pathlib import Path
-import asyncio
 
 import chromadb
 from loguru import logger
@@ -80,9 +81,10 @@ class MemoryService:
         [Tier-1] 用 LLM 提取摘要 + 标签，写入内存倒排索引。
         由 add_memory 以 fire-and-forget 方式异步触发。
         """
+        import json
+
         from app.core.llm import get_llm_service
         from app.services.memory.tier.abstract_index import abstract_index
-        import json
 
         llm = get_llm_service()
         prompt = f"""
@@ -90,7 +92,7 @@ class MemoryService:
         {{
             "title": "Short title, max 5 words",
             "tags": ["tag1", "tag2"],
-            "type": "{'user_query' if role == 'user' else 'ai_response'}"
+            "type": "{"user_query" if role == "user" else "ai_response"}"
         }}
         Content:
         {content}
@@ -102,13 +104,14 @@ class MemoryService:
                 doc_id=doc_id,
                 title=data.get("title", "Untitled Fragment"),
                 doc_type=data.get("type", "log"),
-                tags=data.get("tags", ["general"])
+                tags=data.get("tags", ["general"]),
             )
             logger.info(f"⚡ Tier-1 Indexed | {data.get('title')} | Tags: {data.get('tags')}")
         except Exception as e:
             logger.warning(f"Tier-1 abstract extraction failed for {doc_id}: {e}")
             # Fallback: 以基础分类兜底入库
             from app.services.memory.tier.abstract_index import abstract_index
+
             abstract_index.add_abstract(doc_id, "Memory Fragment", role, ["fallback"])
 
     async def add_memory(self, content: str, metadata: dict = None):
@@ -137,6 +140,7 @@ class MemoryService:
 
         # Tier-2: 图谱提取（异步，不阻塞主流程）
         from app.services.memory.tier.graph_index import graph_index
+
         asyncio.create_task(graph_index.extract_and_store(doc_id, content))
 
         # Tier-3: 向量存储（同步，本地 ChromaDB，快）
@@ -204,8 +208,7 @@ class MemoryService:
                 hits = abstract_index.route_query(tags=radar_tags, limit=5)
                 if hits:
                     radar_lines = "\n".join(
-                        f"- [{h['type']}] {h['title']} (tags: {', '.join(h['tags'])})"
-                        for h in hits
+                        f"- [{h['type']}] {h['title']} (tags: {', '.join(h['tags'])})" for h in hits
                     )
                     context_blocks.append(f"--- HOT MEMORY (Tier-1 Radar) ---\n{radar_lines}")
 
@@ -242,8 +245,10 @@ class MemoryService:
         [辅助] 从用户查询中快速提取关键词（作为 Tier-1 Radar 检索的标签）。
         使用 FAST 级别模型以降低延迟。失败时静默返回空列表。
         """
-        from app.core.llm import get_llm_service
         import json
+
+        from app.core.llm import get_llm_service
+
         try:
             llm = get_llm_service()
             prompt = f"""Extract 2-4 lowercase technical keywords from this query. 
@@ -261,11 +266,7 @@ Query: {query}"""
         （简单场景不需要完整的 get_context，直接检索 Tier-3 即可）
         """
         try:
-            results = memory_collection.query(
-                query_texts=[query],
-                n_results=limit,
-                where={"user_id": self.user_id}
-            )
+            results = memory_collection.query(query_texts=[query], n_results=limit, where={"user_id": self.user_id})
             return results["documents"][0] if results.get("documents") else []
         except Exception as e:
             logger.warning(f"search_memory failed: {e}")

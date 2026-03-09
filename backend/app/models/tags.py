@@ -3,22 +3,26 @@ Tags & Categories Models — For document organization and filtering.
 """
 
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship
+from typing import TYPE_CHECKING
+
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .knowledge import Document
 
+
 class TagCategory(SQLModel, table=True):
     """Category for grouping tags (e.g., 'Document Type', 'Department')."""
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
-    description: Optional[str] = None
+    description: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    tags: List["Tag"] = Relationship(back_populates="category", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    tags: list["Tag"] = Relationship(
+        back_populates="category", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class DocumentTagLink(SQLModel, table=True):
@@ -36,13 +40,13 @@ class DocumentTagLink(SQLModel, table=True):
 class Tag(SQLModel, table=True):
     """Individual tag that can be attached to documents."""
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     color: str = Field(default="#64748b")  # Default slate-500
-    category_id: Optional[int] = Field(default=None, foreign_key="tagcategory.id")
+    category_id: int | None = Field(default=None, foreign_key="tagcategory.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    category: Optional[TagCategory] = Relationship(back_populates="tags")
-    documents: List["Document"] = Relationship(back_populates="tags", link_model=DocumentTagLink)
-    doc_links: List[DocumentTagLink] = Relationship(back_populates="tag")
+    category: TagCategory | None = Relationship(back_populates="tags")
+    documents: list["Document"] = Relationship(back_populates="tags", link_model=DocumentTagLink)
+    doc_links: list[DocumentTagLink] = Relationship(back_populates="tag")

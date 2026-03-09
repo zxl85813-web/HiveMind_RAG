@@ -7,44 +7,50 @@ by simply adding a new parser class.
 """
 
 import abc
-from typing import Any, Dict, Type, List, Optional, TYPE_CHECKING
-from pydantic import BaseModel
+from typing import TYPE_CHECKING, Any
+
 from loguru import logger
-from app.batch.ingestion.protocol import StandardizedResource, ResourceType
+from pydantic import BaseModel
+
+from app.batch.ingestion.protocol import ResourceType, StandardizedResource
 
 if TYPE_CHECKING:
     from app.batch.pipeline import Artifact
 
+
 class IngestionContext(BaseModel):
     """Context passed around during ingestion."""
+
     job_id: str
     file_path: str
-    kb_id: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    kb_id: str | None = None
+    metadata: dict[str, Any] = {}
 
 
 class BaseIngestionStep(abc.ABC):
     """Base class for a local Python-based pipeline step."""
-    
+
     @abc.abstractmethod
-    async def run(self, stage_input: Any) -> 'Artifact':
+    async def run(self, stage_input: Any) -> "Artifact":
         pass
 
 
 class StepRegistry:
     """Registry for local Python-based steps."""
-    _steps: Dict[str, Type[BaseIngestionStep]] = {}
+
+    _steps: dict[str, type[BaseIngestionStep]] = {}
 
     @classmethod
     def register(cls, name: str):
-        def wrapper(step_cls: Type[BaseIngestionStep]):
+        def wrapper(step_cls: type[BaseIngestionStep]):
             cls._steps[name] = step_cls
             logger.info(f"🧱 Registered Pipeline Step: {name} -> {step_cls.__name__}")
             return step_cls
+
         return wrapper
 
     @classmethod
-    def get_step(cls, name: str) -> Optional[BaseIngestionStep]:
+    def get_step(cls, name: str) -> BaseIngestionStep | None:
         step_cls = cls._steps.get(name)
         return step_cls() if step_cls else None
 
@@ -54,36 +60,38 @@ class BaseParser(abc.ABC):
     Abstract Base Class for all File Parsers.
     Implement this to support a new file type (e.g. PDF, GoLang, Excel).
     """
-    
+
     @abc.abstractmethod
     def can_handle(self, filename: str, content_preview: str = "") -> bool:
         """Return True if this parser can handle the given file."""
         pass
 
     @abc.abstractmethod
-    async def parse(self, file_path: str, context: Optional[IngestionContext] = None) -> StandardizedResource:
+    async def parse(self, file_path: str, context: IngestionContext | None = None) -> StandardizedResource:
         """
         Parse the file and return a StandardizedResource.
         Masks the complexity of the underlying format (PDF, Excel, AST).
         """
         pass
 
+
 class ParserRegistry:
     """
     The Central Registry for Parsers.
     Design Pattern: Registry / Strategy.
     """
-    _parsers: List[Type[BaseParser]] = []
+
+    _parsers: list[type[BaseParser]] = []
 
     @classmethod
-    def register(cls, parser_cls: Type[BaseParser]):
+    def register(cls, parser_cls: type[BaseParser]):
         """Decorator to register a new parser."""
         logger.info(f"🔌 Registered Parser Plugin: {parser_cls.__name__}")
         cls._parsers.append(parser_cls)
         return parser_cls
 
     @classmethod
-    def get_parser(cls, filename: str, content_preview: str = "") -> Optional[BaseParser]:
+    def get_parser(cls, filename: str, content_preview: str = "") -> BaseParser | None:
         """
         Find the right parser for the job.
         Iterates through registered parsers and asks if they can handle it.
@@ -95,31 +103,33 @@ class ParserRegistry:
                 return parser
         return None
 
+
 # ============================================================
 #  Default / Fallback Parsers
 # ============================================================
 
+
 @ParserRegistry.register
 class TextParser(BaseParser):
     """A simple fallback parser for plain text files."""
-    
+
     def can_handle(self, filename: str, content_preview: str = "") -> bool:
         return filename.endswith(".txt") or filename.endswith(".md")
 
-    async def parse(self, file_path: str, context: Optional[IngestionContext] = None) -> StandardizedResource:
-        from app.batch.ingestion.protocol import ResourceMetadata, ResourceType, DocumentSection
-        import aiofiles
+    async def parse(self, file_path: str, context: IngestionContext | None = None) -> StandardizedResource:
         import os
-        
-        async with aiofiles.open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+
+        import aiofiles
+
+        from app.batch.ingestion.protocol import DocumentSection, ResourceMetadata
+
+        async with aiofiles.open(file_path, encoding="utf-8", errors="ignore") as f:
             content = await f.read()
 
         return StandardizedResource(
             meta=ResourceMetadata(
-                filename=os.path.basename(file_path),
-                file_path=file_path,
-                resource_type=ResourceType.OTHER
+                filename=os.path.basename(file_path), file_path=file_path, resource_type=ResourceType.OTHER
             ),
             raw_text=content,
-            sections=[DocumentSection(title="Full Content", level=1, content=content)]
+            sections=[DocumentSection(title="Full Content", level=1, content=content)],
         )

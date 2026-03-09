@@ -1,2 +1,2 @@
-from .pipeline import get_generation_service, GenerationPipeline
+from .pipeline import GenerationPipeline, get_generation_service
 from .protocol import GenerationContext

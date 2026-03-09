@@ -5,13 +5,17 @@ Knowledge Base Service — Manages KB and Document persistence.
 依赖模块: models.knowledge, core.database
 注册位置: REGISTRY.md > Services > KnowledgeService
 """
-from typing import Sequence
+
+from collections.abc import Sequence
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, or_
-from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from app.models.security import KnowledgeBasePermission
-from app.models.chat import User
+from sqlmodel import or_, select
+
 from app.core.exceptions import NotFoundError
+from app.models.chat import User
+from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
+from app.models.security import KnowledgeBasePermission
+
 
 class KnowledgeService:
     def __init__(self, session: AsyncSession):
@@ -21,18 +25,14 @@ class KnowledgeService:
         self.session.add(kb)
         await self.session.commit()
         await self.session.refresh(kb)
-        
+
         # Add Owner ACL rule
         kb_perm = KnowledgeBasePermission(
-            kb_id=kb.id,
-            user_id=kb.owner_id,
-            can_read=True,
-            can_write=True,
-            can_manage=True
+            kb_id=kb.id, user_id=kb.owner_id, can_read=True, can_write=True, can_manage=True
         )
         self.session.add(kb_perm)
         await self.session.commit()
-        
+
         return kb
 
     async def get_kb(self, kb_id: str) -> KnowledgeBase:
@@ -47,64 +47,66 @@ class KnowledgeService:
             statement = select(KnowledgeBase)
         else:
             # Accessible if user is owner, or public, or has read permission based on user/role/department
-            conditions = [
-                KnowledgeBase.owner_id == current_user.id,
-                KnowledgeBase.is_public == True
-            ]
-            
+            conditions = [KnowledgeBase.owner_id == current_user.id, KnowledgeBase.is_public == True]
+
             # ACL Subquery
             acl_stmt = select(KnowledgeBasePermission.kb_id).where(
                 KnowledgeBasePermission.can_read == True,
                 or_(
                     KnowledgeBasePermission.user_id == current_user.id,
                     KnowledgeBasePermission.role_id == current_user.role,
-                    KnowledgeBasePermission.department_id == current_user.department_id if current_user.department_id else False
-                )
+                    KnowledgeBasePermission.department_id == current_user.department_id
+                    if current_user.department_id
+                    else False,
+                ),
             )
             conditions.append(KnowledgeBase.id.in_(acl_stmt))
-            
+
             statement = select(KnowledgeBase).where(or_(*conditions))
-            
+
         res = await self.session.execute(statement)
         return res.scalars().all()
-        
+
     async def get_user_accessible_kbs(self, current_user: User) -> list[str]:
         """Return a list of KB IDs that the user can read."""
         kbs = await self.list_kbs(current_user)
         return [kb.id for kb in kbs]
-        
+
     async def check_kb_access(self, kb_id: str, user: User, level: str = "read") -> bool:
         """Check if user has specific access level to KB."""
         if user.role == "admin":
             return True
-            
+
         kb = await self.session.get(KnowledgeBase, kb_id)
         if not kb:
             return False
-            
+
         if kb.is_public and level == "read":
             return True
-            
+
         if kb.owner_id == user.id:
             return True
-            
+
         # Check ACL
         acl_stmt = select(KnowledgeBasePermission).where(
             KnowledgeBasePermission.kb_id == kb_id,
             or_(
                 KnowledgeBasePermission.user_id == user.id,
                 KnowledgeBasePermission.role_id == user.role,
-                KnowledgeBasePermission.department_id == user.department_id if user.department_id else False
-            )
+                KnowledgeBasePermission.department_id == user.department_id if user.department_id else False,
+            ),
         )
         res = await self.session.execute(acl_stmt)
         perms = res.scalars().all()
-        
+
         for p in perms:
-            if level == "read" and p.can_read: return True
-            if level == "write" and p.can_write: return True
-            if level == "manage" and p.can_manage: return True
-            
+            if level == "read" and p.can_read:
+                return True
+            if level == "write" and p.can_write:
+                return True
+            if level == "manage" and p.can_manage:
+                return True
+
         return False
 
     async def create_document(self, doc: Document) -> Document:
@@ -113,7 +115,7 @@ class KnowledgeService:
         await self.session.commit()
         await self.session.refresh(doc)
         return doc
-        
+
     async def get_document(self, doc_id: str) -> Document:
         doc = await self.session.get(Document, doc_id)
         if not doc:
@@ -130,16 +132,16 @@ class KnowledgeService:
         link = await self.session.get(KnowledgeBaseDocumentLink, (kb_id, doc_id))
         if link:
             return link
-            
+
         link = KnowledgeBaseDocumentLink(knowledge_base_id=kb_id, document_id=doc_id)
         self.session.add(link)
-        
+
         # Increment version
         kb = await self.session.get(KnowledgeBase, kb_id)
         if kb:
             kb.version += 1
             self.session.add(kb)
-        
+
         await self.session.commit()
         await self.session.refresh(link)
         return link
@@ -147,6 +149,7 @@ class KnowledgeService:
     async def list_documents_in_kb(self, kb_id: str) -> Sequence[Document]:
         """List all documents linked to a specific KB."""
         from sqlalchemy.orm import selectinload
+
         statement = (
             select(Document)
             .join(KnowledgeBaseDocumentLink)

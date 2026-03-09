@@ -1,3 +1,3 @@
-from .pipeline import get_retrieval_service, RetrievalPipeline
+from .pipeline import RetrievalPipeline, get_retrieval_service
 from .protocol import RetrievalContext
 from .steps import BaseRetrievalStep

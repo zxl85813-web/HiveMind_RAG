@@ -6,7 +6,6 @@
 """
 
 import asyncio
-import logging
 import sys
 from pathlib import Path
 
@@ -14,15 +13,15 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
 
-from app.core.database import get_db_session, init_db
 from app.auth.security import hash_password
+from app.core.database import get_db_session, init_db
 from app.models.user import User
 
 
 async def create_superuser(username: str, password: str, email: str = "admin@example.com"):
     """创建超级管理员。"""
     print(f"🔄 Creating superuser: {username} ({email})...")
-    
+
     # 确保数据库已初始化 (开发环境)
     await init_db()
 
@@ -48,7 +47,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python create_superuser.py <username> <password> [email]")
         sys.exit(1)
-        
+
     username = sys.argv[1]
     password = sys.argv[2]
     email = sys.argv[3] if len(sys.argv) > 3 else "admin@example.com"

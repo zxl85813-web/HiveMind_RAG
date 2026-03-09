@@ -1,28 +1,28 @@
 """
 Knowledge Base management endpoints.
 """
-from typing import Sequence, Any
-import shutil
+
 import os
 import uuid
+from collections.abc import Sequence
+from typing import Any
+
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.deps import get_db, get_current_user
-from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from app.schemas.knowledge import KnowledgeBaseCreate, KnowledgeBaseUpdate, DocumentCreate, DocumentResponse, KBPermissionInput
-from app.models.security import KnowledgeBasePermission
-from app.services.knowledge.kb_service import KnowledgeService
-from app.services.indexing import index_document_task
-from app.models.chat import User
-from app.core.config import settings
+
+from app.api.deps import get_current_user, get_db
 from app.common.response import ApiResponse
-from app.core.database import engine
-from app.core.exceptions import AppError, NotFoundError
-from app.services.retrieval.pipeline import get_retrieval_service
+from app.core.exceptions import NotFoundError
+from app.models.chat import User
+from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
+from app.models.security import KnowledgeBasePermission
+from app.schemas.knowledge import DocumentResponse, KBPermissionInput, KnowledgeBaseCreate
+from app.schemas.knowledge_protocol import KBStatus
+from app.services.indexing import index_document_task
+from app.services.knowledge.kb_service import KnowledgeService
 from app.services.rag_gateway import RAGGateway
-from app.schemas.knowledge_protocol import KnowledgeResponse, KBStatus
 
 router = APIRouter()
 
@@ -39,7 +39,7 @@ async def create_knowledge_base(
     collection_name = kb_in.vector_collection
     if collection_name == "default_collection":
         collection_name = f"kb_{uuid.uuid4().hex[:8]}"
-        
+
     kb = KnowledgeBase(
         name=kb_in.name,
         description=kb_in.description,
@@ -63,67 +63,60 @@ async def list_knowledge_bases(
     kbs = await service.list_kbs(current_user)
     return ApiResponse.ok(data=kbs)
 
+
 # ----------------------------------------------------------------------------
 # RAG Search
 # ----------------------------------------------------------------------------
+
 
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
     search_type: str = "hybrid"  # vector, bm25, hybrid
 
+
 class SearchResponse(BaseModel):
     results: list[dict[str, Any]]
     context_log: list[str]
 
+
 @router.post("/{kb_id}/search", response_model=ApiResponse[SearchResponse])
-async def search_knowledge_base(
-    kb_id: str,
-    request: SearchRequest,
-    current_user: User = Depends(get_current_user)
-):
+async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user: User = Depends(get_current_user)):
     """
     Search a specific knowledge base using the Retrieval Pipeline.
     This replaces the raw vector store search, incorporating query rewrite and reranking.
     """
     from app.core.database import async_session_factory
+
     async with async_session_factory() as session:
         kb = await session.get(KnowledgeBase, kb_id)
         if not kb:
             raise NotFoundError(resource="Knowledge Base", id=kb_id)
-        
+
         service = KnowledgeService(session)
         if not await service.check_kb_access(kb_id, current_user, level="read"):
             raise HTTPException(status_code=403, detail="Not authorized to search this knowledge base")
 
     gateway = RAGGateway()
-    
+
     knowledge_res = await gateway.retrieve(
-        query=request.query,
-        kb_ids=[kb_id],
-        top_k=request.top_k,
-        strategy=request.search_type
+        query=request.query, kb_ids=[kb_id], top_k=request.top_k, strategy=request.search_type
     )
-    
+
     return ApiResponse.ok(data=knowledge_res)
 
+
 @router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus])
-async def get_kb_health(
-    kb_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+async def get_kb_health(kb_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get the health status and circuit breaker state of a KB."""
     gateway = RAGGateway()
     # Mocking score calculation for now
     is_tripped = gateway._is_circuit_open(kb_id)
-    
-    return ApiResponse.ok(data=KBStatus(
-        kb_id=kb_id,
-        is_healthy=not is_tripped,
-        score_avg=0.95,
-        circuit_tripped=is_tripped
-    ))
+
+    return ApiResponse.ok(
+        data=KBStatus(kb_id=kb_id, is_healthy=not is_tripped, score_avg=0.95, circuit_tripped=is_tripped)
+    )
+
 
 @router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase])
 async def get_knowledge_base(
@@ -149,8 +142,9 @@ async def get_knowledge_base_permissions(
     service = KnowledgeService(db)
     if not await service.check_kb_access(kb_id, current_user, level="manage"):
         raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
-        
+
     from sqlmodel import select
+
     stmt = select(KnowledgeBasePermission).where(KnowledgeBasePermission.kb_id == kb_id)
     res = await db.execute(stmt)
     return ApiResponse.ok(data=res.scalars().all())
@@ -167,11 +161,11 @@ async def add_knowledge_base_permission(
     service = KnowledgeService(db)
     if not await service.check_kb_access(kb_id, current_user, level="manage"):
         raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
-        
+
     # Either user, role or department must be specified
     if not perm_in.user_id and not perm_in.role_id and not perm_in.department_id:
         raise HTTPException(status_code=400, detail="Must specify user_id, role_id, or department_id")
-        
+
     perm = KnowledgeBasePermission(
         kb_id=kb_id,
         user_id=perm_in.user_id,
@@ -179,7 +173,7 @@ async def add_knowledge_base_permission(
         department_id=perm_in.department_id,
         can_read=perm_in.can_read,
         can_write=perm_in.can_write,
-        can_manage=perm_in.can_manage
+        can_manage=perm_in.can_manage,
     )
     db.add(perm)
     await db.commit()
@@ -198,19 +192,20 @@ async def delete_knowledge_base_permission(
     service = KnowledgeService(db)
     if not await service.check_kb_access(kb_id, current_user, level="manage"):
         raise HTTPException(status_code=403, detail="Not authorized to manage this knowledge base")
-        
+
     perm = await db.get(KnowledgeBasePermission, perm_id)
     if not perm or perm.kb_id != kb_id:
         raise HTTPException(status_code=404, detail="Permission not found")
-        
+
     # Prevent owner from removing themselves
     kb = await db.get(KnowledgeBase, kb_id)
     if perm.user_id == kb.owner_id:
         raise HTTPException(status_code=400, detail="Cannot remove owner's permission")
-        
+
     await db.delete(perm)
     await db.commit()
     return ApiResponse.ok(data={"status": "success", "message": "Permission removed"})
+
 
 @router.post("/documents", response_model=ApiResponse[DocumentResponse])
 async def upload_document_global(
@@ -222,31 +217,31 @@ async def upload_document_global(
     # 1. Save file to local storage (TODO: Use MinIO/S3 via StorageBackend)
     upload_dir = "uploads"  # Should be configured in settings
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     # Generate unique filename to avoid collision
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
     file_path = os.path.join(upload_dir, unique_filename)
-    
+
     # Write file by chunks to avoid OOM
     file_size = 0
-    async with aiofiles.open(file_path, 'wb') as out_file:
+    async with aiofiles.open(file_path, "wb") as out_file:
         while chunk := await file.read(1024 * 1024):  # 1MB chunks
             await out_file.write(chunk)
             file_size += len(chunk)
-        
+
     # 2. Extract metadata
-    file_type = file.filename.split('.')[-1].lower() if '.' in file.filename else 'unknown'
-    
+    file_type = file.filename.split(".")[-1].lower() if "." in file.filename else "unknown"
+
     # 3. Create Document record
     doc = Document(
         filename=file.filename,
         file_type=file_type,
         file_size=file_size,
         storage_path=file_path,
-        status="pending"
+        status="pending",
         # owner_id=current_user.id # TODO: Add owner to schema
     )
-    
+
     service = KnowledgeService(db)
     doc = await service.create_document(doc)
     return ApiResponse.ok(data=doc)
@@ -266,12 +261,12 @@ async def link_document(
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
         raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
-        
+
     link = await service.link_document_to_kb(kb_id, doc_id)
-    
+
     # Trigger background indexing
     background_tasks.add_task(index_document_task, kb_id, doc_id)
-    
+
     return ApiResponse.ok(data=link)
 
 
@@ -287,7 +282,7 @@ async def list_documents_in_kb(
     # Access control
     if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
-        
+
     docs = await service.list_documents_in_kb(kb_id)
     return ApiResponse.ok(data=docs)
 
@@ -305,17 +300,18 @@ async def unlink_document(
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
         raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
-    
+
     await service.unlink_document(kb_id, doc_id)
-    
+
     # Clean up vector store
     store = get_vector_store()
     try:
         await store.delete_documents(kb.vector_collection, {"doc_id": doc_id})
     except Exception as e:
         import loguru
+
         loguru.logger.error(f"Failed to delete docs from vector store for {doc_id}: {e}")
-        
+
     return ApiResponse.ok(data={"status": "success", "message": "Document unlinked"})
 
 
@@ -327,46 +323,52 @@ async def get_knowledge_graph(
 ):
     """Get the knowledge graph subset for this KB."""
     from app.core.graph_store import get_graph_store
-    
+
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="read"):
         raise HTTPException(status_code=403, detail="Not authorized")
-        
+
     store = get_graph_store()
     if not store.driver:
         return ApiResponse.ok(data={"nodes": [], "links": []})
-        
+
     cypher = """
     MATCH (n {kb_id: $kb_id})
     OPTIONAL MATCH (n)-[r]->(m {kb_id: $kb_id})
     RETURN collect(DISTINCT n) as nodes, collect(DISTINCT r) as links
     """
     results = store.query(cypher, {"kb_id": kb_id})
-    
+
     nodes = []
     links = []
-    
+
     if results:
         # Format for react-force-graph
-        for n in results[0].get('nodes', []):
+        for n in results[0].get("nodes", []):
             if n:
-                nodes.append({
-                    "id": n.get('id'),
-                    "name": n.get('name') or n.get('id'),
-                    "label": "Entity",
-                    "val": 10
-                })
-                
-        for r in results[0].get('links', []):
+                nodes.append({"id": n.get("id"), "name": n.get("name") or n.get("id"), "label": "Entity", "val": 10})
+
+        for r in results[0].get("links", []):
             if r:
-                links.append({
-                    "source": r[0].element_id if hasattr(r[0], 'element_id') else r[0].id if hasattr(r[0], 'id') else r[0],
-                    "target": r[2].element_id if hasattr(r[2], 'element_id') else r[2].id if hasattr(r[2], 'id') else r[2],
-                    "type": r[1].type if hasattr(r[1], 'type') else "RELATED"
-                })
-                
+                links.append(
+                    {
+                        "source": r[0].element_id
+                        if hasattr(r[0], "element_id")
+                        else r[0].id
+                        if hasattr(r[0], "id")
+                        else r[0],
+                        "target": r[2].element_id
+                        if hasattr(r[2], "element_id")
+                        else r[2].id
+                        if hasattr(r[2], "id")
+                        else r[2],
+                        "type": r[1].type if hasattr(r[1], "type") else "RELATED",
+                    }
+                )
+
     return ApiResponse.ok(data={"nodes": nodes, "links": links})
+
 
 @router.get("/documents/{doc_id}/preview")
 async def get_document_preview(
@@ -375,26 +377,20 @@ async def get_document_preview(
     current_user: User = Depends(get_current_user),
 ):
     """Get the parsed text content of a document for preview."""
-    from app.models.observability import FileTrace, TraceStatus
-    from sqlmodel import select, desc
-    
+    from sqlmodel import desc, select
+
+    from app.models.observability import FileTrace
+
     # 1. Get latest trace for this doc_id
     stmt = select(FileTrace).where(FileTrace.doc_id == doc_id).order_by(desc(FileTrace.created_at))
     res = await db.execute(stmt)
     trace = res.scalars().first()
-    
+
     if not trace:
         raise HTTPException(status_code=404, detail="No indexing trace found for this document in V3 Swarm")
-        
+
     # 2. Extract preview text from result_data
     result = trace.result_data or {}
     text = result.get("raw_text", "No raw text extracted by Swarm.")
-    
-    return ApiResponse.ok(data={
-        "text": text, 
-        "trace_id": trace.id,
-        "status": trace.status,
-        "kb_id": trace.kb_id
-    })
 
-
+    return ApiResponse.ok(data={"text": text, "trace_id": trace.id, "status": trace.status, "kb_id": trace.kb_id})

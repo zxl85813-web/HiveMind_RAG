@@ -1,5 +1,5 @@
 """
-Prompt Engine 测试 — 验证四层组合是否正确生成 Prompt。
+Prompt Engine 测试 — 验证四层组合是否正确生成 Prompt.
 """
 
 import sys
@@ -8,8 +8,9 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(backend_dir))
 
-from loguru import logger
-from app.prompts.engine import prompt_engine
+from loguru import logger  # noqa: E402
+
+from app.prompts.engine import prompt_engine  # noqa: E402
 
 
 def main():
@@ -28,7 +29,7 @@ def main():
             {"name": "code_agent", "description": "代码生成、执行与调试"},
             {"name": "web_agent", "description": "联网搜索实时信息"},
         ],
-        memory_context="用户之前询问过 Python 异步编程相关问题。",
+        memory_context="用户之前询问过 Python 异步编程相关问题.",
     )
     print(supervisor_prompt)
     print()
@@ -61,7 +62,7 @@ def main():
     logger.info("=" * 60)
 
     reflection_prompt = prompt_engine.build_reflection_prompt(
-        user_query="如何用 Python 写一个异步 HTTP 服务器？",
+        user_query="如何用 Python 写一个异步 HTTP 服务器?",
         agent_name="code_agent",
         agent_response="你可以使用 aiohttp 库来创建异步 HTTP 服务器...",
         task_description="编写异步 HTTP 服务器示例代码",
@@ -99,18 +100,18 @@ def main():
     logger.info("📋 对比: 旧硬编码 Prompt vs 新模板化 Prompt")
     logger.info("=" * 60)
 
-    old_prompt = f"""You are the Supervisor of an intelligent agent swarm.
+    old_prompt = """You are the Supervisor of an intelligent agent swarm.
     Your goal is to route the user's request to the most appropriate agent.
-    
+
     Available Agents:
     - rag_agent: 知识检索与问答
     - code_agent: 代码生成、执行与调试
-    
+
     IMPORTANT: You MUST return a JSON object..."""
 
     logger.info(f"  旧 Prompt: {len(old_prompt)} chars, 硬编码在 swarm.py")
     logger.info(f"  新 Prompt: {len(supervisor_prompt)} chars, 从 YAML+Jinja2 生成")
-    logger.info(f"  新 Prompt 包含: Base约束 + 角色定义 + 路由逻辑 + 记忆上下文 + 输出格式")
+    logger.info("  新 Prompt 包含: Base约束 + 角色定义 + 路由逻辑 + 记忆上下文 + 输出格式")
 
     logger.success("\n✅ 所有测试完成!")
 

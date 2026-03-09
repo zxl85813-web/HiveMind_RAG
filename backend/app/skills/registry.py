@@ -68,38 +68,34 @@ class SkillRegistry:
         for skill_path in self._skills_dir.iterdir():
             if not skill_path.is_dir() or skill_path.name.startswith("__"):
                 continue
-            
+
             # Check for SKILL.md marker file
             skill_md = skill_path / "SKILL.md"
             if not skill_md.exists():
                 continue
-            
+
             try:
                 # Dynamic import of tools.py
                 # Assumes structure: app/skills/<name>/tools.py
                 module_name = f"app.skills.{skill_path.name}.tools"
                 try:
                     module = importlib.import_module(module_name)
-                    
+
                     # Look for tools export: TOOLS list or get_tools() function
                     tools = []
                     if hasattr(module, "get_tools") and callable(module.get_tools):
                         tools = module.get_tools()
                     elif hasattr(module, "TOOLS") and isinstance(module.TOOLS, list):
                         tools = module.TOOLS
-                        
+
                     # Create Skill object
                     # TODO: Parse SKILL.md frontmatter for description/version
-                    skill = Skill(
-                        name=skill_path.name,
-                        description=f"Skill loaded from {skill_path.name}",
-                        tools=tools
-                    )
+                    skill = Skill(name=skill_path.name, description=f"Skill loaded from {skill_path.name}", tools=tools)
                     self.register(skill)
-                    
+
                 except ImportError as e:
                     logger.warning(f"⚠️  Found skill '{skill_path.name}' but failed to load tools: {e}")
-                    
+
             except Exception as e:
                 logger.error(f"❌ Error loading skill '{skill_path.name}': {e}")
 

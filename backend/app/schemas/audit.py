@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List
+
 from pydantic import BaseModel
+
 
 class DocumentReviewBase(BaseModel):
     document_id: str
@@ -12,20 +13,23 @@ class DocumentReviewBase(BaseModel):
     garble_ratio: float
     blank_ratio: float
     overlap_score: float = 0.0
-    reviewer_comment: Optional[str] = None
+    reviewer_comment: str | None = None
+
 
 class DocumentReviewUpdate(BaseModel):
-    status: str # approved | rejected | needs_revision
-    reviewer_comment: Optional[str] = ""
+    status: str  # approved | rejected | needs_revision
+    reviewer_comment: str | None = ""
+
 
 class DocumentReviewRead(DocumentReviewBase):
     id: str
-    reviewer_id: Optional[str] = None
+    reviewer_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
 
 class AuditStats(BaseModel):
     total_reviewed: int

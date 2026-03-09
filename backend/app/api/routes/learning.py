@@ -23,7 +23,7 @@ async def submit_feedback(request: FeedbackRequest):
         await LearningService.learn_from_feedback(request.message_id)
         return ApiResponse.ok(message="Feedback received")
     except Exception as e:
-        return ApiResponse.error(f"Failed: {str(e)}")
+        return ApiResponse.error(f"Failed: {e!s}")
 
 
 @router.get("/subscriptions", response_model=ApiResponse)
@@ -56,4 +56,3 @@ async def list_discoveries():
     """获取技术发现列表。"""
     discoveries = await LearningService.get_discoveries()
     return ApiResponse.ok(data=discoveries)
-

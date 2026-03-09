@@ -5,6 +5,7 @@ LLM Token Tracker — Counts tokens and estimates API cost.
 职责: LLM 调用的 Token 计量与成本估算，与 JWT 无关。
 注册位置: REGISTRY.md > LLM > TokenTracker
 """
+
 try:
     import tiktoken
 except ImportError:
@@ -45,11 +46,7 @@ class TokenTracker:
         return len(text) // 4 + 1
 
     @staticmethod
-    def calculate_cost(
-        prompt_tokens: int,
-        completion_tokens: int,
-        model: str = "gpt-3.5-turbo"
-    ) -> float:
+    def calculate_cost(prompt_tokens: int, completion_tokens: int, model: str = "gpt-3.5-turbo") -> float:
         """Estimate USD cost based on model pricing.
 
         Args:

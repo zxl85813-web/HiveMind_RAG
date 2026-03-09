@@ -11,20 +11,19 @@ High-end reasoning is only invoked for ambiguous or high-stakes reasoning phases
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from loguru import logger
-from pydantic import BaseModel
 
 from app.core.config import settings
 
 
 class ModelTier(str, Enum):
     """Classification of models by capability and cost."""
-    FAST = "fast"            # Simple reasoning, extremely cheap
-    BALANCED = "balanced"    # Standard agent tool use & logic
+
+    FAST = "fast"  # Simple reasoning, extremely cheap
+    BALANCED = "balanced"  # Standard agent tool use & logic
     REASONING = "reasoning"  # Complex planning & error correction
 
 
@@ -35,7 +34,7 @@ class LLMRouter:
     """
 
     def __init__(self) -> None:
-        self._instances: Dict[ModelTier, BaseChatModel] = {}
+        self._instances: dict[ModelTier, BaseChatModel] = {}
         self._setup_default_routes()
         logger.info("🔀 LLMRouter initialized with cost-optimization tiers")
 
@@ -45,14 +44,12 @@ class LLMRouter:
             # Determine provider overrides or use global fallback
             global_provider = settings.LLM_PROVIDER
             logger.debug(f"LLM Routing: Global Provider={global_provider}")
-            
+
             # --- Reasoning Tier ---
             r_provider = settings.REASONING_PROVIDER or global_provider
             try:
                 self._instances[ModelTier.REASONING] = self._create_llm(
-                    model=settings.DEFAULT_REASONING_MODEL,
-                    provider=r_provider,
-                    temperature=0.6
+                    model=settings.DEFAULT_REASONING_MODEL, provider=r_provider, temperature=0.6
                 )
                 logger.debug(f"✅ Loaded REASONING tier: {settings.DEFAULT_REASONING_MODEL} via {r_provider}")
             except Exception as e:
@@ -62,9 +59,7 @@ class LLMRouter:
             b_provider = settings.BALANCED_PROVIDER or global_provider
             try:
                 self._instances[ModelTier.BALANCED] = self._create_llm(
-                    model=settings.LLM_MODEL, 
-                    provider=b_provider,
-                    temperature=0.7
+                    model=settings.LLM_MODEL, provider=b_provider, temperature=0.7
                 )
                 logger.debug(f"✅ Loaded BALANCED tier: {settings.LLM_MODEL} via {b_provider}")
             except Exception as e:
@@ -74,9 +69,7 @@ class LLMRouter:
             f_provider = settings.FAST_PROVIDER or global_provider
             try:
                 self._instances[ModelTier.FAST] = self._create_llm(
-                    model=settings.DEFAULT_CHAT_MODEL,
-                    provider=f_provider,
-                    temperature=0.3
+                    model=settings.DEFAULT_CHAT_MODEL, provider=f_provider, temperature=0.3
                 )
                 logger.debug(f"✅ Loaded FAST tier: {settings.DEFAULT_CHAT_MODEL} via {f_provider}")
             except Exception as e:
@@ -92,7 +85,7 @@ class LLMRouter:
         """Internal factory for LangChain model instances."""
         # Standardize provider name
         p = provider.lower()
-        
+
         # Prepare configuration
         config = {
             "model": model,
@@ -105,7 +98,7 @@ class LLMRouter:
             config["base_url"] = settings.LLM_BASE_URL
         elif p in ["moonshot", "kimi"]:
             config["api_key"] = settings.KIMI_API_KEY
-            config["base_url"] = settings.KIMI_API_BASE # Using the fixed setting name
+            config["base_url"] = settings.KIMI_API_BASE  # Using the fixed setting name
         elif p == "openai":
             config["api_key"] = settings.OPENAI_API_KEY
             config["base_url"] = settings.OPENAI_BASE_URL
@@ -127,17 +120,20 @@ class LLMRouter:
         # Direct hit
         if tier in self._instances:
             return self._instances[tier]
-            
+
         # Failover to BALANCED
         if ModelTier.BALANCED in self._instances:
             return self._instances[ModelTier.BALANCED]
-            
+
         # Absolute fallback to first available
         if self._instances:
             return list(self._instances.values())[0]
-            
+
         raise RuntimeError("No LLM instances available in router.")
 
-    def list_tiers(self) -> Dict[str, str]:
+    def list_tiers(self) -> dict[str, str]:
         """Expose current routing map for UI or logging."""
-        return {tier.value: str(getattr(inst, 'model', getattr(inst, 'model_name', 'unknown'))) for tier, inst in self._instances.items()}
+        return {
+            tier.value: str(getattr(inst, "model", getattr(inst, "model_name", "unknown")))
+            for tier, inst in self._instances.items()
+        }

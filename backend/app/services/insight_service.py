@@ -1,15 +1,17 @@
-
 import json
 import re
-from typing import List, Optional
+
 from pydantic import BaseModel
+
 from app.core.llm import get_llm_service
 from app.schemas.chat import AIAction
+
 
 class SwarmInsight(BaseModel):
     summary: str
     thought: str
-    actions: List[AIAction]
+    actions: list[AIAction]
+
 
 class InsightService:
     """
@@ -21,27 +23,27 @@ class InsightService:
     def _clean_json_string(s: str) -> str:
         """Clean common LLM JSON artifacts like markdown blocks and trailing commas."""
         # 1. Strip markdown code blocks if present
-        s = re.sub(r'```(?:json)?\s*(.*?)\s*```', r'\1', s, flags=re.DOTALL)
-        
+        s = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", s, flags=re.DOTALL)
+
         # 2. Extract first { ... } block
-        match = re.search(r'(\{.*\})', s, re.DOTALL)
+        match = re.search(r"(\{.*\})", s, re.DOTALL)
         if not match:
             return s
         s = match.group(1)
-        
+
         # 3. Handle common syntax issues like trailing commas before closing braces/brackets
-        s = re.sub(r',\s*([\]\}])', r'\1', s)
-        
+        s = re.sub(r",\s*([\]\}])", r"\1", s)
+
         return s.strip()
 
     @staticmethod
-    async def generate_session_insight(history: str, last_response: str) -> Optional[SwarmInsight]:
+    async def generate_session_insight(history: str, last_response: str) -> SwarmInsight | None:
         llm = get_llm_service()
-        
+
         # Truncate safely
         history_trimmed = history[-2000:] if len(history) > 2000 else history
         response_trimmed = last_response[-1000:] if len(last_response) > 1000 else last_response
-        
+
         prompt = f"""You are the 'Strategic Brain' of a RAG Platform. 
 Analyze the recent chat session and provide a PROACTIVE NEXT STEP for the user.
 
@@ -60,26 +62,26 @@ IMPORTANT RULES:
 
 Output ONLY valid JSON:
 {{"summary": "brief summary", "thought": "reasoning", "actions": [{{"type": "navigate", "label": "Button Label", "target": "/path", "variant": "primary"}}]}}"""
-        
+
         try:
             resp = await llm.chat_complete([{"role": "system", "content": prompt}], json_mode=True)
-            
+
             cleaned_resp = InsightService._clean_json_string(resp)
             try:
                 data = json.loads(cleaned_resp)
             except json.JSONDecodeError as e:
                 print(f"Failed to parse cleaned JSON: {e}\nRaw: {resp[:200]}")
                 # Last resort fuzzy extract
-                json_match = re.search(r'(\{.*\})', resp, re.DOTALL)
+                json_match = re.search(r"(\{.*\})", resp, re.DOTALL)
                 if json_match:
                     try:
                         data = json.loads(json_match.group(1))
-                    except: return None
+                    except:
+                        return None
                 else:
                     return None
-            
+
             return SwarmInsight(**data)
         except Exception as e:
             print(f"Failed to generate insight: {e}")
             return None
-

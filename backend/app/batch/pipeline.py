@@ -26,31 +26,33 @@ Multi-Swarm Pipeline — 多 Swarm 协作的流水线架构。
 
 from __future__ import annotations
 
+import time
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Awaitable, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
 from loguru import logger
-import time
-
+from pydantic import BaseModel, Field
 
 # ============================================================
 #  Artifact — Swarm 之间的通信协议
 # ============================================================
 
+
 class ArtifactType(str, Enum):
     """产物类型。"""
-    EXTRACTED_DATA = "extracted_data"       # 结构化提取 (JSON)
-    ANALYSIS_RESULT = "analysis_result"     # 分析结论
-    CLASSIFICATION = "classification"       # 分类标签
-    SUMMARY = "summary"                     # 摘要
-    CODE = "code"                           # 生成的代码
-    TABLE = "table"                         # 表格数据
-    DECISION = "decision"                   # 决策 (是/否/待定)
-    REPORT = "report"                       # 最终报告
-    ERROR = "error"                         # 错误信息
+
+    EXTRACTED_DATA = "extracted_data"  # 结构化提取 (JSON)
+    ANALYSIS_RESULT = "analysis_result"  # 分析结论
+    CLASSIFICATION = "classification"  # 分类标签
+    SUMMARY = "summary"  # 摘要
+    CODE = "code"  # 生成的代码
+    TABLE = "table"  # 表格数据
+    DECISION = "decision"  # 决策 (是/否/待定)
+    REPORT = "report"  # 最终报告
+    ERROR = "error"  # 错误信息
 
 
 class Artifact(BaseModel):
@@ -62,22 +64,23 @@ class Artifact(BaseModel):
         2. 必须是自描述的 (不看上游对话也能理解)
         3. 必须有元数据 (谁产出的、什么时候、多可信)
     """
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     # --- 内容 ---
     artifact_type: ArtifactType
-    data: dict[str, Any]           # 核心数据 (结构化)
-    text_summary: str = ""         # 一句话摘要 (给下游 Swarm 的 prompt 用)
+    data: dict[str, Any]  # 核心数据 (结构化)
+    text_summary: str = ""  # 一句话摘要 (给下游 Swarm 的 prompt 用)
 
     # --- 元数据 ---
-    source_stage: str = ""         # 产出这个 Artifact 的 Stage 名
-    source_file: str = ""          # 原始文件标识
-    confidence: float = 1.0        # 置信度 0.0-1.0
-    warnings: list[str] = []       # 注意事项 (如 "数据不完整")
+    source_stage: str = ""  # 产出这个 Artifact 的 Stage 名
+    source_file: str = ""  # 原始文件标识
+    confidence: float = 1.0  # 置信度 0.0-1.0
+    warnings: list[str] = []  # 注意事项 (如 "数据不完整")
 
     # --- 追踪 ---
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    token_cost: int = 0            # 产出这个 Artifact 花了多少 token
+    token_cost: int = 0  # 产出这个 Artifact 花了多少 token
 
 
 class StageInput(BaseModel):
@@ -87,8 +90,9 @@ class StageInput(BaseModel):
     每个 Stage 收到的不是"上一个 Swarm 的对话历史"，
     而是"精心筛选过的 Artifact 集合 + 原始数据"。
     """
+
     # --- 原始数据 ---
-    raw_content: str = ""          # 原始文件内容 (仅第一个 Stage 需要)
+    raw_content: str = ""  # 原始文件内容 (仅第一个 Stage 需要)
     file_metadata: dict[str, Any] = {}  # 文件名、大小、类型等
 
     # --- 来自上游的 Artifact ---
@@ -140,14 +144,16 @@ class StageInput(BaseModel):
 #  Pipeline Stage — 流水线的一个阶段
 # ============================================================
 
+
 class StageDefinition(BaseModel):
     """流水线中一个 Stage 的定义。"""
-    name: str                      # 如 "extract", "analyze", "report"
-    description: str               # 人类可读描述
+
+    name: str  # 如 "extract", "analyze", "report"
+    description: str  # 人类可读描述
     agent_name: str | None = None  # 指定 Agent (None = Supervisor 路由)
 
     # --- 输入/输出契约 ---
-    required_inputs: list[str] = []     # 需要哪些上游 Stage 的 Artifact
+    required_inputs: list[str] = []  # 需要哪些上游 Stage 的 Artifact
     output_artifact_type: ArtifactType = ArtifactType.EXTRACTED_DATA
 
     # --- 提取规则: 告诉这个 Stage "从 Swarm 输出中提取什么" ---
@@ -156,12 +162,13 @@ class StageDefinition(BaseModel):
     # --- 配置 ---
     timeout: int = 120
     max_retries: int = 2
-    prompt_template: str = ""      # 特定于此 Stage 的 Prompt 模板名
+    prompt_template: str = ""  # 特定于此 Stage 的 Prompt 模板名
 
 
 # ============================================================
 #  Pipeline Definition — 完整流水线
 # ============================================================
+
 
 class PipelineDefinition(BaseModel):
     """
@@ -173,6 +180,7 @@ class PipelineDefinition(BaseModel):
         Stage 3: analyze    → 深度分析 (依赖 extract + classify)
         Stage 4: report     → 生成最终报告 (依赖 analyze)
     """
+
     name: str
     description: str = ""
     stages: list[StageDefinition] = []
@@ -203,10 +211,7 @@ class PipelineDefinition(BaseModel):
 
         while len(resolved) < len(stage_names):
             # Find stages whose deps are all resolved
-            layer = [
-                name for name, d in deps.items()
-                if name not in resolved and d.issubset(resolved)
-            ]
+            layer = [name for name, d in deps.items() if name not in resolved and d.issubset(resolved)]
             if not layer:
                 raise ValueError("Circular dependency in pipeline stages")
             layers.append(layer)
@@ -218,6 +223,7 @@ class PipelineDefinition(BaseModel):
 # ============================================================
 #  Pipeline Executor — 流水线执行器
 # ============================================================
+
 
 class PipelineExecutor:
     """
@@ -238,13 +244,15 @@ class PipelineExecutor:
         self._pipeline = pipeline
         self._swarm_invoke_fn = swarm_invoke_fn
         self._artifacts: dict[str, Artifact] = {}  # stage_name → Artifact
-        self._stage_traces: dict[str, dict] = {}    # 调试用: stage → 完整 swarm 状态
-        
+        self._stage_traces: dict[str, dict] = {}  # 调试用: stage → 完整 swarm 状态
+
         # Lifecycle Hooks (for logging/monitoring)
-        self.on_job_start: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None
-        self.on_job_end: Optional[Callable[[dict[str, Artifact]], Awaitable[None]]] = None
-        self.on_stage_start: Optional[Callable[[str, StageInput], Awaitable[None]]] = None
-        self.on_stage_end: Optional[Callable[[str, Artifact, int], Awaitable[None]]] = None # stage_name, artifact, duration_ms
+        self.on_job_start: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+        self.on_job_end: Callable[[dict[str, Artifact]], Awaitable[None]] | None = None
+        self.on_stage_start: Callable[[str, StageInput], Awaitable[None]] | None = None
+        self.on_stage_end: Callable[[str, Artifact, int], Awaitable[None]] | None = (
+            None  # stage_name, artifact, duration_ms
+        )
 
         logger.info(f"🔗 PipelineExecutor created: {pipeline.name} ({len(pipeline.stages)} stages)")
 
@@ -277,12 +285,14 @@ class PipelineExecutor:
         # 1. Job Start Hook
         on_job_start = self.on_job_start
         if on_job_start:
-            await on_job_start({
-                "pipeline_name": self._pipeline.name,
-                "file_metadata": file_metadata,
-                "pipeline_context": pipeline_context,
-                "total_stages": len(self._pipeline.stages)
-            })
+            await on_job_start(
+                {
+                    "pipeline_name": self._pipeline.name,
+                    "file_metadata": file_metadata,
+                    "pipeline_context": pipeline_context,
+                    "total_stages": len(self._pipeline.stages),
+                }
+            )
 
         import asyncio
 
@@ -314,7 +324,7 @@ class PipelineExecutor:
                     try:
                         res = await self._execute_stage(sd, si)
                         duration = int((time.perf_counter() - start_t) * 1000)
-                        
+
                         # 3. Stage End Hook
                         if on_stage_end:
                             await on_stage_end(sd.name, res, duration)
@@ -326,7 +336,7 @@ class PipelineExecutor:
                             data={"error": str(e)},
                             text_summary=f"Stage Exception: {e}",
                             source_stage=sd.name,
-                            confidence=0.0
+                            confidence=0.0,
                         )
                         if on_stage_end:
                             await on_stage_end(sd.name, err_art, duration)
@@ -336,7 +346,7 @@ class PipelineExecutor:
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for stage_name, result in zip(layer, results):
+            for stage_name, result in zip(layer, results, strict=False):
                 if isinstance(result, Exception):
                     logger.error(f"❌ Stage [{stage_name}] failed: {result}")
                     self._artifacts[stage_name] = Artifact(
@@ -348,7 +358,7 @@ class PipelineExecutor:
                     )
                 else:
                     self._artifacts[stage_name] = result
-                    
+
                 # --- Short-circuit logic for Audit/Security (M2.1D) ---
                 if not isinstance(result, Exception):
                     status = result.data.get("status")
@@ -363,10 +373,7 @@ class PipelineExecutor:
         if on_job_end:
             await on_job_end(self._artifacts)
 
-        logger.success(
-            f"✅ Pipeline [{self._pipeline.name}] completed | "
-            f"Artifacts: {len(self._artifacts)}"
-        )
+        logger.success(f"✅ Pipeline [{self._pipeline.name}] completed | Artifacts: {len(self._artifacts)}")
         return self._artifacts
 
     def _build_stage_input(
@@ -386,11 +393,7 @@ class PipelineExecutor:
         """
         if stage_def.required_inputs:
             # 精确匹配: 只给声明需要的
-            upstream = [
-                self._artifacts[name]
-                for name in stage_def.required_inputs
-                if name in self._artifacts
-            ]
+            upstream = [self._artifacts[name] for name in stage_def.required_inputs if name in self._artifacts]
         else:
             # 没声明依赖: 给所有已有的 (第一个 Stage 通常走这里)
             upstream = list(self._artifacts.values())
@@ -438,16 +441,20 @@ Return a JSON object with your analysis results.
 """
 
         if self._swarm_invoke_fn:
-            swarm_result = await self._swarm_invoke_fn(prompt, {
-                "stage": stage_def.name,
-                "pipeline_context": stage_input.pipeline_context,
-            })
+            swarm_result = await self._swarm_invoke_fn(
+                prompt,
+                {
+                    "stage": stage_def.name,
+                    "pipeline_context": stage_input.pipeline_context,
+                },
+            )
 
             # 从 Swarm 结果中提取 Artifact
             return self._extract_artifact(stage_def, swarm_result)
         else:
             # Mock 模式
             import asyncio
+
             await asyncio.sleep(0.3)
             return Artifact(
                 artifact_type=stage_def.output_artifact_type,
@@ -482,6 +489,7 @@ Return a JSON object with your analysis results.
 
         # 尝试从输出中解析 JSON
         import json
+
         data = {}
         try:
             # 清理 markdown

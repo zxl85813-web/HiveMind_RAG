@@ -1,11 +1,18 @@
 # Database models (SQLModel)
-from .chat import User, Conversation, Message
-from .knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
-from .agents import TodoItem, ReflectionEntry
-from .tags import Tag, TagCategory, DocumentTagLink
-from .security import DesensitizationPolicy, DesensitizationReport, SensitiveItem, DocumentReview, KnowledgeBasePermission, DocumentPermission
-from .evaluation import EvaluationSet, EvaluationItem, EvaluationReport
+from .agents import ReflectionEntry, TodoItem
+from .chat import Conversation, Message, User
+from .evaluation import EvaluationItem, EvaluationReport, EvaluationSet
 from .finetuning import FineTuningItem
-from .sync import SyncTask
+from .knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
+from .observability import AgentSpan, FileTrace, IngestionBatch
 from .pipeline_config import PipelineConfig
-from .observability import IngestionBatch, FileTrace, AgentSpan
+from .security import (
+    DesensitizationPolicy,
+    DesensitizationReport,
+    DocumentPermission,
+    DocumentReview,
+    KnowledgeBasePermission,
+    SensitiveItem,
+)
+from .sync import SyncTask
+from .tags import DocumentTagLink, Tag, TagCategory

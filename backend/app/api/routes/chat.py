@@ -68,23 +68,26 @@ async def get_conversation(conversation_id: str):
     conv = await ChatService.get_conversation(conversation_id)
     if not conv:
         return ApiResponse.error(message="Conversation not found", code=404)
-    
+
     # 将模型转为 Schema (TODO: 这里的转换逻辑在大型项目中通常放在 mapper 或 schema 内部)
-    return ApiResponse.ok(data={
-        "id": conv.id,
-        "title": conv.title,
-        "created_at": conv.created_at,
-        "updated_at": conv.updated_at,
-        "messages": [
-            {
-                "id": m.id,
-                "role": m.role,
-                "content": m.content,
-                "created_at": m.created_at,
-                "metadata": m.metadata_json # TODO: parse JSON if needed
-            } for m in conv.messages
-        ]
-    })
+    return ApiResponse.ok(
+        data={
+            "id": conv.id,
+            "title": conv.title,
+            "created_at": conv.created_at,
+            "updated_at": conv.updated_at,
+            "messages": [
+                {
+                    "id": m.id,
+                    "role": m.role,
+                    "content": m.content,
+                    "created_at": m.created_at,
+                    "metadata": m.metadata_json,  # TODO: parse JSON if needed
+                }
+                for m in conv.messages
+            ],
+        }
+    )
 
 
 @router.delete("/conversations/{conversation_id}")
@@ -98,9 +101,11 @@ async def delete_conversation(conversation_id: str):
 
 from pydantic import BaseModel
 
+
 class FeedbackRequest(BaseModel):
     rating: int  # 1 for like, -1 for dislike
     feedback_text: str | None = None
+
 
 @router.post("/messages/{message_id}/feedback")
 async def submit_feedback(message_id: str, req: FeedbackRequest):

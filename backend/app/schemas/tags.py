@@ -3,13 +3,13 @@ Pydantic schemas for Tags & Categories.
 """
 
 from datetime import datetime
-from typing import Optional, List
+
 from pydantic import BaseModel
 
 
 class TagCategoryBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class TagCategoryCreate(TagCategoryBase):
@@ -27,7 +27,7 @@ class TagCategoryRead(TagCategoryBase):
 class TagBase(BaseModel):
     name: str
     color: str = "#64748b"
-    category_id: Optional[int] = None
+    category_id: int | None = None
 
 
 class TagCreate(TagBase):
@@ -43,7 +43,7 @@ class TagRead(TagBase):
 
 
 class TagWithCategory(TagRead):
-    category: Optional[TagCategoryRead] = None
+    category: TagCategoryRead | None = None
 
 
 class DocumentTagAttach(BaseModel):

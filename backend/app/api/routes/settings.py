@@ -6,12 +6,11 @@ Settings API — 平台内置知识库管理。
 """
 
 from pathlib import Path
-from typing import Any, List, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from loguru import logger
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -21,43 +20,51 @@ KNOWLEDGE_FILE = Path(__file__).parent.parent / "prompts" / "base" / "platform_k
 
 # === Pydantic 模型 ===
 
+
 class FeatureOperation(BaseModel):
     text: str
+
 
 class PlatformFeature(BaseModel):
     name: str
     path: str
     description: str
-    operations: List[str] = []
+    operations: list[str] = []
+
 
 class FAQItem(BaseModel):
     q: str
     a: str
 
+
 class PlatformKnowledge(BaseModel):
     overview: str = ""
-    features: List[PlatformFeature] = []
-    faq: List[FAQItem] = []
+    features: list[PlatformFeature] = []
+    faq: list[FAQItem] = []
 
 
 # === 工具函数 ===
+
 
 def _read_yaml() -> dict:
     """读取 YAML 文件"""
     if not KNOWLEDGE_FILE.exists():
         return {}
-    with open(KNOWLEDGE_FILE, "r", encoding="utf-8") as f:
+    with open(KNOWLEDGE_FILE, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
 
 def _write_yaml(data: dict) -> None:
     """写入 YAML 文件 (保留 meta)"""
     with open(KNOWLEDGE_FILE, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
+
 def _reload_prompt_engine() -> None:
     """保存后自动重载 PromptEngine"""
     try:
         from app.prompts.engine import prompt_engine
+
         prompt_engine.reload()
         logger.info("PromptEngine reloaded after platform knowledge update")
     except Exception as e:
@@ -65,6 +72,7 @@ def _reload_prompt_engine() -> None:
 
 
 # === API 端点 ===
+
 
 @router.get("/platform-knowledge", response_model=PlatformKnowledge)
 async def get_platform_knowledge():
@@ -147,4 +155,4 @@ async def delete_faq(index: int):
     data["faq"] = faqs
     _write_yaml(data)
     _reload_prompt_engine()
-    return {"message": f"FAQ deleted", "removed": removed}
+    return {"message": "FAQ deleted", "removed": removed}

@@ -4,20 +4,24 @@ Uses Knowledge Probing/Closed-Book Testing (M2.3.6).
 """
 
 import json
-from typing import List, Dict, Any
+from typing import Any
+
 from loguru import logger
 from pydantic import BaseModel
 
 from app.agents.llm_router import LLMRouter, ModelTier
 
+
 class ProbeQA(BaseModel):
     question: str
     fact: str
 
+
 class OverlapResult(BaseModel):
     overlap_score: float  # 0.0 to 1.0
-    probes: List[Dict[str, Any]]
+    probes: list[dict[str, Any]]
     is_known: bool
+
 
 class KnowledgeOverlapEngine:
     """Evaluates the incremental value of a document (private vs public knowledge)."""
@@ -34,7 +38,7 @@ class KnowledgeOverlapEngine:
         # 1. Generate Probes (Questions + Facts)
         # We need specific facts that can be tested.
         logger.info("🧪 Generating probes for knowledge overlap check...")
-        
+
         prompt_gen = f"""
         Extract {max_probes} unique, specific factual claims from the following text.
         For each claim, generate a direct question and the corresponding answer (fact) found in the text.
@@ -46,7 +50,7 @@ class KnowledgeOverlapEngine:
         Text:
         {text[:2000]} 
         """
-        
+
         try:
             res = await fast_model.ainvoke(prompt_gen)
             # Basic JSON extraction (robust enough for most models)
@@ -73,7 +77,7 @@ class KnowledgeOverlapEngine:
             prompt_test = f"Answer the following question briefly based on your general knowledge. If you don't know, say 'I don't know'.\nQuestion: {p.question}"
             res_test = await balanced_model.ainvoke(prompt_test)
             llm_answer = res_test.content
-            
+
             # 3. Verify correctness using LLM as a judge
             prompt_verify = f"""
             Compare the 'Fact' with the 'LLM Answer'.
@@ -85,24 +89,15 @@ class KnowledgeOverlapEngine:
             """
             res_verify = await fast_model.ainvoke(prompt_verify)
             is_correct = "YES" in res_verify.content.upper()
-            
+
             if is_correct:
                 correct_count += 1
-            
-            results.append({
-                "question": p.question,
-                "fact": p.fact,
-                "llm_answer": llm_answer,
-                "is_correct": is_correct
-            })
+
+            results.append({"question": p.question, "fact": p.fact, "llm_answer": llm_answer, "is_correct": is_correct})
 
         overlap_score = correct_count / len(probes)
         is_known = overlap_score >= 0.7  # Heuristic threshold
 
         logger.info(f"🧪 Overlap Score: {overlap_score:.2f} (Known: {is_known})")
-        
-        return OverlapResult(
-            overlap_score=overlap_score,
-            probes=results,
-            is_known=is_known
-        )
+
+        return OverlapResult(overlap_score=overlap_score, probes=results, is_known=is_known)

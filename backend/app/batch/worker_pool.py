@@ -9,12 +9,13 @@ Worker Pool — 并发控制与 Swarm 调用。
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from loguru import logger
 
-from app.batch.models import TaskUnit, TaskStatus, BatchJob
+from app.batch.models import TaskStatus, TaskUnit
 
 
 class WorkerPool:
@@ -95,12 +96,9 @@ class WorkerPool:
                 task.status = TaskStatus.SUCCESS
                 task.output_data = result
                 task.completed_at = datetime.utcnow()
-                logger.success(
-                    f"✅ [{worker_id}] 完成: {task.name} "
-                    f"(耗时 {task.duration_seconds:.1f}s)"
-                )
+                logger.success(f"✅ [{worker_id}] 完成: {task.name} (耗时 {task.duration_seconds:.1f}s)")
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 task.status = TaskStatus.FAILED
                 task.error_message = f"Timeout after {self._task_timeout}s"
                 task.completed_at = datetime.utcnow()
@@ -111,11 +109,8 @@ class WorkerPool:
                 if task.retry_count < task.max_retries:
                     task.retry_count += 1
                     task.status = TaskStatus.RETRY_WAIT
-                    task.error_message = f"Attempt {task.retry_count}/{task.max_retries}: {str(e)}"
-                    logger.warning(
-                        f"🔄 [{worker_id}] 重试 ({task.retry_count}/{task.max_retries}): "
-                        f"{task.name} — {e}"
-                    )
+                    task.error_message = f"Attempt {task.retry_count}/{task.max_retries}: {e!s}"
+                    logger.warning(f"🔄 [{worker_id}] 重试 ({task.retry_count}/{task.max_retries}): {task.name} — {e}")
                 else:
                     task.status = TaskStatus.FAILED
                     task.error_message = str(e)

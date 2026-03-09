@@ -1,10 +1,10 @@
-from typing import List, Optional
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from loguru import logger
 
-from app.models.security import DocumentReview
 from app.audit.security.audit import AuditEngine
+from app.models.security import DocumentReview
+
 
 class AuditService:
     """Service for managing document quality audits (M2.3)."""
@@ -13,13 +13,12 @@ class AuditService:
     async def run_audit(db: AsyncSession, doc_id: str, resource_data: dict) -> DocumentReview:
         """Runs the automatic audit or returns existing manual approval."""
         from app.models.knowledge import Document
-        
+
         text = resource_data.get("raw_text", "")
-        
+
         # 1. Check for existing manual approval
         statement = select(DocumentReview).where(
-            DocumentReview.document_id == doc_id,
-            DocumentReview.status == "approved"
+            DocumentReview.document_id == doc_id, DocumentReview.status == "approved"
         )
         result = await db.execute(statement)
         existing = result.scalars().first()
@@ -30,35 +29,33 @@ class AuditService:
         logger.info(f"🔍 Running quality audit for Doc {doc_id}")
         stats = AuditEngine.audit_text(resource_data)
         content_hash = stats.get("content_hash")
-        
+
         # 2. Store hash in Document if not exists
         doc = await db.get(Document, doc_id)
         if doc and not doc.content_hash:
             doc.content_hash = content_hash
             db.add(doc)
-            
+
         # 3. Content Deduplication Check (M2.1D)
         if content_hash:
-            dup_stmt = select(Document).where(
-                Document.content_hash == content_hash,
-                Document.id != doc_id
-            )
+            dup_stmt = select(Document).where(Document.content_hash == content_hash, Document.id != doc_id)
             dup_res = await db.execute(dup_stmt)
             existing_doc = dup_res.scalars().first()
             if existing_doc:
                 logger.warning(f"🔴 Duplicate content detected for Doc {doc_id}. Matches {existing_doc.id}")
                 stats["status"] = "rejected"
                 stats["message"] = f"Rejected: Strict Duplicate of document {existing_doc.filename} ({existing_doc.id})"
-        
+
         # 4. M2.3.6: Knowledge Overlap Check (Async LLM Probing)
         overlap_score = 0.0
         if stats["status"] != "rejected" and len(text) > 300:
             try:
                 from app.audit.security.overlap import KnowledgeOverlapEngine
+
                 overlap_res = await KnowledgeOverlapEngine.check_overlap(text)
                 overlap_score = overlap_res.overlap_score
-                
-                # If content is already known by LLM (e.g. >80% overlap), 
+
+                # If content is already known by LLM (e.g. >80% overlap),
                 # we might want to flag it for review even if quality is good.
                 if overlap_res.is_known and stats["status"] == "approved":
                     logger.info(f"🟡 Doc {doc_id} is marked as PENDING due to high LLM knowledge overlap.")
@@ -77,30 +74,32 @@ class AuditService:
             garble_ratio=stats["garble_ratio"],
             blank_ratio=stats["blank_ratio"],
             overlap_score=overlap_score,
-            reviewer_comment=stats.get("message", "")
+            reviewer_comment=stats.get("message", ""),
         )
-        
+
         db.add(review)
         await db.commit()
         await db.refresh(review)
-        
-        logger.info(f"✅ Audit complete for Doc {doc_id}: Score={review.quality_score}, Overlap={review.overlap_score}, Status={review.status}")
+
+        logger.info(
+            f"✅ Audit complete for Doc {doc_id}: Score={review.quality_score}, Overlap={review.overlap_score}, Status={review.status}"
+        )
         return review
 
     @staticmethod
-    async def get_review(db: AsyncSession, review_id: str) -> Optional[DocumentReview]:
+    async def get_review(db: AsyncSession, review_id: str) -> DocumentReview | None:
         """Fetch a specific review record."""
         return await db.get(DocumentReview, review_id)
 
     @staticmethod
-    async def get_document_reviews(db: AsyncSession, doc_id: str) -> List[DocumentReview]:
+    async def get_document_reviews(db: AsyncSession, doc_id: str) -> list[DocumentReview]:
         """Get all review records for a specific document."""
         statement = select(DocumentReview).where(DocumentReview.document_id == doc_id)
         result = await db.execute(statement)
         return result.scalars().all()
 
     @staticmethod
-    async def get_pending_reviews(db: AsyncSession) -> List[DocumentReview]:
+    async def get_pending_reviews(db: AsyncSession) -> list[DocumentReview]:
         """Get the queue of reviews waiting for manual intervention."""
         statement = select(DocumentReview).where(DocumentReview.status == "pending")
         result = await db.execute(statement)
@@ -108,12 +107,8 @@ class AuditService:
 
     @staticmethod
     async def update_review_status(
-        db: AsyncSession, 
-        review_id: str, 
-        status: str, 
-        comment: str = "", 
-        reviewer_id: str = None
-    ) -> Optional[DocumentReview]:
+        db: AsyncSession, review_id: str, status: str, comment: str = "", reviewer_id: str = None
+    ) -> DocumentReview | None:
         """Manually update the status of a review."""
         review = await db.get(DocumentReview, review_id)
         if review:

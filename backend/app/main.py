@@ -26,35 +26,44 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_base_data()  # Seed critical data (Mock User etc.)
 
     # Initialize Agent Swarm
-    from app.api.routes.agents import _swarm
     from app.agents.swarm import AgentDefinition
-    
+    from app.api.routes.agents import _swarm
+
     # Registering default agents (MVP)
-    _swarm.register_agent(AgentDefinition(
-        name="rag",
-        description="Knowledge Expert. Use this for ANY factual questions, knowledge base lookups, or internal documentation queries. It excels at extracting precise answers with citations.",
-        model_hint="balanced"
-    ))
-    _swarm.register_agent(AgentDefinition(
-        name="web",
-        description="Able to search the internet for the most up-to-date information.",
-        model_hint="fast"
-    ))
-    _swarm.register_agent(AgentDefinition(
-        name="code",
-        description="Specialized in writing, debugging, and explaining code in various programming languages.",
-        model_hint="reasoning"
-    ))
-    _swarm.register_agent(AgentDefinition(
-        name="eval_architect",
-        description="Expert in RAG evaluation systems. Helps users design testsets, expand data with AI, and diagnose quality issues.",
-        model_hint="reasoning"
-    ))
-    
+    _swarm.register_agent(
+        AgentDefinition(
+            name="rag",
+            description="Knowledge Expert. Use this for ANY factual questions, knowledge base lookups, or internal documentation queries. It excels at extracting precise answers with citations.",
+            model_hint="balanced",
+        )
+    )
+    _swarm.register_agent(
+        AgentDefinition(
+            name="web",
+            description="Able to search the internet for the most up-to-date information.",
+            model_hint="fast",
+        )
+    )
+    _swarm.register_agent(
+        AgentDefinition(
+            name="code",
+            description="Specialized in writing, debugging, and explaining code in various programming languages.",
+            model_hint="reasoning",
+        )
+    )
+    _swarm.register_agent(
+        AgentDefinition(
+            name="eval_architect",
+            description="Expert in RAG evaluation systems. Helps users design testsets, expand data with AI, and diagnose quality issues.",
+            model_hint="reasoning",
+        )
+    )
+
     logger.info("🐝 Agent Swarm initialized with 3 agents (rag, web, code)")
-    
+
     # Start External Source Background Sync Service
     from app.services.sync_service import sync_service
+
     await sync_service.start()
 
     # TODO: Initialize WebSocket manager
