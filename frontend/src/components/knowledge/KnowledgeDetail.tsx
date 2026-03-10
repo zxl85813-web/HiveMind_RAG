@@ -289,7 +289,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                         <Button
                             type="text"
                             size="small"
-                            icon={<SafetyCertificateOutlined style={{ color: '#52c41a' }} />}
+                            icon={<SafetyCertificateOutlined style={{ color: 'var(--hm-color-success)' }} />}
                             onClick={() => showReport(record.id)}
                         />
                     </Tooltip>
@@ -468,7 +468,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                                                         value={healthStats.score * 100}
                                                         precision={1}
                                                         suffix="%"
-                                                        prefix={<HeartOutlined style={{ color: healthStats.status === 'healthy' ? '#52c41a' : '#faad14' }} />}
+                                                        prefix={<HeartOutlined style={{ color: healthStats.status === 'healthy' ? 'var(--hm-color-success)' : 'var(--hm-color-warning)' }} />}
                                                     />
                                                 </AntdCard>
                                             </Col>
@@ -556,7 +556,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                                                 <Text delete type="secondary">{item.original_text_preview}</Text>
                                                 <RightOutlined style={{ margin: '0 8px' }} />
                                                 <Text type="success">{item.redacted_text}</Text>
-                                                <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>
+                                                <div style={{ fontSize: '12px', color: 'var(--hm-color-text-secondary)', marginTop: 4 }}>
                                                     位置: {item.start_index}-{item.end_index} | 策略: {item.action_taken}
                                                 </div>
                                             </div>
@@ -568,8 +568,8 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                     </div>
                 ) : (
                     <div style={{ textAlign: 'center', marginTop: 40 }}>
-                        <InfoCircleOutlined style={{ fontSize: 32, color: '#ccc' }} />
-                        <p style={{ marginTop: 16, color: '#999' }}>加载中或无报告数据</p>
+                        <InfoCircleOutlined style={{ fontSize: 32, color: 'var(--hm-color-text-secondary)' }} />
+                        <p style={{ marginTop: 16, color: 'var(--hm-color-text-secondary)' }}>加载中或无报告数据</p>
                     </div>
                 )}
             </Drawer>

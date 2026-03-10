@@ -44,7 +44,7 @@ export const DashboardPage: React.FC = () => {
             title: t('nav.knowledge'),
             desc: i18n.language === 'zh-CN' ? '上传文档，构建向量知识库' : 'Upload docs and build vector KB',
             path: '/knowledge',
-            color: '#06D6A0',
+            color: 'var(--hm-color-brand)',
         },
         {
             key: 'agents',
@@ -52,7 +52,7 @@ export const DashboardPage: React.FC = () => {
             title: t('nav.agents'),
             desc: i18n.language === 'zh-CN' ? '监控和管理 AI Agent 集群' : 'Monitor and manage AI Agent swarm',
             path: '/agents',
-            color: '#118AB2',
+            color: 'var(--hm-color-info)',
         },
         {
             key: 'learning',
@@ -60,7 +60,7 @@ export const DashboardPage: React.FC = () => {
             title: t('nav.learning'),
             desc: i18n.language === 'zh-CN' ? '追踪开源项目与技术趋势' : 'Track open source and tech trends',
             path: '/learning',
-            color: '#FFD166',
+            color: 'var(--hm-color-warning)',
         },
     ];
     // Mock stats until hooks are implemented
@@ -157,7 +157,7 @@ export const DashboardPage: React.FC = () => {
                                         description={<Text type="secondary" style={{ fontSize: 12 }}>完成于 {new Date(item.created_at).toLocaleString()}</Text>}
                                     />
                                     <div style={{ width: 120 }}>
-                                        <Progress percent={Math.round(item.total_score * 100)} size="small" showInfo={false} strokeColor={item.total_score > 0.7 ? '#52c41a' : '#faad14'} />
+                                        <Progress percent={Math.round(item.total_score * 100)} size="small" showInfo={false} strokeColor={item.total_score > 0.7 ? 'var(--hm-color-success)' : 'var(--hm-color-warning)'} />
                                     </div>
                                 </List.Item>
                             )}

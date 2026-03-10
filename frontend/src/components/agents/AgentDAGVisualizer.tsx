@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { ForceGraphMethods } from 'react-force-graph-2d';
 import { useWindowSize } from '../../hooks/useWindowSize';
-import { Space, Badge, Typography } from 'antd';
+import { Space, Badge, Typography, theme } from 'antd';
 
 const { Text } = Typography;
 
@@ -37,14 +37,29 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
     const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
     const { width: windowWidth } = useWindowSize();
     const [graphData, setGraphData] = useState<DAGData>({ nodes: [], links: [] });
+    const { token } = theme.useToken();
+
+    const withAlpha = (color: string, alpha: number): string => {
+        const normalized = color.trim();
+        const hexMatch = normalized.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i);
+        if (hexMatch) {
+            const hex = hexMatch[1];
+            const fullHex = hex.length === 3 ? hex.split('').map((ch) => ch + ch).join('') : hex;
+            const r = parseInt(fullHex.slice(0, 2), 16);
+            const g = parseInt(fullHex.slice(2, 4), 16);
+            const b = parseInt(fullHex.slice(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return normalized;
+    };
 
     const statusColors = useMemo(() => ({
-        completed: '#06D6A0',
-        running: '#118AB2',
-        error: '#EF476F',
-        warning: '#FFD166',
-        pending: '#94A3B8'
-    }), []);
+        completed: token.colorSuccess,
+        running: token.colorInfo,
+        error: token.colorError,
+        warning: token.colorWarning,
+        pending: token.colorTextSecondary
+    }), [token.colorError, token.colorInfo, token.colorSuccess, token.colorTextSecondary, token.colorWarning]);
 
     useEffect(() => {
         // Deep clone data to avoid mutation issues in force-graph
@@ -79,11 +94,11 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                 boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
             }}>
                 <Space direction="vertical" size={4}>
-                    <Text strong style={{ color: '#fff', fontSize: '11px', marginBottom: 4, display: 'block' }}>状态说明 / Status Legend</Text>
+                    <Text strong style={{ color: token.colorText, fontSize: '11px', marginBottom: 4, display: 'block' }}>状态说明 / Status Legend</Text>
                     {Object.entries(statusColors).map(([status, color]) => (
                         <Space key={status} size={8}>
                             <Badge color={color} size="small" />
-                            <Text style={{ color: '#ccc', fontSize: '10px', textTransform: 'capitalize' }}>{status === 'running' ? '进行中' : status === 'completed' ? '已完成' : status === 'pending' ? '等待中' : status}</Text>
+                            <Text style={{ color: token.colorTextSecondary, fontSize: '10px', textTransform: 'capitalize' }}>{status === 'running' ? '进行中' : status === 'completed' ? '已完成' : status === 'pending' ? '等待中' : status}</Text>
                         </Space>
                     ))}
                 </Space>
@@ -107,7 +122,7 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                     const color = statusColors[status] || statusColors.pending;
 
                     const fontSize = 11 / globalScale;
-                    ctx.font = `${fontSize}px "Inter", -apple-system, sans-serif`;
+                    ctx.font = `${fontSize}px "Sora", sans-serif`;
                     const textWidth = ctx.measureText(label).width;
                     const bckgDimensions = [textWidth + fontSize * 2, fontSize * 2.2];
 
@@ -118,7 +133,7 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                     }
 
                     // Draw Node Background (Glassmorphism)
-                    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                    ctx.fillStyle = withAlpha(token.colorBgLayout, 0.95);
                     ctx.beginPath();
                     if (ctx.roundRect) {
                         ctx.roundRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1], 4 / globalScale);
@@ -135,16 +150,16 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                     ctx.stroke();
 
                     // Draw Agent Label (Small text above)
-                    ctx.font = `${8 / globalScale}px "Inter"`;
-                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = `${8 / globalScale}px "Sora"`;
+                    ctx.fillStyle = withAlpha(token.colorText, 0.5);
                     ctx.textAlign = 'center';
                     ctx.fillText(node.agent.toUpperCase(), node.x, node.y - bckgDimensions[1] / 2 - 4 / globalScale);
 
                     // Draw Main Label
-                    ctx.font = `bold ${fontSize}px "Inter"`;
+                    ctx.font = `bold ${fontSize}px "Sora"`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = token.colorText;
                     ctx.fillText(label, node.x, node.y);
 
                     node.__bckgDimensions = bckgDimensions;
@@ -163,12 +178,12 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                     return target.status === 'running' ? 0.015 : 0.005;
                 }}
                 linkDirectionalParticleWidth={2}
-                linkDirectionalParticleColor={() => '#06D6A0'}
+                linkDirectionalParticleColor={() => token.colorPrimary}
                 linkDirectionalArrowLength={4}
                 linkDirectionalArrowRelPos={1}
                 linkColor={(link: any) => {
                     const target = link.target as DAGNode;
-                    return target.status === 'completed' ? 'rgba(6, 214, 160, 0.4)' : 'rgba(255, 255, 255, 0.1)';
+                    return target.status === 'completed' ? withAlpha(token.colorPrimary, 0.4) : withAlpha(token.colorText, 0.1);
                 }}
                 linkWidth={1.5}
                 minZoom={0.2}

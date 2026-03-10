@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { ForceGraphMethods } from 'react-force-graph-2d';
 import * as d3 from 'd3-force';
+import { theme } from 'antd';
 
 interface GraphVisualizerProps {
     data: {
@@ -18,6 +19,7 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ data, width, h
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [ready, setReady] = useState(false);
+    const { token } = theme.useToken();
 
     // Measure once the container is mounted
     useEffect(() => {
@@ -67,7 +69,7 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ data, width, h
         // Node circle
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-        ctx.fillStyle = node.color || '#06D6A0'; // Brand color
+        ctx.fillStyle = node.color || token.colorPrimary;
         ctx.fill();
 
         // Node Glow/Stroke
@@ -79,10 +81,10 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ data, width, h
         if (globalScale > 0.8) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#F8FAFC'; // Primary text color
+            ctx.fillStyle = token.colorText;
             ctx.fillText(label, node.x, node.y + radius + fontSize);
         }
-    }, []);
+    }, [token.colorPrimary, token.colorText]);
 
     // Draw customized links (arrows if directional)
     const paintLink = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -105,12 +107,12 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ data, width, h
             const midY = start.y + (end.y - start.y) / 2;
             const linkFontSize = 6 / globalScale;
             ctx.font = `${linkFontSize}px Sora, sans-serif`;
-            ctx.fillStyle = '#94A3B8'; // Secondary text
+            ctx.fillStyle = token.colorTextSecondary;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(link.type, midX, midY);
         }
-    }, []);
+    }, [token.colorTextSecondary]);
 
     return (
         <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: 400, position: 'relative', overflow: 'hidden', background: 'transparent' }}>

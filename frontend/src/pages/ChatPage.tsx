@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Flex, Avatar, Typography, Tag, Spin, Space } from 'antd';
+import React, { useMemo, useRef, useState } from 'react';
+import { Flex, Avatar, Typography, Tag, Spin, Space, theme } from 'antd';
 import { Bubble, Sender, Welcome, Prompts } from '@ant-design/x';
 import {
     RobotOutlined,
@@ -17,35 +17,34 @@ import styles from './ChatPage.module.css';
 
 const { Text } = Typography;
 
-/** 预设快捷提示 */
-const promptItems = [
-    {
-        key: 'rag',
-        icon: <SearchOutlined style={{ color: '#06D6A0' }} />,
-        label: '知识库检索',
-        description: '从知识库中查找相关信息',
-    },
-    {
-        key: 'summary',
-        icon: <FileTextOutlined style={{ color: '#118AB2' }} />,
-        label: '文档摘要',
-        description: '总结文档的核心内容',
-    },
-    {
-        key: 'code',
-        icon: <CodeOutlined style={{ color: '#FFD166' }} />,
-        label: '代码生成',
-        description: '根据需求生成代码',
-    },
-    {
-        key: 'analysis',
-        icon: <BulbOutlined style={{ color: '#EF476F' }} />,
-        label: '数据分析',
-        description: '分析和查询数据',
-    },
-];
-
 export const ChatPage: React.FC = () => {
+    const { token } = theme.useToken();
+    const promptItems = useMemo(() => [
+        {
+            key: 'rag',
+            icon: <SearchOutlined style={{ color: token.colorPrimary }} />,
+            label: '知识库检索',
+            description: '从知识库中查找相关信息',
+        },
+        {
+            key: 'summary',
+            icon: <FileTextOutlined style={{ color: token.colorInfo }} />,
+            label: '文档摘要',
+            description: '总结文档的核心内容',
+        },
+        {
+            key: 'code',
+            icon: <CodeOutlined style={{ color: token.colorWarning }} />,
+            label: '代码生成',
+            description: '根据需求生成代码',
+        },
+        {
+            key: 'analysis',
+            icon: <BulbOutlined style={{ color: token.colorError }} />,
+            label: '数据分析',
+            description: '分析和查询数据',
+        },
+    ], [token.colorError, token.colorInfo, token.colorPrimary, token.colorWarning]);
     const [messages, setMessages] = useState<Array<{
         role: 'user' | 'assistant';
         content: string;
@@ -128,7 +127,7 @@ export const ChatPage: React.FC = () => {
         return (
             <div className={styles.statusIndicator}>
                 <Space>
-                    <Spin indicator={<LoadingOutlined style={{ fontSize: 14, color: '#06D6A0' }} spin />} />
+                    <Spin indicator={<LoadingOutlined style={{ fontSize: 14, color: token.colorPrimary }} spin />} />
                     <Text type="secondary" className={styles.statusText}>
                         {agentStatus}
                     </Text>
@@ -142,7 +141,7 @@ export const ChatPage: React.FC = () => {
     const renderWelcome = () => (
         <Flex vertical align="center" justify="center" className={styles.welcomeContainer}>
             <Welcome
-                icon={<RobotOutlined style={{ fontSize: 40, color: '#06D6A0' }} />}
+                icon={<RobotOutlined style={{ fontSize: 40, color: token.colorPrimary }} />}
                 title="HiveMind AI 助手"
                 description="基于 Agent 蜂巢架构的智能 RAG 平台，支持知识库检索、数据分析、代码生成等能力。"
                 className={styles.welcome}
@@ -166,8 +165,8 @@ export const ChatPage: React.FC = () => {
                         role: msg.role === 'user' ? 'end' : 'start',
                         content: msg.content || (loading && idx === messages.length - 1 ? '...' : ''),
                         avatar: msg.role === 'user'
-                            ? <Avatar icon={<UserOutlined />} style={{ background: '#06D6A0' }} />
-                            : <Avatar icon={<RobotOutlined />} style={{ background: '#1F2937', border: '1px solid rgba(6,214,160,0.25)' }} />,
+                            ? <Avatar icon={<UserOutlined />} style={{ background: token.colorPrimary }} />
+                            : <Avatar icon={<RobotOutlined />} style={{ background: token.colorBgElevated, border: 'var(--hm-border-brand)' }} />,
                         footer: (
                             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
                                 {idx === messages.length - 1 && msg.role === 'assistant' && renderStatus()}

@@ -23,6 +23,13 @@ description: 前端设计系统规范 — Cyber-Refined 风格
 
 ## 1. Design Token 体系
 
+### 主题分层约束 (必须遵守)
+- `Layer 1`: AntD `ConfigProvider.theme.token`（全局设计令牌源头）
+- `Layer 2`: `styles/variables.css` 中的 `--hm-*`（项目级语义变量）
+- `Layer 3`: 组件样式（仅消费 Layer 1/2，不得绕过）
+
+**禁止**: 在组件文件中新增“平行主题源”（局部硬编码主色、背景色、状态色）。
+
 ### 选色 (通过 Ant Design ConfigProvider)
 ```typescript
 // App.tsx — 所有颜色在此定义
@@ -62,6 +69,12 @@ const theme = {
 /* ❌ 禁止硬编码 */
 .bad { color: #333; background: white; }
 ```
+
+### 主题切换兼容目标
+- 系统至少应兼容:
+  - `theme.defaultAlgorithm`
+  - `theme.darkAlgorithm`
+- 若新增主题（如 Neon），必须通过 token 注入，不得以页面级 if/else 写死颜色。
 
 ## 2. 布局规范
 

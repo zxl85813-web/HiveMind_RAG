@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Flex, Space, Tag, Typography } from 'antd';
+import { Button, Flex, Space, Tag, Typography, theme } from 'antd';
 import {
     AimOutlined,
     MinusOutlined,
@@ -39,6 +39,7 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
     const connectModeRef = useRef(false);
     const connectSourceLabelRef = useRef('');
     const pendingNodePointRef = useRef<{ x: number; y: number } | null>(null);
+    const { token } = theme.useToken();
 
     useEffect(() => {
         connectModeRef.current = connectMode;
@@ -56,7 +57,7 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             target: { cell: targetCellId, port: 'in' },
             attrs: {
                 line: {
-                    stroke: '#118AB2',
+                    stroke: token.colorInfo,
                     strokeWidth: 2,
                     strokeDasharray: '8 6',
                     strokeLinecap: 'round',
@@ -75,7 +76,7 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                 attrs: {
                     label: {
                         text: labelText,
-                        fill: '#0F172A',
+                        fill: token.colorBgLayout,
                         fontSize: 11,
                         fontWeight: 600,
                         textDecoration: 'none',
@@ -105,13 +106,13 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             label: labelOverride || `Verifier ${nextIndex}`,
             attrs: {
                 body: {
-                    fill: fillOverride || '#283548',
+                    fill: fillOverride || token.colorBgElevated,
                     stroke: 'rgba(255,255,255,0.18)',
                     rx: 10,
                     ry: 10,
                 },
                 label: {
-                    fill: '#F8FAFC',
+                    fill: token.colorText,
                     fontSize: 13,
                 },
             },
@@ -123,9 +124,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -135,9 +136,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -237,7 +238,7 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
         const graph = new Graph({
             container: containerRef.current,
             background: {
-                color: '#0A0E1A',
+                color: token.colorBgLayout,
             },
             grid: {
                 visible: true,
@@ -329,13 +330,13 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             label: 'Input Query',
             attrs: {
                 body: {
-                    fill: '#118AB2',
+                    fill: token.colorInfo,
                     stroke: 'rgba(255,255,255,0.18)',
                     rx: 10,
                     ry: 10,
                 },
                 label: {
-                    fill: '#F8FAFC',
+                    fill: token.colorText,
                     fontSize: 13,
                 },
             },
@@ -347,9 +348,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -366,13 +367,13 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             label: 'Hybrid Retrieval',
             attrs: {
                 body: {
-                    fill: '#1F2937',
+                    fill: token.colorBgElevated,
                     stroke: 'rgba(255,255,255,0.18)',
                     rx: 10,
                     ry: 10,
                 },
                 label: {
-                    fill: '#F8FAFC',
+                    fill: token.colorText,
                     fontSize: 13,
                 },
             },
@@ -384,9 +385,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -396,9 +397,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -415,13 +416,13 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             label: 'Generate Answer',
             attrs: {
                 body: {
-                    fill: '#06D6A0',
+                    fill: token.colorPrimary,
                     stroke: 'rgba(255,255,255,0.18)',
                     rx: 10,
                     ry: 10,
                 },
                 label: {
-                    fill: '#0A0E1A',
+                    fill: token.colorBgLayout,
                     fontSize: 13,
                     fontWeight: 600,
                 },
@@ -434,9 +435,9 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             circle: {
                                 r: 5,
                                 magnet: true,
-                                stroke: '#06D6A0',
+                                stroke: token.colorPrimary,
                                 strokeWidth: 2,
-                                fill: '#0A0E1A',
+                                fill: token.colorBgLayout,
                             },
                         },
                     },
@@ -456,7 +457,7 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
             graph.dispose();
             graphRef.current = null;
         };
-    }, []);
+    }, [token.colorBgElevated, token.colorBgLayout, token.colorInfo, token.colorPrimary, token.colorText]);
 
     return (
         <Flex vertical gap={12}>
@@ -516,20 +517,20 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
                             boxShadow: '0 18px 42px rgba(0,0,0,0.48), 0 0 24px rgba(17,138,178,0.2)',
                         }}
                     >
-                        <Text style={{ color: '#94A3B8', fontSize: 12, marginBottom: 6, display: 'block' }}>添加节点</Text>
-                        <Button type="text" icon={<FileTextOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: '#F8FAFC' }} onClick={() => createNodeFromMenu('文本', '#283548')}>
+                        <Text style={{ color: token.colorTextSecondary, fontSize: 12, marginBottom: 6, display: 'block' }}>添加节点</Text>
+                        <Button type="text" icon={<FileTextOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: token.colorText }} onClick={() => createNodeFromMenu('文本', token.colorBgElevated)}>
                             文本
                         </Button>
-                        <Button type="text" icon={<PictureOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: '#F8FAFC' }} onClick={() => createNodeFromMenu('图片', '#118AB2')}>
+                        <Button type="text" icon={<PictureOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: token.colorText }} onClick={() => createNodeFromMenu('图片', token.colorInfo)}>
                             图片
                         </Button>
-                        <Button type="text" icon={<VideoCameraOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: '#F8FAFC' }} onClick={() => createNodeFromMenu('视频', '#1F2937')}>
+                        <Button type="text" icon={<VideoCameraOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: token.colorText }} onClick={() => createNodeFromMenu('视频', token.colorBgElevated)}>
                             视频
                         </Button>
-                        <Button type="text" icon={<AppstoreOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: '#F8FAFC' }} onClick={() => createNodeFromMenu('分镜格子', '#06D6A0')}>
+                        <Button type="text" icon={<AppstoreOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: token.colorText }} onClick={() => createNodeFromMenu('分镜格子', token.colorPrimary)}>
                             分镜格子
                         </Button>
-                        <Button type="text" icon={<UploadOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: '#F8FAFC' }} onClick={() => createNodeFromMenu('上传', '#3B82F6')}>
+                        <Button type="text" icon={<UploadOutlined />} style={{ width: '100%', textAlign: 'left', justifyContent: 'flex-start', color: token.colorText }} onClick={() => createNodeFromMenu('上传', token.colorInfo)}>
                             上传
                         </Button>
                     </div>

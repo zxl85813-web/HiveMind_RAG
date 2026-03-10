@@ -93,5 +93,44 @@ interface SearchInputProps {
 
 ---
 
+  ## 6. 主题一致性强制规范 (Theme Governance)
+
+  > 目标: 确保前端可以通过 `ConfigProvider.theme` 与 `token` 一键切换主题，避免页面出现“部分换肤、部分写死”。
+
+  ### 6.1 单一主题源 (Single Source of Truth)
+  - `antd` 主题唯一入口: `frontend/src/App.tsx` 中的 `ConfigProvider`。
+  - 颜色、圆角、字号、控件高度等视觉参数，必须从 `token` 或其衍生 CSS 变量读取。
+  - 组件内禁止重新定义“主色体系”与“状态色体系”。
+
+  ### 6.2 禁止硬编码 (Hard Rule)
+  - 在 `frontend/src/**` 的 `ts/tsx/css` 文件中，禁止直接写十六进制颜色（如 `#06D6A0`）。
+  - 允许例外文件：
+    - `frontend/src/App.tsx`（`ConfigProvider.theme.token` 定义）
+    - `frontend/src/styles/variables.css`（项目级 token 定义）
+    - `frontend/src/mock/**`（仅测试/演示数据）
+  - 例外之外若确需硬编码，必须：
+    - 在代码旁注明 `THEME_EXCEPTION` 原因
+    - 在 PR 描述中说明不可替代原因
+
+  ### 6.3 组件实现要求
+  - 组件颜色优先使用:
+    - AntD token (`colorPrimary`, `colorText`, `colorBgContainer` 等)
+    - 项目 CSS 变量 (`--hm-*`)
+  - `inline style` 中如果出现颜色值，必须引用 token/变量，不得写死十六进制。
+  - 新增画布/图组件（X6/G6/ReactFlow）必须预留主题映射层（例如 `getCanvasThemeTokens()`）。
+
+  ### 6.4 验收清单 (PR Checklist)
+  - [ ] `ConfigProvider` 能切换算法主题（如 `defaultAlgorithm` / `darkAlgorithm`）。
+  - [ ] 页面无明显硬编码颜色残留（例外文件除外）。
+  - [ ] Chat / Canvas / Agents 三类核心页面在主题切换后可读性正常。
+  - [ ] 未破坏现有 i18n 与响应式布局。
+
+  ### 6.5 快速检查命令
+  ```bash
+  rg "#[0-9A-Fa-f]{3,8}" frontend/src --glob "!frontend/src/styles/variables.css" --glob "!frontend/src/mock/**"
+  ```
+
+  ---
+
 > 💡 **可扩展性与规则豁免**:
 > 本文档定义的是标准场景下的通用规范。如果在极其特殊的业务或性能要求下必须突破这些规则，请参见 [`design-and-implementation-methodology.md`](design-and-implementation-methodology.md) 中的"特例豁免机制"（例如强制要求在代码中写明注释或生成 ADR）。

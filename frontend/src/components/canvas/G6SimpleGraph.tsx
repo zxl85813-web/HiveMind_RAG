@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Flex, Space, Tag, Typography } from 'antd';
+import { Button, Flex, Space, Tag, Typography, theme } from 'antd';
 import { AimOutlined, PlusOutlined, MinusOutlined, RadarChartOutlined } from '@ant-design/icons';
 import { Graph } from '@antv/g6';
 
@@ -31,6 +31,7 @@ export const G6SimpleGraph: React.FC<G6SimpleGraphProps> = ({ height = 420 }) =>
     const containerRef = useRef<HTMLDivElement | null>(null);
     const graphRef = useRef<Graph | null>(null);
     const [focusNode, setFocusNode] = useState('supervisor');
+    const { token } = theme.useToken();
 
     const zoomIn = () => {
         const graph = graphRef.current as any;
@@ -72,12 +73,12 @@ export const G6SimpleGraph: React.FC<G6SimpleGraphProps> = ({ height = 420 }) =>
                     lineWidth: 1,
                     stroke: 'rgba(255,255,255,0.2)',
                     labelText: (d: { data?: { label?: string } }) => d?.data?.label || '',
-                    labelFill: '#F8FAFC',
+                    labelFill: token.colorText,
                     labelFontSize: 12,
                     fill: (d: { data?: { status?: string } }) => {
-                        if (d?.data?.status === 'running') return '#118AB2';
-                        if (d?.data?.status === 'stable') return '#06D6A0';
-                        return '#1F2937';
+                        if (d?.data?.status === 'running') return token.colorInfo;
+                        if (d?.data?.status === 'stable') return token.colorSuccess;
+                        return token.colorBgElevated;
                     },
                 },
             },
@@ -88,7 +89,7 @@ export const G6SimpleGraph: React.FC<G6SimpleGraphProps> = ({ height = 420 }) =>
                     lineWidth: 2,
                     endArrow: true,
                     labelText: (d: { data?: { label?: string } }) => d?.data?.label || '',
-                    labelFill: '#94A3B8',
+                    labelFill: token.colorTextSecondary,
                     labelFontSize: 10,
                 },
             },
@@ -123,7 +124,7 @@ export const G6SimpleGraph: React.FC<G6SimpleGraphProps> = ({ height = 420 }) =>
             graph.destroy();
             graphRef.current = null;
         };
-    }, [height]);
+    }, [height, token.colorBgElevated, token.colorInfo, token.colorSuccess, token.colorText, token.colorTextSecondary]);
 
     return (
         <Flex vertical gap={12}>

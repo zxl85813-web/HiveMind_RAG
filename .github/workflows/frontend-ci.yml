@@ -37,6 +37,9 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      - name: Theme Hardcode Check
+        run: npm run theme:check:ci
+
       - name: TypeScript type check
         run: npm run typecheck
 

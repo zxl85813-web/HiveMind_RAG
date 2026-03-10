@@ -74,6 +74,25 @@ Hook 文件位于 `.agent/hooks/`。
 - **异步规范**：IO 操作必须使用 `async/await`，禁止阻塞主线程
 - **类型注解**：所有函数必须有完整的 Python 类型注解
 - **错误处理**：不允许裸 `except Exception`，必须具体处理或上抛
+- **主题一致性（前端）**：必须遵守 `.agent/rules/frontend-component-standards.md` 与 `.agent/rules/frontend-design-system.md` 中的主题治理规则（单一 token 源、禁止业务代码硬编码色值）
+
+---
+
+## 前端主题治理（新增）
+
+为保证“主题可切换 + 视觉统一 + AI 可复用”，前端主题治理作为强制开发规范执行：
+
+- 单一入口：`ConfigProvider.theme`（`frontend/src/App.tsx`）
+- 单一变量层：`styles/variables.css`（`--hm-*`）
+- 禁止硬编码：业务组件中禁止直接写十六进制色值（mock/variables/token 定义文件除外）
+
+建议在提交前执行：
+
+```bash
+rg "#[0-9A-Fa-f]{3,8}" frontend/src --glob "!frontend/src/styles/variables.css" --glob "!frontend/src/mock/**"
+```
+
+如需豁免，必须在代码中标注 `THEME_EXCEPTION` 并在 PR 描述中解释原因。
 
 ---
 

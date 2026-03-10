@@ -425,7 +425,7 @@ export const SecurityPage: React.FC = () => {
                     </Form.Item>
 
                     <Divider orientation={"left" as any} style={{ fontSize: 13 }}>自定义正则规则 (高级)</Divider>
-                    <p style={{ fontSize: 11, color: '#8c8c8c', marginBottom: 16 }}>
+                    <p style={{ fontSize: 11, color: 'var(--hm-color-text-secondary)', marginBottom: 16 }}>
                         使用标准 Python 正则表达式。例如 <code>SECRET-\d+</code>。支持捕获组。
                     </p>
                     <Form.List name="custom_regex">
@@ -436,7 +436,7 @@ export const SecurityPage: React.FC = () => {
                                         key={key}
                                         size="small"
                                         style={{ marginBottom: 12, background: 'rgba(24, 144, 255, 0.02)' }}
-                                        extra={<DeleteOutlined onClick={() => remove(name)} style={{ color: '#ff4d4f' }} />}
+                                        extra={<DeleteOutlined onClick={() => remove(name)} style={{ color: 'var(--hm-color-danger)' }} />}
                                         title={<span style={{ fontSize: 12 }}>自定义规则 #{name + 1}</span>}
                                     >
                                         <Row gutter={8}>

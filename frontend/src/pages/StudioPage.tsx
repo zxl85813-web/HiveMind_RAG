@@ -124,7 +124,7 @@ export const StudioPage: React.FC = () => {
                         <Steps direction="vertical" current={currentStep} size="small" items={stepItems} />
 
                         {result?.step_logs && (
-                            <div style={{ marginTop: 16, background: '#1f1f1f', padding: 8, borderRadius: 4, maxHeight: 200, overflowY: 'auto' }}>
+                            <div style={{ marginTop: 16, background: 'var(--hm-color-bg-elevated)', padding: 8, borderRadius: 4, maxHeight: 200, overflowY: 'auto' }}>
                                 <Text type="secondary" style={{ fontSize: 12, fontFamily: 'monospace' }}>
                                     {result.step_logs.map((log, i) => <div key={i}>{'>'} {log}</div>)}
                                 </Text>
@@ -158,9 +158,9 @@ export const StudioPage: React.FC = () => {
                         </Card>
                     ) : (
                         <Card bordered={false} style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ textAlign: 'center', color: '#ccc' }}>
+                            <div style={{ textAlign: 'center', color: 'var(--hm-color-text-secondary)' }}>
                                 <RocketOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-                                <Title level={4} style={{ color: '#555' }}>Ready to Create</Title>
+                                <Title level={4} style={{ color: 'var(--hm-color-text-muted)' }}>Ready to Create</Title>
                                 <Text type="secondary">Configure and run a generation task to see results here.</Text>
                             </div>
                         </Card>

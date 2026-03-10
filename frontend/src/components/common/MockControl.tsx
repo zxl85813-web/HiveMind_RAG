@@ -76,7 +76,7 @@ export const MockControl: React.FC = () => {
                     </Button>
                 </Space>
 
-                <div style={{ marginTop: 40, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+                <div style={{ marginTop: 40, padding: 12, background: 'var(--hm-color-bg-elevated)', borderRadius: 8 }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                         选用特殊用例后，拦截器会强制所有请求返回对应的异常数据，用于验证前端的容错处理和 Loading 状态。
                     </Text>

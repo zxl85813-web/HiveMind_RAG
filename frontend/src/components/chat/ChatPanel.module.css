@@ -175,7 +175,7 @@
 }
 
 .markdownBody pre {
-    background: #1e1e1e;
+    background: var(--hm-color-bg-elevated);
     padding: var(--hm-space-sm);
     border-radius: var(--hm-radius-md);
     overflow-x: auto;

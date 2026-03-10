@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography } from 'antd';
+import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, theme } from 'antd';
 import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { evalApi } from '../services/evalApi';
@@ -17,7 +17,7 @@ const RAGAS_METRICS = [
         key: 'faithfulness',
         name: 'Faithfulness (忠实度)',
         icon: <SafetyCertificateOutlined />,
-        color: '#52c41a',
+        color: 'var(--hm-color-success)',
         description: '衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉。',
         formula: 'Faithful Statements / Total Statements',
         benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
@@ -26,7 +26,7 @@ const RAGAS_METRICS = [
         key: 'answer_relevance',
         name: 'Answer Relevance (答案相关性)',
         icon: <AimOutlined />,
-        color: '#1890ff',
+        color: 'var(--hm-color-info)',
         description: '评估 AI 回答与用户问题的相关程度，从多角度检测偏题。',
         formula: 'Mean Cosine Sim(Generated Q, Original Q)',
         benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
@@ -35,7 +35,7 @@ const RAGAS_METRICS = [
         key: 'context_precision',
         name: 'Context Precision (上下文精确度)',
         icon: <ExperimentOutlined />,
-        color: '#722ed1',
+        color: 'rebeccapurple',
         description: '评估检索到的上下文块中有多少是与问题真正相关的（信号/噪声比）。',
         formula: 'Relevant Chunks / Total Retrieved Chunks',
         benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
@@ -44,7 +44,7 @@ const RAGAS_METRICS = [
         key: 'context_recall',
         name: 'Context Recall (上下文召回率)',
         icon: <FileSearchOutlined />,
-        color: '#eb2f96',
+        color: 'deeppink',
         description: '评估 Ground Truth 中的关键信息有多少被检索系统成功召回。',
         formula: 'GT Sentences in Context / Total GT Sentences',
         benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
@@ -100,7 +100,7 @@ function generateReportHTML(
     const badCaseRows = badCases.map(bc => `
         <tr>
             <td>${bc.question}</td>
-            <td style="color:#ff4d4f;">${bc.bad_answer}</td>
+            <td style="color:rgb(255,77,79);">${bc.bad_answer}</td>
             <td>${bc.reason || '-'}</td>
             <td><span class="badge badge-${bc.status === 'fixed' ? 'success' : bc.status === 'reviewed' ? 'warning' : 'danger'}">${bc.status?.toUpperCase()}</span></td>
         </tr>
@@ -120,8 +120,8 @@ function generateReportHTML(
                         <td>${d.question}</td>
                         <td>${d.ground_truth}</td>
                         <td>${d.answer}</td>
-                        <td style="text-align:center;color:${d.faithfulness > 0.7 ? '#52c41a' : '#ff4d4f'}">${d.faithfulness}</td>
-                        <td style="text-align:center;color:${d.relevance > 0.7 ? '#52c41a' : '#ff4d4f'}">${d.relevance}</td>
+                        <td style="text-align:center;color:${d.faithfulness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.faithfulness}</td>
+                        <td style="text-align:center;color:${d.relevance > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.relevance}</td>
                     </tr>
                 `).join('');
                 qaDetail = `
@@ -139,7 +139,7 @@ function generateReportHTML(
 
     // Score level
     const scoreLevel = avgScore > 0.8 ? '优秀 (Excellent)' : avgScore > 0.6 ? '良好 (Good)' : avgScore > 0.4 ? '待改进 (Needs Improvement)' : '不合格 (Poor)';
-    const scoreBadge = avgScore > 0.8 ? '#52c41a' : avgScore > 0.6 ? '#1890ff' : avgScore > 0.4 ? '#faad14' : '#ff4d4f';
+    const scoreBadge = avgScore > 0.8 ? 'rgb(82,196,26)' : avgScore > 0.6 ? 'rgb(24,144,255)' : avgScore > 0.4 ? 'rgb(250,173,20)' : 'rgb(255,77,79)';
 
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -149,33 +149,33 @@ function generateReportHTML(
     <title>HiveMind RAG 评估综合报告</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; line-height: 1.7; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; background: rgb(13,17,23); color: rgb(201,209,217); padding: 40px; line-height: 1.7; }
         .container { max-width: 1200px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 40px; padding: 40px; background: linear-gradient(135deg, #161b22 0%, #1a2332 100%); border-radius: 16px; border: 1px solid rgba(48,54,61,0.8); }
-        .header h1 { font-size: 28px; color: #58a6ff; margin-bottom: 8px; }
-        .header .subtitle { color: #8b949e; font-size: 14px; }
+        .header { text-align: center; margin-bottom: 40px; padding: 40px; background: linear-gradient(135deg, rgb(22,27,34) 0%, rgb(26,35,50) 100%); border-radius: 16px; border: 1px solid rgba(48,54,61,0.8); }
+        .header h1 { font-size: 28px; color: rgb(88,166,255); margin-bottom: 8px; }
+        .header .subtitle { color: rgb(139,148,158); font-size: 14px; }
         .header .score-badge { display: inline-block; margin-top: 16px; padding: 8px 24px; border-radius: 20px; font-size: 20px; font-weight: bold; color: white; }
-        h2 { color: #58a6ff; font-size: 20px; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+        h2 { color: rgb(88,166,255); font-size: 20px; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 1px solid rgb(33,38,45); }
         .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .metric-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; text-align: center; }
-        .metric-card .value { font-size: 28px; font-weight: bold; color: #58a6ff; }
-        .metric-card .label { font-size: 12px; color: #8b949e; margin-top: 4px; }
+        .metric-card { background: rgb(22,27,34); border: 1px solid rgb(48,54,61); border-radius: 12px; padding: 20px; text-align: center; }
+        .metric-card .value { font-size: 28px; font-weight: bold; color: rgb(88,166,255); }
+        .metric-card .label { font-size: 12px; color: rgb(139,148,158); margin-top: 4px; }
         .ragas-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
-        .ragas-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; }
+        .ragas-card { background: rgb(22,27,34); border: 1px solid rgb(48,54,61); border-radius: 12px; padding: 20px; }
         .ragas-card .metric-name { font-size: 15px; font-weight: bold; margin-bottom: 6px; }
-        .ragas-card .metric-desc { font-size: 12px; color: #8b949e; margin-bottom: 10px; }
-        .ragas-card .metric-formula { font-family: 'Courier New', monospace; font-size: 11px; color: #79c0ff; background: #0d1117; padding: 4px 8px; border-radius: 4px; display: inline-block; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #161b22; border-radius: 8px; overflow: hidden; }
-        th { background: #21262d; color: #c9d1d9; padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; }
-        td { padding: 10px 16px; border-bottom: 1px solid #21262d; font-size: 13px; }
+        .ragas-card .metric-desc { font-size: 12px; color: rgb(139,148,158); margin-bottom: 10px; }
+        .ragas-card .metric-formula { font-family: 'Courier New', monospace; font-size: 11px; color: rgb(121,192,255); background: rgb(13,17,23); padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; background: rgb(22,27,34); border-radius: 8px; overflow: hidden; }
+        th { background: rgb(33,38,45); color: rgb(201,209,217); padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; }
+        td { padding: 10px 16px; border-bottom: 1px solid rgb(33,38,45); font-size: 13px; }
         tr:last-child td { border-bottom: none; }
-        code { background: #1f2937; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #79c0ff; }
+        code { background: rgb(31,41,55); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: rgb(121,192,255); }
         .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-        .badge-success { background: rgba(82,196,26,0.2); color: #52c41a; }
-        .badge-warning { background: rgba(250,173,20,0.2); color: #faad14; }
-        .badge-danger { background: rgba(255,77,79,0.2); color: #ff4d4f; }
-        .footer { text-align: center; margin-top: 48px; padding: 24px; color: #484f58; font-size: 12px; border-top: 1px solid #21262d; }
-        @media print { body { background: white; color: #1f2328; } .header { background: #f6f8fa; } h2 { color: #0969da; } table, .metric-card, .ragas-card { background: #f6f8fa; border-color: #d0d7de; } th { background: #eee; color: #333; } td { border-color: #d0d7de; color: #1f2328; } .footer { color: #999; } }
+        .badge-success { background: rgba(82,196,26,0.2); color: rgb(82,196,26); }
+        .badge-warning { background: rgba(250,173,20,0.2); color: rgb(250,173,20); }
+        .badge-danger { background: rgba(255,77,79,0.2); color: rgb(255,77,79); }
+        .footer { text-align: center; margin-top: 48px; padding: 24px; color: rgb(72,79,88); font-size: 12px; border-top: 1px solid rgb(33,38,45); }
+        @media print { body { background: white; color: rgb(31,35,40); } .header { background: rgb(246,248,250); } h2 { color: rgb(9,105,218); } table, .metric-card, .ragas-card { background: rgb(246,248,250); border-color: rgb(208,215,222); } th { background: rgb(238,238,238); color: rgb(51,51,51); } td { border-color: rgb(208,215,222); color: rgb(31,35,40); } .footer { color: rgb(153,153,153); } }
     </style>
 </head>
 <body>
@@ -198,22 +198,22 @@ function generateReportHTML(
     <h2>🔬 RAGAS 评估指标体系说明</h2>
     <div class="ragas-grid">
         <div class="ragas-card">
-            <div class="metric-name" style="color:#52c41a">✅ Faithfulness (忠实度)</div>
+            <div class="metric-name" style="color:rgb(82,196,26)">✅ Faithfulness (忠实度)</div>
             <div class="metric-desc">衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉 (Hallucination)。</div>
             <div class="metric-formula">Score = Faithful Statements / Total Statements</div>
         </div>
         <div class="ragas-card">
-            <div class="metric-name" style="color:#1890ff">🎯 Answer Relevance (答案相关性)</div>
+            <div class="metric-name" style="color:rgb(24,144,255)">🎯 Answer Relevance (答案相关性)</div>
             <div class="metric-desc">评估 AI 回答与用户问题的相关程度，从多角度检测偏题和冗余信息。</div>
             <div class="metric-formula">Score = Mean Cosine Sim(Generated Q, Original Q)</div>
         </div>
         <div class="ragas-card">
-            <div class="metric-name" style="color:#722ed1">🔍 Context Precision (上下文精确度)</div>
+            <div class="metric-name" style="color:rgb(114,46,209)">🔍 Context Precision (上下文精确度)</div>
             <div class="metric-desc">评估检索到的上下文块中有多少是与问题真正相关的（信噪比）。</div>
             <div class="metric-formula">Score = Relevant Chunks / Total Retrieved Chunks</div>
         </div>
         <div class="ragas-card">
-            <div class="metric-name" style="color:#eb2f96">📖 Context Recall (上下文召回率)</div>
+            <div class="metric-name" style="color:rgb(235,47,150)">📖 Context Recall (上下文召回率)</div>
             <div class="metric-desc">评估 Ground Truth 中的关键信息有多少被检索系统成功召回。</div>
             <div class="metric-formula">Score = GT Sentences in Context / Total GT Sentences</div>
         </div>
@@ -252,7 +252,7 @@ function generateReportHTML(
 
     <h2>📐 评估方法论 (Methodology)</h2>
     <div class="ragas-card" style="margin-bottom:24px;">
-        <div class="metric-name" style="color:#58a6ff;">RAGAS (Retrieval Augmented Generation Assessment)</div>
+        <div class="metric-name" style="color:rgb(88,166,255);">RAGAS (Retrieval Augmented Generation Assessment)</div>
         <div class="metric-desc" style="font-size:13px;line-height:1.8;">
             本报告遵循 <strong>RAGAS</strong> 开源评估框架的核心方法论，结合 <strong>LLM-as-a-Judge</strong> 模式进行自动化质量评测：<br/>
             <strong>1. Ground Truth 生成</strong> — 从知识库原始文档中提取文本块，使用 LLM 生成符合真实场景的 QA 对。<br/>
@@ -276,6 +276,7 @@ function generateReportHTML(
 
 export const EvalPage: React.FC = () => {
     const { message } = App.useApp();
+    const { token } = theme.useToken();
     const [sets, setSets] = useState<EvaluationSet[]>([]);
     const [reports, setReports] = useState<EvaluationReport[]>([]);
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
@@ -441,7 +442,7 @@ export const EvalPage: React.FC = () => {
                     percent={Math.round(score * 100)}
                     size="small"
                     format={p => `${p}%`}
-                    strokeColor={score > 0.7 ? '#52c41a' : score > 0.4 ? '#faad14' : '#f5222d'}
+                    strokeColor={score > 0.7 ? token.colorSuccess : score > 0.4 ? token.colorWarning : token.colorError}
                 />
             )
         },
@@ -503,7 +504,7 @@ export const EvalPage: React.FC = () => {
             dataIndex: 'avgScore',
             key: 'score',
             sorter: (a: any, b: any) => a.avgScore - b.avgScore,
-            render: (s: number) => <Progress percent={Math.round(s * 100)} strokeColor="#1890ff" />
+            render: (s: number) => <Progress percent={Math.round(s * 100)} strokeColor={token.colorInfo} />
         },
         {
             title: 'Faithfulness',
@@ -543,10 +544,10 @@ export const EvalPage: React.FC = () => {
             <Space direction="vertical" style={{ width: '100%' }} size="large">
                 <Card size="small" style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' }}>
                     <Row gutter={16}>
-                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>模型</span>} value={selectedReport.model_name} valueStyle={{ fontSize: 14, color: '#fff' }} /></Col>
-                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>延迟</span>} value={selectedReport.latency_ms} suffix={<span style={{ fontSize: 12 }}>ms</span>} valueStyle={{ fontSize: 14, color: '#fff' }} /></Col>
-                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>成本</span>} value={selectedReport.cost} prefix="$" precision={4} valueStyle={{ fontSize: 14, color: '#faad14' }} /></Col>
-                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>Token</span>} value={selectedReport.token_usage || 0} valueStyle={{ fontSize: 14, color: '#fff' }} /></Col>
+                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>模型</span>} value={selectedReport.model_name} valueStyle={{ fontSize: 14, color: token.colorText }} /></Col>
+                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>延迟</span>} value={selectedReport.latency_ms} suffix={<span style={{ fontSize: 12 }}>ms</span>} valueStyle={{ fontSize: 14, color: token.colorText }} /></Col>
+                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>成本</span>} value={selectedReport.cost} prefix="$" precision={4} valueStyle={{ fontSize: 14, color: token.colorWarning }} /></Col>
+                        <Col span={6}><Statistic title={<span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>Token</span>} value={selectedReport.token_usage || 0} valueStyle={{ fontSize: 14, color: token.colorText }} /></Col>
                     </Row>
                 </Card>
 
@@ -555,19 +556,19 @@ export const EvalPage: React.FC = () => {
                     <Row gutter={16}>
                         <Col span={6}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Faithfulness</span>} value={selectedReport.faithfulness} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.faithfulness > 0.7 ? '#52c41a' : '#faad14' }} />
+                                valueStyle={{ fontSize: 16, color: selectedReport.faithfulness > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={6}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Relevance</span>} value={selectedReport.answer_relevance} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.answer_relevance > 0.7 ? '#52c41a' : '#faad14' }} />
+                                valueStyle={{ fontSize: 16, color: selectedReport.answer_relevance > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={6}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Ctx Precision</span>} value={selectedReport.context_precision} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.context_precision > 0.7 ? '#52c41a' : '#faad14' }} />
+                                valueStyle={{ fontSize: 16, color: selectedReport.context_precision > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={6}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Ctx Recall</span>} value={selectedReport.context_recall} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.context_recall > 0.7 ? '#52c41a' : '#faad14' }} />
+                                valueStyle={{ fontSize: 16, color: selectedReport.context_recall > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                     </Row>
                 </Card>
@@ -591,11 +592,11 @@ export const EvalPage: React.FC = () => {
                                 <Text strong>{item.question}</Text>
                             </div>
                             <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(24,144,255,0.05)', borderRadius: 8, border: '1px solid rgba(24,144,255,0.1)' }}>
-                                <Text style={{ fontSize: 11, color: '#1890ff', display: 'block', marginBottom: 4 }}>Standard Answer</Text>
+                                <Text style={{ fontSize: 11, color: token.colorInfo, display: 'block', marginBottom: 4 }}>Standard Answer</Text>
                                 <Text style={{ fontSize: 13, opacity: 0.85 }}>{item.ground_truth}</Text>
                             </div>
                             <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(82,196,26,0.05)', borderRadius: 8, border: '1px solid rgba(82,196,26,0.1)' }}>
-                                <Text style={{ fontSize: 11, color: '#52c41a', display: 'block', marginBottom: 4 }}>Model Generated</Text>
+                                <Text style={{ fontSize: 11, color: token.colorSuccess, display: 'block', marginBottom: 4 }}>Model Generated</Text>
                                 <Text style={{ fontSize: 13 }}>{item.answer}</Text>
                             </div>
                             {(item.context_precision || item.context_recall) && (
@@ -633,7 +634,7 @@ export const EvalPage: React.FC = () => {
                 {/* RAGAS Metrics Overview - Bento/Card Style */}
                 <div>
                     <Flex align="center" gap={8} style={{ marginBottom: 16 }}>
-                        <ExperimentOutlined style={{ color: '#58a6ff', fontSize: 18 }} />
+                        <ExperimentOutlined style={{ color: token.colorInfo, fontSize: 18 }} />
                         <Title level={5} style={{ margin: 0, fontWeight: 500 }}>RAGAS 综合质量看板</Title>
                     </Flex>
                     <Row gutter={[20, 20]}>
@@ -681,7 +682,7 @@ export const EvalPage: React.FC = () => {
 
                                         <div style={{ marginBottom: 8 }}>
                                             <Flex justify="space-between" align="baseline">
-                                                <Title level={3} style={{ margin: 0, color: '#fff', fontWeight: 600 }}>{Math.round(val * 100)}<span style={{ fontSize: 14, opacity: 0.45 }}>%</span></Title>
+                                                <Title level={3} style={{ margin: 0, color: token.colorText, fontWeight: 600 }}>{Math.round(val * 100)}<span style={{ fontSize: 14, opacity: 0.45 }}>%</span></Title>
                                                 <Tag color={val >= bm.good ? 'success' : 'warning'} bordered={false} style={{ margin: 0, background: 'rgba(255,255,255,0.05)', color: baseColor }}>{level}</Tag>
                                             </Flex>
                                         </div>
@@ -709,7 +710,7 @@ export const EvalPage: React.FC = () => {
                     bordered={false}
                     style={{
                         borderRadius: 16,
-                        background: '#141414',
+                        background: token.colorBgContainer,
                         border: '1px solid rgba(255,255,255,0.05)',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
                     }}
@@ -718,7 +719,7 @@ export const EvalPage: React.FC = () => {
                     <div style={{ padding: '0 24px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <Title level={4} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <TrophyOutlined style={{ color: '#faad14' }} /> Model Arena 性能榜
+                                <TrophyOutlined style={{ color: token.colorWarning }} /> Model Arena 性能榜
                             </Title>
                             <Text type="secondary" style={{ fontSize: 12 }}>基于生产环境多维数据集的真实反馈结果。</Text>
                         </div>
@@ -737,7 +738,7 @@ export const EvalPage: React.FC = () => {
                 {/* Methodology Highlight */}
                 <Card size="small" style={{ borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}>
                     <Flex align="flex-start" gap={12}>
-                        <SafetyCertificateOutlined style={{ color: '#52c41a', fontSize: 18, marginTop: 4 }} />
+                        <SafetyCertificateOutlined style={{ color: token.colorSuccess, fontSize: 18, marginTop: 4 }} />
                         <div>
                             <Text strong style={{ display: 'block', marginBottom: 4 }}>评估方法论 (Methodology)</Text>
                             <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
@@ -763,7 +764,7 @@ export const EvalPage: React.FC = () => {
                         icon={<DownloadOutlined />}
                         onClick={handleExportReport}
                         disabled={reports.length === 0}
-                        style={{ borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
+                        style={{ borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: token.colorText, border: '1px solid rgba(255,255,255,0.1)' }}
                     >
                         导出报告
                     </Button>

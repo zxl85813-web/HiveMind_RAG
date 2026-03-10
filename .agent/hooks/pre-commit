@@ -21,6 +21,21 @@ if [ -n "$FORBIDDEN_FILES" ]; then
     done
 fi
 
+# 1.5 前端主题一致性检查（仅当前端文件有暂存改动时触发）
+FRONTEND_CHANGED=$(git diff --cached --name-only | grep -E '^frontend/src/.*\.(ts|tsx|css)$' || true)
+if [ -n "$FRONTEND_CHANGED" ]; then
+    echo "🎨 [Pre-Commit] 检查前端硬编码色值..."
+    if command -v node &> /dev/null; then
+        node frontend/scripts/theme-check.mjs --staged
+        if [ $? -ne 0 ]; then
+            echo "❌ 错误: 检测到业务代码中存在硬编码颜色，请改为 token/CSS 变量。"
+            exit 1
+        fi
+    else
+        echo "⚠️ 未找到 node，跳过本地 theme:check（CI 会强制校验）。"
+    fi
+fi
+
 # 2. 尝试运行本地快速脚本 (如果存在)
 # 使用 powershell 运行代码质量检查，此处仅为防线之一，CI 中会有更严格的验证
 if command -v powershell &> /dev/null && [ -f ".agent/checks/run_checks.ps1" ]; then

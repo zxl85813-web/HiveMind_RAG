@@ -35,6 +35,10 @@ if ($Quick) {
     Set-Location "$ProjectRoot\frontend"
     npx eslint .
     if ($?) { Write-Host " ✅" -ForegroundColor Green } else { Write-Host " ❌" -ForegroundColor Red }
+
+    Write-Host "  [Frontend] Theme Check..." -ForegroundColor Yellow -NoNewline
+    npm run theme:check
+    if ($?) { Write-Host " ✅" -ForegroundColor Green } else { Write-Host " ❌" -ForegroundColor Red }
     
     Set-Location $ProjectRoot
     Write-Host ""
@@ -51,4 +55,13 @@ if ($Verbose) { $args_list += "--verbose" }
 
 Set-Location $ProjectRoot
 python .agent\checks\code_quality.py $args_list
+
+if ($Frontend -or (-not $Backend -and -not $Frontend)) {
+    Write-Host "  [Frontend] Theme Check..." -ForegroundColor Yellow -NoNewline
+    Set-Location "$ProjectRoot\frontend"
+    npm run theme:check
+    if ($?) { Write-Host " ✅" -ForegroundColor Green } else { Write-Host " ❌" -ForegroundColor Red }
+}
+
+Set-Location $ProjectRoot
 Write-Host ""

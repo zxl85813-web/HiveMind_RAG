@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Modal, Timeline } from 'antd';
+import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Modal, Timeline, theme } from 'antd';
 import { Bubble, Sender, Prompts, ThoughtChain, Welcome, Conversations, Actions, CodeHighlighter } from '@ant-design/x';
 import { useXChat } from '@ant-design/x-sdk';
 import ReactMarkdown from 'react-markdown';
@@ -37,6 +37,7 @@ const { Text } = Typography;
 export const ChatPanel: React.FC = () => {
     const { t } = useTranslation();
     const { message } = App.useApp();
+    const { token } = theme.useToken();
     const {
         viewMode,
         panelOpen,
@@ -287,7 +288,7 @@ export const ChatPanel: React.FC = () => {
                             return {
                                 key: msg.id || String(idx),
                                 role: isUser ? 'end' : 'start',
-                                avatar: isUser ? <Avatar icon={<UserOutlined />} style={{ background: '#06D6A0' }} /> : <Avatar icon={<RobotOutlined />} style={{ background: '#1F2937' }} />,
+                                avatar: isUser ? <Avatar icon={<UserOutlined />} style={{ background: token.colorPrimary }} /> : <Avatar icon={<RobotOutlined />} style={{ background: token.colorBgElevated }} />,
                                 loading: loading && !msg.message,
                                 content: (
                                     <Flex vertical gap={8}>
@@ -326,12 +327,12 @@ export const ChatPanel: React.FC = () => {
                                                 items={[
                                                     {
                                                         key: 'good',
-                                                        icon: msg.rating === 1 ? <LikeFilled style={{ color: '#1890ff' }} /> : <LikeOutlined />,
+                                                        icon: msg.rating === 1 ? <LikeFilled style={{ color: token.colorInfo }} /> : <LikeOutlined />,
                                                         onItemClick: () => handleFeedback(msg.id!, 1)
                                                     },
                                                     {
                                                         key: 'bad',
-                                                        icon: msg.rating === -1 ? <DislikeFilled style={{ color: '#ff4d4f' }} /> : <DislikeOutlined />,
+                                                        icon: msg.rating === -1 ? <DislikeFilled style={{ color: token.colorError }} /> : <DislikeOutlined />,
                                                         onItemClick: () => handleFeedback(msg.id!, -1)
                                                     }
                                                 ]}
@@ -350,13 +351,13 @@ export const ChatPanel: React.FC = () => {
                 <Sender value={inputValue} onChange={setInputValue} onSubmit={handleSend} loading={isGenerating} placeholder={t('chat.placeholder')} />
             </div>
 
-            <Modal title="记忆图谱 (Tier 2)" open={isGraphModalOpen} onCancel={() => setIsGraphModalOpen(false)} footer={null} width={800} styles={{ body: { height: 600, padding: 0, background: '#0A0E1A' } }} centered destroyOnHidden>
+            <Modal title="记忆图谱 (Tier 2)" open={isGraphModalOpen} onCancel={() => setIsGraphModalOpen(false)} footer={null} width={800} styles={{ body: { height: 600, padding: 0, background: token.colorBgLayout } }} centered destroyOnHidden>
                 {graphData && <GraphVisualizer data={graphData} width={800} height={600} />}
             </Modal>
 
             <Modal title="执行追踪" open={isTraceModalOpen} onCancel={() => setIsTraceModalOpen(false)} footer={null} width={650} centered>
                 <Timeline items={(currentTrace || []).map((step) => ({
-                    color: step.status === 'success' ? '#52c41a' : '#1890ff',
+                    color: step.status === 'success' ? token.colorSuccess : token.colorInfo,
                     children: <Text strong>{step.name} ({step.duration_ms.toFixed(0)}ms)</Text>
                 }))} />
             </Modal>

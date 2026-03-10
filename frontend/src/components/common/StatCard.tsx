@@ -23,19 +23,19 @@ import styles from './StatCard.module.css';
 type ColorPreset = 'primary' | 'success' | 'warning' | 'error' | 'info';
 
 const colorMap: Record<ColorPreset, string> = {
-    primary: 'rgba(6, 214, 160, 0.12)',
-    success: 'rgba(6, 214, 160, 0.12)',
-    warning: 'rgba(255, 209, 102, 0.12)',
-    error: 'rgba(239, 71, 111, 0.12)',
-    info: 'rgba(17, 138, 178, 0.12)',
+    primary: 'var(--hm-color-brand-dim)',
+    success: 'var(--hm-color-brand-dim)',
+    warning: 'color-mix(in srgb, var(--hm-color-warning) 12%, transparent)',
+    error: 'color-mix(in srgb, var(--hm-color-danger) 12%, transparent)',
+    info: 'var(--hm-color-accent-dim)',
 };
 
 const iconColorMap: Record<ColorPreset, string> = {
-    primary: '#06D6A0',
-    success: '#06D6A0',
-    warning: '#FFD166',
-    error: '#EF476F',
-    info: '#118AB2',
+    primary: 'var(--hm-color-brand)',
+    success: 'var(--hm-color-success)',
+    warning: 'var(--hm-color-warning)',
+    error: 'var(--hm-color-danger)',
+    info: 'var(--hm-color-info)',
 };
 
 export interface StatCardProps {

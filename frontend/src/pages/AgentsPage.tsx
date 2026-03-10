@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex } from 'antd';
+import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, theme } from 'antd';
 import {
     ClusterOutlined,
     MessageOutlined,
@@ -23,6 +23,7 @@ const { Title, Text, Paragraph } = Typography;
 
 export const AgentsPage: React.FC = () => {
     const { t } = useTranslation();
+    const { token } = theme.useToken();
     const [reflections, setReflections] = useState<ReflectionEntry[]>([]);
     const [agents, setAgents] = useState<AgentInfo[]>([]);
     const [stats, setStats] = useState<SwarmStats>({
@@ -129,15 +130,15 @@ export const AgentsPage: React.FC = () => {
                 <Empty description="Agent 群体尚未产生显著的自省洞察。" style={{ gridColumn: '1 / -1', padding: '40px 0' }} />
             ) : (
                 reflections.map((item) => (
-                    <Card key={item.id} size="small" hoverable style={{ borderColor: 'rgba(6, 214, 160, 0.2)', background: 'rgba(255, 255, 255, 0.03)' }}>
+                    <Card key={item.id} size="small" hoverable style={{ borderColor: 'var(--hm-color-brand-dim)', background: 'var(--hm-glass-bg)' }}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                             <Flex justify="space-between" align="flex-start">
                                 <Space>
-                                    <Text strong style={{ color: '#06D6A0', fontSize: '13px' }}>Agent [{item.agent_name}]</Text>
+                                    <Text strong style={{ color: token.colorPrimary, fontSize: '13px' }}>Agent [{item.agent_name}]</Text>
                                     <Tag color="cyan" variant="filled" style={{ border: 'none' }}>{item.type.replace('_', ' ')}</Tag>
                                 </Space>
                                 <Tooltip title="Confidence Score">
-                                    <Badge count={`${(item.confidence_score * 100).toFixed(0)}%`} style={{ backgroundColor: '#52c41a' }} />
+                                    <Badge count={`${(item.confidence_score * 100).toFixed(0)}%`} style={{ backgroundColor: token.colorSuccess }} />
                                 </Tooltip>
                             </Flex>
 
@@ -146,7 +147,7 @@ export const AgentsPage: React.FC = () => {
                             </Paragraph>
 
                             {item.action_taken && (
-                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 4, borderLeft: '3px solid #52c41a' }}>
+                                <div style={{ background: 'var(--hm-color-bg-elevated)', padding: '6px 10px', borderRadius: 4, borderLeft: `3px solid ${token.colorSuccess}` }}>
                                     <Text type="success" style={{ fontSize: '12px' }}>
                                         <CheckCircleOutlined style={{ marginRight: 4 }} />
                                         {item.action_taken}
@@ -171,7 +172,7 @@ export const AgentsPage: React.FC = () => {
             description={t('agents.description')}
             actions={
                 <Tooltip title="更新数据">
-                    <SyncOutlined spin={loading} onClick={fetchData} style={{ fontSize: 20, cursor: 'pointer', color: '#06D6A0' }} />
+                    <SyncOutlined spin={loading} onClick={fetchData} style={{ fontSize: 20, cursor: 'pointer', color: token.colorPrimary }} />
                 </Tooltip>
             }
         >
@@ -221,13 +222,13 @@ export const AgentsPage: React.FC = () => {
                     <Card
                         title={
                             <Space split={<Text type="secondary" style={{ fontWeight: 'normal' }}>|</Text>}>
-                                <span style={{ color: '#1890ff' }}><ClusterOutlined /> Agent DAG 实时链路追踪 (Execution Trace)</span>
+                                <span style={{ color: token.colorInfo }}><ClusterOutlined /> Agent DAG 实时链路追踪 (Execution Trace)</span>
                                 <Text type="secondary" style={{ fontSize: '12px', fontWeight: 'normal' }}>
                                     可视化展示 Agent 之间的协作流水线与数据流转状态
                                 </Text>
                             </Space>
                         }
-                        style={{ borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid #1f1f1f' }}
+                        style={{ borderRadius: '12px', background: 'var(--hm-color-bg-elevated)', border: 'var(--hm-border-subtle)' }}
                         bodyStyle={{ padding: 0, height: '440px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                     >
                         {dagData.nodes && dagData.nodes.length > 0 ? (
@@ -242,7 +243,7 @@ export const AgentsPage: React.FC = () => {
             <Row gutter={[24, 24]} style={{ marginTop: '24px' }}>
                 <Col xs={24} lg={16}>
                     <Card
-                        title={<span style={{ color: '#06D6A0' }}><ExperimentOutlined /> 共享记忆板 (Reflections & Active Memory)</span>}
+                        title={<span style={{ color: token.colorPrimary }}><ExperimentOutlined /> 共享记忆板 (Reflections & Active Memory)</span>}
                         style={{ height: '100%', borderRadius: '12px' }}
                     >
                         {renderReflectionBoard()}

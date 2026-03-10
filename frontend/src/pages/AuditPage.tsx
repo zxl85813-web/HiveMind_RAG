@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, Card, Progress, App, Empty, Tooltip, Drawer, Flex } from 'antd';
+import { Table, Tag, Button, Space, Typography, Card, Progress, App, Empty, Tooltip, Drawer, Flex, theme } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { auditApi } from '../services/auditApi';
@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 
 export const AuditPage: React.FC = () => {
     const { message } = App.useApp();
+    const { token } = theme.useToken();
     const [reviews, setReviews] = useState<DocumentReview[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -79,7 +80,7 @@ export const AuditPage: React.FC = () => {
             width: 120,
             render: (docId: string) => (
                 <Space>
-                    <SearchOutlined style={{ color: '#1890ff', opacity: 0.6 }} />
+                    <SearchOutlined style={{ color: token.colorInfo, opacity: 0.6 }} />
                     <a onClick={() => handlePreview(docId)} style={{ fontWeight: 500 }}>
                         {docId.substring(0, 8)}
                     </a>
@@ -92,9 +93,9 @@ export const AuditPage: React.FC = () => {
             key: 'score',
             width: 150,
             render: (score: number) => {
-                let color = '#ff4d4f';
-                if (score >= 0.8) color = '#52c41a';
-                else if (score >= 0.4) color = '#faad14';
+                let color = token.colorError;
+                if (score >= 0.8) color = token.colorSuccess;
+                else if (score >= 0.4) color = token.colorWarning;
                 return (
                     <div style={{ padding: '4px 0' }}>
                         <Flex justify="space-between" align="center" style={{ marginBottom: 4 }}>
@@ -221,7 +222,7 @@ export const AuditPage: React.FC = () => {
                 style={{
                     borderRadius: 16,
                     overflow: 'hidden',
-                    background: '#141414',
+                    background: token.colorBgContainer,
                     border: '1px solid rgba(255,255,255,0.05)',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.24)'
                 }}
@@ -243,7 +244,7 @@ export const AuditPage: React.FC = () => {
             <Drawer
                 title={
                     <Space>
-                        <SafetyCertificateOutlined style={{ color: '#1890ff' }} />
+                        <SafetyCertificateOutlined style={{ color: token.colorInfo }} />
                         <span>文档深度预览</span>
                         <Text type="secondary" style={{ fontSize: 12, fontWeight: 'normal' }}>ID: {previewDocId}</Text>
                     </Space>
@@ -255,7 +256,7 @@ export const AuditPage: React.FC = () => {
             >
                 {previewLoading ? (
                     <div style={{ padding: 48, textAlign: 'center' }}>
-                        <Progress percent={99} status="active" showInfo={false} strokeColor="#1890ff" />
+                        <Progress percent={99} status="active" showInfo={false} strokeColor={token.colorInfo} />
                         <Text type="secondary" style={{ marginTop: 16, display: 'block' }}>正在提取原文内容...</Text>
                     </div>
                 ) : (
@@ -263,7 +264,7 @@ export const AuditPage: React.FC = () => {
                         height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
-                        background: '#0a0a0a'
+                        background: token.colorBgLayout
                     }}>
                         <div style={{
                             flex: 1,
@@ -277,7 +278,7 @@ export const AuditPage: React.FC = () => {
                         }}>
                             {previewContent}
                         </div>
-                        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: '#141414', textAlign: 'right' }}>
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: token.colorBgContainer, textAlign: 'right' }}>
                             <Button onClick={() => setIsPreviewOpen(false)}>关闭预览</Button>
                         </div>
                     </div>

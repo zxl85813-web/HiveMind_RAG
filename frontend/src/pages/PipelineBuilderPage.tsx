@@ -63,10 +63,10 @@ const initialNodes: Node[] = [
 ];
 
 const initialEdges: Edge[] = [
-    { id: 'e1-2', source: '1', target: '2', type: 'smoothstep', animated: true, style: { stroke: '#1890ff', strokeWidth: 2 } },
-    { id: 'e2-3', source: '2', target: '3', type: 'smoothstep', animated: true, style: { stroke: '#1890ff', strokeWidth: 2 } },
-    { id: 'e3-4', source: '3', target: '4', type: 'smoothstep', animated: true, style: { stroke: '#1890ff', strokeWidth: 2 } },
-    { id: 'e4-5', source: '4', target: '5', type: 'smoothstep', animated: true, style: { stroke: '#1890ff', strokeWidth: 2 } },
+    { id: 'e1-2', source: '1', target: '2', type: 'smoothstep', animated: true, style: { stroke: 'var(--hm-color-info)', strokeWidth: 2 } },
+    { id: 'e2-3', source: '2', target: '3', type: 'smoothstep', animated: true, style: { stroke: 'var(--hm-color-info)', strokeWidth: 2 } },
+    { id: 'e3-4', source: '3', target: '4', type: 'smoothstep', animated: true, style: { stroke: 'var(--hm-color-info)', strokeWidth: 2 } },
+    { id: 'e4-5', source: '4', target: '5', type: 'smoothstep', animated: true, style: { stroke: 'var(--hm-color-info)', strokeWidth: 2 } },
 ];
 
 let id = 10;
@@ -248,11 +248,11 @@ const DnDFlow = () => {
                     defaultEdgeOptions={{
                         type: 'smoothstep',
                         animated: true,
-                        style: { stroke: '#1890ff', strokeWidth: 2 }
+                        style: { stroke: 'var(--hm-color-info)', strokeWidth: 2 }
                     }}
                     fitView
                 >
-                    <Background color="#ccc" gap={16} />
+                    <Background color="var(--hm-color-text-secondary)" gap={16} />
                     <MiniMap nodeStrokeWidth={3} zoomable pannable style={{ background: 'var(--hm-color-surface)', border: '1px solid var(--hm-color-border)', borderRadius: 8 }} />
                     <Panel position="top-left" style={{ background: 'var(--hm-color-surface)', padding: 12, borderRadius: 8, border: '1px solid var(--hm-color-border)', color: 'white' }}>
                         <Flex vertical gap={8}>
@@ -378,12 +378,12 @@ export const PipelineBuilderPage: React.FC = () => {
                 .react-flow__handle {
                     width: 12px;
                     height: 12px;
-                    background: #1890ff;
-                    border: 2px solid #fff;
+                    background: var(--hm-color-info);
+                    border: 2px solid var(--hm-color-text-primary);
                     cursor: crosshair;
                 }
                 .react-flow__handle:hover {
-                    background: #ff4d4f;
+                    background: var(--hm-color-danger);
                     transform: scale(1.3);
                     transition: all 0.2s;
                 }
