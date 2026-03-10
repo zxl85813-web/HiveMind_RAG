@@ -49,12 +49,23 @@ class ReflectionType(StrEnum):
     PERIODIC_REVIEW = "periodic_review"
 
 
+class ReflectionSignalType(StrEnum):
+    GAP = "gap"
+    ISSUE = "issue"
+    INSIGHT = "insight"
+
+
 class ReflectionEntry(SQLModel, table=True):
     __tablename__ = "swarm_reflections"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     type: ReflectionType = Field(index=True)
+    signal_type: str = Field(default=ReflectionSignalType.INSIGHT, index=True)
     agent_name: str = Field(index=True)
+    topic: str = Field(default="", index=True)
+    match_key: str = Field(default="", index=True)
+    tags: list[str] = Field(default_factory=list, sa_type=JSON)
+    source_task_id: str = Field(default="", index=True)
     summary: str
     details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     confidence_score: float = 0.0

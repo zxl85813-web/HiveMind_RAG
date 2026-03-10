@@ -29,9 +29,9 @@
 
 ---
 
-## 蜂群的三种分工
+## 蜂群的五层体系
 
-HiveMind 的设计围绕三个相互支撑的治理体系展开：
+HiveMind 的设计围绕四个相互支撑的治理体系 + 一个贯穿全局的共学体系展开：
 
 ### 🧭 Agent 治理 — 蜂群的指挥系统
 
@@ -54,7 +54,17 @@ Supervisor Agent 是整个系统的大脑。它解析用户意图、分配任务
 ### 🛡️ 架构治理 — 高可用与资产防腐
 
 真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **Agent-Native LLM 智能路由 (ClawRouter 模式)**，多维度动态分流与熔断降级，保障 99.99% 的核心可用率。同时基于 **CQRS** 将读写服务解耦，并在底座实施 **Code Vault (代码知识管理)**，将 AI 的有效引用转化为开发者的“打赏飞轮”，防腐防锈。
+### 🧬 共学体系 — 蜂群的集体进化系统
 
+**蜜蜂发现花源不会独享，它跳起摇摆舞让整个蜂群受益。** HiveMind 将「自主查漏补缺反省」和「团队互相借鉴学习」融合为三个互锁的循环飞轮：
+
+- **🪞 自省循环**：每日系统扫描 + Reflection Agent 质检 + 差距识别（GAP / ISSUE / INSIGHT 三类） + 7 日行动路线
+- **🤝 互学循环**：四视角 Code Review + PR 知识注释 + Issue 驱动协作 + 差距互补配对（A 的盲区恰好是 B 的经验 → 精准配对）
+- **🌍 共进循环**：通用模式结晶为 Skill → 注册到 REGISTRY → 学习路径更新 → 多厂商对标实验 → 正向飞轮加速
+
+三个循环互为输入输出：自省发现的差距流向互学配对，互学积累的洞见沉淀为共进的知识资产，共进更新的路径又指导下一轮自省。**不是三件事，而是一件事的三个面。**
+
+→ 详见 [共学体系文档](docs/COLLABORATIVE_LEARNING.md)
 ---
 
 ## 系统全局图
@@ -91,6 +101,16 @@ graph TD
         GitHooks["Git Hooks 门禁"]
         AgentRules --- Workflows
         AgentRules --- GitHooks
+    end
+
+    subgraph "🧬 共学体系 — 集体进化"
+        SelfReflect["🪞 自省循环\n每日扫描 · 差距识别 · 行动路线"]
+        MutualLearn["🤝 互学循环\n四视角 Review · 差距配对"]
+        CoEvolve["🌍 共进循环\n知识结晶 · 多源对标 · 正向飞轮"]
+        SelfReflect -->|差距输出| MutualLearn
+        MutualLearn -->|洞见沉淀| CoEvolve
+        CoEvolve -->|路径更新| SelfReflect
+        Reflection -.->|ReflectionEntry| SelfReflect
     end
 ```
 
@@ -141,9 +161,11 @@ alembic revision --autogenerate -m "description"            # 数据库迁移
 | [🧭 Agent 治理](docs/AGENT_GOVERNANCE.md) | Supervisor 架构、Agent DAG、Reflection 机制 |
 | [🍯 数据治理](docs/DATA_GOVERNANCE.md) | 知识酿造全流程：解析→增强→图谱→向量→检索 |
 | [🏭 开发治理](docs/DEV_GOVERNANCE.md) | `.agent/` 规范体系、SOP 工作流、Git 门禁 |
+| [🧬 共学体系](docs/COLLABORATIVE_LEARNING.md) | 自省↔互学↔共进 三环飞轮，融合自审与协作学习 |
+| [🎓 学习路径](docs/LEARNING_PATH.md) | L0-L4 边做边学地图，双向追踪最小规范 |
 | [系统概览](docs/SYSTEM_OVERVIEW.md) | 全局设计哲学与技术选型 |
 | [路线图](docs/ROADMAP.md) | 开发里程碑与规划 |
-| [Milestone 工具](docs/MILESTONE_TOOL.md) | 从 TODO 自动创建 GitHub Milestone/Issues |
+| [协作交付手册](docs/guides/collaboration_and_delivery_playbook.md) | 团队协作全流程、GitHub 自动化、里程碑同步 |
 | [模块注册表](REGISTRY.md) | 全局模块与 Skill 注册表 |
 | [贡献指南](CONTRIBUTING.md) | 提交规范、工作流、协作约定 |
 

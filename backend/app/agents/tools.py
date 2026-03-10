@@ -8,7 +8,7 @@ from langchain_core.tools import tool
 from loguru import logger
 
 from app.agents.memory import SharedMemoryManager
-from app.models.agents import ReflectionEntry, ReflectionType, TodoItem, TodoPriority
+from app.models.agents import ReflectionEntry, ReflectionSignalType, ReflectionType, TodoItem, TodoPriority
 
 # Singleton for tools to share
 _memory = SharedMemoryManager()
@@ -29,7 +29,7 @@ async def add_collective_todo(
             "low": TodoPriority.LOW,
             "medium": TodoPriority.MEDIUM,
             "high": TodoPriority.HIGH,
-            "urgent": TodoPriority.URGENT,
+            "urgent": TodoPriority.CRITICAL,
         }
 
         item = TodoItem(
@@ -46,22 +46,47 @@ async def add_collective_todo(
 
 
 @tool
-async def record_reflection(content: str, reflection_type: str = "insight", agent_name: str = "unknown") -> str:
+async def record_reflection(
+    content: str,
+    reflection_type: str = "insight",
+    agent_name: str = "unknown",
+    topic: str = "",
+    match_key: str = "",
+) -> str:
     """
     Record an insight or self-reflection into the collective memory.
     Use this when you learn something important about the user or your own process.
     reflection_type should be one of: insight, correction, strategy, preference.
     """
     try:
-        t_map = {
-            "insight": ReflectionType.INSIGHT,
-            "correction": ReflectionType.CORRECTION,
-            "strategy": ReflectionType.STRATEGY,
-            "preference": ReflectionType.PREFERENCE,
+        type_map = {
+            "insight": ReflectionType.PERIODIC_REVIEW,
+            "correction": ReflectionType.ERROR_CORRECTION,
+            "strategy": ReflectionType.SELF_EVAL,
+            "preference": ReflectionType.USER_INTERVENTION,
+            "gap": ReflectionType.KNOWLEDGE_GAP,
+            "issue": ReflectionType.ERROR_CORRECTION,
+        }
+        signal_map = {
+            "insight": ReflectionSignalType.INSIGHT,
+            "correction": ReflectionSignalType.ISSUE,
+            "strategy": ReflectionSignalType.INSIGHT,
+            "preference": ReflectionSignalType.INSIGHT,
+            "gap": ReflectionSignalType.GAP,
+            "issue": ReflectionSignalType.ISSUE,
         }
 
+        normalized = reflection_type.lower()
+
         entry = ReflectionEntry(
-            content=content, type=t_map.get(reflection_type.lower(), ReflectionType.INSIGHT), agent_name=agent_name
+            type=type_map.get(normalized, ReflectionType.PERIODIC_REVIEW),
+            signal_type=signal_map.get(normalized, ReflectionSignalType.INSIGHT),
+            agent_name=agent_name,
+            topic=topic,
+            match_key=match_key,
+            summary=content,
+            details={"raw_reflection_type": normalized},
+            action_taken="recorded",
         )
         await _memory.add_reflection(entry)
         return "Reflection recorded successfully."

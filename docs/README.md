@@ -33,6 +33,8 @@
 - [DATA_GOVERNANCE.md](./DATA_GOVERNANCE.md)
 - [DEV_GOVERNANCE.md](./DEV_GOVERNANCE.md)
 - [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
+- [guides/self_reflective_learning_system.md](./guides/self_reflective_learning_system.md)
+- [guides/collaborative_learning_metrics.md](./guides/collaborative_learning_metrics.md)
 - [LEARNING_PATH.md](./LEARNING_PATH.md)
 
 ### L2 需求与设计
@@ -50,6 +52,7 @@
 - [changelog/CHANGELOG.md](./changelog/CHANGELOG.md)
 - `docs/changelog/devlog/`
 - `docs/reviews/`
+- [learning/weekly/WEEKLY_LEARNING_REPORT_TEMPLATE.md](./learning/weekly/WEEKLY_LEARNING_REPORT_TEMPLATE.md)
 
 ## 候选归档区（待确认）
 

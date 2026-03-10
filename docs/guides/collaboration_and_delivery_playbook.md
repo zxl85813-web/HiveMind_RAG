@@ -1,6 +1,8 @@
 # Collaboration And Delivery Playbook
 
 > Canonical guide for team collaboration, GitHub automation, milestone sync, and high-availability delivery tracks.
+>
+> 本手册是 [🧬 共学体系](../COLLABORATIVE_LEARNING.md) 中「互学循环」的操作落地——Issue 协作、Code Review、PR 知识传递的具体规则都在这里。
 
 ## Scope
 

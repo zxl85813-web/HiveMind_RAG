@@ -89,6 +89,28 @@ class Settings(BaseSettings):
     # === External Learning ===
     LEARNING_FETCH_INTERVAL_HOURS: int = 6
     GITHUB_TOKEN: str = ""
+    MOCK_USER_HASH: str = "dev-password-placeholder"
+    GITHUB_REPO_OWNER: str = "zxl85813-web"
+    GITHUB_REPO_NAME: str = "HiveMind_RAG"
+    GITHUB_PROJECT_OWNER: str = ""
+    GITHUB_PROJECT_NUMBER: int = 0
+    SELF_LEARNING_REPORT_DIR: str = "docs/learning/daily"
+    SELF_LEARNING_ISSUE_LIMIT: int = 20
+    SELF_LEARNING_X_ACCOUNTS: str = "OpenAI,AnthropicAI,GoogleDeepMind,MetaAI,xai,QwenLM"
+    SELF_LEARNING_AI_FEEDS: str = (
+        "https://openai.com/news/rss.xml,"
+        "https://www.anthropic.com/news/rss.xml,"
+        "https://deepmind.google/discover/blog/rss.xml"
+    )
+    SELF_LEARNING_GITHUB_WATCH_REPOS: str = (
+        "openai/openai-python,anthropics/anthropic-sdk-python,google-gemini/generative-ai-python,"
+        "huggingface/transformers,langchain-ai/langchain,microsoft/autogen"
+    )
+
+    # === ARK Deep Interpretation ===
+    ARK_API_KEY: str = ""
+    ARK_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
+    ARK_MODEL: str = "deepseek-v3-2-251201"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True, "extra": "ignore"}
 

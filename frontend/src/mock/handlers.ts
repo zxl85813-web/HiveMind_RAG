@@ -28,6 +28,53 @@ export const mockHandlers: Record<string, any> = {
             { id: 'sub-2', topic: 'Ant Design X', created_at: new Date().toISOString() }
         ], message: 'Success'
     },
+    'POST:/learning/daily-cycle': {
+        success: true,
+        data: {
+            report_date: new Date().toISOString().slice(0, 10),
+            report_path: `docs/learning/daily/${new Date().toISOString().slice(0, 10)}.md`,
+            local_materials_count: 7,
+            github_project_items_count: 6,
+            github_issues_count: 8,
+            agent_summary: '学习信号显示重点在 RAG 与 Agent 编排，建议优先做质量闭环与多厂商对照。',
+            learning_tracks: ['RAG 与检索质量', 'Agent 编排与自治', '评测与质量工程'],
+            suggestions: [
+                {
+                    title: '建立每日回归学习卡片',
+                    reason: '项目中持续出现测试与回归相关任务。',
+                    action: '将当天变更映射到最小回归测试，并在次日复盘。',
+                },
+            ],
+        },
+        message: 'Daily learning cycle completed',
+    },
+    'GET:/learning/daily-reports': {
+        success: true,
+        data: [
+            `docs/learning/daily/${new Date().toISOString().slice(0, 10)}.md`,
+            'docs/learning/daily/2026-03-08.md',
+        ],
+        message: 'Success',
+    },
+    'GET:/learning/daily-report-content': {
+        success: true,
+        data: {
+            report_path: `docs/learning/daily/${new Date().toISOString().slice(0, 10)}.md`,
+            content: [
+                `# Self Learning Report - ${new Date().toISOString().slice(0, 10)}`,
+                '',
+                '## 多元外部学习信号（X + AI 大厂 + 重点开源）',
+                '- [OpenAI News](https://openai.com/news/rss.xml)',
+                '- [Anthropic News](https://www.anthropic.com/news)',
+                '- [Google DeepMind Blog](https://deepmind.google/discover/blog/)',
+                '- [x.com/OpenAI](https://x.com/OpenAI)',
+                '',
+                '## 系统改进建议',
+                '1. 建立多厂商方案对照学习卡',
+            ].join('\n')
+        },
+        message: 'Success'
+    },
 
     // Chat / Memory
     'GET:/chat/conversations': {

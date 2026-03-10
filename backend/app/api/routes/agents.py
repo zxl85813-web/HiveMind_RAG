@@ -11,6 +11,7 @@ from app.agents.swarm import SwarmOrchestrator
 from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
+from app.models.agents import ReflectionSignalType
 
 router = APIRouter()
 
@@ -84,13 +85,27 @@ async def cancel_batch_job(job_id: str):
 
 
 @router.get("/swarm/reflections")
-async def get_swarm_reflections(limit: int = 20):
+async def get_swarm_reflections(
+    limit: int = 20,
+    signal_type: ReflectionSignalType | None = None,
+    match_key: str | None = None,
+):
     """Get recent reflections from the agent swarm."""
     memory_manager = getattr(_swarm, "memory", None)
     if not memory_manager:
         return []
-    reflections = await memory_manager.get_reflections(limit=limit)
+    reflections = await memory_manager.get_reflections(limit=limit, signal_type=signal_type, match_key=match_key)
     return ApiResponse.ok(data=reflections)
+
+
+@router.get("/swarm/reflections/matches")
+async def get_swarm_reflection_matches(limit: int = 10):
+    """Get suggested GAP -> INSIGHT pairings (exact key + semantic overlap)."""
+    memory_manager = getattr(_swarm, "memory", None)
+    if not memory_manager:
+        return ApiResponse.ok(data=[])
+    matches = await memory_manager.suggest_gap_matches(limit=limit)
+    return ApiResponse.ok(data=matches)
 
 
 @router.get("/swarm/agents")

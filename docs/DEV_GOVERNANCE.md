@@ -163,4 +163,6 @@ Hook 文件位于 `.agent/hooks/`。
 - [← 返回 README](../README.md)
 - [🧭 Agent 治理：指挥系统](AGENT_GOVERNANCE.md)
 - [🍯 数据治理：知识酿造流程](DATA_GOVERNANCE.md)
+- [🧬 共学体系：自省↔互学↔共进](COLLABORATIVE_LEARNING.md)
+- [🎓 学习路径：L0-L4 边做边学地图](LEARNING_PATH.md)
 - [贡献指南](../CONTRIBUTING.md)

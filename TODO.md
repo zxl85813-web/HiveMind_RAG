@@ -57,6 +57,46 @@
 - ⬜ 每项任务必须关联：Issue/REQ/DES/OpenSpec 至少一种工件
 - ⬜ 每项任务完成后必须更新：`TODO.md` + `REGISTRY.md`（若涉及接口/模型变更）
 
+### 0.4 共学体系专项（按 1 -> 3 -> 2）
+
+> 目标：将“自省查漏补缺”与“团队互相借鉴”真正接到工程流水线上。
+> 约束：严格按你指定顺序推进 `1 -> 3 -> 2`，但每个阶段内允许并行子任务。
+
+- 🟡 **CL-1（第一优先）差距互补配对自动化**
+  - 产物：`ReflectionEntry` 结构化 Schema + 存储 + Gap-Insight 匹配规则
+  - 并行子任务：
+    - ✅ CL-1A：定义 `GAP / ISSUE / INSIGHT` 字段规范与校验
+    - ✅ CL-1B：写入持久化层（便于周报和配对检索）
+    - ✅ CL-1C：实现基础匹配策略（关键词 + 语义）
+    - ✅ CL-1D：输出配对建议清单（可用于 Issue/讨论）
+  - 快速验证：`GET /api/v1/agents/swarm/reflections/matches?limit=10`
+
+- ✅ **CL-3（第二优先）共学度量看板（先手工后自动）**
+  - 产物：周/月度指标面板（自省活跃度、互学覆盖率、知识结晶率、差距闭合度、飞轮转速）
+  - 并行子任务：
+    - ✅ CL-3A：定义指标口径与采集来源
+    - ✅ CL-3B：先落地 Markdown 周报模板（低成本可执行）
+    - ✅ CL-3C：预留自动采集接口（后续接脚本/CI）
+  - 产物：`docs/guides/collaborative_learning_metrics.md`
+  - 产物：`docs/learning/weekly/WEEKLY_LEARNING_REPORT_TEMPLATE.md`
+  - 产物：`backend/scripts/generate_weekly_learning_report.py`
+
+- ✅ **CL-2（第三优先）每日学习报告自动触发**
+  - 产物：定时生成学习报告（外部信号 + 内部变更 + 风险提示）
+  - 并行子任务：
+    - ✅ CL-2A：定时任务触发器（本地/CI 二选一）
+    - ✅ CL-2B：报告模板统一（可追踪至 TODO/Issue）
+    - ✅ CL-2C：失败重试与日志留痕
+  - 产物：`backend/scripts/run_daily_learning_cycle.py`
+  - 产物：`backend/scripts/run_daily_learning_cycle_with_retry.py`
+  - 产物：`backend/scripts/register_daily_learning_task.ps1`
+  - 日志：`docs/learning/daily/logs/YYYY-MM-DD.log`
+
+- ⬜ **并列推进规则（执行约束）**
+  - 在 `CL-1` 未达到“可用”前，不开启 `CL-3` 实现编码（仅允许设计草案）。
+  - 在 `CL-3` 未形成可读周报前，不开启 `CL-2` 自动化（防止先自动化后无验收口径）。
+  - 任一子任务完成后，必须回填本节状态并关联 Issue/PR。
+
 ---
 
 ## 一、🔥 紧急 / 阻塞项 (Blockers & Tracking)

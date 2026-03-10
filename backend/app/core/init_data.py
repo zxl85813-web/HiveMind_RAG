@@ -21,12 +21,12 @@ async def init_base_data() -> None:
             user = await session.get(User, mock_user_id)
             if not user:
                 logger.info(f"Seeding mock user: {mock_user_id}")
-                # 开发环境 mock 用户 — 使用预计算的 bcrypt hash (原文: dev123456)
+                # 开发环境 mock 用户占位密码（非真实密钥，仅用于本地演示）
                 mock_user = User(
                     id=mock_user_id,
                     username="developer",
                     email="dev@hivemind.local",
-                    hashed_password="$2b$12$LJ3m4ys3Lk0kXx0z0z0z0OeZ5V5V5V5V5V5V5V5V5V5V5V5V5u",
+                    hashed_password=settings.MOCK_USER_HASH,
                     role="admin",
                 )
                 session.add(mock_user)
@@ -38,7 +38,7 @@ async def init_base_data() -> None:
         if settings.DEBUG:
             from sqlalchemy import select
 
-            from app.models.agents import ReflectionEntry, ReflectionType, TodoItem, TodoPriority, TodoStatus
+            from app.models.agents import ReflectionEntry, ReflectionSignalType, ReflectionType, TodoItem, TodoPriority, TodoStatus
 
             # TODO Seeding
             existing_todos = await session.execute(select(TodoItem).limit(1))
@@ -74,14 +74,22 @@ async def init_base_data() -> None:
                     [
                         ReflectionEntry(
                             type=ReflectionType.SELF_EVAL,
+                            signal_type=ReflectionSignalType.INSIGHT,
                             agent_name="Supervisor",
+                            topic="task-routing",
+                            match_key="routing",
+                            tags=["orchestration", "quality"],
                             summary="检测到多步查询意图，已自动分发子任务。",
                             confidence_score=0.95,
                             action_taken="Spawned RAG & Web Agents",
                         ),
                         ReflectionEntry(
                             type=ReflectionType.KNOWLEDGE_GAP,
+                            signal_type=ReflectionSignalType.GAP,
                             agent_name="RAG Agent",
+                            topic="roadmap-knowledge",
+                            match_key="roadmap",
+                            tags=["knowledge-gap"],
                             summary="未找到关于 '2025 项目路线图' 的内部文档。",
                             confidence_score=0.45,
                             action_taken="委派 Web Agent 搜索外部上下文",
