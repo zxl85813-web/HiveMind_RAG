@@ -10,6 +10,20 @@ assignees: ''
 
 <!-- 这个功能要解决什么问题？带来了什么价值？ -->
 
+## 👥 协作者分配 (Collaborator Assignment)
+
+- 协作者 (必填):
+	- [ ] `zxl85813-web` (Owner)
+	- [ ] `Uchihacc` (Collaborator)
+- GitHub Assignee (必填): `@<username>`
+- 复核人 (可选): `@<username>`
+
+## 🧠 Skill 指定 (Skill Routing)
+
+- 主 Skill (必填): `skills/<name>`
+- 关联 Skill (可选): `skills/<name>`
+- 备注: 一个 Issue 建议仅指定一个主 Skill。
+
 ## 📐 提案方案 (Proposed Solution)
 
 <!-- 描述你期望如何实现这个功能，或者你希望它如何工作。 -->

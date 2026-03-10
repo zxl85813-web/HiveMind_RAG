@@ -10,6 +10,19 @@ assignees: ''
 
 <!-- 简要描述你要进行什么架构层面的变更 -->
 
+## 👥 协作者分配 (Collaborator Assignment)
+
+- 协作者 (必填):
+	- [ ] `zxl85813-web` (Owner)
+	- [ ] `Uchihacc` (Collaborator)
+- GitHub Assignee (必填): `@<username>`
+- 复核人 (可选): `@<username>`
+
+## 🧠 Skill 指定 (Skill Routing)
+
+- 主 Skill (必填): `skills/<name>`
+- 关联 Skill (可选): `skills/<name>`
+
 ## 🧠 背景与动机
 
 <!-- 为什么需要这个变更？当前架构有什么不足？ -->

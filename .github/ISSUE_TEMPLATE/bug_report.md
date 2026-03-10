@@ -10,6 +10,19 @@ assignees: ''
 
 <!-- 简要描述这个 Bug。发生了什么不符合预期的事情？ -->
 
+## 👥 协作者分配 (Collaborator Assignment)
+
+- 协作者 (必填):
+	- [ ] `zxl85813-web` (Owner)
+	- [ ] `Uchihacc` (Collaborator)
+- GitHub Assignee (必填): `@<username>`
+- 复核人 (可选): `@<username>`
+
+## 🧠 Skill 指定 (Skill Routing)
+
+- 主 Skill (必填): `skills/<name>`
+- 关联 Skill (可选): `skills/<name>`
+
 ## 🔄 Steps to Reproduce (复现步骤)
 
 1. 前往 '...'

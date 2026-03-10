@@ -12,6 +12,19 @@ assignees: ''
 **原案 Issue:** #XXX
 **执行 Skill:** (例如 `generate-tests`, `opsx-apply`)
 
+## 👥 协作者分配 (Collaborator Assignment)
+
+- 协作者 (必填):
+	- [ ] `zxl85813-web` (Owner)
+	- [ ] `Uchihacc` (Collaborator)
+- GitHub Assignee (必填): `@<username>`
+- 复核人 (可选): `@<username>`
+
+## 🧠 Skill 指定 (Skill Routing)
+
+- 主 Skill (必填): `skills/<name>`
+- 关联 Skill (可选): `skills/<name>`
+
 ## 🔍 问题分析 (Technical Details)
 
 <!-- 报错日志或技术瓶颈 -->

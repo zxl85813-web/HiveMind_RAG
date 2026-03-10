@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Team Collaboration Playbook
+    url: https://github.com/zxl85813-web/HiveMind_RAG/blob/main/docs/guides/collaboration_and_delivery_playbook.md
+    about: Read collaboration rules before opening an issue.

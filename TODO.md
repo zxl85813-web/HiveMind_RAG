@@ -25,6 +25,34 @@
 
 ---
 
+## 协作者分配规则（GitHub）
+
+> 目的：让 TODO 与 GitHub Issue 的任务负责人保持一致，避免“有人做但无人认领”。
+
+### 协作者账号
+
+| 角色 | GitHub 用户名 | 说明 |
+|------|---------------|------|
+| Owner | `zxl85813-web` | 最终责任人，负责优先级与合并决策 |
+| Collaborator | `Uchihacc` | 协作开发与任务执行 |
+
+### 使用规范
+
+- 每条可执行任务建议追加 `协作者: <github_username>` 字段。
+- 当任务已对应 Issue 时，`协作者` 必须与 Issue Assignee 一致。
+- 推荐格式：
+  - `- ⬜ TASK-XXX: 任务说明（协作者: zxl85813-web）`
+  - `- ⬜ TASK-YYY: 任务说明（协作者: Uchihacc）`
+
+### 快速分配模板
+
+| 任务ID | 任务 | 协作者 | 复核人 |
+|--------|------|--------|--------|
+| TASK-001 | 示例：前端主题统一 | `Uchihacc` | `zxl85813-web` |
+| TASK-002 | 示例：CI 质量门禁 | `zxl85813-web` | `Uchihacc` |
+
+---
+
 ## 0、🤖 Agent 架构重整看板（系统入口）
 
 > 目标：把“功能清单式 TODO”重整为“Agent 分层执行看板”，便于 Supervisor 统一编排、Worker 并行执行、Reflection 验收闭环。
