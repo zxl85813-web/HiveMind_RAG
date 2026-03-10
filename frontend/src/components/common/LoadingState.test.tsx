@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { LoadingState } from './LoadingState';
-import React from 'react';
 
 describe('LoadingState Component', () => {
     it('renders with default tip "加载中..."', () => {

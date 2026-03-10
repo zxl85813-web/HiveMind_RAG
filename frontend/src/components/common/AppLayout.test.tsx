@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppLayout } from './AppLayout';
 import { MemoryRouter } from 'react-router-dom';
-import React from 'react';
 import { useChatStore } from '../../stores/chatStore';
 
 // Mock antd App to provide message/notification
