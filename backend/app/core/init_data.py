@@ -38,7 +38,14 @@ async def init_base_data() -> None:
         if settings.DEBUG:
             from sqlalchemy import select
 
-            from app.models.agents import ReflectionEntry, ReflectionSignalType, ReflectionType, TodoItem, TodoPriority, TodoStatus
+            from app.models.agents import (
+                ReflectionEntry,
+                ReflectionSignalType,
+                ReflectionType,
+                TodoItem,
+                TodoPriority,
+                TodoStatus,
+            )
 
             # TODO Seeding
             existing_todos = await session.execute(select(TodoItem).limit(1))

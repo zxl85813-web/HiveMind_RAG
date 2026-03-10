@@ -39,6 +39,8 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from app.core.database import async_session_factory  # noqa: E402
+
+
 @dataclass
 class WeeklyInputs:
     total_prs: int = 0
@@ -78,13 +80,11 @@ async def _collect_auto_stats(start_date: date, end_date: date, repo_root: Path)
     end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=UTC).replace(tzinfo=None)
 
     async with async_session_factory() as session:
-        stmt = text(
-            """
+        stmt = text("""
             SELECT agent_name
             FROM swarm_reflections
             WHERE created_at >= :start_dt AND created_at < :end_dt
-            """
-        )
+            """)
         rows = (await session.execute(stmt, {"start_dt": start_dt, "end_dt": end_dt})).all()
         reflections_total = len(rows)
         active_agents = len({(row[0] or "") for row in rows if row[0]})

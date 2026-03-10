@@ -22,9 +22,7 @@ class TodoTask:
 
 def parse_args() -> argparse.Namespace:
     today = dt.date.today().isoformat()
-    parser = argparse.ArgumentParser(
-        description="Create GitHub milestone (and optional issues) from TODO.md section."
-    )
+    parser = argparse.ArgumentParser(description="Create GitHub milestone (and optional issues) from TODO.md section.")
     parser.add_argument(
         "--todo",
         default="TODO.md",
