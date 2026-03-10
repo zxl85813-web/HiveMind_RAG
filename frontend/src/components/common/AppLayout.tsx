@@ -17,6 +17,7 @@ import {
     LineChartOutlined,
     FolderOpenOutlined,
     SisternodeOutlined,
+    DeploymentUnitOutlined,
     RobotOutlined,
     DesktopOutlined
 } from '@ant-design/icons';
@@ -59,6 +60,7 @@ export const AppLayout: React.FC = () => {
         { key: '/evaluation', label: t('nav.evaluation'), icon: <LineChartOutlined /> },
         { key: '/finetuning', label: t('nav.finetuning'), icon: <FolderOpenOutlined /> },
         { key: '/pipelines', label: t('nav.pipelines'), icon: <SisternodeOutlined /> },
+        { key: '/canvas-lab', label: t('nav.canvasLab'), icon: <DeploymentUnitOutlined /> },
         { key: '/studio', label: t('nav.studio'), icon: <RocketOutlined /> },
         { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined /> },
         { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined /> },

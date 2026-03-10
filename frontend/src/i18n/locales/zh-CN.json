@@ -23,6 +23,7 @@
         "evaluation": "评估专区",
         "finetuning": "数据集",
         "pipelines": "可视化编排",
+        "canvasLab": "画布实验室",
         "batch": "批处理调度",
         "settings": "系统设置"
     },

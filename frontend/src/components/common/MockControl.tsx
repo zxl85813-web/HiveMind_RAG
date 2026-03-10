@@ -34,7 +34,7 @@ export const MockControl: React.FC = () => {
                 placement="right"
                 onClose={() => setOpen(false)}
                 open={open}
-                width={320}
+                size="default"
             >
                 <Space direction="vertical" style={{ width: '100%' }} size="large">
                     <section>

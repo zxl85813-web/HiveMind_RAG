@@ -9,7 +9,7 @@
 > - 任务从 TODO 完成后，若涉及系统资产变更，必须同步更新 REGISTRY。
 > - 建议顺序：先改代码 → 更新 TODO 状态 → 更新 REGISTRY 资产登记。
 
-> 📅 最后更新: 2026-03-09
+> 📅 最后更新: 2026-03-10
 
 ---
 
@@ -138,6 +138,7 @@
 | `AgentsPage` | `/agents` | Agent 蜂巢监控面板 | `pages/AgentsPage.tsx` | ✅ |
 | `LearningPage` | `/learning` | 技术动态/外部学习 | `pages/LearningPage.tsx` | ✅ |
 | `SettingsPage` | `/settings` | 系统设置 (LLM/Agent/API Key) | `pages/SettingsPage.tsx` | ✅ 基础 |
+| `CanvasLabPage` | `/canvas-lab` | AntV 技术验证页 (X6 + G6 simple demos) | `pages/CanvasLabPage.tsx` | ✅ |
 | ~~`ChatPage`~~ | ~~`/chat`~~ | ~~已废弃 — Chat 现在是ChatPanel~~ | `pages/ChatPage.tsx` | 🚭 废弃 |
 
 ### 通用组件 (components/common/)
@@ -159,6 +160,17 @@
 | `ChatPanel` | chat | AI 对话面板 (永驻右侧, 上下文感知) | `components/chat/` | ✅ |
 | `ActionButton` | chat | AI 操作按钮 (导航/执行/弹窗) | `components/chat/` | ✅ |
 | `AgentCard` | agents | Agent 状态卡片 | `components/agents/` | ✅ |
+| `X6SimpleCanvas` | canvas | X6 流程画布示例组件（含缩放/归中/动态追加步骤/节点选择反馈） | `components/canvas/X6SimpleCanvas.tsx` | ✅ |
+| `G6SimpleGraph` | canvas | G6 关系图示例组件（含聚焦节点/缩放/状态图例与交互工具栏） | `components/canvas/G6SimpleGraph.tsx` | ✅ |
+
+### 前端可视化技术栈（AI 生成优先复用）
+
+| 技术 | 主要场景 | 当前接入 | 复用建议 |
+|------|---------|---------|---------|
+| `@antv/x6` | 流程编排、节点画布编辑 | ✅ `CanvasLabPage` simple demo | 新增编排能力时优先复用 `X6SimpleCanvas` 的初始化模式 |
+| `@antv/g6` | Agent 关系图、知识图谱、拓扑链路 | ✅ `CanvasLabPage` simple demo | 新增图谱能力时优先复用 `G6SimpleGraph` 的布局与状态映射模式 |
+| `@xyflow/react` | 现有 Pipeline Builder 页面 | ✅ 已在用 | 作为过渡方案，后续逐步迁移到 X6 |
+| `react-force-graph-2d` | 现有图谱/链路视图 | ✅ 已在用 | 作为过渡方案，后续逐步迁移到 G6 |
 
 ### 样式系统 (styles/)
 

@@ -290,7 +290,7 @@ const DnDFlow = () => {
                     placement="right"
                     onClose={() => setConfigVisible(false)}
                     open={configVisible}
-                    width={320}
+                    size="default"
                     footer={
                         <Flex justify="flex-end" gap={8} style={{ padding: '8px 0' }}>
                             <Button onClick={() => setConfigVisible(false)}>Cancel</Button>

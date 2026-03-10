@@ -210,10 +210,18 @@ export const ChatPanel: React.FC = () => {
     };
 
 
+    const safeConversations = useMemo(() => {
+        if (Array.isArray(conversations)) return conversations;
+        const payload = conversations as any;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (Array.isArray(payload?.items)) return payload.items;
+        return [];
+    }, [conversations]);
+
     const historyContent = (
         <div style={{ width: 280, maxHeight: 400, overflowY: 'auto', padding: '4px 0' }}>
             <Conversations
-                items={(conversations || []).map((item: any) => ({
+                items={safeConversations.map((item: any) => ({
                     key: item.id,
                     label: item.title,
                     description: item.last_message_preview,
@@ -342,7 +350,7 @@ export const ChatPanel: React.FC = () => {
                 <Sender value={inputValue} onChange={setInputValue} onSubmit={handleSend} loading={isGenerating} placeholder={t('chat.placeholder')} />
             </div>
 
-            <Modal title="记忆图谱 (Tier 2)" open={isGraphModalOpen} onCancel={() => setIsGraphModalOpen(false)} footer={null} width={800} styles={{ body: { height: 600, padding: 0, background: '#0A0E1A' } }} centered destroyOnClose>
+            <Modal title="记忆图谱 (Tier 2)" open={isGraphModalOpen} onCancel={() => setIsGraphModalOpen(false)} footer={null} width={800} styles={{ body: { height: 600, padding: 0, background: '#0A0E1A' } }} centered destroyOnHidden>
                 {graphData && <GraphVisualizer data={graphData} width={800} height={600} />}
             </Modal>
 

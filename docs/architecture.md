@@ -55,3 +55,23 @@ Agent 集群拥有共享记忆和 TODO List。每次回答后进行自评估，
 ### 5. 统一工具接口 (MCP + Skills)
 通过 MCP 标准化外部工具接入，通过 Skills 系统实现模块化能力管理。
 两者统一为 LangChain Tool 接口，供 Agent 使用。
+
+## 前端画布与图可视化架构（2026-03）
+
+### 技术分层
+
+- `AntV X6`：结构化流程编排画布（Pipeline Builder 目标主栈）
+- `AntV G6`：Agent 协作关系图与知识图谱可视化（Graph 目标主栈）
+- `React Flow` / `react-force-graph-2d`：现有存量能力，作为迁移过渡层
+
+### 已落地的 Simple 组件（可复用模板）
+
+- `frontend/src/components/canvas/X6SimpleCanvas.tsx`
+- `frontend/src/components/canvas/G6SimpleGraph.tsx`
+- `frontend/src/pages/CanvasLabPage.tsx` (`/canvas-lab`)
+
+### 迁移原则
+
+1. 新需求优先复用 `components/canvas/` 里的 AntV 初始化模式。
+2. 存量页面按“先页面替换、后交互增强”的方式逐步迁移，避免一次性重构风险。
+3. AI 生成前端代码时，涉及流程编排优先选择 X6，涉及关系图优先选择 G6。

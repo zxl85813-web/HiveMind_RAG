@@ -1,0 +1,39 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-space-lg);
+}
+
+.heroCard {
+    border: var(--hm-border-subtle);
+    background: linear-gradient(135deg, rgba(6, 214, 160, 0.08), rgba(17, 138, 178, 0.08));
+}
+
+.heroTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--hm-color-text-primary);
+}
+
+.tip {
+    color: var(--hm-color-text-secondary);
+    font-size: 13px;
+    margin: 0;
+}
+
+.featureCard {
+    border: var(--hm-border-subtle);
+    background: rgba(17, 24, 39, 0.55);
+}
+
+.featureText {
+    color: var(--hm-color-text-secondary);
+    font-size: 13px;
+    margin-top: 6px;
+    margin-bottom: 0;
+}
+
+.canvasCard {
+    border: var(--hm-border-subtle);
+    background: rgba(17, 24, 39, 0.7);
+}

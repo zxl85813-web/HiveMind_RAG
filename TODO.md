@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-09
+> 📅 最后更新: 2026-03-10
 
 ---
 
@@ -172,6 +172,8 @@
 - ✅ **前端 Pipeline 配置页** — 可视化拖拽编排 Pipeline 步骤
 - ✅ **前端节点参数配置抽屉** — 动态配置算子内部参数 (Chunk Size / Desensitization Policy)
 - ✅ **后端 Pipeline 执行引擎集成** — `indexing.py` 已完全重构为基于 PipelineExecutor 的模块化驱动
+- ✅ **AntV X6 Simple Demo** — 新增 `CanvasLabPage` 中的最小流程编排画布示例，作为替换 PipelineBuilder 的前置验证
+- ✅ **AntV X6 Demo 增强** — 已补充工具栏交互（缩放/归中/新增步骤）与节点状态反馈，提升画布体验验证质量
 
 #### Retrieval Pipeline（检索流水线）
 - 🟡 **Retrieval Pipeline 已有框架** — `services/retrieval/pipeline.py` 已实现三步管线
@@ -249,6 +251,8 @@
 - ✅ **混合检索** — Vector + Graph Traversal 混合 (GraphRetrievalStep)
 - ✅ **社区检测** — Leiden 算法聚类 (NetworkX Louvain/Greedy Modularity fallback) + LLM 社区摘要
 - ✅ **前端图谱可视化** — 在 KnowledgeDetail 添加基于 react-force-graph 的图谱互动视图
+- ✅ **AntV G6 Simple Demo** — 新增 `CanvasLabPage` 中的最小 Agent 关系图示例，作为替换 AgentDAG/GraphVisualizer 的前置验证
+- ✅ **AntV G6 Demo 增强** — 已补充聚焦操作、缩放控制与状态图例，提升关系画布交互验证质量
 
 #### 查询理解 (P1)
 - ✅ **QueryPreProcessingStep 已完善** — 实现了针对查询的重写和意图处理

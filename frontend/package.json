@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
+    "@antv/g6": "^5.0.44",
+    "@antv/x6": "^2.18.1",
     "@ant-design/x": "^2.3.0",
     "@ant-design/x-sdk": "^2.3.0",
     "@ant-design/x-skill": "^2.3.0",

@@ -35,6 +35,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m.BatchPage })));
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
+const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ default: m.CanvasLabPage })));
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -122,6 +123,7 @@ function App() {
                   <Route path="evaluation" element={<EvalPage />} />
                   <Route path="finetuning" element={<FineTuningPage />} />
                   <Route path="pipelines" element={<PipelineBuilderPage />} />
+                  <Route path="canvas-lab" element={<CanvasLabPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Routes>

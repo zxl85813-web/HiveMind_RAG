@@ -250,7 +250,7 @@ export const AuditPage: React.FC = () => {
                 }
                 open={isPreviewOpen}
                 onClose={() => setIsPreviewOpen(false)}
-                width={700}
+                size="large"
                 styles={{ body: { padding: 0 } }}
             >
                 {previewLoading ? (

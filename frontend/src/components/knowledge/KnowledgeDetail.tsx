@@ -531,7 +531,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                 title="🛡️ 数据脱敏详情报告"
                 open={isReportOpen}
                 onClose={() => setIsReportOpen(false)}
-                width={400}
+                size="default"
             >
                 {selectedDocReport ? (
                     <div>

@@ -368,7 +368,7 @@ export const SecurityPage: React.FC = () => {
                 onOk={handleCreate}
                 onCancel={() => setIsCreateModalOpen(false)}
                 width={600}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={form} layout="vertical">
                     <Form.Item name="name" label="策略名称" rules={[{ required: true }]}>
@@ -485,7 +485,7 @@ export const SecurityPage: React.FC = () => {
                 open={isAclModalOpen}
                 onOk={handleGrantAcl}
                 onCancel={() => setIsAclModalOpen(false)}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={aclForm} layout="vertical" initialValues={{ entity_type: 'user', can_read: true, can_write: false }}>
                     <Form.Item name="entity_type" label="授权类型" rules={[{ required: true }]}>

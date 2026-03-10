@@ -1,6 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../services/chatApi';
 
+type ConversationPayload = {
+    id: string;
+    title?: string;
+    last_message_preview?: string;
+    created_at?: string;
+    updated_at?: string;
+};
+
+const normalizeConversations = (raw: unknown): ConversationPayload[] => {
+    if (Array.isArray(raw)) {
+        return raw as ConversationPayload[];
+    }
+
+    const payload = raw as { data?: unknown; items?: unknown } | null;
+    if (Array.isArray(payload?.data)) {
+        return payload.data as ConversationPayload[];
+    }
+    if (Array.isArray(payload?.items)) {
+        return payload.items as ConversationPayload[];
+    }
+
+    return [];
+};
+
 /**
  * 🛰️ [Architecture-Gate]: 业务服务端状态 (Server State)
  * 职责: 管理对话列表和对话详情的缓存与同步。
@@ -13,7 +37,7 @@ export const useConversations = () => {
         queryKey: ['conversations'],
         queryFn: async () => {
             const res = await chatApi.getConversations();
-            return res.data;
+            return normalizeConversations(res.data);
         },
     });
 };

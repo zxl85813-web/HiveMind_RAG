@@ -23,6 +23,7 @@
         "evaluation": "Evaluation",
         "finetuning": "Datasets",
         "pipelines": "Pipelines",
+        "canvasLab": "Canvas Lab",
         "batch": "Batch Jobs",
         "settings": "Settings"
     },
