@@ -107,3 +107,4 @@ backend/routes_output.txt
 backend/start_data/chroma_db/
 *.sqlite3
 .checkpoints/
+test_daily_learning_cycle_gene*/
