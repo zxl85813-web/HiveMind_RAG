@@ -540,8 +540,8 @@
 
 - ✅ **E2E 测试框架** — Playwright 已集成
 - ✅ **集成测试矩阵** — `integration.spec.ts` 已创建
-- ⬜ **后端单元测试** — 所有 Service / Route 的 pytest 用例
-- ⬜ **前端组件测试** — Vitest + React Testing Library
+- 🟡 **后端单元测试** — 部分完成 (KnowledgeService, Security API)
+- 🟡 **前端组件测试** — 部分完成 (knowledgeApi, LoadingState, AppLayout)
 - ⬜ **API 契约测试** — 前后端接口一致性验证
 
 ---
@@ -603,6 +603,12 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ---
 
 ## 八、📝 变更日志 (按日期倒序)
+
+### 2026-03-09
+- ✅ **测试基座搭建** — 集成 Vitest (Frontend) 并配置后端使用 SQLite 内存库进行隔离测试。
+- ✅ **核心服务测试** — 完成 `KnowledgeService` 单元测试与 Security API 集成测试。
+- ✅ **前端组件测试** — 完成 `AppLayout`、`LoadingState` 及 `knowledgeApi` 的单元测试。
+- ✅ **Bug 修复** — 修复 `kb_service.py` 中 `NotFoundError` 参数错误。
 
 ### 2026-03-07
 - 🚧 **架构重构规划** — 生成 V3 版分布式数据入库流转集群架构，产出 `DEV-REQ-013` 拆解方案，决议剥离 Langfuse、全面替换线型管道。

@@ -57,6 +57,7 @@ trace.txt
 out.txt
 temp.txt
 coverage_report.txt
+frontend/coverage/
 
 # ==========================================
 # Local Data / DB

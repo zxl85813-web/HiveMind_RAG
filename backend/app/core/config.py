@@ -116,8 +116,11 @@ class Settings(BaseSettings):
 
     def __init__(self, **data):
         super().__init__(**data)
-        # 强制从环境变量重新加载以确保覆盖
-        if self.POSTGRES_SERVER and self.POSTGRES_USER and self.POSTGRES_PASSWORD and self.POSTGRES_DB:
+        import os
+        testing = os.environ.get("TESTING") == "1"
+        
+        # 强制从环境变量重新加载以确保覆盖 (如果不是在测试模式)
+        if not testing and self.POSTGRES_SERVER and self.POSTGRES_USER and self.POSTGRES_PASSWORD and self.POSTGRES_DB:
             from urllib.parse import quote_plus
 
             # URL-encode 密码，防止 @ 等特殊字符破坏 URL 解析
@@ -130,6 +133,9 @@ class Settings(BaseSettings):
 
             # logger 可能还未完全初始化，使用 stderr 打印关键配置路径
             print(f"[DB] Database mapped to PostgreSQL: {self.POSTGRES_SERVER}", file=sys.stderr)
+        elif testing:
+            import sys
+            print("[DB] Running in TESTING mode - Database URL preserved", file=sys.stderr)
 
 
 settings = Settings()

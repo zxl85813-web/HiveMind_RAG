@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 from app.main import app
 
