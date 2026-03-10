@@ -32,6 +32,7 @@
 - [AGENT_GOVERNANCE.md](./AGENT_GOVERNANCE.md)
 - [DATA_GOVERNANCE.md](./DATA_GOVERNANCE.md)
 - [DEV_GOVERNANCE.md](./DEV_GOVERNANCE.md)
+- [ACCESS_ROLE_MEMORY_GOVERNANCE.md](./ACCESS_ROLE_MEMORY_GOVERNANCE.md)
 - [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
 - [guides/self_reflective_learning_system.md](./guides/self_reflective_learning_system.md)
 - [guides/collaborative_learning_metrics.md](./guides/collaborative_learning_metrics.md)

@@ -103,5 +103,6 @@ Reflection 的评审维度包括：
 ## 相关文档
 
 - [← 返回 README](../README.md)
+- [🔐 权限-角色-记忆治理](ACCESS_ROLE_MEMORY_GOVERNANCE.md)
 - [🍯 数据治理：知识酿造流程](DATA_GOVERNANCE.md)
 - [🏭 开发治理：生产规范体系](DEV_GOVERNANCE.md)
