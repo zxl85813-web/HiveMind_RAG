@@ -14,12 +14,13 @@
 - 确认你要添加的功能应该放在哪个模块域。
 - 如果是新功能，在你的实现步骤中，必须包含“更新 REGISTRY.md”这一步。
 
-### 2. 契约先行 (Spec-Driven / DevLog)
+### 2. 契约先行 (Spec-Driven / OpenSpec)
 如果用户要求你开发一个涉及 2 个以上文件，或者逻辑较为复杂的功能：
 1. **不准直接咔咔写代码**。
-2. 你必须先在 `docs/changelog/devlog/` 中生成一份 `DEV-[日期]-[简短功能名].md` 的契约规划文件（可参考 /decompose-feature 工作流）。
-3. 明确列出你将**新建**哪些文件，**修改**哪些已有文件。
+2. 优先使用 OpenSpec 变更流程（`proposal.md` / `design.md` / `tasks.md`）进行契约化设计（可参考 `/opsx-propose` 与 `/opsx-apply` 工作流）。
+3. 明确列出你将**新建**哪些文件，**修改**哪些已有文件，以及每个任务的验证标准。
 4. 等用户（或其他开发者）确认后再开始编码。
+5. `docs/changelog/devlog/` 可作为补充记录，但不替代 OpenSpec 主流程。
 
 ### 3. 自传式防护注释 (Autobiographical Comments)
 为了防止你或你的 AI 同行在未来由于上下文丢失而破坏当前的心血，在生成重要代码时：
@@ -49,3 +50,15 @@
 - `.agent/rules/coding-standards.md`
 - `.agent/workflows/` 下的工作流文件。
 你的最高优先级是维护这个系统的整洁度与契约的严谨性。
+
+### 7. 规则优先级 (Conflict Resolution)
+当不同文档出现表述差异时，按以下优先级执行：
+1. Git Hooks + CI + 分支保护（门禁）
+2. `.agent/rules/*`（架构/编码硬约束）
+3. OpenSpec 配置与变更工件（`openspec/config.yaml`、`openspec/changes/*`）
+4. `.agent/workflows/*`（执行 SOP）
+5. 本文件（`.cursorrules`）
+
+### 8. Issue 关联约定
+- 团队协作目标是：提交与 PR 均应关联 Issue（例如 `Resolves #123` 或 `Closes #123`）。
+- 当前本地 `commit-msg` Hook 对 Issue 关联采取“警告不阻断”；但在协作流程中仍应视为强要求执行。

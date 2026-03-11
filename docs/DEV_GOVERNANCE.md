@@ -174,6 +174,7 @@ rg "#[0-9A-Fa-f]{3,8}" frontend/src --glob "!frontend/src/styles/variables.css" 
 | 模块注册表 | `REGISTRY.md` |
 | TODO 看板 | `TODO.md` |
 | 协作与交付手册 | `docs/guides/collaboration_and_delivery_playbook.md` |
+| 统一规则手册 | `docs/guides/unified_development_rulebook.md` |
 
 ---
 
@@ -184,4 +185,5 @@ rg "#[0-9A-Fa-f]{3,8}" frontend/src --glob "!frontend/src/styles/variables.css" 
 - [🍯 数据治理：知识酿造流程](DATA_GOVERNANCE.md)
 - [🧬 共学体系：自省↔互学↔共进](COLLABORATIVE_LEARNING.md)
 - [🎓 学习路径：L0-L4 边做边学地图](LEARNING_PATH.md)
+- [📘 统一规则手册：开发执行单一入口](guides/unified_development_rulebook.md)
 - [贡献指南](../CONTRIBUTING.md)

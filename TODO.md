@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-10
+> 📅 最后更新: 2026-03-11
 
 ---
 
@@ -317,6 +317,114 @@
 - ✅ **安全治理中心 UI** — 提供审计日志查看与 ACL 配置概览
 
 #### 数据脱敏体系 (P1) — REQ-010
+
+### 2.1G 代码知识仓库与 SQL 摘要检索专项 ⬜ (NEW)
+
+> 目标：让 Agent 在开发过程中稳定检索“代码 / 设计文档 / SQL”证据，优先用 SQL 语义摘要召回，再回源 SQL 本体验证。
+
+#### G0 已完成基础能力（本轮）
+
+- ✅ **Hook 对齐（Issue 关联可配置强制）**
+  - `commit-msg` 支持 `hooks.requireIssueRef` 开关（默认严格）
+  - `install-hooks.ps1` 安装时自动设置 `hooks.requireIssueRef=true`
+- ✅ **开发向 RAG 接口骨架**
+  - 新增 `POST /api/v1/agents/swarm/dev-rag/search`
+  - 网关支持 `retrieve_for_development()`：向量检索 + Neo4j 图谱提示（可选）
+- ✅ **Agent 工具接入**
+  - 新增 `search_dev_knowledge` 原生工具，支持 `query/kb_ids/include_graph`
+
+#### G1 文档与代码统一入库（先轻后重）
+
+- ⬜ **统一 Artifact Schema v1**：定义 code/doc/sql 三类最小公共字段（id/path/type/version/updated_at/tags）
+- ⬜ **文档分类器 v1**：仅做分类，不做强结构化（`adr/req/design/runbook/meeting/api_spec/unknown`）
+- ⬜ **代码符号抽取 v1**：抽函数/类/路由/模块依赖，建立可追溯 symbol 索引
+- ⬜ **证据回链规范**：所有回答必须附 `path + line + source_type` 证据锚点
+
+#### G2 SQL 分级处理与摘要优先检索（核心）
+
+- ⬜ **SQL 复杂度分级器**：L1 简单 / L2 中等 / L3 复杂
+- ⬜ **长 SQL 切分器**：按语句边界 + CTE 逻辑段切分（支持父子段落关系）
+- ⬜ **SQL 语义摘要卡 v1（强制用于 L3）**
+  - 字段：`purpose/inputs/outputs/logic/biz_rules/risks/tags`
+  - 绑定 `sql_hash`，SQL 变更后摘要自动失效重建
+- ⬜ **检索主链改造**：优先检索 SQL 摘要卡，命中后回源 SQL 本体验证（禁止仅摘要直接下结论）
+- ⬜ **降级策略**：SQL AST 失败时回退文本索引，流程不中断
+
+#### G3 Neo4j 解构策略（仅对复杂 SQL）
+
+- ⬜ **图谱准入规则**：仅 L3 SQL 进入全图解构，L1/L2 默认不入或轻入
+- ⬜ **SQL 图谱最小模型**
+  - 节点：`SQLStatement/CTE/Table/Column/Predicate`
+  - 关系：`USES_TABLE/JOINS_WITH/DERIVES_FROM/FILTERS_ON/WRITES_TO`
+- ⬜ **影响分析查询模板**：支持“改某表/字段会影响哪些 SQL/API/文档”
+
+#### G4 Agent 路由与质量治理
+
+- ⬜ **查询路由规则**：问业务口径先查定义文档；问实现细节再查 SQL 摘要与代码符号
+- ⬜ **证据完整性校验器**：无本体证据时降级为“待确认”，防止摘要幻觉
+- ⬜ **评估指标落库**：Recall@K、Evidence Precision、Impact Accuracy、Hallucination Rate
+
+#### G5 执行顺序（按依赖）
+
+- ⬜ **P1（本周）**：G1 + G2（摘要卡与检索主链）
+- ⬜ **P2（下周）**：G3（复杂 SQL Neo4j 解构）
+- ⬜ **P3（验收）**：G4（路由治理 + 指标闭环）
+
+#### G6 任务拆解清单（可直接建 Issue）
+
+##### P1（本周）— Schema / 摘要卡 / 检索主链
+
+- ⬜ **TASK-KV-001**：定义 Artifact Schema v1（协作者: zxl85813-web）
+  - 交付物：`artifact_id/type/path/version/updated_at/tags` 字段规范文档
+  - 验收：代码/文档/SQL 三类样例均可通过 schema 校验
+- ⬜ **TASK-KV-002**：实现文档分类器 v1（协作者: Uchihacc）
+  - 交付物：`adr/req/design/runbook/meeting/api_spec/unknown` 分类结果
+  - 验收：抽样 100 篇文档，分类准确率达到内部基线
+- ⬜ **TASK-KV-003**：实现 SQL 复杂度分级器（协作者: zxl85813-web）
+  - 交付物：L1/L2/L3 自动分级 + score 计算
+  - 验收：覆盖简单/中等/复杂 SQL 样例集，分级结果可复现
+- ⬜ **TASK-KV-004**：实现长 SQL 切分器（协作者: Uchihacc）
+  - 交付物：语句边界 + CTE 逻辑段切分，支持父子段落关系
+  - 验收：超长 SQL 不超时，切分后可回拼定位原文
+- ⬜ **TASK-KV-005**：实现 SQL 语义摘要卡 v1（协作者: zxl85813-web）
+  - 交付物：`purpose/inputs/outputs/logic/biz_rules/risks/tags/sql_hash`
+  - 验收：L3 SQL 强制生成摘要；SQL 变更后摘要自动失效重建
+- ⬜ **TASK-KV-006**：改造检索主链为“摘要优先”（协作者: zxl85813-web）
+  - 交付物：摘要召回 -> SQL 本体验证 -> 证据输出
+  - 验收：无本体证据时返回“待确认”，禁止仅摘要直接结论
+- ⬜ **TASK-KV-007**：实现 AST 失败降级链路（协作者: Uchihacc）
+  - 交付物：AST 失败自动回退文本索引 + 警告日志
+  - 验收：异常 SQL 不阻断整体入库流程
+
+##### P2（下周）— 复杂 SQL 图谱解构与影响分析
+
+- ⬜ **TASK-KV-008**：实现 L3 SQL 图谱准入规则（协作者: zxl85813-web）
+  - 交付物：仅 L3 入全图，L1/L2 不入或轻入策略
+  - 验收：准入结果与分级器一致，可追踪审计
+- ⬜ **TASK-KV-009**：实现 SQL 图谱最小模型（协作者: Uchihacc）
+  - 交付物：节点 `SQLStatement/CTE/Table/Column/Predicate`，关系 `USES_TABLE/JOINS_WITH/DERIVES_FROM/FILTERS_ON/WRITES_TO`
+  - 验收：至少 20 条复杂 SQL 成功入图，关键关系可查询
+- ⬜ **TASK-KV-010**：实现影响分析查询模板（协作者: zxl85813-web）
+  - 交付物：表/字段变更 -> 影响 SQL/API/文档 的查询模板
+  - 验收：给定变更对象能稳定输出影响清单
+
+##### P3（验收）— Agent 路由与质量闭环
+
+- ⬜ **TASK-KV-011**：实现查询路由规则（协作者: zxl85813-web）
+  - 交付物：业务口径优先文档、实现细节优先摘要+符号
+  - 验收：路由日志可观测，误路由率低于基线
+- ⬜ **TASK-KV-012**：实现证据完整性校验器（协作者: Uchihacc）
+  - 交付物：证据缺失自动降级 + 可解释提示
+  - 验收：抽检回答无“无证据断言”
+- ⬜ **TASK-KV-013**：评估指标落库与看板（协作者: zxl85813-web）
+  - 交付物：Recall@K / Evidence Precision / Impact Accuracy / Hallucination Rate
+  - 验收：周报中可查看趋势并支持回归对比
+
+##### 里程碑闸门（Go/No-Go）
+
+- ⬜ **GATE-P1**：摘要优先检索主链可用，且“证据回链”已上线
+- ⬜ **GATE-P2**：复杂 SQL 入图稳定，影响分析模板通过抽检
+- ⬜ **GATE-P3**：路由与指标闭环完成，可用于持续优化
 
 > 📄 需求文档: `docs/requirements/REQ-010-data-desensitization.md`
 

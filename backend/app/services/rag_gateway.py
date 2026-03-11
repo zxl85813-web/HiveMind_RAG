@@ -82,6 +82,78 @@ class RAGGateway:
             warnings=warnings,
         )
 
+    async def retrieve_for_development(
+        self,
+        query: str,
+        kb_ids: list[str],
+        top_k: int = 5,
+        strategy: str = "hybrid",
+        include_graph: bool = True,
+    ) -> KnowledgeResponse:
+        """
+        Development-oriented retrieval interface for Agent workflows.
+        Aggregates vector retrieval and optional Neo4j graph hints into one response.
+        """
+        start_time = time.time()
+        warnings: list[str] = []
+        merged_fragments: list[KnowledgeFragment] = []
+
+        if kb_ids:
+            vector_part = await self.retrieve(query=query, kb_ids=kb_ids, top_k=top_k, strategy=strategy)
+            merged_fragments.extend(vector_part.fragments)
+            warnings.extend(vector_part.warnings)
+        else:
+            warnings.append("No kb_ids provided; vector retrieval skipped.")
+
+        if include_graph:
+            try:
+                from app.core.graph_store import get_graph_store
+
+                store = get_graph_store()
+                if store.driver:
+                    cypher = """
+                    MATCH (a)-[r]->(b)
+                    WHERE toLower(coalesce(a.name, a.id, "")) CONTAINS toLower($query)
+                       OR toLower(coalesce(b.name, b.id, "")) CONTAINS toLower($query)
+                       OR toLower(type(r)) CONTAINS toLower($query)
+                    RETURN coalesce(a.name, a.id, "") AS source,
+                           type(r) AS relation,
+                           coalesce(b.name, b.id, "") AS target
+                    LIMIT $limit
+                    """
+                    records = store.query(cypher, {"query": query, "limit": top_k})
+                    for idx, rec in enumerate(records):
+                        source = rec.get("source") or "unknown"
+                        relation = rec.get("relation") or "RELATED"
+                        target = rec.get("target") or "unknown"
+                        merged_fragments.append(
+                            KnowledgeFragment(
+                                content=f"{source} -[{relation}]-> {target}",
+                                metadata={"source": "neo4j", "kind": "graph_hint"},
+                                score=0.75,
+                                kb_id="graph",
+                                source_id=f"graph:{idx}",
+                                chunk_index=0,
+                            )
+                        )
+                else:
+                    warnings.append("Neo4j graph store is not available.")
+            except Exception as e:
+                logger.warning(f"[RAGGateway] Graph retrieval failed: {e}")
+                warnings.append(f"Graph retrieval failed: {e!s}")
+
+        merged_fragments.sort(key=lambda x: x.score, reverse=True)
+        max_items = max(top_k, 1)
+
+        return KnowledgeResponse(
+            query=query,
+            fragments=merged_fragments[:max_items],
+            total_found=len(merged_fragments),
+            processing_time_ms=(time.time() - start_time) * 1000,
+            retrieval_strategy="dev-hybrid",
+            warnings=warnings,
+        )
+
     async def _retrieve_from_single_kb(self, query: str, kb_id: str, top_k: int) -> list[KnowledgeFragment]:
         """Wrap the lower-level retrieval service."""
         # This is a simulation or integration with your existing VectorStore/SearchService

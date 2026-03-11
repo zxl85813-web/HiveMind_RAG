@@ -30,9 +30,16 @@ fi
 # Note: For smaller chores, we might not always have an issue, but it's strongly encouraged.
 ISSUE_PATTERN="(Resolves|Closes|Fixes|Relates) #[0-9]+"
 if ! echo "$COMMIT_MSG" | egrep -i -q "$ISSUE_PATTERN"; then
+    REQUIRE_ISSUE_REF=$(git config --bool --get hooks.requireIssueRef || echo "false")
+    if [ "$REQUIRE_ISSUE_REF" = "true" ]; then
+        echo "❌ 错误: 提交信息必须关联 GitHub Issue (例如 'Resolves #42')."
+        echo "👉 当前仓库配置 hooks.requireIssueRef=true，已启用强制校验。"
+        echo "如需临时关闭，可执行: git config hooks.requireIssueRef false"
+        exit 1
+    fi
+
     echo "⚠️ 警告: 你的提交信息中没有发现关联的 GitHub Issue (例如 'Resolves #42')."
-    echo "👉 强烈建议按照 .agent/rules/team-collaboration-standards.md 规范关联 Issue。"
-    # We do not block the commit, just warn them.
+    echo "👉 建议按 .agent/rules/team-collaboration-standards.md 规范关联 Issue。"
 fi
 
 exit 0

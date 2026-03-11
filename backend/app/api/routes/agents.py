@@ -12,6 +12,7 @@ from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
 from app.models.agents import ReflectionSignalType
+from app.services.rag_gateway import RAGGateway
 
 router = APIRouter()
 
@@ -28,6 +29,14 @@ class CreateBatchJobRequest(BaseModel):
     description: str = ""
     tasks: list[dict]  # Simple list of tasks for demo
     max_concurrency: int = 3
+
+
+class DevRAGSearchRequest(BaseModel):
+    query: str
+    kb_ids: list[str] = []
+    top_k: int = 5
+    strategy: str = "hybrid"
+    include_graph: bool = True
 
 
 # --- Endpoints ---
@@ -166,6 +175,23 @@ async def get_swarm_traces():
         return ApiResponse.ok(data={"nodes": [], "links": []})
     traces = await memory_manager.get_traces()
     return ApiResponse.ok(data=traces)
+
+
+@router.post("/swarm/dev-rag/search")
+async def search_swarm_dev_rag(request: DevRAGSearchRequest):
+    """
+    Development-facing RAG endpoint for agents.
+    Intended for code/doc retrieval workflows backed by vector + graph stores.
+    """
+    gateway = RAGGateway()
+    result = await gateway.retrieve_for_development(
+        query=request.query,
+        kb_ids=request.kb_ids,
+        top_k=request.top_k,
+        strategy=request.strategy,
+        include_graph=request.include_graph,
+    )
+    return ApiResponse.ok(data=result)
 
 
 @router.get("/mcp/status")

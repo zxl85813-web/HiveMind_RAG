@@ -119,6 +119,49 @@ async def search_knowledge_base(query: str, top_k: int = 3) -> str:
 
 
 @tool
+async def search_dev_knowledge(
+    query: str,
+    kb_ids: str = "",
+    top_k: int = 5,
+    include_graph: bool = True,
+    strategy: str = "hybrid",
+) -> str:
+    """
+    Development RAG retrieval for code/docs knowledge.
+    kb_ids should be a comma-separated list, e.g. "kb-code,kb-docs".
+    """
+    try:
+        from app.services.rag_gateway import RAGGateway
+
+        parsed_kb_ids = [item.strip() for item in kb_ids.split(",") if item.strip()]
+        gateway = RAGGateway()
+        result = await gateway.retrieve_for_development(
+            query=query,
+            kb_ids=parsed_kb_ids,
+            top_k=top_k,
+            strategy=strategy,
+            include_graph=include_graph,
+        )
+
+        if not result.fragments:
+            warning_text = " | ".join(result.warnings) if result.warnings else "No evidence returned."
+            return f"No development knowledge found. {warning_text}"
+
+        lines = []
+        for frag in result.fragments:
+            source = frag.metadata.get("source", "vector")
+            lines.append(f"[{source}] score={frag.score:.2f} kb={frag.kb_id} :: {frag.content}")
+
+        if result.warnings:
+            lines.append(f"Warnings: {' | '.join(result.warnings)}")
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error in search_dev_knowledge: {e}")
+        return f"Development retrieval error: {e!s}"
+
+
+@tool
 async def web_search(query: str) -> str:
     """
     Search the internet for real-time information or external documentation.
@@ -217,10 +260,11 @@ async def python_interpreter(code: str) -> str:
             result += f"\nOutput:\n{output}"
         if local_scope:
             # Filter out non-serializable or private variables
+            serializable_types = int | float | str | list | dict | bool | None
             clean_locals = {
                 k: v
                 for k, v in local_scope.items()
-                if not k.startswith("_") and isinstance(v, (int, float, str, list, dict, bool, type(None)))
+                if not k.startswith("_") and isinstance(v, serializable_types)
             }
             if clean_locals:
                 result += f"\nResult Variables: {json.dumps(clean_locals)}"
@@ -249,6 +293,7 @@ NATIVE_TOOLS = [
     add_collective_todo,
     record_reflection,
     search_knowledge_base,
+    search_dev_knowledge,
     web_search,
     think,
     search_available_tools,
