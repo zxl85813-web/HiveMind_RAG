@@ -18,9 +18,11 @@ def mock_session():
     session.execute.return_value = mock_result
     return session
 
+
 @pytest.fixture
 def kb_service(mock_session):
     return KnowledgeService(mock_session)
+
 
 @pytest.mark.asyncio
 async def test_create_kb(kb_service, mock_session):
@@ -35,6 +37,7 @@ async def test_create_kb(kb_service, mock_session):
     mock_session.commit.assert_called()
     mock_session.refresh.assert_called_with(kb)
 
+
 @pytest.mark.asyncio
 async def test_get_kb_success(kb_service, mock_session):
     kb = KnowledgeBase(id="kb_1", name="Test KB", owner_id="user_1", vector_collection="test_coll")
@@ -44,6 +47,7 @@ async def test_get_kb_success(kb_service, mock_session):
     assert result.id == "kb_1"
     mock_session.get.assert_called_with(KnowledgeBase, "kb_1")
 
+
 @pytest.mark.asyncio
 async def test_get_kb_not_found(kb_service, mock_session):
     mock_session.get.return_value = None
@@ -51,11 +55,13 @@ async def test_get_kb_not_found(kb_service, mock_session):
     with pytest.raises(NotFoundError):
         await kb_service.get_kb("non_existent")
 
+
 @pytest.mark.asyncio
 async def test_check_kb_access_admin(kb_service):
     user = User(id="user_admin", role="admin")
     has_access = await kb_service.check_kb_access("kb_1", user)
     assert has_access is True
+
 
 @pytest.mark.asyncio
 async def test_check_kb_access_owner(kb_service, mock_session):
@@ -65,6 +71,7 @@ async def test_check_kb_access_owner(kb_service, mock_session):
 
     has_access = await kb_service.check_kb_access("kb_1", user)
     assert has_access is True
+
 
 @pytest.mark.asyncio
 async def test_link_document_to_kb(kb_service, mock_session):

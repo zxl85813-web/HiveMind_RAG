@@ -117,6 +117,7 @@ class Settings(BaseSettings):
     def __init__(self, **data):
         super().__init__(**data)
         import os
+
         testing = os.environ.get("TESTING") == "1"
 
         # 强制从环境变量重新加载以确保覆盖 (如果不是在测试模式)
@@ -135,6 +136,7 @@ class Settings(BaseSettings):
             print(f"[DB] Database mapped to PostgreSQL: {self.POSTGRES_SERVER}", file=sys.stderr)
         elif testing:
             import sys
+
             print("[DB] Running in TESTING mode - Database URL preserved", file=sys.stderr)
 
 

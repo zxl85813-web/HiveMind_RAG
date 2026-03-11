@@ -14,6 +14,7 @@ from app.models.chat import User
 def mock_user():
     return User(id="user_admin", username="admin", email="admin@example.com", role="admin")
 
+
 @pytest.fixture
 async def client(mock_user):
     # Create tables in the in-memory DB
@@ -36,6 +37,7 @@ async def client(mock_user):
 
     app.dependency_overrides.clear()
 
+
 def test_list_policies(client):
     response = client.get("/api/v1/security/policies")
     assert response.status_code == 200
@@ -43,12 +45,14 @@ def test_list_policies(client):
     assert data["status"] == "ok"
     assert isinstance(data["data"], list)
 
+
 def test_get_detectors(client):
     response = client.get("/api/v1/security/detectors")
     assert response.status_code == 200
     data = response.json()
     assert "available_detectors" in data["data"]
     assert len(data["data"]["available_detectors"]) > 0
+
 
 def test_audit_logs_admin_only(client, mock_user):
     # Test as admin (from fixture)

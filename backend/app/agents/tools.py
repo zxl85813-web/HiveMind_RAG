@@ -262,9 +262,7 @@ async def python_interpreter(code: str) -> str:
             # Filter out non-serializable or private variables
             serializable_types = int | float | str | list | dict | bool | None
             clean_locals = {
-                k: v
-                for k, v in local_scope.items()
-                if not k.startswith("_") and isinstance(v, serializable_types)
+                k: v for k, v in local_scope.items() if not k.startswith("_") and isinstance(v, serializable_types)
             }
             if clean_locals:
                 result += f"\nResult Variables: {json.dumps(clean_locals)}"
