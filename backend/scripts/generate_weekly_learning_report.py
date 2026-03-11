@@ -26,11 +26,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
-import sys
 
 from sqlalchemy import text
 
@@ -142,19 +141,29 @@ def _build_report(
     lines.append("| Metric | Value | Target | Formula | Source | Owner | Status |")
     lines.append("|:---|:---|:---|:---|:---|:---|:---|")
     lines.append(
-        f"| Self-Reflection Activity | {self_reflection_activity:.2f} | >= 3.0 | weekly_reflections / active_agents | auto_db | Reflection Owner | {_status(self_reflection_activity, 3.0)} |"
+        f"| Self-Reflection Activity | {self_reflection_activity:.2f} | >= 3.0"
+        f" | weekly_reflections / active_agents | auto_db | Reflection Owner"
+        f" | {_status(self_reflection_activity, 3.0)} |"
     )
     lines.append(
-        f"| Mutual Learning Coverage | {mutual_learning_coverage:.2%} | >= 60% | reviewed_prs_ge_2 / total_prs | manual | Team Lead | {_status(mutual_learning_coverage, 0.6)} |"
+        f"| Mutual Learning Coverage | {mutual_learning_coverage:.2%} | >= 60%"
+        f" | reviewed_prs_ge_2 / total_prs | manual | Team Lead"
+        f" | {_status(mutual_learning_coverage, 0.6)} |"
     )
     lines.append(
-        f"| Knowledge Crystallization Rate | {knowledge_crystallization_rate} | >= 1 / month | skill_updates + registry_updates | manual | Governance Owner | {'on_track' if knowledge_crystallization_rate >= 1 else 'at_risk'} |"
+        f"| Knowledge Crystallization Rate | {knowledge_crystallization_rate} | >= 1 / month"
+        f" | skill_updates + registry_updates | manual | Governance Owner"
+        f" | {'on_track' if knowledge_crystallization_rate >= 1 else 'at_risk'} |"
     )
     lines.append(
-        f"| Gap Closure Rate | {gap_closure_rate:.2%} | >= 50% | closed_gaps / total_gaps | mixed | Reflection Owner | {_status(gap_closure_rate, 0.5)} |"
+        f"| Gap Closure Rate | {gap_closure_rate:.2%} | >= 50%"
+        f" | closed_gaps / total_gaps | mixed | Reflection Owner"
+        f" | {_status(gap_closure_rate, 0.5)} |"
     )
     lines.append(
-        f"| Flywheel Conversion Rate | {flywheel_conversion_rate:.2%} | trend up | promoted_feedback_items / liked_feedback_items | manual | Team Lead | {'on_track' if flywheel_conversion_rate > 0 else 'at_risk'} |"
+        f"| Flywheel Conversion Rate | {flywheel_conversion_rate:.2%} | trend up"
+        f" | promoted_feedback_items / liked_feedback_items | manual | Team Lead"
+        f" | {'on_track' if flywheel_conversion_rate > 0 else 'at_risk'} |"
     )
     lines.append("")
     lines.append("## Detailed Inputs")

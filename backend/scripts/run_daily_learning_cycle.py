@@ -5,8 +5,8 @@ Usage:
 """
 
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Ensure backend/app import path works when run from repository root.
 BASE_DIR = Path(__file__).resolve().parents[1]

@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from typing import ClassVar
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 

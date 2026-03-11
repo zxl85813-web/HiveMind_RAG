@@ -14,9 +14,9 @@ Storage Backends:
 - TODO List       → PostgreSQL
 """
 
+import re
 from collections.abc import Sequence
 from datetime import datetime
-import re
 from typing import Any
 
 from loguru import logger
@@ -158,7 +158,8 @@ class SharedMemoryManager:
                         "score": 1.0,
                         "strategy": "exact_key",
                         "recommended_action": (
-                            f"{gap.agent_name} 与 {insight.agent_name} 进行 15 分钟 Pair Learning，围绕 {gap.match_key} 输出共享笔记"
+                            f"{gap.agent_name} 与 {insight.agent_name}"
+                            f" 进行 15 分钟 Pair Learning，围绕 {gap.match_key} 输出共享笔记"
                         ),
                     }
                 )

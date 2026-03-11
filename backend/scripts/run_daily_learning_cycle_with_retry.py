@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 if str(BASE_DIR) not in sys.path:
@@ -44,7 +44,7 @@ async def main(retries: int, delay_seconds: int) -> None:
             print(f"[SELF-LEARNING] Report generated: {result.report_path}")
             print(f"[SELF-LEARNING] Suggestions: {len(result.suggestions)}")
             return
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _append_log(f"attempt={attempt} status=error error={exc!s}")
             if attempt >= attempts:
                 raise

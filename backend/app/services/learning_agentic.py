@@ -137,7 +137,7 @@ class ImprovementPrioritizationSkill:
                 )
             )
 
-        if any("Agent 编排与自治" == t for t in tracks):
+        if any(t == "Agent 编排与自治" for t in tracks):
             recs.append(
                 SkillRecommendation(
                     priority="P1",

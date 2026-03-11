@@ -118,7 +118,7 @@ class Settings(BaseSettings):
         super().__init__(**data)
         import os
         testing = os.environ.get("TESTING") == "1"
-        
+
         # 强制从环境变量重新加载以确保覆盖 (如果不是在测试模式)
         if not testing and self.POSTGRES_SERVER and self.POSTGRES_USER and self.POSTGRES_PASSWORD and self.POSTGRES_DB:
             from urllib.parse import quote_plus
