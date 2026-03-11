@@ -42,7 +42,8 @@ def test_list_policies(client):
     response = client.get("/api/v1/security/policies")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
+    assert data["success"] is True
+    assert data["message"] == "OK"
     assert isinstance(data["data"], list)
 
 
