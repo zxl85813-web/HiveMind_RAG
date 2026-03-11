@@ -4,10 +4,6 @@ version = "0.1.0"
 description = "Enterprise RAG platform with Agent Swarm architecture"
 readme = "README.md"
 requires-python = ">=3.11"
-
-[tool.setuptools]
-packages = ["app"]
-
 dependencies = [
     # === Web Framework ===
     "fastapi>=0.115.0",
@@ -58,6 +54,9 @@ dependencies = [
     "httpx>=0.28.0",
     "aiofiles>=24.1.0",
 ]
+
+[tool.setuptools]
+packages = ["app"]
 
 [project.optional-dependencies]
 dev = [
