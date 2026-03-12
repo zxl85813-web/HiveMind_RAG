@@ -109,9 +109,7 @@ async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user
 
         service = KnowledgeService(session)
         if not await service.check_kb_access(kb_id, current_user, level="read"):
-            raise ForbiddenError(
-                message="Not authorized to search this knowledge base", deny_reason="kb_acl_denied"
-            )
+            raise ForbiddenError(message="Not authorized to search this knowledge base", deny_reason="kb_acl_denied")
 
     gateway = RAGGateway()
 
@@ -300,9 +298,7 @@ async def link_document(
     # Check ownership
     await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
-        raise ForbiddenError(
-            message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied"
-        )
+        raise ForbiddenError(message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied")
 
     link = await service.link_document_to_kb(kb_id, doc_id)
 
@@ -333,9 +329,7 @@ async def list_documents_in_kb(
     return ApiResponse.ok(data=docs)
 
 
-@router.delete(
-    "/{kb_id}/documents/{doc_id}", dependencies=[Depends(require_permission(Permission.KB_UPLOAD))]
-)
+@router.delete("/{kb_id}/documents/{doc_id}", dependencies=[Depends(require_permission(Permission.KB_UPLOAD))])
 async def unlink_document(
     kb_id: str,
     doc_id: str,
@@ -347,9 +341,7 @@ async def unlink_document(
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
-        raise ForbiddenError(
-            message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied"
-        )
+        raise ForbiddenError(message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied")
 
     await service.unlink_document(kb_id, doc_id)
 
@@ -416,9 +408,7 @@ async def get_knowledge_graph(
     return ApiResponse.ok(data={"nodes": nodes, "links": links})
 
 
-@router.get(
-    "/documents/{doc_id}/preview", dependencies=[Depends(require_permission(Permission.KB_VIEW))]
-)
+@router.get("/documents/{doc_id}/preview", dependencies=[Depends(require_permission(Permission.KB_VIEW))])
 async def get_document_preview(
     doc_id: str,
     db: AsyncSession = Depends(get_db),

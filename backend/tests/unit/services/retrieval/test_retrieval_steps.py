@@ -99,8 +99,10 @@ async def test_acl_filter_step_default_deny(mock_retrieval_context):
     mock_doc.metadata = {"document_id": "doc_1"}
     mock_retrieval_context.candidates = [mock_doc]
 
-    with patch("app.services.retrieval.steps.async_session_factory") as mock_db, \
-         patch("app.auth.permissions.has_document_permission") as mock_has_perm:
+    with (
+        patch("app.services.retrieval.steps.async_session_factory") as mock_db,
+        patch("app.auth.permissions.has_document_permission") as mock_has_perm,
+    ):
 
         mock_session_instance = AsyncMock()
         mock_db.return_value.__aenter__.return_value = mock_session_instance

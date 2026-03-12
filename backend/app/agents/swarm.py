@@ -578,6 +578,7 @@ class SwarmOrchestrator:
             user_id = state.get("user_id")
             if user_id:
                 from app.services.memory.memory_service import MemoryService
+
                 mem_svc = MemoryService(user_id=user_id)
                 # If we have role info in auth_context, use it
                 role_id = state["auth_context"].role if state.get("auth_context") else None

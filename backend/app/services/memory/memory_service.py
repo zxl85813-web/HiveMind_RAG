@@ -34,26 +34,31 @@ from pydantic import BaseModel, Field
 
 # --- Memory Schemas (ARM-P1) ---
 
+
 class RoleMemory(BaseModel):
     """
     群体层记忆 (ARM-P1-1).
     存储域内术语、风险偏好、固定模板等。
     """
+
     role_id: str
     terms: dict[str, str] = Field(default_factory=dict)
     risk_bias: list[str] = Field(default_factory=list)
     output_templates: dict[str, str] = Field(default_factory=dict)
+
 
 class PersonalMemory(BaseModel):
     """
     个人层记忆 (ARM-P1-2).
     存储个性化偏好、历史上下文概括、常用资源权重。
     """
+
     user_id: str
     language: str = "zh"
     style_preference: str = "professional"
     project_contexts: list[str] = Field(default_factory=list)
     favorite_kb_ids: list[str] = Field(default_factory=list)
+
 
 DATA_DIR = Path("data/memories")
 
@@ -92,6 +97,7 @@ class MemoryService:
         if path.exists():
             try:
                 import json
+
                 with open(path, encoding="utf-8") as f:
                     return RoleMemory(**json.load(f))
             except Exception as e:
@@ -104,6 +110,7 @@ class MemoryService:
         if path.exists():
             try:
                 import json
+
                 with open(path, encoding="utf-8") as f:
                     return PersonalMemory(**json.load(f))
             except Exception as e:
