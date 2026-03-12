@@ -186,9 +186,43 @@ class GraphRetrievalStep(BaseRetrievalStep):
         if not store.driver:
             return
 
-        # 1. Extract entities from the query to know what to lookup in the graph
-        # For MVP, we can just do a very simple entity extraction or rely on existing entities.
-        # Here we extract entities directly using GraphExtractor
+        # 1. Evaluate Semantic Route to determine whether graph lookup is needed
+        try:
+            from app.core.algorithms.routing import semantic_router, Route
+            
+            graph_route = Route(
+                name="graph",
+                utterances=[
+                    "Who is connected to whom?",
+                    "What is the relationship between X and Y?",
+                    "Show me all the people involved in the project.",
+                    "Explain the structure of the organization.",
+                    "What events occurred with this person?"
+                ]
+            )
+            
+            vector_route = Route(
+                name="vector",
+                utterances=[
+                    "What is the content of the policy?",
+                    "Summarize the document.",
+                    "How do I install the software?",
+                    "Explain the concept of this term.",
+                    "Give me the facts from the report."
+                ]
+            )
+            
+            decision = await semantic_router.route(ctx.query, [graph_route, vector_route], threshold=0.1)
+            ctx.log("GraphRetrieval", f"Semantic Router decision: {decision.target_node} ({decision.confidence:.2f})")
+            
+            if decision.target_node != "graph":
+                ctx.log("GraphRetrieval", "Skipped graph traversal due to low semantic match.")
+                return
+        except Exception as e:
+            ctx.log("GraphRetrieval", f"Warning: semantic routing failed, proceeding to extraction: {e}")
+
+        # 2. Extract entities from the query to know what to lookup in the graph
+        # For MVP, we extract entities directly using GraphExtractor
         try:
             from app.services.knowledge.graph_extractor import GraphExtractor
 
@@ -200,14 +234,15 @@ class GraphRetrievalStep(BaseRetrievalStep):
                 return
 
             graph_facts = []
-            # 2. Lookup related edges in the graph for each KB
+            # 3. Lookup related edges in the graph for each KB
             for kb_id in ctx.kb_ids:
                 for entity in entity_names:
                     # Basic neighborhood query
                     cypher = """
-                    MATCH (n {id: $entity, kb_id: $kb_id})-[r]-(m)
-                    RETURN n.id AS source, type(r) AS rel, m.id AS target, r.description AS desc
-                    LIMIT 5
+                    MATCH (n {kb_id: $kb_id})-[r]-(m) 
+                    WHERE n.id CONTAINS $entity OR n.name CONTAINS $entity
+                    RETURN n.id AS source, type(r) AS rel, m.id AS target, getattr(r, 'description', '') AS desc
+                    LIMIT 20
                     """
                     results = store.query(cypher, {"entity": entity, "kb_id": kb_id})
                     for row in results:
