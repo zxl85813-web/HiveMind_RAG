@@ -310,7 +310,7 @@ Memory decides how to do it better.
 
 验证：
 
-- [ ] `backend/tests/integration/test_security_api.py` 断言响应/日志包含原因码。
+- [x] `backend/tests/integration/test_security_api.py` 断言响应/日志包含原因码。
 
 #### ARM-P0-4 授权作用域只读上下文
 
