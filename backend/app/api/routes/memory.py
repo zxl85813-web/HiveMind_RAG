@@ -1,8 +1,50 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.api.deps import get_current_user
+from app.auth.permissions import Permission, require_permission
 from app.core.graph_store import get_graph_store
+from app.models.chat import User
+from app.services.memory.memory_service import MemoryService, PersonalMemory, RoleMemory
 
 router = APIRouter()
+
+
+@router.get("/roles/{role_id}", dependencies=[Depends(require_permission(Permission.AGENT_VIEW))])
+async def get_role_memory(role_id: str):
+    """获取角色的群体记忆 (ARM-P1-1)."""
+    # Use any valid user ID to initialize MemoryService just to load role memory
+    mem_svc = MemoryService(user_id="system")
+    # Using internal method directly or we can make it public
+    # In earlier edits we didn't add the public get_role_memory, we'll access via _load_role_memory
+    # or just use the _load_role_memory directly.
+    return mem_svc._load_role_memory(role_id)
+
+
+@router.put("/roles/{role_id}", dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))])
+async def update_role_memory(role_id: str, memory: RoleMemory):
+    """更新角色的群体记忆 (ARM-P1-1)."""
+    if memory.role_id != role_id:
+        memory.role_id = role_id
+    mem_svc = MemoryService(user_id="system")
+    mem_svc.save_role_memory(memory)
+    return {"status": "success", "memory": memory}
+
+
+@router.get("/personal")
+async def get_personal_memory(current_user: User = Depends(get_current_user)):
+    """获取当前用户的个人记忆 (ARM-P1-2)."""
+    mem_svc = MemoryService(user_id=str(current_user.id))
+    return mem_svc._load_personal_memory()
+
+
+@router.put("/personal")
+async def update_personal_memory(memory: PersonalMemory, current_user: User = Depends(get_current_user)):
+    """更新当前用户的个人记忆 (ARM-P1-2)."""
+    if memory.user_id != str(current_user.id):
+        memory.user_id = str(current_user.id)
+    mem_svc = MemoryService(user_id=str(current_user.id))
+    mem_svc.save_personal_memory(memory)
+    return {"status": "success", "memory": memory}
 
 
 @router.get("/graph")

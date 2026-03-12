@@ -104,6 +104,19 @@ class MemoryService:
                 logger.error(f"Failed to load role memory for {role_id}: {e}")
         return RoleMemory(role_id=role_id)
 
+    def save_role_memory(self, memory: RoleMemory) -> None:
+        """Save role-specific shared memory (ARM-P1-1)."""
+        role_dir = DATA_DIR / "roles"
+        role_dir.mkdir(parents=True, exist_ok=True)
+        path = role_dir / f"{memory.role_id}.json"
+        try:
+            import json
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(memory.model_dump(), f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved role memory for {memory.role_id}")
+        except Exception as e:
+            logger.error(f"Failed to save role memory for {memory.role_id}: {e}")
+
     def _load_personal_memory(self) -> PersonalMemory:
         """Load user-specific personal memory (ARM-P1-2)."""
         path = self.user_dir / "personal_memory.json"
@@ -116,6 +129,17 @@ class MemoryService:
             except Exception as e:
                 logger.error(f"Failed to load personal memory for {self.user_id}: {e}")
         return PersonalMemory(user_id=self.user_id)
+
+    def save_personal_memory(self, memory: PersonalMemory) -> None:
+        """Save user-specific personal memory (ARM-P1-2)."""
+        path = self.user_dir / "personal_memory.json"
+        try:
+            import json
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(memory.model_dump(), f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved personal memory for {self.user_id}")
+        except Exception as e:
+            logger.error(f"Failed to save personal memory for {self.user_id}: {e}")
 
     def _track_task(self, coro: Coroutine[Any, Any, Any]) -> None:
         task = asyncio.create_task(coro)

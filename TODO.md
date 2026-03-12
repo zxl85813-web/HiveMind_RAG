@@ -451,14 +451,13 @@
 - ✅ **脱敏处理管道** — 基本框架已在 `Ingestion Action` 和 `chat_stream` (Outbound Filter) 实现
 - ⬜ **安全仪表盘** — 敏感数据占比 / 趋势 / 排行
 
-#### 上下文压缩 (P2)
-- ⬜ **抽取式压缩** — 从检索块中提取与 Query 最相关的句子
-- ⬜ **Lost in the Middle 优化** — 重排文档顺序，相关内容放首尾
-
-#### 性能与缓存 (P2)
-- ⬜ **语义缓存** — 相似问题返回缓存答案 (延迟 50ms vs 3000ms)
-- ⬜ **Embedding 缓存** — 避免重复计算
-- ⬜ **Token 用量追踪** — `TokenUsage` 模型，费率计算
+#### 上下文压缩与 Token 管理 (P2)
+> 📄 设计文档: `docs/architecture/memory_compression_design.md`
+- ⬜ **语义 Token 服务** — `TokenService` 集成 `tiktoken` 统一计量
+- ⬜ **抽取式压缩** — 从检索块中提取与 Query 最相关的句子，拦截长尾
+- ⬜ **对话短期记忆流压缩** — 会话超出 Token 阈值时自动生成摘要对象(`SummaryMessage`)替换长历史
+- ⬜ **Lost in the Middle 优化** — 重排文档顺序，相关内容放首尾 (已在 RerankingStep 完成基础版本)
+- ⬜ **长期记忆衰减** — 建立记忆热度（Temperature）时间惩罚与清除冷数据机制
 
 #### 文档生命周期 (P2)
 - ⬜ **增量更新** — 文档修改时仅重索引变更 Chunk
