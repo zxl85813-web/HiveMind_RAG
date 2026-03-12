@@ -34,8 +34,8 @@ class KnowledgeOverlapEngine:
         Performs closed-book testing to see if LLM already knows the content.
         """
         router = LLMRouter()
-        fast_model = router.get_model(ModelTier.FAST)
-        balanced_model = router.get_model(ModelTier.BALANCED)
+        fast_model = router.get_model(ModelTier.SIMPLE)
+        balanced_model = router.get_model(ModelTier.MEDIUM)
 
         # 1. Generate Probes (Questions + Facts)
         # We need specific facts that can be tested.

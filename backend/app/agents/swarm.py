@@ -238,7 +238,7 @@ class SwarmOrchestrator:
         try:
             tier = ModelTier(hint.lower())
         except ValueError:
-            tier = ModelTier.BALANCED
+            tier = ModelTier.MEDIUM
 
         return self.router.get_model(tier)
 
@@ -451,7 +451,7 @@ class SwarmOrchestrator:
             retrieval_task = asyncio.create_task(self._do_retrieval_work(state))
 
         # Setup LLM and Prompt
-        llm = self.router.get_model(ModelTier.FAST)
+        llm = self.router.get_model(ModelTier.SIMPLE)
         final_prompt = [SystemMessage(content=system_prompt), *messages]
 
         # Parallel: Router LLM + Speculative Retrieval (M6.1.1)

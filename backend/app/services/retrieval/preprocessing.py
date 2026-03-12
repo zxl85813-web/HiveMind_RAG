@@ -45,7 +45,7 @@ class QueryPreProcessingStep(BaseRetrievalStep):
                 from app.agents.swarm import SwarmOrchestrator
 
                 swarm = SwarmOrchestrator()
-                llm = swarm.router.get_model(ModelTier.FAST)
+                llm = swarm.router.get_model(ModelTier.SIMPLE)
                 prompt = f"""
                 You are a search query optimization assistant.
                 
@@ -77,7 +77,7 @@ class QueryPreProcessingStep(BaseRetrievalStep):
 
                 swarm = SwarmOrchestrator()
                 # HyDE needs a bit more thinking
-                llm = swarm.router.get_model(ModelTier.STANDARD)
+                llm = swarm.router.get_model(ModelTier.MEDIUM)
 
                 prompt = f"""
                 You are a hypothetical document generator.
@@ -104,7 +104,7 @@ class QueryPreProcessingStep(BaseRetrievalStep):
                 from app.agents.swarm import SwarmOrchestrator
 
                 swarm = SwarmOrchestrator()
-                llm = swarm.router.get_model(ModelTier.FAST)
+                llm = swarm.router.get_model(ModelTier.SIMPLE)
                 prompt = f"""
                 You are a search query decomposition engine.
                 Is the following query complex enough to require being broken down into multiple independent, simpler sub-queries to retrieve all necessary information?

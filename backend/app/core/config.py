@@ -63,10 +63,17 @@ class Settings(BaseSettings):
     MODEL_GLM5: str = "Pro/zai-org/GLM-5"
     MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
+    # === ClawRouter 4-Tier Models (Cost Optimization) ===
+    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Factual lookups, greetings, translations (e.g. Gemini Flash)
+    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Summaries, explanations, data extraction (e.g. DeepSeek Chat)
+    DEFAULT_COMPLEX_MODEL: str = "Pro/zai-org/GLM-5"       # Code generation, multi-step analysis (e.g. Claude Opus)
+    DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"     # Proofs, formal logic, multi-step math (e.g. o3 / o1)
+
     # === Tier Specific Providers (Optional overrides) ===
-    REASONING_PROVIDER: str | None = "moonshot"
-    BALANCED_PROVIDER: str | None = "siliconflow"
-    FAST_PROVIDER: str | None = "siliconflow"
+    SIMPLE_PROVIDER: str | None = "siliconflow"
+    MEDIUM_PROVIDER: str | None = "siliconflow"
+    COMPLEX_PROVIDER: str | None = "siliconflow"
+    REASONING_PROVIDER: str | None = "ark"
 
     # === Knowledge Graph (Neo4j) ===
     NEO4J_URI: str = "bolt://localhost:7687"
