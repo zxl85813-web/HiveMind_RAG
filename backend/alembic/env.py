@@ -12,7 +12,7 @@ from alembic import context
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.models.pipeline_log import PipelineJob, PipelineStageLog  # noqa: F401
+from app.models.observability import AgentSpan, FileTrace, HITLTask, IngestionBatch  # noqa: F401
 
 from app.core.config import settings
 from app.models.agents import ReflectionEntry, TodoItem  # noqa: F401

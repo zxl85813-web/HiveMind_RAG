@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/node-18+-green?logo=node.js&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/FastAPI-latest-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=black" alt="React" />
@@ -122,7 +122,7 @@ graph TD
 
 | 依赖 | 版本 | 备注 |
 |:---|:---|:---|
-| Python | 3.10+ | 后端运行时 |
+| Python | 3.11+ | 后端运行时 |
 | Node.js | 18+ | 前端构建 |
 | PostgreSQL | 14+ | 需启用 pgvector 扩展 |
 | Redis | 6+ | 队列与缓存 |
@@ -133,9 +133,13 @@ graph TD
 ```bash
 # 后端
 cd backend
-pip install -e ".[dev]"  # 推荐（基于 pyproject.toml）
-# 或兼容方式：pip install -r requirements.txt
-python -m scripts.init_db
+# 安装依赖
+pip install -e ".[dev]"
+
+# 数据库迁移 (初始化表结构)
+alembic upgrade head
+
+# 启动服务
 uvicorn app.main:app --reload
 
 # 前端
@@ -147,8 +151,8 @@ npm run dev
 ### 常用命令
 
 ```bash
-python -m backend.scripts.create_superuser <user> <pass>   # 创建管理员
-alembic revision --autogenerate -m "description"            # 数据库迁移
+python -m scripts.create_superuser <user> <pass>        # 创建管理员 (在 backend 目录下)
+alembic revision --autogenerate -m "description"            # 生成迁移脚本
 ./.agent/checks/run_checks.ps1                              # 质量检查
 ```
 

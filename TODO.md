@@ -101,6 +101,13 @@
 - ⬜ 每项任务必须关联：Issue/REQ/DES/OpenSpec 至少一种工件
 - ⬜ 每项任务完成后必须更新：`TODO.md` + `REGISTRY.md`（若涉及接口/模型变更）
 
+### 0.6 🏮 架构治理与路由自愈 (Architectural Critique Work)
+> 目标：解决路由逃逸与语义分裂，落实 `critique_and_governance_backlog.md`
+- ⬜ **GOV-001 (P0)**: 向量与图谱的一致性治理（Truth Alignment 校验器）
+- ⬜ **GOV-002 (P1)**: 路由自愈机制（Routing Watchdog + Tier Escalation）
+- ⬜ **GOV-003 (P1)**: 记忆价值密度采样（Importance-based Retention）
+- ⬜ **GOV-004 (P2)**: 路由缓存 (JIT Route Cache with LRU)
+
 ### 0.4 共学体系专项（按 1 -> 3 -> 2）
 
 > 目标：将“自省查漏补缺”与“团队互相借鉴”真正接到工程流水线上。

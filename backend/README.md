@@ -59,7 +59,7 @@ graph TD
 | **技能 (Skills)** | **`skills/`** | 动态工具箱。存放无状态的、可热插拔的业务逻辑函数。 | `SkillRegistry`, `StandardizedTools` |
 | **记忆 (Memory)** | **`rag/`** | 知识检索与增强。管理向量数据库和语义索引。 | `VectorStore`, `RAGPipeline` |
 | **连接 (Connect)** | **`mcp/`** | 外部世界接口。通过 Model Context Protocol 连接文件系统或外部 API。 | `MCPClient` |
-| **中枢 (Infra)** | `llm/` | 语言模型网关。统一管理 Token、以及安全护栏 (Guardrails)。 | `LLMGateway` |
+| **中枢 (Infra)** | `llm/` | 语言模型网关。统一管理 Token、以及安全护栏 (Guardrails)。 | `LLMRouter` (ClawRouter) |
 
 辅助目录：
 *   `api/`: HTTP 接口定义 (Routes)。
@@ -239,7 +239,7 @@ graph TD
 ## 🚀 快速开始 (Quick Start)
 
 ### 环境要求
-- Python 3.10+
+- Python 3.11+
 - Node.js 18+
 - PostgreSQL 14+ (矢量插件需启用)
 - Redis 6+
@@ -248,11 +248,10 @@ graph TD
 ```bash
 cd backend
 # 安装依赖
-pip install -e ".[dev]"  # 推荐（基于 pyproject.toml）
-# 或兼容方式：pip install -r requirements.txt
+pip install -e ".[dev]"
 
-# 初始化数据库
-python -m scripts.init_db
+# 数据库迁移 (初始化表结构)
+alembic upgrade head
 
 # 启动服务
 uvicorn app.main:app --reload
@@ -270,8 +269,8 @@ npm run dev
 
 ### 3. 运维命令
 ```bash
-# 创建超级管理员
-python -m backend.scripts.create_superuser <user> <pass>
+# 创建超级管理员 (在 backend 目录下运行)
+python -m scripts.create_superuser <user> <pass>
 
 # 运行代码规范检查
 ./.agent/checks/run_checks.ps1
