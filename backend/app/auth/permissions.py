@@ -10,7 +10,6 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 """
 
 from enum import StrEnum
-from typing import Optional
 
 from fastapi import Depends
 from pydantic import BaseModel

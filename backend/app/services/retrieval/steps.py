@@ -1,9 +1,6 @@
-# ruff: noqa: E501
-
 import abc
-from loguru import logger
 
-from sqlalchemy import select
+from loguru import logger
 
 from app.core.database import async_session_factory
 from app.core.reranker import get_reranker
@@ -41,9 +38,13 @@ class QueryPreProcessingStep(BaseRetrievalStep):
 Analyze the user's query: "{ctx.query}"
 
 Return a JSON object with the following fields:
-1. "intent": String. Identify the primary intent. Must be one of: "fact" (factual retrieval), "comparison" (comparing multiple entities), "summary" (summarizing an entire topic), or "action" (instructional or procedural).
+1. "intent": String. Identify the primary intent. Must be one of: "fact" (factual retrieval),
+   "comparison" (comparing multiple entities), "summary" (summarizing an entire topic),
+   or "action" (instructional or procedural).
 2. "rewritten_query": String. Rewrite the original query to be more specific, objective, and clear for vector search.
-3. "hyde_document": String. A hypothetical short answer to the query, 1-2 positive sentences, used to improve vector retrieval (HyDE technique). Keep it concise.
+3. "hyde_document": String. A hypothetical short answer to the query,
+   1-2 positive sentences, used to improve vector retrieval (HyDE technique).
+   Keep it concise.
 4. "keywords": List of strings. Key entities, topics, or exact terms.
 
 Respond ONLY with valid JSON. Do not include markdown formatting.
@@ -72,7 +73,8 @@ Respond ONLY with valid JSON. Do not include markdown formatting.
 
             ctx.log(
                 "QueryProc",
-                f"Intent: {ctx.query_intent}, Expanded: {len(ctx.expanded_queries)} variations. Keywords: {ctx.keywords}",
+                f"Intent: {ctx.query_intent}, Expanded: {len(ctx.expanded_queries)} "
+                f"variations. Keywords: {ctx.keywords}",
             )
         except Exception as e:
             ctx.log("QueryProc", f"Query analysis failed: {e}. Fallback to basic term.")
@@ -178,7 +180,8 @@ class ParentChunkExpansionStep(BaseRetrievalStep):
                         doc.page_content = parent.content
                         ctx.log(
                             "ParentExpansion",
-                            f"Expanded chunk '{doc.metadata.get('chunk_id')}' from {original_length} to {len(parent.content)} chars.",
+                            f"Expanded chunk '{doc.metadata.get('chunk_id')}' "
+                            f"from {original_length} to {len(parent.content)} chars.",
                         )
                         # Clear parent_chunk_id so we don't expand again
                         doc.metadata["expanded_from_parent"] = True
@@ -288,14 +291,17 @@ class AclFilterStep(BaseRetrievalStep):
                     allowed_candidates.append(doc)
                 else:
                     # Audit Logging (ARM-P0-3)
-                    logger.warning(f"🔒 [Audit] Access DENIED | User: {ctx.user_id} | Doc: {doc_id} | Reason: doc_acl_denied")
+                    logger.warning(
+                        f"🔒 [Audit] Access DENIED | User: {ctx.user_id} | Doc: {doc_id} | Reason: doc_acl_denied"
+                    )
                     ctx.log("ACL", f"Document {doc_id} filtered out (Reason: doc_acl_denied)")
                     rejected += 1
 
         ctx.candidates = allowed_candidates
         ctx.log(
             "ACL",
-            f"Filtered out {rejected} documents for user {user.username} (Role: {user.role}, Dept: {user.department_id})",
+            f"Filtered out {rejected} documents for user {user.username} "
+            f"(Role: {user.role}, Dept: {user.department_id})",
         )
 
 

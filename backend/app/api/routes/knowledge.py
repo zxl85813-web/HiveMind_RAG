@@ -29,7 +29,11 @@ from app.services.rag_gateway import RAGGateway
 router = APIRouter()
 
 
-@router.post("", response_model=ApiResponse[KnowledgeBase], dependencies=[Depends(require_permission(Permission.KB_CREATE))])
+@router.post(
+    "",
+    response_model=ApiResponse[KnowledgeBase],
+    dependencies=[Depends(require_permission(Permission.KB_CREATE))],
+)
 async def create_knowledge_base(
     kb_in: KnowledgeBaseCreate,
     db: AsyncSession = Depends(get_db),
@@ -55,7 +59,11 @@ async def create_knowledge_base(
     return ApiResponse.ok(data=kb)
 
 
-@router.get("", response_model=ApiResponse[Sequence[KnowledgeBase]], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
+@router.get(
+    "",
+    response_model=ApiResponse[Sequence[KnowledgeBase]],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
 async def list_knowledge_bases(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -114,7 +122,11 @@ async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user
     return ApiResponse.ok(data=knowledge_res)
 
 
-@router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
+@router.get(
+    "/{kb_id}/health",
+    response_model=ApiResponse[KBStatus],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
 async def get_kb_health(kb_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get the health status and circuit breaker state of a KB."""
     gateway = RAGGateway()
@@ -126,7 +138,11 @@ async def get_kb_health(kb_id: str, db: AsyncSession = Depends(get_db), current_
     )
 
 
-@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
+@router.get(
+    "/{kb_id}",
+    response_model=ApiResponse[KnowledgeBase],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
 async def get_knowledge_base(
     kb_id: str,
     db: AsyncSession = Depends(get_db),

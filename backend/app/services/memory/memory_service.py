@@ -92,7 +92,7 @@ class MemoryService:
         if path.exists():
             try:
                 import json
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     return RoleMemory(**json.load(f))
             except Exception as e:
                 logger.error(f"Failed to load role memory for {role_id}: {e}")
@@ -104,7 +104,7 @@ class MemoryService:
         if path.exists():
             try:
                 import json
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     return PersonalMemory(**json.load(f))
             except Exception as e:
                 logger.error(f"Failed to load personal memory for {self.user_id}: {e}")
