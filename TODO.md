@@ -715,13 +715,19 @@
 | D-004 | Prompt Registry 集中管理 Prompt | 2026-02-15 | ✅ 已实现 (在 app/prompts 下) |
 | D-005 | 前端 Mock ↔ 真实 API 一键切换 | 2026-02-15 | ✅ MSW + run_mock.bat |
 
-### 5.2 待讨论事项
+### 5.2 待讨论事项与新架构设想
 
 - ⬜ **Agent 通信协议** — Agent 之间用什么格式传递消息？JSON Schema？Protobuf？
 - ⬜ **多租户设计** — 是否需要支持多用户隔离？
 - ⬜ **Skill 沙箱执行** — 如何安全执行用户自定义 Skill？
 - ⬜ **MCP Server 热插拔** — 如何无需重启就加载新的 MCP Server？
 - ⬜ **LLM Fallback 链** — 主模型挂了之后的降级策略
+
+### 5.3 核心算法库重构 (Core Algorithms Abstraction)
+> 📄 设计文档: `docs/architecture/core_routing_classification_design.md`
+- ⬜ **统一的分类引擎 (Classification Engine)** — 抽取 `QueryPreProcessingStep` 等处的 prompt 为统一的服务接口，支持级联降级 (规则 -> 向量 -> LLM)。
+- ⬜ **统一的分词切分 (Tokenization & Chunking)** — 将入库的 `RecursiveCharacterTextSplitter` 和内存裁剪逻辑合二为一。
+- ⬜ **动态智能路由 (Routing Algorithms)** — Swarm Supervisor、知识库选择、Agent Fallback 共享一致的决策结构。
 
 ---
 
