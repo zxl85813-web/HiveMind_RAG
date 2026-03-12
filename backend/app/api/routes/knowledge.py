@@ -13,8 +13,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.auth.permissions import Permission, require_permission
 from app.common.response import ApiResponse
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.vector_store import get_vector_store
 from app.models.chat import User
 from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
@@ -28,7 +29,7 @@ from app.services.rag_gateway import RAGGateway
 router = APIRouter()
 
 
-@router.post("", response_model=ApiResponse[KnowledgeBase])
+@router.post("", response_model=ApiResponse[KnowledgeBase], dependencies=[Depends(require_permission(Permission.KB_CREATE))])
 async def create_knowledge_base(
     kb_in: KnowledgeBaseCreate,
     db: AsyncSession = Depends(get_db),
@@ -54,7 +55,7 @@ async def create_knowledge_base(
     return ApiResponse.ok(data=kb)
 
 
-@router.get("", response_model=ApiResponse[Sequence[KnowledgeBase]])
+@router.get("", response_model=ApiResponse[Sequence[KnowledgeBase]], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
 async def list_knowledge_bases(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -81,7 +82,11 @@ class SearchResponse(BaseModel):
     context_log: list[str]
 
 
-@router.post("/{kb_id}/search", response_model=ApiResponse[SearchResponse])
+@router.post(
+    "/{kb_id}/search",
+    response_model=ApiResponse[SearchResponse],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
 async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user: User = Depends(get_current_user)):
     """
     Search a specific knowledge base using the Retrieval Pipeline.
@@ -96,7 +101,9 @@ async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user
 
         service = KnowledgeService(session)
         if not await service.check_kb_access(kb_id, current_user, level="read"):
-            raise HTTPException(status_code=403, detail="Not authorized to search this knowledge base")
+            raise ForbiddenError(
+                message="Not authorized to search this knowledge base", deny_reason="kb_acl_denied"
+            )
 
     gateway = RAGGateway()
 
@@ -107,7 +114,7 @@ async def search_knowledge_base(kb_id: str, request: SearchRequest, current_user
     return ApiResponse.ok(data=knowledge_res)
 
 
-@router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus])
+@router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
 async def get_kb_health(kb_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get the health status and circuit breaker state of a KB."""
     gateway = RAGGateway()
@@ -119,7 +126,7 @@ async def get_kb_health(kb_id: str, db: AsyncSession = Depends(get_db), current_
     )
 
 
-@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase])
+@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase], dependencies=[Depends(require_permission(Permission.KB_VIEW))])
 async def get_knowledge_base(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
@@ -129,11 +136,15 @@ async def get_knowledge_base(
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="read"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise ForbiddenError(message="Not authorized to view this knowledge base", deny_reason="kb_acl_denied")
     return ApiResponse.ok(data=kb)
 
 
-@router.get("/{kb_id}/permissions", response_model=ApiResponse[Sequence[KnowledgeBasePermission]])
+@router.get(
+    "/{kb_id}/permissions",
+    response_model=ApiResponse[Sequence[KnowledgeBasePermission]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+)
 async def get_knowledge_base_permissions(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
@@ -151,7 +162,11 @@ async def get_knowledge_base_permissions(
     return ApiResponse.ok(data=res.scalars().all())
 
 
-@router.post("/{kb_id}/permissions", response_model=ApiResponse[KnowledgeBasePermission])
+@router.post(
+    "/{kb_id}/permissions",
+    response_model=ApiResponse[KnowledgeBasePermission],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+)
 async def add_knowledge_base_permission(
     kb_id: str,
     perm_in: KBPermissionInput,
@@ -165,7 +180,7 @@ async def add_knowledge_base_permission(
 
     # Either user, role or department must be specified
     if not perm_in.user_id and not perm_in.role_id and not perm_in.department_id:
-        raise HTTPException(status_code=400, detail="Must specify user_id, role_id, or department_id")
+        raise ForbiddenError(message="Must specify user_id, role_id, or department_id", deny_reason="validation_error")
 
     perm = KnowledgeBasePermission(
         kb_id=kb_id,
@@ -196,19 +211,23 @@ async def delete_knowledge_base_permission(
 
     perm = await db.get(KnowledgeBasePermission, perm_id)
     if not perm or perm.kb_id != kb_id:
-        raise HTTPException(status_code=404, detail="Permission not found")
+        raise NotFoundError(resource="Permission", resource_id=perm_id)
 
     # Prevent owner from removing themselves
     kb = await db.get(KnowledgeBase, kb_id)
     if perm.user_id == kb.owner_id:
-        raise HTTPException(status_code=400, detail="Cannot remove owner's permission")
+        raise ForbiddenError(message="Cannot remove owner's permission", deny_reason="rbac_denied")
 
     await db.delete(perm)
     await db.commit()
     return ApiResponse.ok(data={"status": "success", "message": "Permission removed"})
 
 
-@router.post("/documents", response_model=ApiResponse[DocumentResponse])
+@router.post(
+    "/documents",
+    response_model=ApiResponse[DocumentResponse],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
 async def upload_document_global(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
@@ -248,7 +267,11 @@ async def upload_document_global(
     return ApiResponse.ok(data=doc)
 
 
-@router.post("/{kb_id}/documents/{doc_id}", response_model=ApiResponse[KnowledgeBaseDocumentLink])
+@router.post(
+    "/{kb_id}/documents/{doc_id}",
+    response_model=ApiResponse[KnowledgeBaseDocumentLink],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
 async def link_document(
     kb_id: str,
     doc_id: str,
@@ -261,7 +284,9 @@ async def link_document(
     # Check ownership
     await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
-        raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
+        raise ForbiddenError(
+            message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied"
+        )
 
     link = await service.link_document_to_kb(kb_id, doc_id)
 
@@ -271,7 +296,11 @@ async def link_document(
     return ApiResponse.ok(data=link)
 
 
-@router.get("/{kb_id}/documents", response_model=ApiResponse[Sequence[Document]])
+@router.get(
+    "/{kb_id}/documents",
+    response_model=ApiResponse[Sequence[Document]],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
 async def list_documents_in_kb(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
@@ -282,13 +311,15 @@ async def list_documents_in_kb(
     await service.get_kb(kb_id)
     # Access control
     if not await service.check_kb_access(kb_id, current_user, level="read"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise ForbiddenError(message="Not authorized to view documents in this KB", deny_reason="kb_acl_denied")
 
     docs = await service.list_documents_in_kb(kb_id)
     return ApiResponse.ok(data=docs)
 
 
-@router.delete("/{kb_id}/documents/{doc_id}")
+@router.delete(
+    "/{kb_id}/documents/{doc_id}", dependencies=[Depends(require_permission(Permission.KB_UPLOAD))]
+)
 async def unlink_document(
     kb_id: str,
     doc_id: str,
@@ -300,7 +331,9 @@ async def unlink_document(
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
-        raise HTTPException(status_code=403, detail="Not authorized to modify this knowledge base")
+        raise ForbiddenError(
+            message="Not authorized to modify this knowledge base", deny_reason="kb_acl_denied"
+        )
 
     await service.unlink_document(kb_id, doc_id)
 
@@ -316,7 +349,7 @@ async def unlink_document(
     return ApiResponse.ok(data={"status": "success", "message": "Document unlinked"})
 
 
-@router.get("/{kb_id}/graph")
+@router.get("/{kb_id}/graph", dependencies=[Depends(require_permission(Permission.KB_VIEW))])
 async def get_knowledge_graph(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
@@ -328,7 +361,7 @@ async def get_knowledge_graph(
     service = KnowledgeService(db)
     await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="read"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise ForbiddenError(message="Not authorized to view graph for this KB", deny_reason="kb_acl_denied")
 
     store = get_graph_store()
     if not store.driver:
@@ -367,7 +400,9 @@ async def get_knowledge_graph(
     return ApiResponse.ok(data={"nodes": nodes, "links": links})
 
 
-@router.get("/documents/{doc_id}/preview")
+@router.get(
+    "/documents/{doc_id}/preview", dependencies=[Depends(require_permission(Permission.KB_VIEW))]
+)
 async def get_document_preview(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
@@ -376,7 +411,12 @@ async def get_document_preview(
     """Get the parsed text content of a document for preview."""
     from sqlmodel import desc, select
 
+    from app.auth.permissions import has_document_permission
     from app.models.observability import FileTrace
+
+    # 0. Check document access (ARM-P0-1)
+    if not await has_document_permission(db, current_user, doc_id, required_level="read"):
+        raise ForbiddenError(message="Not authorized to preview this document", deny_reason="doc_acl_denied")
 
     # 1. Get latest trace for this doc_id
     stmt = select(FileTrace).where(FileTrace.doc_id == doc_id).order_by(desc(FileTrace.created_at))
@@ -384,7 +424,7 @@ async def get_document_preview(
     trace = res.scalars().first()
 
     if not trace:
-        raise HTTPException(status_code=404, detail="No indexing trace found for this document in V3 Swarm")
+        raise NotFoundError(resource="FileTrace", resource_id=doc_id)
 
     # 2. Extract preview text from result_data
     result = trace.result_data or {}

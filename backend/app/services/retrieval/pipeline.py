@@ -2,6 +2,7 @@
 Retrieval Pipeline — Orchestrator for RAG Retrieval.
 """
 
+from app.auth.permissions import AuthorizationContext
 from app.core.vector_store import SearchType, VectorDocument
 
 from .preprocessing import QueryPreProcessingStep
@@ -77,6 +78,7 @@ class RetrievalPipeline:
         search_type: str = SearchType.HYBRID,
         user_id: str | None = None,
         is_admin: bool = False,
+        auth_context: AuthorizationContext | None = None,
         variant: str = "default",
     ) -> list[VectorDocument]:
         """
@@ -90,6 +92,7 @@ class RetrievalPipeline:
             search_type=search_type,
             user_id=user_id,
             is_admin=is_admin,
+            auth_context=auth_context,
         )
 
         steps = self._resolve_steps(variant)

@@ -10,8 +10,10 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 """
 
 from enum import StrEnum
+from typing import Optional
 
 from fastapi import Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -27,6 +29,22 @@ class Role(StrEnum):
     ADMIN = "admin"
     USER = "user"
     READONLY = "readonly"
+
+
+class AuthorizationContext(BaseModel):
+    """
+    统一授权结果上下文 (ARM-P0-4)。
+    供后续 Prompt 层消费，确保记忆增强不越权。
+    """
+
+    user_id: str
+    role: str
+    department_id: str | None = None
+    # 授权作用域
+    authorized_kb_ids: list[str] = []
+    authorized_doc_ids: list[str] = []
+    # 动作权限快照 (可选)
+    permissions: list[str] = []
 
 
 class Permission(StrEnum):
@@ -91,7 +109,10 @@ def require_permission(permission: Permission):
     async def checker(current_user: User = Depends(get_current_user)):
         # Role defaults to string since DB maps it. Here we safely check.
         if not has_permission(current_user.role, permission):
-            raise ForbiddenError(message=f"Missing permission: {permission.value}")
+            raise ForbiddenError(
+                message=f"Missing permission: {permission.value}",
+                deny_reason="rbac_denied",
+            )
 
     return checker
 

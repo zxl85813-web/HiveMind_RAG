@@ -315,9 +315,36 @@ class ChatService:
                 await asyncio.sleep(0.01)  # Faster than per-char but still has progress feel
         else:
             cache_step.complete(output="Cache Miss", status="info")
-            # 5. Prepare Context
+            # 5. Prepare Context (ARM-P0-4)
+            from app.auth.permissions import AuthorizationContext
+            from app.models.chat import User
+            from app.services.knowledge.kb_service import KnowledgeService
+
+            # Fetch user info and authorized KBs for auth context
+            user_role = "user"
+            user_dept = None
+            auth_kb_ids = []
+
+            async for session in get_db_session():
+                user_obj = await session.get(User, user_id)
+                if user_obj:
+                    user_role = user_obj.role
+                    user_dept = user_obj.department_id
+                    # Standardized authorized_kb_ids (ARM-P0-4)
+                    kb_service = KnowledgeService(session)
+                    auth_kb_ids = await kb_service.get_user_accessible_kbs(user_obj)
+                break
+
+            auth_context = AuthorizationContext(
+                user_id=user_id,
+                role=user_role,
+                department_id=user_dept,
+                authorized_kb_ids=auth_kb_ids,
+            )
+
             context = {
                 "user_id": user_id,
+                "auth_context": auth_context,
                 "prompt_variant": request.prompt_variant,
                 "retrieval_variant": request.retrieval_variant,
             }  # Inject user identity and experiment variants

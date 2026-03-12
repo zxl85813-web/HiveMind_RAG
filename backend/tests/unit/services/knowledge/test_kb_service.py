@@ -74,6 +74,39 @@ async def test_check_kb_access_owner(kb_service, mock_session):
 
 
 @pytest.mark.asyncio
+async def test_check_kb_access_default_deny(kb_service, mock_session):
+    user = User(id="user_2", role="user")
+    kb = KnowledgeBase(id="kb_1", owner_id="user_1", is_public=False, vector_collection="test_coll")
+
+    # Mock no ACL perms
+    mock_session.get.return_value = kb
+    mock_result = MagicMock()
+    mock_result.scalars().all.return_value = []
+    mock_session.execute.return_value = mock_result
+
+    has_access = await kb_service.check_kb_access("kb_1", user, level="read")
+    assert has_access is False
+
+
+@pytest.mark.asyncio
+async def test_check_kb_access_public_read_only(kb_service, mock_session):
+    user = User(id="user_2", role="user")
+    kb = KnowledgeBase(id="kb_1", owner_id="user_1", is_public=True, vector_collection="test_coll")
+
+    mock_session.get.return_value = kb
+    # Mock no specific ACL perms
+    mock_result = MagicMock()
+    mock_result.scalars().all.return_value = []
+    mock_session.execute.return_value = mock_result
+
+    can_read = await kb_service.check_kb_access("kb_1", user, level="read")
+    assert can_read is True
+
+    can_write = await kb_service.check_kb_access("kb_1", user, level="write")
+    assert can_write is False
+
+
+@pytest.mark.asyncio
 async def test_link_document_to_kb(kb_service, mock_session):
     kb = KnowledgeBase(id="kb_1", owner_id="user_1", vector_collection="test_coll", version=1)
     doc = Document(id="doc_1", filename="test.txt", file_type="txt", file_size=100, storage_path="/tmp")

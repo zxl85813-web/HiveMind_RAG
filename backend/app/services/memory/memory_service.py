@@ -30,6 +30,30 @@ from typing import Any
 
 import chromadb
 from loguru import logger
+from pydantic import BaseModel, Field
+
+# --- Memory Schemas (ARM-P1) ---
+
+class RoleMemory(BaseModel):
+    """
+    群体层记忆 (ARM-P1-1).
+    存储域内术语、风险偏好、固定模板等。
+    """
+    role_id: str
+    terms: dict[str, str] = Field(default_factory=dict)
+    risk_bias: list[str] = Field(default_factory=list)
+    output_templates: dict[str, str] = Field(default_factory=dict)
+
+class PersonalMemory(BaseModel):
+    """
+    个人层记忆 (ARM-P1-2).
+    存储个性化偏好、历史上下文概括、常用资源权重。
+    """
+    user_id: str
+    language: str = "zh"
+    style_preference: str = "professional"
+    project_contexts: list[str] = Field(default_factory=list)
+    favorite_kb_ids: list[str] = Field(default_factory=list)
 
 DATA_DIR = Path("data/memories")
 
@@ -59,6 +83,32 @@ class MemoryService:
         self.logs_dir = self.user_dir / "logs"
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._ensure_directories()
+
+    def _load_role_memory(self, role_id: str) -> RoleMemory:
+        """Load role-specific shared memory (ARM-P1-1)."""
+        role_dir = DATA_DIR / "roles"
+        role_dir.mkdir(parents=True, exist_ok=True)
+        path = role_dir / f"{role_id}.json"
+        if path.exists():
+            try:
+                import json
+                with open(path, "r", encoding="utf-8") as f:
+                    return RoleMemory(**json.load(f))
+            except Exception as e:
+                logger.error(f"Failed to load role memory for {role_id}: {e}")
+        return RoleMemory(role_id=role_id)
+
+    def _load_personal_memory(self) -> PersonalMemory:
+        """Load user-specific personal memory (ARM-P1-2)."""
+        path = self.user_dir / "personal_memory.json"
+        if path.exists():
+            try:
+                import json
+                with open(path, "r", encoding="utf-8") as f:
+                    return PersonalMemory(**json.load(f))
+            except Exception as e:
+                logger.error(f"Failed to load personal memory for {self.user_id}: {e}")
+        return PersonalMemory(user_id=self.user_id)
 
     def _track_task(self, coro: Coroutine[Any, Any, Any]) -> None:
         task = asyncio.create_task(coro)
@@ -182,24 +232,43 @@ class MemoryService:
     # 读取流 (Read Path) — 三层级联检索
     # ─────────────────────────────────────────────
 
-    async def get_context(self, query: str | None = None) -> str:
+    async def get_context(self, query: str | None = None, role_id: str | None = None) -> str:
         """
-        三层级联检索，组装出最丰富的上下文用于喂给 LLM。
+        三层级联检索 + 记忆分层注入 (ARM-P1-3).
+        组装出最丰富的上下文用于喂给 LLM。
 
         级联顺序:
+            0. Role & Personal Memory — 认知对齐 (ARM-P1)
             1. 用户画像 (USER.md) — 始终优先注入
-            2. Tier-1 Radar — 毫秒级摘要导航，提炼出命中的标签
-            3. Tier-2 Graph — 以 Radar 标签为起点，捞取图谱关联邻居
-            4. Tier-3 Vector — 精确向量语义召回，兜底任何遗漏细节
+            2. Tier-1 Radar — 毫秒级摘要导航
+            3. Tier-2 Graph — 图谱关系邻居
+            4. Tier-3 Vector — 精确向量语义召回
             5. 今日日志 — 补充当前最新上下文
 
         Returns:
-            str: 组合后的上下文字符串（送入 Prompt 的 context 部分）
+            str: 组合后的上下文字符串
         """
         from app.services.memory.tier.abstract_index import abstract_index
         from app.services.memory.tier.graph_index import graph_index
 
         context_blocks = []
+
+        # ── Block 0: Role & Personal Memory (ARM-P1-3)
+        if role_id:
+            role_mem = self._load_role_memory(role_id)
+            role_lines = []
+            if role_mem.terms:
+                role_lines.append(f"Domain Terms: {role_mem.terms}")
+            if role_mem.risk_bias:
+                role_lines.append(f"Risk Compliance Bias: {role_mem.risk_bias}")
+            if role_lines:
+                context_blocks.append(f"--- ROLE MEMORY ({role_id}) ---\n" + "\n".join(role_lines))
+
+        persona = self._load_personal_memory()
+        if persona.style_preference or persona.language != "zh":
+            context_blocks.append(
+                f"--- PERSONAL PREFERENCE ---\n- Style: {persona.style_preference}\n- Lang: {persona.language}"
+            )
 
         # ── Block 1: 用户画像（始终最高优先）
         profile_path = self.user_dir / "USER.md"

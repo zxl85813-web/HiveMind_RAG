@@ -39,8 +39,9 @@ from app.agents.agentic_search import SEARCH_TOOLS
 from app.agents.llm_router import LLMRouter, ModelTier
 from app.agents.memory import SharedMemoryManager
 from app.agents.tools import NATIVE_TOOLS
+from app.auth.permissions import AuthorizationContext
 from app.core.config import settings
-from app.services.cache_service import CacheService  # --- Guaranteed Import ---
+from app.services.cache_service import CacheService
 
 # ============================================================
 #  Agent Definition
@@ -135,6 +136,7 @@ class SwarmState(TypedDict):
 
     # --- Phase 7: Permission Guard ---
     user_id: str | None
+    auth_context: AuthorizationContext | None
 
 
 # ============================================================
@@ -571,11 +573,21 @@ class SwarmOrchestrator:
             # --- Tool Auditing (Phase 3) ---
             from app.services.security.sanitizer import SecuritySanitizer, ToolAuditor
 
+            # 2. Prepare Memory Context (ARM-P1-3)
+            memory_context = ""
+            user_id = state.get("user_id")
+            if user_id:
+                from app.services.memory.memory_service import MemoryService
+                mem_svc = MemoryService(user_id=user_id)
+                # If we have role info in auth_context, use it
+                role_id = state["auth_context"].role if state.get("auth_context") else None
+                memory_context = await mem_svc.get_context(query=task, role_id=role_id)
+
             system_prompt = self.prompt_engine.build_agent_prompt(
                 agent_name=agent_def.name,
                 task=task,
                 rag_context=state.get("context_data", ""),
-                memory_context="",  # TODO: inject episodic memory
+                memory_context=memory_context,
                 tools_available=[t.name for t in available_tools if hasattr(t, "name")],
                 prompt_variant=state.get("prompt_variant", "default"),
             )
@@ -848,6 +860,7 @@ class SwarmOrchestrator:
                         top_k=5,
                         top_n=3,
                         variant=state.get("retrieval_variant", "default"),
+                        auth_context=state.get("auth_context"),
                     )
 
                     retrieval_trace = trace_logs

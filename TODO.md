@@ -84,14 +84,14 @@
 > 目标：先固化权限硬边界，再上线角色/个人记忆增强；确保“更聪明”不等于“更大权限”。
 > 规范文档：`docs/ACCESS_ROLE_MEMORY_GOVERNANCE.md`
 
-- ⬜ **ARM-P0-1（权限顺序统一）**：统一所有入口判定链路为 `Auth -> RBAC -> KB ACL -> Document ACL -> Prompt`。
-- ⬜ **ARM-P0-2（默认策略收敛）**：统一为 `default deny`，列出显式例外。
-- ⬜ **ARM-P0-3（拒绝原因码）**：审计日志增加 `deny_reason`（`rbac_denied/kb_acl_denied/doc_acl_denied`）。
-- ⬜ **ARM-P0-4（授权作用域对象）**：输出标准化 `authorized_kb_ids/authorized_doc_ids` 给上游使用。
-- ⬜ **ARM-P1-1（Role Memory Schema）**：定义角色记忆结构（术语、模板、风险偏好）。
-- ⬜ **ARM-P1-2（Personal Memory Schema）**：定义个人记忆结构（偏好、历史上下文、常用资源）。
-- ⬜ **ARM-P1-3（Prompt 分层注入）**：在 Prompt Engine 落地 Role/Personal 双层注入。
-- ⬜ **ARM-P1-4（作用域裁剪器）**：记忆读取前按授权作用域裁剪可见资源。
+- ✅ **ARM-P0-1（权限顺序统一）**：统一所有入口判定链路为 `Auth -> RBAC -> KB ACL -> Document ACL -> Prompt`。
+- ✅ **ARM-P0-2（默认策略收敛）**：统一为 `default deny`，列出显式例外清单。
+- ✅ **ARM-P0-3（拒绝原因码）**：审计日志增加 `deny_reason`（`rbac_denied/kb_acl_denied/doc_acl_denied`）。
+- ✅ **ARM-P0-4（授权作用域对象）**：输出标准化 `authorized_kb_ids/authorized_doc_ids` 给上游使用。
+- ✅ **ARM-P1-1（Role Memory Schema）**：定义角色记忆结构（术语、模板、风险偏好）。
+- ✅ **ARM-P1-2（Personal Memory Schema）**：定义个人记忆结构（偏好、历史上下文、常用资源）。
+- ✅ **ARM-P1-3（Prompt 分层注入）**：在 Prompt Engine 落地 Role/Personal 双层注入。
+- ✅ **ARM-P1-4（作用域裁剪器）**：记忆读取前按授权作用域裁剪可见资源。
 - ⬜ **ARM-P2-1（关系授权试点）**：设计单跳关系规则（owner/member/steward）并完成可解释审计。
 - ⬜ **ARM-P3-1（双回归）**：发布前强制通过“权限回归 + 记忆安全回归”。
 

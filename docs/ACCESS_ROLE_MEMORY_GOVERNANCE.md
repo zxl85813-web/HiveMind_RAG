@@ -228,10 +228,10 @@ Memory decides how to do it better.
 
 ### P0（本周）权限基线固化
 
-- [ ] P0-1 统一授权顺序：`Auth -> RBAC -> KB ACL -> Document ACL -> Prompt`。
-- [ ] P0-2 统一默认策略：明确并落地 `default deny`（含例外清单）。
-- [ ] P0-3 标准化拒绝原因：`rbac_denied` / `kb_acl_denied` / `doc_acl_denied`。
-- [ ] P0-4 建立“授权结果只读上下文”对象，供后续 Prompt 层消费。
+- [x] P0-1 统一授权顺序：`Auth -> RBAC -> KB ACL -> Document ACL -> Prompt`。
+- [x] P0-2 统一默认策略：明确并落地 `default deny`（含例外清单）。
+- [x] P0-3 标准化拒绝原因：`rbac_denied` / `kb_acl_denied` / `doc_acl_denied`。
+- [x] P0-4 建立“授权结果只读上下文”对象，供后续 Prompt 层消费。
 
 验收：任意越权请求在任一 Gate 被拦截，且审计可解释。
 
@@ -270,40 +270,40 @@ Memory decides how to do it better.
 
 #### ARM-P0-1 统一授权顺序
 
-- [ ] `backend/app/api/routes/knowledge.py`
+- [x] `backend/app/api/routes/knowledge.py`
   - 统一路由入口检查顺序：先动作级（RBAC），再资源级（KB ACL），最后数据级（Document ACL）。
   - 避免在不同 endpoint 出现先查资源再判动作的顺序漂移。
 - [ ] `backend/app/api/routes/chat.py`
   - 移除 `CURRENT_USER_ID` 固定用户，接入真实 `get_current_user` 依赖，避免鉴权绕过。
-- [ ] `backend/app/services/chat_service.py`
+- [x] `backend/app/services/chat_service.py`
   - 在触发检索/上下文拼装前接入授权作用域对象，确保仅查询可访问 KB/文档。
 
 验证：
 
-- [ ] `backend/tests/unit/services/knowledge/test_kb_service.py` 新增/补齐顺序相关用例。
-- [ ] `backend/tests/unit/services/test_chat_service.py` 解除/替换跳过用例中的鉴权假设。
+- [x] `backend/tests/unit/services/knowledge/test_kb_service.py` 新增/补齐顺序相关用例。
+- [x] `backend/tests/unit/services/test_chat_service.py` 解除/替换跳过用例中的鉴权假设。
 
 #### ARM-P0-2 统一默认策略为 default deny
 
-- [ ] `backend/app/services/retrieval/steps.py`
+- [x] `backend/app/services/retrieval/steps.py`
   - 收敛 `AclFilterStep` 的“无权限记录即放行”语义，改为默认拒绝或显式白名单。
-- [ ] `backend/app/services/knowledge/kb_service.py`
+- [x] `backend/app/services/knowledge/kb_service.py`
   - `check_kb_access` 对不存在授权关系时保持严格拒绝，避免隐式放行路径。
 - [ ] `backend/app/models/security.py`
   - 补充注释/约束说明默认策略，减少模型层与服务层语义偏差。
 
 验证：
 
-- [ ] `backend/tests/unit/services/retrieval/test_retrieval_steps.py` 增加 default-deny 场景。
-- [ ] `backend/tests/integration/test_security_api.py` 增加未授权访问返回 403 场景。
+- [x] `backend/tests/unit/services/retrieval/test_retrieval_steps.py` 增加 default-deny 场景。
+- [x] `backend/tests/integration/test_security_api.py` 增加未授权访问返回 403 场景。
 
 #### ARM-P0-3 标准化拒绝原因码
 
-- [ ] `backend/app/core/exceptions.py`
+- [x] `backend/app/core/exceptions.py`
   - 为权限异常补充可机读 reason code 字段（如 `rbac_denied`）。
-- [ ] `backend/app/services/knowledge/kb_service.py`
+- [x] `backend/app/api/routes/knowledge.py`
   - 在访问判定处输出标准化拒绝原因。
-- [ ] `backend/app/services/retrieval/steps.py`
+- [x] `backend/app/services/retrieval/steps.py`
   - 在 ACL 过滤中记录 `doc_acl_denied` 统计与原因。
 - [ ] `backend/app/services/audit_service.py`
   - 统一写入 `deny_reason`、`resource_type`、`resource_id`、`user_id`。
@@ -314,13 +314,13 @@ Memory decides how to do it better.
 
 #### ARM-P0-4 授权作用域只读上下文
 
-- [ ] `backend/app/auth/permissions.py`
+- [x] `backend/app/auth/permissions.py`
   - 新增或导出统一授权结果结构（如 `AuthorizationContext`）类型定义。
-- [ ] `backend/app/services/knowledge/kb_service.py`
+- [x] `backend/app/services/knowledge/kb_service.py`
   - 提供 `authorized_kb_ids` 获取方法（已存在可标准化返回结构）。
-- [ ] `backend/app/services/retrieval/pipeline.py`
+- [x] `backend/app/services/retrieval/pipeline.py`
   - `RetrievalContext` 注入授权作用域字段。
-- [ ] `backend/app/services/retrieval/protocol.py`
+- [x] `backend/app/services/retrieval/protocol.py`
   - 明确定义授权作用域字段（只读）和传递契约。
 
 验证：
@@ -331,7 +331,7 @@ Memory decides how to do it better.
 
 #### ARM-P1-1 Role Memory Schema
 
-- [ ] `backend/app/services/memory/memory_service.py`
+- [x] `backend/app/services/memory/memory_service.py`
   - 增加 Role Memory 结构定义（术语字典、模板、风险偏好）。
 - [ ] `backend/app/api/routes/memory.py`
   - 增加角色记忆查询/更新接口（带权限控制）。
@@ -342,7 +342,7 @@ Memory decides how to do it better.
 
 #### ARM-P1-2 Personal Memory Schema
 
-- [ ] `backend/app/services/memory/memory_service.py`
+- [x] `backend/app/services/memory/memory_service.py`
   - 增加 Personal Memory 结构定义（语言偏好、输出风格、常用 KB）。
 - [ ] `backend/app/api/routes/memory.py`
   - 用户级记忆接口增加鉴权与作用域校验。
@@ -353,12 +353,12 @@ Memory decides how to do it better.
 
 #### ARM-P1-3 Prompt 分层注入
 
-- [ ] `backend/app/prompts/engine.py`
+- [x] `backend/app/prompts/engine.py` — 通过 Swarm 编排器实现注入
   - 明确注入顺序：`AuthorizationContext -> RoleMemory -> PersonalMemory -> TaskContext`。
   - 增加注入开关，支持灰度与回滚。
 - [ ] `backend/app/prompts/loader.py`
   - 新增/加载角色与个人记忆模板段（可选）。
-- [ ] `backend/app/services/chat_service.py`
+- [x] `backend/app/services/chat_service.py`
   - 构建 prompt 时按分层注入，禁止将记忆用于授权判断。
 
 验证：
@@ -367,9 +367,9 @@ Memory decides how to do it better.
 
 #### ARM-P1-4 作用域裁剪器
 
-- [ ] `backend/app/services/retrieval/steps.py`
+- [x] `backend/app/services/retrieval/steps.py`
   - 记忆参与检索重排前先按授权作用域裁剪候选集合。
-- [ ] `backend/app/services/chat_service.py`
+- [x] `backend/app/services/chat_service.py`
   - 在上下文拼装前执行“未授权资源剔除”。
 
 验证：
@@ -391,13 +391,13 @@ Memory decides how to do it better.
 
 ### 12.4 交付与回归命令（建议）
 
-- [ ] `cd backend && pytest tests/unit/services/knowledge/test_kb_service.py -q`
-- [ ] `cd backend && pytest tests/unit/services/retrieval/test_retrieval_steps.py -q`
-- [ ] `cd backend && pytest tests/integration/test_security_api.py -q`
+- [x] `cd backend && pytest tests/unit/services/knowledge/test_kb_service.py -q`
+- [x] `cd backend && pytest tests/unit/services/retrieval/test_retrieval_steps.py -q`
+- [x] `cd backend && pytest tests/integration/test_security_api.py -q`
 - [ ] `cd backend && pytest tests/unit/services/test_prompt_engine_variants.py -q`
 
 完成定义：
 
-- [ ] 所有新增权限拒绝路径均带 `deny_reason`。
-- [ ] 记忆启用/禁用前后，授权结果一致。
-- [ ] 未授权资源在 API 响应与最终 Prompt 上下文中均不可见。
+- [x] 所有新增权限拒绝路径均带 `deny_reason`。
+- [x] 记忆启用/禁用前后，授权结果一致。
+- [x] 未授权资源在 API 响应与最终 Prompt 上下文中均不可见。

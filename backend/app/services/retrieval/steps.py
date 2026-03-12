@@ -1,6 +1,7 @@
 # ruff: noqa: E501
 
 import abc
+from loguru import logger
 
 from sqlalchemy import select
 
@@ -279,22 +280,16 @@ class AclFilterStep(BaseRetrievalStep):
                     allowed_candidates.append(doc)
                     continue
 
-                # Use centralized authorization logic
+                # Default Deny (ARM-P0-2): Any document retrieved must pass an explicit has_document_permission check.
+                # If no records exist in DocumentPermission, has_document_permission returns False.
                 is_allowed = await has_document_permission(session, user, doc_id, "read")
 
-                # Special Case: If no permissions are set, we decide if it's public.
-                # In this implementation, SecurityService.has_permission returns False if no match.
-                # Let's check if there are ANY permissions at all.
-                # Actually, SecurityService should probably handle "public by default" vs "private by default".
-                # For now, we follow the logic: if no permissions exist, it's public for MVP context.
-                from app.models.security import DocumentPermission
-
-                stmt = select(DocumentPermission).where(DocumentPermission.document_id == doc_id)
-                has_any_perm = (await session.exec(stmt)).first() is not None
-
-                if not has_any_perm or is_allowed:
+                if is_allowed:
                     allowed_candidates.append(doc)
                 else:
+                    # Audit Logging (ARM-P0-3)
+                    logger.warning(f"🔒 [Audit] Access DENIED | User: {ctx.user_id} | Doc: {doc_id} | Reason: doc_acl_denied")
+                    ctx.log("ACL", f"Document {doc_id} filtered out (Reason: doc_acl_denied)")
                     rejected += 1
 
         ctx.candidates = allowed_candidates

@@ -1,10 +1,14 @@
 from pydantic import BaseModel, Field
 
+from app.auth.permissions import AuthorizationContext
 from app.core.vector_store import SearchType, VectorDocument
 
 
 class RetrievalContext(BaseModel):
     """State object passed between Retrieval Steps."""
+
+    # Authorization
+    auth_context: AuthorizationContext | None = None
 
     # Input
     query: str

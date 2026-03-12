@@ -90,6 +90,25 @@ class PermissionError(AppError):
         )
 
 
+class ForbiddenError(AppError):
+    """权限被拒绝 — 包含具体的拒绝原因 (ARM-P0-3)。"""
+
+    def __init__(
+        self,
+        message: str = "Permission denied",
+        deny_reason: str = "permission_denied",
+        detail: dict[str, Any] | None = None,
+    ):
+        full_detail = detail or {}
+        full_detail["deny_reason"] = deny_reason
+        super().__init__(
+            error_code=deny_reason.upper(),
+            message=message,
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=full_detail,
+        )
+
+
 class ConflictError(AppError):
     """资源冲突。"""
 
