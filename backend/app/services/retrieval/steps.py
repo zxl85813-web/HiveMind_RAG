@@ -23,9 +23,8 @@ class QueryPreProcessingStep(BaseRetrievalStep):
     """
 
     async def execute(self, ctx: RetrievalContext):
-        import json
-
-        from app.core.llm import get_llm_service
+        from pydantic import BaseModel, Field
+        from app.core.algorithms.classification import classifier_service
 
         ctx.expanded_queries = [ctx.query]
 
@@ -33,44 +32,31 @@ class QueryPreProcessingStep(BaseRetrievalStep):
             ctx.log("QueryProc", f"Query '{ctx.query}' is short, skipping advanced analysis.")
             return
 
-        llm = get_llm_service()
-        prompt = f"""You are an advanced query analyzer for a RAG system.
-Analyze the user's query: "{ctx.query}"
+        class QueryIntentExtraction(BaseModel):
+            intent: str = Field(default="fact", description="Must be one of: 'fact', 'comparison', 'summary', 'action'")
+            rewritten_query: str = Field(..., description="Rewrite the original query to be more specific, objective, and clear for vector search.")
+            hyde_document: str | None = Field(default=None, description="A hypothetical short answer to the query, 1-2 positive sentences (HyDE technique). Keep it concise.")
+            keywords: list[str] = Field(default_factory=list, description="Key entities, topics, or exact terms")
 
-Return a JSON object with the following fields:
-1. "intent": String. Identify the primary intent. Must be one of: "fact" (factual retrieval),
-   "comparison" (comparing multiple entities), "summary" (summarizing an entire topic),
-   or "action" (instructional or procedural).
-2. "rewritten_query": String. Rewrite the original query to be more specific, objective, and clear for vector search.
-3. "hyde_document": String. A hypothetical short answer to the query,
-   1-2 positive sentences, used to improve vector retrieval (HyDE technique).
-   Keep it concise.
-4. "keywords": List of strings. Key entities, topics, or exact terms.
-
-Respond ONLY with valid JSON. Do not include markdown formatting.
-"""
+        prompt = f"Analyze the user's query: '{ctx.query}'"
 
         try:
-            response = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
+            analysis = await classifier_service.extract_model(
+                text=prompt,
+                target_model=QueryIntentExtraction,
+                instruction="You are an advanced query analyzer for a RAG system. Output in JSON."
+            )
 
-            # Remove Markdown block if present
-            if response.startswith("```json"):
-                response = response[7:]
-            if response.endswith("```"):
-                response = response[:-3]
-
-            analysis = json.loads(response.strip())
-
-            ctx.query_intent = analysis.get("intent", "fact")
-            ctx.rewritten_query = analysis.get("rewritten_query", ctx.query)
-            ctx.hyde_document = analysis.get("hyde_document")
-            ctx.keywords = analysis.get("keywords", [])
+            ctx.query_intent = analysis.intent
+            ctx.rewritten_query = analysis.rewritten_query
+            ctx.hyde_document = analysis.hyde_document
+            ctx.keywords = analysis.keywords
 
             if ctx.rewritten_query and ctx.rewritten_query != ctx.query:
                 ctx.expanded_queries.append(ctx.rewritten_query)
             if ctx.hyde_document:
                 ctx.expanded_queries.append(ctx.hyde_document)
-
+                
             ctx.log(
                 "QueryProc",
                 f"Intent: {ctx.query_intent}, Expanded: {len(ctx.expanded_queries)} "

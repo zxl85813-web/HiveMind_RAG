@@ -16,13 +16,14 @@ def mock_retrieval_context():
 
 @pytest.mark.asyncio
 async def test_query_preprocessing_step(mock_retrieval_context):
-    with patch("app.core.llm.get_llm_service") as mock_get_llm:
-        mock_llm = AsyncMock()
-        # Mock a valid JSON response as expected by the step
-        mock_llm.chat_complete.return_value = (
-            '{"intent": "fact", "rewritten_query": "expanded query", "hyde_document": "hyde doc", "keywords": ["test"]}'
-        )
-        mock_get_llm.return_value = mock_llm
+    class DummyExtraction:
+        intent = "fact"
+        rewritten_query = "expanded query"
+        hyde_document = "hyde doc"
+        keywords = ["test"]
+
+    with patch("app.core.algorithms.classification.classifier_service") as mock_clf:
+        mock_clf.extract_model = AsyncMock(return_value=DummyExtraction())
 
         step = QueryPreProcessingStep()
         await step.execute(mock_retrieval_context)
@@ -33,8 +34,7 @@ async def test_query_preprocessing_step(mock_retrieval_context):
         assert "hyde doc" in mock_retrieval_context.expanded_queries
         assert any("[QueryProc]" in log for log in mock_retrieval_context.trace_log)
 
-        mock_llm.chat_complete.assert_called_once()
-
+        mock_clf.extract_model.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_step(mock_retrieval_context):
