@@ -1,0 +1,34 @@
+[
+  {
+    "id": "create-tech-discussion",
+    "name": "Create Technical Discussion",
+    "prompt": "We need to discuss the caching strategy for the RAG pipeline. Create a discussion titled 'RAG Cache Strategy' in the 'Ideas' category explaining that we need to choose between Redis and Local memory.",
+    "expected_output": "python backend/app/scripts/github_collab.py discuss --title \"RAG Cache Strategy\" --body \"...\" --category \"Ideas\"",
+    "assertions": [
+      {
+        "type": "contains",
+        "value": "github_collab.py discuss"
+      },
+      {
+        "type": "contains",
+        "value": "--title \"RAG Cache Strategy\""
+      }
+    ]
+  },
+  {
+    "id": "sync-roadmap-project",
+    "name": "Sync Local TODO to GitHub Project",
+    "prompt": "Sync our current TODO.md tasks to the GitHub Project named 'Roadmap V2'.",
+    "expected_output": "python backend/app/scripts/github_collab.py sync-project --project-name \"Roadmap V2\"",
+    "assertions": [
+      {
+        "type": "contains",
+        "value": "sync-project"
+      },
+      {
+        "type": "contains",
+        "value": "--project-name \"Roadmap V2\""
+      }
+    ]
+  }
+]

@@ -258,6 +258,7 @@
 | `project-steward` | 项目资产登记与合规性维护管家 | `skills/project-steward/` | ✅ 已验证 |
 | `generate-design-doc` | 严谨的 4 层架构设计说明书生成器 | `.agent/skills/generate-design-doc/` | ✅ 已验证 |
 | `generate-tests` | 基于 Mock 决策树的测试代码生成器 | `.agent/skills/generate-tests/` | ✅ 已抽检 |
+| `github-collaboration` | GitHub Discussions & Projects 协作集成 | `.agent/skills/github-collaboration/` | ✅ 已实装 |
 
 ### 写作协作 Skills
 

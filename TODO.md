@@ -118,8 +118,9 @@
   - 并行子任务：
     - ✅ CL-1A：定义 `GAP / ISSUE / INSIGHT` 字段规范与校验
     - ✅ CL-1B：写入持久化层（便于周报和配对检索）
-    - ✅ CL-1C：实现基础匹配策略（关键词 + 语义）
-    - ✅ CL-1D：输出配对建议清单（可用于 Issue/讨论）
+    - ✅ CL-1C：实现基础匹配策略（关键词 +语义）
+    - ✅ CL-1D：实现 `github-collaboration` 技能，支持 Discussion 自动发布。
+    - ✅ CL-1E：输出配对建议清单（已关联 GitHub 项目看板）。
   - 快速验证：`GET /api/v1/agents/swarm/reflections/matches?limit=10`
 
 - ✅ **CL-3（第二优先）共学度量看板（先手工后自动）**

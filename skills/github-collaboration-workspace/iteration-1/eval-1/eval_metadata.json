@@ -1,0 +1,14 @@
+{
+  "case_id": "sync-roadmap-project",
+  "name": "Sync Local TODO to GitHub Project",
+  "assertions": [
+    {
+      "description": "Uses the correct python script for projects",
+      "expected": "github_collab.py sync-project"
+    },
+    {
+      "description": "Correctly identifies the project name",
+      "expected": "--project-name \"Roadmap V2\""
+    }
+  ]
+}

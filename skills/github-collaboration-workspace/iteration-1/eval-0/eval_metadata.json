@@ -1,0 +1,18 @@
+{
+  "case_id": "create-tech-discussion",
+  "name": "Create Technical Discussion",
+  "assertions": [
+    {
+      "description": "Uses the correct python script for discussions",
+      "expected": "github_collab.py discuss"
+    },
+    {
+      "description": "Correctly sets the title",
+      "expected": "--title \"RAG Cache Strategy\""
+    },
+    {
+      "description": "Specifies category",
+      "expected": "--category \"Ideas\""
+    }
+  ]
+}
