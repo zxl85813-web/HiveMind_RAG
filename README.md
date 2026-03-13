@@ -51,9 +51,12 @@ Supervisor Agent 是整个系统的大脑。它解析用户意图、分配任务
 
 → 详见 [开发治理文档](docs/DEV_GOVERNANCE.md)
 
-### 🛡️ 架构治理 — 高可用与资产防腐
+### 🛡️ 架构治理 — 软件大脑与资产防腐
 
-真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **Agent-Native LLM 智能路由 (ClawRouter 模式)**，多维度动态分流与熔断降级，保障 99.99% 的核心可用率。同时基于 **CQRS** 将读写服务解耦，并在底座实施 **Code Vault (代码知识管理)**，将 AI 的有效引用转化为开发者的“打赏飞轮”，防腐防锈。
+真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **Agent-Native LLM 智能路由 (ClawRouter 模式)**，多维度动态分流与熔断降级。同时，系统内置了基于 Neo4j 的 **软件大脑 (Arch-Graph)**，将需求、设计、代码和测试深度关联。通过“上帝视角”的图谱导航，AI 能在毫秒级内完成影响力分析和精准路由。
+
+→ 详见 [架构图谱文档](docs/architecture/ARCH-GRAPH.md)
+
 ### 🧬 共学体系 — 蜂群的集体进化系统
 
 **蜜蜂发现花源不会独享，它跳起摇摆舞让整个蜂群受益。** HiveMind 将「自主查漏补缺反省」和「团队互相借鉴学习」融合为三个互锁的循环飞轮：
@@ -167,6 +170,7 @@ alembic revision --autogenerate -m "description"            # 生成迁移脚本
 | [🏭 开发治理](docs/DEV_GOVERNANCE.md) | `.agent/` 规范体系、SOP 工作流、Git 门禁 |
 | [🧬 共学体系](docs/COLLABORATIVE_LEARNING.md) | 自省↔互学↔共进 三环飞轮，融合自审与协作学习 |
 | [🎓 学习路径](docs/LEARNING_PATH.md) | L0-L4 边做边学地图，双向追踪最小规范 |
+| [🧠 软件大脑](docs/architecture/ARCH-GRAPH.md) | 基于 Neo4j 的全生命周期架构资产图谱 |
 | [系统概览](docs/SYSTEM_OVERVIEW.md) | 全局设计哲学与技术选型 |
 | [路线图](docs/ROADMAP.md) | 开发里程碑与规划 |
 | [协作交付手册](docs/guides/collaboration_and_delivery_playbook.md) | 团队协作全流程、GitHub 自动化、里程碑同步 |
