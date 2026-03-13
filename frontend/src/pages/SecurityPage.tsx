@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { App, Button, Space, Table, Tag, Switch, Modal, Form, Input, Select, Checkbox, Card, Row, Col, Tabs, Typography, Tooltip, Divider } from 'antd';
 import { LockOutlined, PlusOutlined, SafetyCertificateOutlined, AuditOutlined, HistoryOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageContainer } from '../components/common';
+import { PageContainer, PermissionButton } from '../components/common';
 import { securityApi } from '../services/securityApi';
 import type { CreatePolicyParams } from '../services/securityApi';
 import type { DesensitizationPolicy } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -14,6 +15,7 @@ const { Text } = Typography;
 export const SecurityPage: React.FC = () => {
     const { message } = App.useApp();
     const { t } = useTranslation();
+    const hasAccess = useAuthStore((state) => state.hasAccess);
     const [policies, setPolicies] = useState<DesensitizationPolicy[]>([]);
     const [detectors, setDetectors] = useState<any[]>([]);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -51,6 +53,11 @@ export const SecurityPage: React.FC = () => {
     }, []);
 
     const handleActivate = async (id: number) => {
+        if (!hasAccess({ anyPermissions: ['security:manage'] })) {
+            message.warning('当前账号没有策略管理权限');
+            return;
+        }
+
         try {
             await securityApi.activatePolicy(id);
             message.success(t('common.success'));
@@ -61,6 +68,11 @@ export const SecurityPage: React.FC = () => {
     };
 
     const handleCreate = async () => {
+        if (!hasAccess({ anyPermissions: ['security:manage'] })) {
+            message.warning('当前账号没有创建策略权限');
+            return;
+        }
+
         try {
             const values = await form.validateFields();
 
@@ -116,6 +128,11 @@ export const SecurityPage: React.FC = () => {
     };
 
     const handleRevokeAcl = async (id: string) => {
+        if (!hasAccess({ anyPermissions: ['security:manage'] })) {
+            message.warning('当前账号没有撤销 ACL 权限');
+            return;
+        }
+
         try {
             await securityApi.revokePermission(id);
             message.success("已撤销权限");
@@ -126,6 +143,11 @@ export const SecurityPage: React.FC = () => {
     };
 
     const handleGrantAcl = async () => {
+        if (!hasAccess({ anyPermissions: ['security:manage'] })) {
+            message.warning('当前账号没有添加 ACL 权限');
+            return;
+        }
+
         try {
             const values = await aclForm.validateFields();
             await securityApi.grantPermission({
@@ -254,9 +276,14 @@ export const SecurityPage: React.FC = () => {
             title="安全与治理中心"
             description="统一管控数据脱敏、权限访问控制 (ACL) 及安全审计流水。"
             actions={
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+                <PermissionButton
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setIsCreateModalOpen(true)}
+                    access={{ anyPermissions: ['security:manage'] }}
+                >
                     新建脱敏策略
-                </Button>
+                </PermissionButton>
             }
         >
             <Tabs defaultActiveKey="policies">
@@ -313,7 +340,15 @@ export const SecurityPage: React.FC = () => {
                             <>
                                 <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Text strong>当前编辑文档: <Tag>{aclDocId}</Tag></Text>
-                                    <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setIsAclModalOpen(true)}>添加鉴权规则</Button>
+                                    <PermissionButton
+                                        type="primary"
+                                        size="small"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => setIsAclModalOpen(true)}
+                                        access={{ anyPermissions: ['security:manage'] }}
+                                    >
+                                        添加鉴权规则
+                                    </PermissionButton>
                                 </div>
                                 <Table
                                     dataSource={aclPermissions}
@@ -349,7 +384,16 @@ export const SecurityPage: React.FC = () => {
                                             title: '操作',
                                             key: 'action',
                                             render: (_: unknown, r: any) => (
-                                                <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => handleRevokeAcl(r.id)}>移除</Button>
+                                                <PermissionButton
+                                                    size="small"
+                                                    type="text"
+                                                    danger
+                                                    icon={<DeleteOutlined />}
+                                                    onClick={() => handleRevokeAcl(r.id)}
+                                                    access={{ anyPermissions: ['security:manage'] }}
+                                                >
+                                                    移除
+                                                </PermissionButton>
                                             )
                                         }
                                     ]}

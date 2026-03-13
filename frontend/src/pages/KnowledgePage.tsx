@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { App, Button, Space } from 'antd';
 import { PlusOutlined, DatabaseOutlined, SyncOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageContainer, EmptyState } from '../components/common';
+import { PageContainer, EmptyState, PermissionButton } from '../components/common';
 import { KnowledgeList } from '../components/knowledge/KnowledgeList';
 import { CreateKBModal } from '../components/knowledge/CreateKBModal';
 import { KnowledgeDetail } from '../components/knowledge/KnowledgeDetail';
 import { knowledgeApi } from '../services/knowledgeApi';
 import type { CreateKnowledgeBaseParams } from '../services/knowledgeApi';
 import type { KnowledgeBase } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 import { useSearchParams } from 'react-router-dom';
 
@@ -23,6 +24,7 @@ export const KnowledgePage: React.FC = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const hasAccess = useAuthStore((state) => state.hasAccess);
 
     const loadData = async () => {
         setLoading(true);
@@ -52,6 +54,11 @@ export const KnowledgePage: React.FC = () => {
     }, [searchParams]);
 
     const handleCreate = async (values: CreateKnowledgeBaseParams) => {
+        if (!hasAccess({ anyPermissions: ['knowledge:manage'] })) {
+            message.warning('当前账号没有创建知识库权限');
+            return;
+        }
+
         try {
             await knowledgeApi.createKB(values);
             message.success(t('common.success'));
@@ -74,9 +81,14 @@ export const KnowledgePage: React.FC = () => {
             actions={
                 <Space>
                     <Button icon={<SyncOutlined />} onClick={loadData} />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+                    <PermissionButton
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setIsCreateModalOpen(true)}
+                        access={{ anyPermissions: ['knowledge:manage'] }}
+                    >
                         {t('common.create')}
-                    </Button>
+                    </PermissionButton>
                 </Space>
             }
         >
@@ -86,9 +98,13 @@ export const KnowledgePage: React.FC = () => {
                     title={t('knowledge.emptyTitle')}
                     description={t('knowledge.emptyDesc')}
                     action={
-                        <Button type="primary" onClick={() => setIsCreateModalOpen(true)}>
+                        <PermissionButton
+                            type="primary"
+                            onClick={() => setIsCreateModalOpen(true)}
+                            access={{ anyPermissions: ['knowledge:manage'] }}
+                        >
                             {t('common.create')}
-                        </Button>
+                        </PermissionButton>
                     }
                 />
             ) : (

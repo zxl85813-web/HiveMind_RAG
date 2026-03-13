@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Table, Tag, Button, Space, Card, App, Empty, Typography } from 'antd';
 import { DeleteOutlined, ExportOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
+import { PermissionButton } from '../components/common';
 import { ftApi } from '../services/ftApi';
 import type { FineTuningItem } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 const { Text } = Typography;
 
 export const FineTuningPage: React.FC = () => {
     const { message, modal } = App.useApp();
+    const hasAccess = useAuthStore((state) => state.hasAccess);
     const [items, setItems] = useState<FineTuningItem[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -29,6 +32,11 @@ export const FineTuningPage: React.FC = () => {
     }, []);
 
     const handleDelete = (id: string) => {
+        if (!hasAccess({ anyPermissions: ['finetuning:manage'] })) {
+            message.warning('当前账号没有微调数据管理权限');
+            return;
+        }
+
         modal.confirm({
             title: '确认删除?',
             content: '删除后无法恢复该微调用例。',
@@ -86,21 +94,47 @@ export const FineTuningPage: React.FC = () => {
             key: 'action',
             render: (_: unknown, record: FineTuningItem) => (
                 <Space>
-                    <Button size="small" icon={<ExportOutlined />}>修改</Button>
-                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+                    <PermissionButton
+                        size="small"
+                        icon={<ExportOutlined />}
+                        access={{ anyPermissions: ['finetuning:manage'] }}
+                    >
+                        修改
+                    </PermissionButton>
+                    <PermissionButton
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDelete(record.id)}
+                        access={{ anyPermissions: ['finetuning:manage'] }}
+                    />
                 </Space>
             )
         }
     ];
+
+    const handleExportDataset = () => {
+        if (!hasAccess({ anyPermissions: ['finetuning:manage'] })) {
+            message.warning('当前账号没有导出微调数据权限');
+            return;
+        }
+
+        message.info('导出能力将在后续版本接入真实后端下载接口');
+    };
 
     return (
         <PageContainer
             title="微调数据集管理"
             description="收集并管理高质量的 QA 对，用于后续模型 SFT (监督微调) 训练。"
             actions={
-                <Button type="primary" icon={<ExportOutlined />}>
+                <PermissionButton
+                    type="primary"
+                    icon={<ExportOutlined />}
+                    onClick={handleExportDataset}
+                    access={{ anyPermissions: ['finetuning:manage'] }}
+                >
                     导出数据集 (JSONL)
-                </Button>
+                </PermissionButton>
             }
         >
             <Card styles={{ body: { padding: 0 } }}>

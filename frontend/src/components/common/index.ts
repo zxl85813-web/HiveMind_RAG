@@ -22,3 +22,4 @@ export { LoadingState } from './LoadingState';
 export type { LoadingStateProps } from './LoadingState';
 export { ConfirmAction } from './ConfirmAction';
 export type { ConfirmActionProps } from './ConfirmAction';
+export { PermissionGuard, PermissionButton } from './PermissionGuard';

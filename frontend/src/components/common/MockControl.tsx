@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { FloatButton, Drawer, Radio, Space, Button, message, Tag, Typography, Divider } from 'antd';
 import { BugOutlined, ClearOutlined } from '@ant-design/icons';
+import { useAuthStore, type UserRole } from '../../stores/authStore';
 
 const { Text, Title } = Typography;
 
 export const MockControl: React.FC = () => {
     const [open, setOpen] = useState(false);
     const currentCase = localStorage.getItem('VITE_MOCK_CASE') || 'NORMAL';
+    const profile = useAuthStore((state) => state.profile);
+    const setMockRole = useAuthStore((state) => state.setMockRole);
 
     const handleCaseChange = (val: string) => {
         if (val === 'NORMAL') {
@@ -58,6 +61,26 @@ export const MockControl: React.FC = () => {
                                 <Radio value="LONG_LATENCY"><Tag color="blue">LONG_LATENCY</Tag> 高延迟 (5s)</Radio>
                                 <Radio value="MALFORMED_DATA"><Tag color="magenta">MALFORMED</Tag> 异常字段/数据</Radio>
                                 <Radio value="MAX_CONTENT"><Tag color="purple">MAX_CONTENT</Tag> 极长文本/大数据</Radio>
+                            </Space>
+                        </Radio.Group>
+                    </section>
+
+                    <Divider />
+
+                    <section>
+                        <Title level={5}>权限角色模拟</Title>
+                        <Radio.Group
+                            value={profile.roles[0]}
+                            onChange={(e) => {
+                                const nextRole = e.target.value as UserRole;
+                                setMockRole(nextRole);
+                                message.success(`当前 Mock 角色已切换为: ${nextRole}`);
+                            }}
+                        >
+                            <Space direction="vertical">
+                                <Radio value="admin"><Tag color="red">ADMIN</Tag> 拥有全部页面与权限</Radio>
+                                <Radio value="operator"><Tag color="blue">OPERATOR</Tag> 可访问审核/评估/编排</Radio>
+                                <Radio value="viewer"><Tag color="default">VIEWER</Tag> 仅可访问基础浏览页面</Radio>
                             </Space>
                         </Radio.Group>
                     </section>

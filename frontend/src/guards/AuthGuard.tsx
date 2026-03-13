@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-// import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface AuthGuardProps {
     children: React.ReactNode;
@@ -9,10 +9,7 @@ interface AuthGuardProps {
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    // const { token, isAuthenticated } = useAuthStore();
-
-    // 模拟鉴权逻辑 (TODO: 替换为实际 Store 状态)
-    const isAuthenticated = true; // 默认已登录，后续改为 token 校验
+    const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
     useEffect(() => {
         if (!isAuthenticated) {

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, theme } from 'antd';
 import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
+import { PermissionButton } from '../components/common';
 import { evalApi } from '../services/evalApi';
 import { knowledgeApi } from '../services/knowledgeApi';
 import type { EvaluationSet, EvaluationReport, KnowledgeBase } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 const { TabPane } = Tabs;
 const { Text, Title, Paragraph } = Typography;
@@ -277,6 +279,7 @@ function generateReportHTML(
 export const EvalPage: React.FC = () => {
     const { message } = App.useApp();
     const { token } = theme.useToken();
+    const hasAccess = useAuthStore((state) => state.hasAccess);
     const [sets, setSets] = useState<EvaluationSet[]>([]);
     const [reports, setReports] = useState<EvaluationReport[]>([]);
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
@@ -315,6 +318,11 @@ export const EvalPage: React.FC = () => {
     }, []);
 
     const handleCreateSet = async (values: any) => {
+        if (!hasAccess({ anyPermissions: ['evaluation:run'] })) {
+            message.warning('当前账号没有创建评测集权限');
+            return;
+        }
+
         try {
             await evalApi.createTestset(values.kb_id, values.name, values.count);
             message.success("测试集生成任务已启动，请稍后刷新查看");
@@ -327,12 +335,20 @@ export const EvalPage: React.FC = () => {
     };
 
     const handleRunEval = (setId: string) => {
+        if (!hasAccess({ anyPermissions: ['evaluation:run'] })) {
+            message.warning('当前账号没有运行评测权限');
+            return;
+        }
         setActiveSetId(setId);
         setIsRunModalOpen(true);
     };
 
     const confirmRunEval = async (values: any) => {
         if (!activeSetId) return;
+        if (!hasAccess({ anyPermissions: ['evaluation:run'] })) {
+            message.warning('当前账号没有运行评测权限');
+            return;
+        }
         try {
             await evalApi.runEvaluation(activeSetId, values.model_name);
             message.success(`针对模型 ${values.model_name} 的评估任务已启动`);
@@ -413,14 +429,15 @@ export const EvalPage: React.FC = () => {
             title: '操作',
             key: 'action',
             render: (_: any, record: EvaluationSet) => (
-                <Button
+                <PermissionButton
                     type="primary"
                     icon={<PlayCircleOutlined />}
                     size="small"
                     onClick={() => handleRunEval(record.id)}
+                    access={{ anyPermissions: ['evaluation:run'] }}
                 >
                     运行评估
-                </Button>
+                </PermissionButton>
             )
         }
     ];
@@ -768,14 +785,15 @@ export const EvalPage: React.FC = () => {
                     >
                         导出报告
                     </Button>
-                    <Button
+                    <PermissionButton
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setIsModalOpen(true)}
+                        access={{ anyPermissions: ['evaluation:run'] }}
                         style={{ borderRadius: 8, height: 36, display: 'flex', alignItems: 'center' }}
                     >
                         生成测试集
-                    </Button>
+                    </PermissionButton>
                 </Space>
             }
         >

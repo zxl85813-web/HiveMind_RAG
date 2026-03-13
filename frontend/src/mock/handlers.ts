@@ -1,6 +1,18 @@
 import * as data from './mockData';
 
 export const mockHandlers: Record<string, any> = {
+    // Auth
+    'GET:/auth/me': {
+        success: true,
+        data: {
+            id: 'mock-user-001',
+            name: 'Mock Admin',
+            role: 'admin',
+            permissions: ['audit:review', 'security:manage', 'evaluation:run', 'finetuning:manage', 'pipeline:edit', 'batch:operate', 'settings:manage']
+        },
+        message: 'Success'
+    },
+
     // Knowledge
     'GET:/knowledge': { success: true, data: data.mockKBs, message: 'Success' },
     'POST:/knowledge': { success: true, data: data.mockKBs[0], message: 'Knowledge base created successfully' },

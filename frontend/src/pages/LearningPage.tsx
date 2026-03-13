@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { App, Button, List, Card, Tag, Space, Typography, Modal, Input, Tabs, Empty } from 'antd';
 import { PlusOutlined, BulbOutlined, FireOutlined, GlobalOutlined, DeleteOutlined, RocketOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageContainer } from '../components/common';
+import { PageContainer, PermissionButton } from '../components/common';
 import { learningApi, type DailyLearningRun, type Subscription, type TechDiscovery } from '../services/learningApi';
+import { useAuthStore } from '../stores/authStore';
 
 const { Text, Paragraph } = Typography;
 
@@ -21,6 +22,7 @@ export const LearningPage: React.FC = () => {
     const [selectedReportPath, setSelectedReportPath] = useState('');
     const [selectedReportContent, setSelectedReportContent] = useState('');
     const [previewLoading, setPreviewLoading] = useState(false);
+    const hasAccess = useAuthStore((state) => state.hasAccess);
 
     const loadData = async () => {
         setLoading(true);
@@ -46,6 +48,10 @@ export const LearningPage: React.FC = () => {
     }, []);
 
     const handleAddSub = async () => {
+        if (!hasAccess({ anyPermissions: ['learning:manage'] })) {
+            message.warning('当前账号没有订阅管理权限');
+            return;
+        }
         if (!newTopic) return;
         try {
             await learningApi.addSubscription(newTopic);
@@ -59,6 +65,10 @@ export const LearningPage: React.FC = () => {
     };
 
     const handleDeleteSub = async (id: string) => {
+        if (!hasAccess({ anyPermissions: ['learning:manage'] })) {
+            message.warning('当前账号没有订阅管理权限');
+            return;
+        }
         try {
             await learningApi.deleteSubscription(id);
             message.success("已取消订阅");
@@ -69,6 +79,10 @@ export const LearningPage: React.FC = () => {
     };
 
     const handleRunDailyCycle = async () => {
+        if (!hasAccess({ anyPermissions: ['learning:manage'] })) {
+            message.warning('当前账号没有执行每日学习权限');
+            return;
+        }
         setDailyLoading(true);
         try {
             const runRes = await learningApi.runDailyCycle();
@@ -101,15 +115,26 @@ export const LearningPage: React.FC = () => {
             title={t('learning.title')}
             description={t('learning.description')}
             actions={
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsSubModalOpen(true)}>
+                <PermissionButton
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setIsSubModalOpen(true)}
+                    access={{ anyPermissions: ['learning:manage'] }}
+                >
                     {t('learning.add_sub')}
-                </Button>
+                </PermissionButton>
             }
         >
             <Space style={{ marginBottom: 16 }}>
-                <Button type="default" icon={<BulbOutlined />} loading={dailyLoading} onClick={handleRunDailyCycle}>
+                <PermissionButton
+                    type="default"
+                    icon={<BulbOutlined />}
+                    loading={dailyLoading}
+                    onClick={handleRunDailyCycle}
+                    access={{ anyPermissions: ['learning:manage'] }}
+                >
                     运行每日自省学习
-                </Button>
+                </PermissionButton>
                 {latestRun && <Tag color="success">最新报告: {latestRun.report_path}</Tag>}
                 {latestRun && <Tag color="processing">多元信号: {latestRun.external_signals_count}</Tag>}
             </Space>
@@ -158,11 +183,12 @@ export const LearningPage: React.FC = () => {
                                 renderItem={(item) => (
                                     <List.Item
                                         actions={[
-                                            <Button
+                                            <PermissionButton
                                                 danger
                                                 type="text"
                                                 icon={<DeleteOutlined />}
                                                 onClick={() => handleDeleteSub(item.id)}
+                                                access={{ anyPermissions: ['learning:manage'] }}
                                             />
                                         ]}
                                     >

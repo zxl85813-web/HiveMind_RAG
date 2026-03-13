@@ -7,6 +7,23 @@ afterEach(() => {
     cleanup();
 });
 
+// Polyfill ResizeObserver for antd Table/Tabs/etc. in jsdom
+global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+};
+
+// Suppress getComputedStyle errors from antd scrollbar measurement
+const _getComputedStyle = window.getComputedStyle.bind(window);
+window.getComputedStyle = (elt: Element, pseudoElt?: string | null) => {
+    try {
+        return _getComputedStyle(elt, pseudoElt ?? undefined);
+    } catch {
+        return {} as CSSStyleDeclaration;
+    }
+};
+
 // Mock matchMedia for antd
 Object.defineProperty(window, 'matchMedia', {
     writable: true,

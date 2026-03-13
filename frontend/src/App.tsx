@@ -10,16 +10,20 @@
  * @see skills/frontend-design/SKILL.md
  */
 
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { ConfigProvider, theme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import { XProvider } from '@ant-design/x';
 import { AppLayout } from './components/common/AppLayout';
 import { LoadingState } from './components/common/LoadingState';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MockControl } from './components/common/MockControl';
+import { appRoutes } from './config/appRoutes';
+import { AuthGuard } from './guards/AuthGuard';
+import { AccessGuard } from './guards/AccessGuard';
+import { useAuthStore } from './stores/authStore';
 
 // 🚀 [Architecture-Gate]: 路由级代码分割 (Code Splitting)
 // 所有页面组件采用 React.lazy 按需加载，优化首屏 TTI。
@@ -36,6 +40,23 @@ const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ default: m.CanvasLabPage })));
+const ForbiddenPage = lazy(() => import('./pages/ForbiddenPage').then(m => ({ default: m.ForbiddenPage })));
+
+const pageComponentMap = {
+  dashboard: DashboardPage,
+  knowledge: KnowledgePage,
+  audit: AuditPage,
+  security: SecurityPage,
+  evaluation: EvalPage,
+  finetuning: FineTuningPage,
+  pipelines: PipelineBuilderPage,
+  canvasLab: CanvasLabPage,
+  studio: StudioPage,
+  agents: AgentsPage,
+  batch: BatchPage,
+  learning: LearningPage,
+  settings: SettingsPage,
+} as const;
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -102,6 +123,12 @@ const appTheme = {
 };
 
 function App() {
+  const initProfile = useAuthStore((state) => state.initProfile);
+
+  useEffect(() => {
+    void initProfile();
+  }, [initProfile]);
+
   return (
     <XProvider>
       <ConfigProvider theme={appTheme} locale={zhCN}>
@@ -109,23 +136,34 @@ function App() {
           <ErrorBoundary>
             <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
               <Routes>
-                <Route path="/" element={<AppLayout />}>
-                  {/* Dashboard 是默认首页 */}
-                  <Route index element={<DashboardPage />} />
-                  {/* 功能页面 — Chat Panel 始终跟随 */}
-                  <Route path="knowledge" element={<KnowledgePage />} />
-                  <Route path="studio" element={<StudioPage />} />
-                  <Route path="agents" element={<AgentsPage />} />
-                  <Route path="batch" element={<BatchPage />} />
-                  <Route path="learning" element={<LearningPage />} />
-                  <Route path="audit" element={<AuditPage />} />
-                  <Route path="security" element={<SecurityPage />} />
-                  <Route path="evaluation" element={<EvalPage />} />
-                  <Route path="finetuning" element={<FineTuningPage />} />
-                  <Route path="pipelines" element={<PipelineBuilderPage />} />
-                  <Route path="canvas-lab" element={<CanvasLabPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
+                <Route path="/forbidden" element={<ForbiddenPage />} />
+                <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
+                  {appRoutes.map((route) => {
+                    const PageComponent = pageComponentMap[route.key as keyof typeof pageComponentMap];
+                    if (!PageComponent) {
+                      return null;
+                    }
+
+                    const guardedElement = (
+                      <AccessGuard access={route.access}>
+                        <PageComponent />
+                      </AccessGuard>
+                    );
+
+                    if (route.path === '/') {
+                      return <Route key={route.key} index element={guardedElement} />;
+                    }
+
+                    return (
+                      <Route
+                        key={route.key}
+                        path={route.path.slice(1)}
+                        element={guardedElement}
+                      />
+                    );
+                  })}
                 </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
           </ErrorBoundary>

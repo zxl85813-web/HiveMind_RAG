@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, Progress, Modal, Space, notification, Typography, Collapse } from 'antd';
 import { PlayCircleOutlined, StopOutlined, SyncOutlined, EyeOutlined } from '@ant-design/icons';
-import { PageContainer } from '../components/common';
+import { PageContainer, PermissionButton } from '../components/common';
 import { batchApi, type BatchJob, type TaskUnit } from '../services/batchApi';
+import { useAuthStore } from '../stores/authStore';
 
 const { Text } = Typography;
 const { Panel } = Collapse;
 
 export const BatchPage: React.FC = () => {
+    const hasAccess = useAuthStore((state) => state.hasAccess);
     const [jobs, setJobs] = useState<BatchJob[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedJob, setSelectedJob] = useState<BatchJob | null>(null);
@@ -37,6 +39,11 @@ export const BatchPage: React.FC = () => {
     }, []);
 
     const handleCreateMockJob = async () => {
+        if (!hasAccess({ anyPermissions: ['batch:operate'] })) {
+            notification.warning({ message: '当前账号没有创建批处理任务权限' });
+            return;
+        }
+
         try {
             await batchApi.createJob({
                 name: "Demo Analytics Pipeline",
@@ -56,6 +63,11 @@ export const BatchPage: React.FC = () => {
     };
 
     const handleCancelJob = async (jobId: string) => {
+        if (!hasAccess({ anyPermissions: ['batch:operate'] })) {
+            notification.warning({ message: '当前账号没有取消批处理任务权限' });
+            return;
+        }
+
         try {
             await batchApi.cancelJob(jobId);
             notification.success({ message: `Job ${jobId} cancelled` });
@@ -118,11 +130,12 @@ export const BatchPage: React.FC = () => {
                         onClick={() => { setSelectedJob(record); setModalVisible(true); }}
                     />
                     {record.status === 'running' && (
-                        <Button
+                        <PermissionButton
                             danger
                             size="small"
                             icon={<StopOutlined />}
                             onClick={() => handleCancelJob(record.id)}
+                            access={{ anyPermissions: ['batch:operate'] }}
                         />
                     )}
                 </Space>
@@ -145,9 +158,14 @@ export const BatchPage: React.FC = () => {
             <Card
                 title={<span><SyncOutlined spin={loading} /> Workflow Manager</span>}
                 extra={
-                    <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleCreateMockJob}>
+                    <PermissionButton
+                        type="primary"
+                        icon={<PlayCircleOutlined />}
+                        onClick={handleCreateMockJob}
+                        access={{ anyPermissions: ['batch:operate'] }}
+                    >
                         Create Demo Pipeline
-                    </Button>
+                    </PermissionButton>
                 }
             >
                 <Table

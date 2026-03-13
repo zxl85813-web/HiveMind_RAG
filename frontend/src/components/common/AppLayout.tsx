@@ -24,9 +24,11 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/chatStore';
+import { useAuthStore } from '../../stores/authStore';
 import { ChatPanel } from '../chat/ChatPanel';
 import { CreateKBModal } from '../knowledge/CreateKBModal';
 import { useCreateKnowledgeBase } from '../../hooks/useDashboardData';
+import { appRoutes } from '../../config/appRoutes';
 import type { CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
 import styles from './AppLayout.module.css';
 
@@ -37,6 +39,8 @@ export const AppLayout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { message } = App.useApp();
+    const hasAccess = useAuthStore((state) => state.hasAccess);
+    const profile = useAuthStore((state) => state.profile);
 
     const {
         viewMode,
@@ -51,22 +55,29 @@ export const AppLayout: React.FC = () => {
     const isAIMode = viewMode === 'ai';
     const createKBMutation = useCreateKnowledgeBase();
 
-    /** 导航项 */
-    const navItems = [
-        { key: '/', label: t('nav.dashboard'), icon: <AppstoreOutlined /> },
-        { key: '/knowledge', label: t('nav.knowledge'), icon: <DatabaseOutlined /> },
-        { key: '/audit', label: t('nav.audit'), icon: <SafetyCertificateOutlined /> },
-        { key: '/security', label: t('nav.security'), icon: <LockOutlined /> },
-        { key: '/evaluation', label: t('nav.evaluation'), icon: <LineChartOutlined /> },
-        { key: '/finetuning', label: t('nav.finetuning'), icon: <FolderOpenOutlined /> },
-        { key: '/pipelines', label: t('nav.pipelines'), icon: <SisternodeOutlined /> },
-        { key: '/canvas-lab', label: t('nav.canvasLab'), icon: <DeploymentUnitOutlined /> },
-        { key: '/studio', label: t('nav.studio'), icon: <RocketOutlined /> },
-        { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined /> },
-        { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined /> },
-        { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined /> },
-        { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined /> },
-    ];
+    const iconMap: Record<string, React.ReactNode> = {
+        AppstoreOutlined: <AppstoreOutlined />,
+        DatabaseOutlined: <DatabaseOutlined />,
+        ClusterOutlined: <ClusterOutlined />,
+        BulbOutlined: <BulbOutlined />,
+        SettingOutlined: <SettingOutlined />,
+        SafetyCertificateOutlined: <SafetyCertificateOutlined />,
+        RocketOutlined: <RocketOutlined />,
+        LockOutlined: <LockOutlined />,
+        LineChartOutlined: <LineChartOutlined />,
+        FolderOpenOutlined: <FolderOpenOutlined />,
+        SisternodeOutlined: <SisternodeOutlined />,
+        DeploymentUnitOutlined: <DeploymentUnitOutlined />,
+    };
+
+    /** 导航项 (基于路由元数据 + 权限) */
+    const navItems = appRoutes
+        .filter((route) => route.showInMenu && hasAccess(route.access))
+        .map((route) => ({
+            key: route.path,
+            label: t(route.labelKey),
+            icon: iconMap[route.icon] || <AppstoreOutlined />,
+        }));
 
     const toggleLang = () => {
         const current = i18n.language;
@@ -137,7 +148,7 @@ export const AppLayout: React.FC = () => {
                                 </Badge>
                             </Flex>
                             <Flex align="center" gap={8}>
-                                <span className={styles.statusText}>Online</span>
+                                <span className={styles.statusText}>{profile.roles[0]?.toUpperCase() || 'UNKNOWN'}</span>
                                 <div className={styles.statusDot} />
                             </Flex>
                         </Flex>
