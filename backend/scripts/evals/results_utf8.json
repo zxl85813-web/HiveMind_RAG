@@ -1,0 +1,171 @@
+{
+  "skill_name": "rag_search",
+  "description": "\u77e5\u8bc6\u5e93\u68c0\u7d22\u4e0e\u95ee\u7b54 \u2014 \u4ece\u5411\u91cf\u6570\u636e\u5e93\u4e2d\u68c0\u7d22\u76f8\u5173\u6587\u6863\u5e76\u751f\u6210\u5e26\u5f15\u7528\u7684\u56de\u7b54\u3002\u5f53\u7528\u6237\u8be2\u95ee\u9700\u8981\u4ece\u77e5\u8bc6\u5e93\u83b7\u53d6\u4fe1\u606f\u7684\u95ee\u9898\u65f6\u4f7f\u7528\u6b64 Skill\uff0c\u5305\u62ec\uff1a(1) \u8bed\u4e49\u641c\u7d22\u4e0e\u76f8\u4f3c\u5ea6\u68c0\u7d22 (2) \u591a\u77e5\u8bc6\u5e93\u4ea4\u53c9\u67e5\u8be2 (3) \u5e26\u6765\u6e90\u5f15\u7528\u7684\u7b54\u6848\u751f\u6210 (4) \u6587\u6863\u4e0a\u4e0b\u6587\u6269\u5c55\u4e0e\u7cbe\u6392 (5) \u57fa\u4e8e\u5143\u6570\u636e\u7684\u8fc7\u6ee4\u68c0\u7d22\u3002\u89e6\u53d1\u5173\u952e\u8bcd\uff1a\u77e5\u8bc6\u5e93\u641c\u7d22\u3001\u6587\u6863\u67e5\u627e\u3001RAG\u3001\u68c0\u7d22\u589e\u5f3a\u3001\u5f15\u7528\u6765\u6e90\u3002",
+  "results": [
+    {
+      "query": "\u67e5\u770b HiveMind \u5e73\u53f0\u7684\u5206\u7247\u7d22\u5f15\u7b56\u7565\u6587\u6863\uff0c\u5e76\u89e3\u91ca\u5176\u539f\u7406\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u6839\u636e\u77e5\u8bc6\u5e93\u91cc\u7684\u300a\u5b89\u5168\u6cbb\u7406\u89c4\u8303\u300b\uff0c\u603b\u7ed3\u4e00\u4e0b L3 \u7ea7\u522b\u6570\u636e\u7684\u8131\u654f\u8981\u6c42\uff0c\u9700\u8981\u5e26\u5f15\u7528\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u5728\u5168\u5e93\u68c0\u7d22\u4e00\u4e0b\u5173\u4e8e 'Reciprocal Rank Fusion' \u7684\u5b9e\u73b0\u7ec6\u8282\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u5e2e\u6211\u5bf9\u6bd4\u4e00\u4e0b\u2018\u901a\u7528\u6587\u6863\u6d41\u2019\u548c\u2018\u6280\u672f\u6587\u6863\u6d41\u2019\u4e24\u4e2a Pipeline \u7684\u5dee\u5f02\uff0c\u53c2\u8003\u5b98\u65b9\u624b\u518c\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u68c0\u7d22\u6240\u6709\u5173\u4e8e Neo4j \u90e8\u7f72\u7684\u6545\u969c\u6392\u9664\u6307\u5357\uff0c\u4f18\u5148\u770b\u7f6e\u4fe1\u5ea6\u9ad8\u4e8e 0.8 \u7684\u7ed3\u679c\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u6211\u60f3\u77e5\u9053\u8fd9\u4e2a\u7cfb\u7edf\u6700\u8fd1\u4e00\u6b21\u66f4\u65b0\u65e5\u5fd7\u91cc\u63d0\u5230\u4e86\u54ea\u4e9b BUG \u4fee\u590d\uff1f",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u5173\u4e8e\u2018\u5206\u5757\u7b56\u7565\u2019\uff0c\u77e5\u8bc6\u5e93\u91cc\u6709\u6ca1\u6709\u63d0\u5230\u7236\u5b50\u5206\u5757\u7684\u5177\u4f53\u5b9e\u73b0\u65b9\u6cd5\uff1f",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u7528\u77e5\u8bc6\u5e93\u68c0\u7d22\u529f\u80fd\u67e5\u627e\u6240\u6709\u5305\u542b\u2018API Key\u2019\u5b57\u6837\u7684\u5185\u7f51\u5b89\u5168\u6587\u6863\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u6839\u636e\u6587\u6863\uff0cHiveMind \u662f\u5982\u4f55\u5904\u7406\u5927\u6587\u4ef6\u4e0a\u4f20\u5bfc\u81f4\u7684 OOM \u95ee\u9898\u7684\uff1f",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u591a\u5e93\u8054\u5408\u641c\u7d22\uff1a\u5173\u4e8e\u6743\u9650\u6821\u9a8c\u548c OAuth2 \u7684\u96c6\u6210\u6587\u6863\u3002",
+      "should_trigger": true,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": false
+    },
+    {
+      "query": "\u5e2e\u6211\u5199\u4e00\u4e2a\u5feb\u901f\u6392\u5e8f\u7b97\u6cd5\u7684 Python \u5b9e\u73b0\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u4eca\u5929\u7684\u65b0\u95fb\u91cc\u6709\u6ca1\u6709\u63d0\u5230 Anthropic \u53d1\u5e03\u7684\u6700\u65b0\u6a21\u578b\uff1f",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u6211\u521a\u624d\u95ee\u4f60\u7684\u4e0a\u4e00\u4e2a\u95ee\u9898\u662f\u4ec0\u4e48\uff1f",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u5217\u51fa\u5f53\u524d\u76ee\u5f55\u4e0b\u6240\u6709\u7684 .py \u6587\u4ef6\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u5e2e\u6211\u91cd\u547d\u540d backend \u6587\u4ef6\u5939\u4e0b\u7684\u6240\u6709\u6d4b\u8bd5\u6587\u4ef6\u540e\u7f00\u4e3a .spec.ts\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u4f60\u662f\u8c01\uff1f\u4f60\u80fd\u505a\u4ec0\u4e48\uff1f",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u7531\u4e8e API \u5bc6\u94a5\u8fc7\u671f\u5bfc\u81f4\u4e86 401 \u9519\u8bef\uff0c\u6211\u8be5\u5982\u4f55\u672c\u5730 debug\uff1f",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u641c\u7d22\u4e00\u4e0b\u7f51\u7edc\u4e0a\u5173\u4e8e GraphRAG \u7684\u6700\u65b0\u7efc\u8ff0\u6587\u7ae0\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u603b\u7ed3\u4e00\u4e0b\u6211\u4eec\u521a\u624d\u804a\u7684\u5185\u5bb9\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    },
+    {
+      "query": "\u8fd0\u884c\u4e00\u4e0b\u5f53\u524d\u7684\u5355\u5143\u6d4b\u8bd5\uff0c\u770b\u770b\u6709\u6ca1\u6709\u5931\u8d25\u7684\u3002",
+      "should_trigger": false,
+      "trigger_rate": 0.0,
+      "triggers": 0,
+      "runs": 3,
+      "pass": true
+    }
+  ],
+  "summary": {
+    "total": 20,
+    "passed": 10,
+    "failed": 10
+  }
+}

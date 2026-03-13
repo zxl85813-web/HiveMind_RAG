@@ -1,0 +1,11 @@
+{
+  "eval_id": 1,
+  "eval_name": "ambiguous-query-handling",
+  "prompt": "Find documents about 'its' core developer. (Context: The last topic was HiveMind)",
+  "assertions": [
+    {
+      "name": "query_disambiguation",
+      "description": "Expanded queries should contain 'HiveMind developer'."
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "skill_name": "backend-expert",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-03-13T01:23:53Z",
+    "evals_run": [
+      0,
+      1
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 0,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses_uuid4",
+          "passed": true,
+          "evidence": "Schema defines id as UUID and Service uses uuid4() for new objects."
+        },
+        {
+          "text": "naming_convention",
+          "passed": true,
+          "evidence": "Methods named list_feedbacks, create_feedback, and update_feedback_status follow the required naming pattern."
+        },
+        {
+          "text": "dependency_injection",
+          "passed": true,
+          "evidence": "Routes use Depends() to inject Session, Service, and User dependencies."
+        },
+        {
+          "text": "audit_fields",
+          "passed": true,
+          "evidence": "The Service accurately handles created_by/updated_by passed from the controller."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "background_tasks",
+          "passed": true,
+          "evidence": "Correctly uses fastapi.BackgroundTasks to offload the re-calculation task."
+        },
+        {
+          "text": "logging_lifecycle",
+          "passed": true,
+          "evidence": "Uses loguru with [TASK START] and [TASK END] markers as requested."
+        },
+        {
+          "text": "exception_tracing",
+          "passed": true,
+          "evidence": "Uses logger.exception to log full traceback within the background task try/except block."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 0,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "baseline",
+          "passed": false,
+          "evidence": "Baseline failure simulator"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "baseline",
+          "passed": false,
+          "evidence": "Baseline failure simulator"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.415,
+        "stddev": 0.1202,
+        "min": 0.33,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.58",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": []
+}

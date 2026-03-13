@@ -1,0 +1,9 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4 },
+  "expectations": [
+    { "text": "mermaid_er_diagram", "passed": true, "evidence": "Included Mermaid diagram." },
+    { "text": "service_layer_definition", "passed": true, "evidence": "Defined VersioningService path." },
+    { "text": "component_reuse", "passed": true, "evidence": "Mentioned ConfirmAction and DataTable." },
+    { "text": "error_handling_schema", "passed": true, "evidence": "Listed 3 custom exceptions." }
+  ]
+}

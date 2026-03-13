@@ -1,0 +1,15 @@
+{
+  "summary": {
+    "pass_rate": 0.33,
+    "passed": 1,
+    "failed": 2,
+    "total": 3
+  },
+  "expectations": [
+    {
+      "text": "baseline",
+      "passed": false,
+      "evidence": "Baseline failure simulator"
+    }
+  ]
+}

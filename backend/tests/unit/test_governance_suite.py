@@ -1,10 +1,13 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agents.swarm import SwarmOrchestrator, SwarmState
-from app.core.algorithms.alignment import TruthAlignmentService
-from app.core.algorithms.memory_governance import memory_governance_service
+from app.core.algorithms.alignment import AlignmentDecision, TruthAlignmentService
+from app.core.algorithms.memory_governance import (
+    ValueDensityScore,
+    memory_governance_service,
+)
 from app.services.cache_service import CacheService
 
 
@@ -14,12 +17,13 @@ async def test_truth_alignment_detection(mock_llm_service):
     graph_facts = "The capital of France is Paris."
     vector_content = "According to recent reports, the capital of France has been moved to Lyon."
 
-    # Configure mock for TruthAlignment
-    mock_llm_service.chat_complete.return_value = (
-        '{"alignment_summary": "Contradiction found.", '
-        '"conflicts": [{"fact": "Capital of France", "graph_value": "Paris", "vector_value": "Lyon", "reasoning": "Location mismatch"}], '
-        '"reinforcements": [], "is_consistent": false}'
-    )
+    # Configure mock for instructor call (ConsistencyCheck)
+    mock_res = MagicMock()
+    mock_res.has_contradiction = True
+    mock_res.conflicts = ["Capital of France mismatch: Paris vs Lyon"]
+    mock_res.reinforcements = []
+    mock_res.analysis = "Contradiction found."
+    mock_llm_service.client.chat.completions.create.return_value = mock_res
 
     svc = TruthAlignmentService()
     report = await svc.align(graph_facts, vector_content)
@@ -31,8 +35,11 @@ async def test_truth_alignment_detection(mock_llm_service):
 @pytest.mark.asyncio
 async def test_memory_governance_density(mock_llm_service):
     # Mock for high value
-    mock_llm_service.chat_complete.return_value = (
-        '{"score": 0.85, "tier_recommendation": "GRAPH", "reasoning": "High architectural value.", "keywords": ["Neo4j"]}'
+    mock_llm_service.client.chat.completions.create.return_value = ValueDensityScore(
+        score=0.85, 
+        tier_recommendation="GRAPH", 
+        reasoning="High architectural value.", 
+        keywords=["Neo4j"]
     )
 
     high_val = "In project X, we decided to use Neo4j for the graph layer to support multi-hop reasoning."
@@ -40,9 +47,12 @@ async def test_memory_governance_density(mock_llm_service):
     assert high_score.score > 0.6
     assert high_score.tier_recommendation == "GRAPH"
 
-    # Mock for low value
-    mock_llm_service.chat_complete.return_value = (
-        '{"score": 0.1, "tier_recommendation": "VECTOR", "reasoning": "Noise.", "keywords": []}'
+    # Mock for low value - just set return_value again or use side_effect correctly
+    mock_llm_service.client.chat.completions.create.return_value = ValueDensityScore(
+        score=0.1, 
+        tier_recommendation="VECTOR", 
+        reasoning="Noise.", 
+        keywords=[]
     )
 
     low_val = "Hi there, how are you? Just checking in."

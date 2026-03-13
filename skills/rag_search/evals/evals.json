@@ -1,0 +1,37 @@
+{
+  "skill_name": "rag_search",
+  "evals": [
+    {
+      "id": 0,
+      "name": "cross-doc-comparison",
+      "prompt": "Comparing findings in documentation: What is the difference between the 'Layered Memory' architecture and standard Vector Retrieval according to the internal design documents? Provide specific details and citations.",
+      "expected_output": "A detailed comparison citing specific sections of the internal memory design documents.",
+      "assertions": [
+        {
+          "name": "runs_rag_ops_analyze",
+          "description": "Must run 'python skills/rag_search/scripts/rag_ops.py analyze' first."
+        },
+        {
+          "name": "uses_citations",
+          "description": "Must include citations [1], [2] corresponding to the source list."
+        },
+        {
+          "name": "no_hallucination",
+          "description": "Facts must strictly come from the retrieved context, not general knowledge."
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "ambiguous-query-handling",
+      "prompt": "Find documents about 'its' core developer. (Context: The last topic was HiveMind)",
+      "expected_output": "The agent should disambiguate 'its' to 'HiveMind' via the analyze script and find the correct info.",
+      "assertions": [
+        {
+          "name": "query_disambiguation",
+          "description": "The expanded queries should contain 'HiveMind developer' or similar."
+        }
+      ]
+    }
+  ]
+}

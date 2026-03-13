@@ -1,0 +1,37 @@
+{
+  "skill_name": "project-steward",
+  "evals": [
+    {
+      "id": 0,
+      "name": "registry-sync-task",
+      "prompt": "I just added a new API endpoint 'GET /api/v1/health' in 'api/routes/health.py'. Please update REGISTRY.md to reflect this.",
+      "expected_output": "An updated REGISTRY.md with the new endpoint added to the Backend > API section with correct formatting.",
+      "assertions": [
+        {
+          "name": "correct_section",
+          "description": "Must insert the new entry under the '## 后端资产' > 'API' section."
+        },
+        {
+          "name": "emoji_usage",
+          "description": "Must maintain the project's emoji style (e.g., 🔌 for API)."
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "changelog-drafting",
+      "prompt": "We fixed the 401 Unauthorized bug and added the new Health Check API. Draft a changelog entry for this as a patch release.",
+      "expected_output": "A changelog entry categorized as a 'Patch' version with appropriate bullet points.",
+      "assertions": [
+        {
+          "name": "semantic_versioning",
+          "description": "Must explicitly identify the version increment type as 'Patch' or 'vX.X.Z'."
+        },
+        {
+          "name": "link_completeness",
+          "description": "Must provide placeholders for requirement or bug IDs if applicable."
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
-from app.auth.permissions import AuthorizationContext
 from app.core.vector_store import SearchType, VectorDocument
+from app.schemas.auth import AuthorizationContext
 
 
 class RetrievalContext(BaseModel):

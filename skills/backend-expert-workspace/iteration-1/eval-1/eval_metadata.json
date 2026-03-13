@@ -1,0 +1,19 @@
+{
+  "eval_id": 1,
+  "eval_name": "kb-maintenance-task",
+  "prompt": "Implement a 'Knowledge Base Maintenance' Service. When a doc is deleted, trigger an async task to recalculate KB stats. Requirements: 1. Follow BackgroundTasks; 2. Use loguru for lifecycle logging; 3. Handle UUID and DB sessions correctly.",
+  "assertions": [
+    {
+      "name": "background_tasks",
+      "description": "Uses BackgroundTasks correctly"
+    },
+    {
+      "name": "logging_lifecycle",
+      "description": "Logs task start and end"
+    },
+    {
+      "name": "exception_tracing",
+      "description": "Logs traceback on errors"
+    }
+  ]
+}

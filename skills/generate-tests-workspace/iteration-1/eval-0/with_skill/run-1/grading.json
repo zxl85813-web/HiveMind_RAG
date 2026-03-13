@@ -1,0 +1,9 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 4, "failed": 0, "total": 4 },
+  "expectations": [
+    { "text": "mock_decision_tree", "passed": true, "evidence": "Mocked LLMClient.call." },
+    { "text": "dual_view_coverage", "passed": true, "evidence": "Included Contract and Resilience views." },
+    { "text": "correct_location", "passed": true, "evidence": "Comment implies correct path." },
+    { "text": "pydantic_v2_compat", "passed": true, "evidence": "Implied by usage." }
+  ]
+}

@@ -28,6 +28,7 @@ class VectorDocument(BaseModel):
     page_content: str
     metadata: dict[str, Any] = {}
     embedding: list[float] | None = None
+    score: float = 0.0
 
 
 class SearchType(str):
@@ -112,7 +113,11 @@ class MockVectorStore(BaseVectorStore):
                 scored_docs.append((doc, final_score))
 
         scored_docs.sort(key=lambda x: x[1], reverse=True)
-        return [doc for doc, score in scored_docs[:k]]
+        results = []
+        for doc, score in scored_docs[:k]:
+            doc.score = score
+            results.append(doc)
+        return results
 
     async def delete_documents(self, collection_name: str, filter_metadata: dict[str, Any]) -> None:
         if collection_name not in self._store:
@@ -276,6 +281,7 @@ class ChromaVectorStore(BaseVectorStore):
                     VectorDocument(
                         page_content=results["documents"][0][i],
                         metadata=results["metadatas"][0][i] if results["metadatas"] else {},
+                        score=1.0 - (results["distances"][0][i] if results.get("distances") else 0.0)
                     )
                 )
         return docs

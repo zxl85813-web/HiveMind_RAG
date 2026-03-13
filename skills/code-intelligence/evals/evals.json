@@ -1,0 +1,41 @@
+{
+  "skill_name": "code-intelligence",
+  "evals": [
+    {
+      "id": 0,
+      "name": "impact-analysis-schema",
+      "prompt": "If I change the 'user_id' field type in 'schemas/feedback.py' from UUID to String, what are the cascading impacts on the frontend and database layers?",
+      "expected_output": "Identification of broken relations in DB and type mismatches in frontend components.",
+      "assertions": [
+        {
+          "name": "identifies_db_relations",
+          "description": "Must mention that ForeignKey constraints in SQLModel objects will be affected."
+        },
+        {
+          "name": "identifies_frontend_impact",
+          "description": "Must suggest checking 'feedback-list.tsx' or similar UI components for type-checking errors."
+        },
+        {
+          "name": "risk_assessment",
+          "description": "Must classify this as a 'High Risk' change due to potential runtime persistence errors."
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "logic-deconstruction-async",
+      "prompt": "Explain how the memory distillation process in 'memory_service.py' handles concurrent background tasks. Use a Mermaid diagram if possible.",
+      "expected_output": "A clear explanation of the lock mechanism or queue used, plus a Mermaid sequence diagram.",
+      "assertions": [
+        {
+          "name": "explains_concurrency",
+          "description": "Must identify whether it uses a Semaphore or a Task Queue."
+        },
+        {
+          "name": "mermaid_rendering",
+          "description": "Must provide a valid Mermaid code block showing the task flow."
+        }
+      ]
+    }
+  ]
+}

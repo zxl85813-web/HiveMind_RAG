@@ -1,0 +1,7 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2 },
+  "expectations": [
+    { "text": "explains_concurrency", "passed": true, "evidence": "Correctly identified asyncio.Semaphore(2) and Redis Lock." },
+    { "text": "mermaid_rendering", "passed": true, "evidence": "Output includes a functional Mermaid sequence diagram." }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3 },
+  "expectations": [
+    { "text": "runs_rag_ops_analyze", "passed": true, "evidence": "Agent followed the workflow in SKILL.md to analyze the query." },
+    { "text": "uses_citations", "passed": true, "evidence": "Output contains [1][2] and a list of sources." },
+    { "text": "no_hallucination", "passed": true, "evidence": "Content is consistent with memory_compression_design.md." }
+  ]
+}

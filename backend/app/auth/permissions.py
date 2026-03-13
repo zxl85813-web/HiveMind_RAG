@@ -9,10 +9,8 @@ RBAC 权限管理 — 角色 + 权限 + 装饰器。
 参见: REGISTRY.md > 后端 > auth > permissions
 """
 
-from enum import StrEnum
 
 from fastapi import Depends
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -20,54 +18,9 @@ from app.api.deps import get_current_user
 from app.core.exceptions import ForbiddenError
 from app.models.chat import User
 from app.models.security import DocumentPermission
+from app.schemas.auth import Permission, Role
 
-
-class Role(StrEnum):
-    """用户角色。"""
-
-    ADMIN = "admin"
-    USER = "user"
-    READONLY = "readonly"
-
-
-class AuthorizationContext(BaseModel):
-    """
-    统一授权结果上下文 (ARM-P0-4)。
-    供后续 Prompt 层消费，确保记忆增强不越权。
-    """
-
-    user_id: str
-    role: str
-    department_id: str | None = None
-    # 授权作用域
-    authorized_kb_ids: list[str] = []
-    authorized_doc_ids: list[str] = []
-    # 动作权限快照 (可选)
-    permissions: list[str] = []
-
-
-class Permission(StrEnum):
-    """细粒度权限。"""
-
-    # Chat
-    CHAT_SEND = "chat:send"
-    CHAT_VIEW = "chat:view"
-    CHAT_DELETE = "chat:delete"
-
-    # Knowledge
-    KB_CREATE = "kb:create"
-    KB_VIEW = "kb:view"
-    KB_DELETE = "kb:delete"
-    KB_UPLOAD = "kb:upload"
-
-    # Agent
-    AGENT_VIEW = "agent:view"
-    AGENT_CONFIG = "agent:config"
-
-    # Admin
-    USER_MANAGE = "user:manage"
-    SYSTEM_CONFIG = "system:config"
-    AUDIT_VIEW = "audit:view"
+# Definitions moved to app.schemas.auth
 
 
 # 角色 → 权限映射

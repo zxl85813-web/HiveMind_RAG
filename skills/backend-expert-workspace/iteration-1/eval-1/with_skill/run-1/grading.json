@@ -1,0 +1,25 @@
+{
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "failed": 0,
+    "total": 3
+  },
+  "expectations": [
+    {
+      "text": "background_tasks",
+      "passed": true,
+      "evidence": "Correctly uses fastapi.BackgroundTasks to offload the re-calculation task."
+    },
+    {
+      "text": "logging_lifecycle",
+      "passed": true,
+      "evidence": "Uses loguru with [TASK START] and [TASK END] markers as requested."
+    },
+    {
+      "text": "exception_tracing",
+      "passed": true,
+      "evidence": "Uses logger.exception to log full traceback within the background task try/except block."
+    }
+  ]
+}

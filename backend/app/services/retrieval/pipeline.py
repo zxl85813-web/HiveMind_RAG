@@ -2,8 +2,8 @@
 Retrieval Pipeline — Orchestrator for RAG Retrieval.
 """
 
-from app.auth.permissions import AuthorizationContext
 from app.core.vector_store import SearchType, VectorDocument
+from app.schemas.auth import AuthorizationContext
 
 from .preprocessing import QueryPreProcessingStep
 from .protocol import RetrievalContext

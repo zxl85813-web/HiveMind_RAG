@@ -39,9 +39,10 @@ from app.agents.agentic_search import SEARCH_TOOLS
 from app.agents.llm_router import LLMRouter, ModelTier
 from app.agents.memory import SharedMemoryManager
 from app.agents.tools import NATIVE_TOOLS
-from app.auth.permissions import AuthorizationContext
 from app.core.config import settings
+from app.schemas.auth import AuthorizationContext
 from app.services.cache_service import CacheService
+from app.services.evaluation.multi_grader import MultiGraderEval
 
 # ============================================================
 #  Agent Definition
@@ -357,18 +358,52 @@ class SwarmOrchestrator:
     # ============================================================
 
     async def _pre_processor_node(self, state: SwarmState) -> dict:
-        """Entry node for caching and JIT context checks."""
-        query = state.get("original_query", "")
+        """Entry node for caching, JIT context checks, and Query Enrichment."""
+        messages = state.get("messages", [])
+        original_query = state.get("original_query", "")
 
-        # --- Semantic Cache Lookup (Architecture Layer 5 Middleware) ---
-        cached = await CacheService.get_cached_response(query)
+        # --- 1. Semantic Cache Lookup (Architecture Layer 5 Middleware) ---
+        cached = await CacheService.get_cached_response(original_query)
         if cached:
-            logger.info(f"⚡ [Phase 4] Semantic Cache Hit: {query[:50]}...")
+            logger.info(f"⚡ [Phase 4] Semantic Cache Hit: {original_query[:50]}...")
             return {
                 "messages": [AIMessage(content=cached["content"])],
                 "agent_outputs": {"cache": cached["content"]},
                 "next_step": "FINISH",
             }
+
+        # --- 2. Query Enrichment: Pronoun Resolution & Ambiguity Fix (TASK-RAG-002) ---
+        # If the query is short or contains pronouns, enrich it using dialogue context.
+        query_to_enrich = original_query
+        pronouns = ["it", "that", "this", "he", "she", "they", "them", "它", "这个", "那个", "之前"]
+        is_ambiguous = len(query_to_enrich) < 15 or any(p in query_to_enrich.lower() for p in pronouns)
+
+        if is_ambiguous and len(messages) > 1:
+            try:
+                llm = self.router.get_model(ModelTier.SIMPLE)
+                history = "\n".join([f"{m.type}: {m.content[:100]}" for m in messages[-5:-1]]) # Last 4 messages
+
+                enrich_prompt = f"""
+                You are a dialogue context analyzer.
+                Based on the dialogue history, resolve any pronouns or ambiguity in the Latest User Query to make it a standalone, clear search query.
+                
+                Dialogue History:
+                {history}
+                
+                Latest User Query: {query_to_enrich}
+                
+                Standalone Enriched Query (return ONLY the query):
+                """
+
+                resp = await llm.ainvoke([HumanMessage(content=enrich_prompt)])
+                enriched = resp.content.strip().strip('"')
+
+                if enriched and enriched != query_to_enrich:
+                    logger.info(f"🧬 [Query Enrichment] '{query_to_enrich}' -> '{enriched}'")
+                    # We store enriched query in the metadata/state, potentially updating original_query for RAG
+                    return {"next_step": "supervisor", "original_query": enriched}
+            except Exception as e:
+                logger.error(f"⚠️ Query Enrichment failed: {e}")
 
         return {"next_step": "supervisor"}
 

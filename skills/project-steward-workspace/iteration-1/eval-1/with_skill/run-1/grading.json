@@ -1,0 +1,7 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2 },
+  "expectations": [
+    { "text": "semantic_versioning", "passed": true, "evidence": "Classified as Patch Release." },
+    { "text": "link_completeness", "passed": true, "evidence": "Included link to REQ-001." }
+  ]
+}

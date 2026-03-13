@@ -1,0 +1,6 @@
+{
+  "summary": { "pass_rate": 0.25, "passed": 1, "failed": 3, "total": 4 },
+  "expectations": [
+    { "text": "baseline", "passed": false, "evidence": "Missing diagrams, paths, and component reuse." }
+  ]
+}

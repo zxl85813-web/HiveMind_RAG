@@ -1,0 +1,8 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3 },
+  "expectations": [
+    { "text": "identifies_db_relations", "passed": true, "evidence": "Output mentioned SQLModel and Alembic migration issues." },
+    { "text": "identifies_frontend_impact", "passed": true, "evidence": "Output mentioned TypeScript types and Component rendering." },
+    { "text": "risk_assessment", "passed": true, "evidence": "Change correctly identified as High Risk." }
+  ]
+}

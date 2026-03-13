@@ -1,0 +1,7 @@
+{
+  "summary": { "pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2 },
+  "expectations": [
+    { "text": "correct_section", "passed": true, "evidence": "Insert into API section." },
+    { "text": "emoji_usage", "passed": true, "evidence": "Used 🔌 emoji." }
+  ]
+}

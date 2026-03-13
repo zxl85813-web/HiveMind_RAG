@@ -1,0 +1,102 @@
+[
+  {
+    "query": "查看 HiveMind 平台的分片索引策略文档，并解释其原理。",
+    "should_trigger": true,
+    "reason": "Explicit request for knowledge base document information."
+  },
+  {
+    "query": "根据知识库里的《安全治理规范》，总结一下 L3 级别数据的脱敏要求，需要带引用。",
+    "should_trigger": true,
+    "reason": "Requests specific document summary with citations."
+  },
+  {
+    "query": "在全库检索一下关于 'Reciprocal Rank Fusion' 的实现细节。",
+    "should_trigger": true,
+    "reason": "Technical query requiring semantic search across KBs."
+  },
+  {
+    "query": "帮我对比一下‘通用文档流’和‘技术文档流’两个 Pipeline 的差异，参考官方手册。",
+    "should_trigger": true,
+    "reason": "Comparative analysis based on official documentation."
+  },
+  {
+    "query": "检索所有关于 Neo4j 部署的故障排除指南，优先看置信度高于 0.8 的结果。",
+    "should_trigger": true,
+    "reason": "Search with metadata/score threshold preference."
+  },
+  {
+    "query": "我想知道这个系统最近一次更新日志里提到了哪些 BUG 修复？",
+    "should_trigger": true,
+    "reason": "Likely involves searching a changelog/markdown file in KB."
+  },
+  {
+    "query": "关于‘分块策略’，知识库里有没有提到父子分块的具体实现方法？",
+    "should_trigger": true,
+    "reason": "Specific concept retrieval."
+  },
+  {
+    "query": "用知识库检索功能查找所有包含‘API Key’字样的内网安全文档。",
+    "should_trigger": true,
+    "reason": "Explicit use of keyword-based knowledge search."
+  },
+  {
+    "query": "根据文档，HiveMind 是如何处理大文件上传导致的 OOM 问题的？",
+    "should_trigger": true,
+    "reason": "Specific logic retrieval from docs."
+  },
+  {
+    "query": "多库联合搜索：关于权限校验和 OAuth2 的集成文档。",
+    "should_trigger": true,
+    "reason": "Multi-KB parallel search intent."
+  },
+  {
+    "query": "帮我写一个快速排序算法的 Python 实现。",
+    "should_trigger": false,
+    "reason": "Pure code generation task, should use internal knowledge or code tool, not RAG search."
+  },
+  {
+    "query": "今天的新闻里有没有提到 Anthropic 发布的最新模型？",
+    "should_trigger": false,
+    "reason": "Real-time info request, should trigger web_search instead of RAG."
+  },
+  {
+    "query": "我刚才问你的上一个问题是什么？",
+    "should_trigger": false,
+    "reason": "Conversation history request, should use Memory/Context, not RAG."
+  },
+  {
+    "query": "列出当前目录下所有的 .py 文件。",
+    "should_trigger": false,
+    "reason": "System/Terminal command task, should use ls/list_dir tool."
+  },
+  {
+    "query": "帮我重命名 backend 文件夹下的所有测试文件后缀为 .spec.ts。",
+    "should_trigger": false,
+    "reason": "File system manipulation task."
+  },
+  {
+    "query": "你是谁？你能做什么？",
+    "should_trigger": false,
+    "reason": "General identity/capability query, system prompt handles this."
+  },
+  {
+    "query": "由于 API 密钥过期导致了 401 错误，我该如何本地 debug？",
+    "should_trigger": false,
+    "reason": "Generic troubleshooting, likely code-centric or general reasoning, unless specifically asking for internal docs."
+  },
+  {
+    "query": "搜索一下网络上关于 GraphRAG 的最新综述文章。",
+    "should_trigger": false,
+    "reason": "Specific 'web' search request."
+  },
+  {
+    "query": "总结一下我们刚才聊的内容。",
+    "should_trigger": false,
+    "reason": "Session-specific summary, handles via context manager."
+  },
+  {
+    "query": "运行一下当前的单元测试，看看有没有失败的。",
+    "should_trigger": false,
+    "reason": "Test execution task, uses run_command tool."
+  }
+]

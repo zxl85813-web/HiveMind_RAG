@@ -1,0 +1,19 @@
+{
+  "skill_name": "backend-expert",
+  "evals": [
+    {
+      "id": 0,
+      "name": "user-feedback-crud",
+      "prompt": "Create a complete backend module for 'User Feedback'. Requirements: 1. Define Schema (content, rating 1-5, image_url, status); 2. Implement Service layer with list, create, update methods; 3. Mount FastAPI routes with Depends injection; 4. Strictly follow UUID4 and soft-delete standards.",
+      "expected_output": "Standardized backend code for feedback module.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "kb-maintenance-task",
+      "prompt": "Implement a 'Knowledge Base Maintenance' Service. When a doc is deleted, trigger an async task to recalculate KB stats. Requirements: 1. Follow BackgroundTasks; 2. Use loguru for lifecycle logging; 3. Handle UUID and DB sessions correctly.",
+      "expected_output": "KB service with async maintenance task.",
+      "files": []
+    }
+  ]
+}
