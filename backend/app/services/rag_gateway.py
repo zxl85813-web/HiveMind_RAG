@@ -10,8 +10,11 @@ from typing import ClassVar
 from loguru import logger
 
 from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse
+from app.services.dependency_circuit_breaker import breaker_manager
 from app.services.observability_service import fire_and_forget_trace
+from app.services.retrieval.read_service import get_retrieval_read_service
 from app.services.retrieval.pipeline import RetrievalPipeline
+from app.services.service_governance import choose_topology_path
 
 
 class RAGGateway:
@@ -27,15 +30,32 @@ class RAGGateway:
 
     def __init__(self):
         self.pipeline = RetrievalPipeline()
+        self.read_service = get_retrieval_read_service()
         self.max_failures = 3
         self.recovery_timeout = 60  # seconds
 
     async def retrieve(
-        self, query: str, kb_ids: list[str], top_k: int = 5, strategy: str = "hybrid"
+        self,
+        query: str,
+        kb_ids: list[str],
+        top_k: int = 5,
+        strategy: str = "hybrid",
+        user_id: str | None = None,
     ) -> KnowledgeResponse:
         start_time = time.time()
         all_fragments = []
         warnings = []
+
+        # Phase 5 / TASK-SG-001:
+        # Decide whether this request should use split path (gray rollout) or stay monolith.
+        topo = choose_topology_path(user_id=user_id, query=query)
+        logger.debug(
+            "[ServiceGovernance] mode={} path={} gray={}%, strategy={}",
+            topo.mode,
+            topo.path,
+            topo.gray_percent,
+            strategy,
+        )
 
         # 1. Filter out tripped KBs
         active_kbs = []
@@ -57,7 +77,22 @@ class RAGGateway:
 
         # 2. Parallel retrieval from active KBs
         # Note: In a real implementation, we'd use the RetrievalPipeline's internal logic
-        tasks = [self._retrieve_from_single_kb(query, kb_id, top_k) for kb_id in active_kbs]
+        if topo.path == "split":
+            tasks = [
+                breaker_manager.execute(
+                    "es",
+                    lambda kb_id=kb_id: self.read_service.retrieve_from_kb(
+                        query=query,
+                        kb_id=kb_id,
+                        top_k=top_k,
+                        search_type=strategy,
+                        user_id=user_id,
+                    ),
+                )
+                for kb_id in active_kbs
+            ]
+        else:
+            tasks = [self._retrieve_from_single_kb(query, kb_id, top_k) for kb_id in active_kbs]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, res in enumerate(results):
@@ -138,7 +173,10 @@ class RAGGateway:
                            coalesce(b.name, b.id, "") AS target
                     LIMIT $limit
                     """
-                    records = store.query(cypher, {"query": query, "limit": top_k})
+                    records = await breaker_manager.execute(
+                        "neo4j",
+                        lambda: asyncio.to_thread(store.query, cypher, {"query": query, "limit": top_k}),
+                    )
                     for idx, rec in enumerate(records):
                         source = rec.get("source") or "unknown"
                         relation = rec.get("relation") or "RELATED"

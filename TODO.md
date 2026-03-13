@@ -544,27 +544,61 @@
 
 ##### Phase 5 执行拆解（可直接建 Issue）
 
-- ⬜ **TASK-SG-001（协作者: zxl85813-web）**：完成读写分离拓扑设计与灰度开关
+- ✅ **TASK-SG-001（协作者: zxl85813-web）**：完成读写分离拓扑设计与灰度开关
   - 交付物：Ingestion/Retrieval 双服务边界图 + 配置开关（单体兼容 / 双服务模式）
   - 验收：在不改 API 契约下可切换部署模式；回滚路径明确且可脚本化
-- ⬜ **TASK-SG-002（协作者: Uchihacc）**：实现 Retrieval 只读服务与异步事件补偿
+  - 进展：已完成 `SERVICE_TOPOLOGY_MODE` / `SERVICE_GOVERNANCE_GRAY_PERCENT` 配置开关与 `service_governance` 路由判定器。
+  - 进展：已新增 `GET /api/v1/observability/service-governance` 用于运维侧查看当前拓扑模式与灰度参数。
+  - 进展：已补充拓扑与回滚文档 `docs/architecture/service_governance_topology.md`。
+- 🟡 **TASK-SG-002（协作者: zxl85813-web）**：实现 Retrieval 只读服务与异步事件补偿
   - 交付物：Retrieval 只读实例 + 写后异步索引通知（Event/Queue）
   - 验收：写高峰期间检索 P95 延迟较基线下降，且无数据可见性异常告警
-- ⬜ **TASK-SG-003（协作者: zxl85813-web）**：实现分层熔断器策略（LLM/ES/Neo4j）
+  - 进展：已新增 `RetrievalReadService`，在 split 拓扑路径下由 `RAGGateway` 走只读检索链路。
+  - 进展：已新增 `WriteEventBus`，在文档上传/关联/解绑后发出异步写事件通知。
+- 🟡 **TASK-SG-003（协作者: zxl85813-web）**：实现分层熔断器策略（LLM/ES/Neo4j）
   - 交付物：按依赖维度独立阈值（timeout/error_rate/open_duration）+ 半开探测机制
   - 验收：任一依赖故障时不触发级联雪崩，服务可维持降级可用
-- ⬜ **TASK-SG-004（协作者: Uchihacc）**：实现统一降级编排器（Fallback Orchestrator）
+  - 进展：已新增 `DependencyCircuitBreakerManager`，支持滑动窗口错误率阈值、开路时长、半开探测、依赖级超时控制。
+  - 进展：已接入 LLM（`chat_complete/stream_chat`）与 Retrieval split 读路径（ES）及开发检索图查询（Neo4j）。
+  - 进展：`GET /api/v1/observability/service-governance` 已附带依赖熔断器状态快照。
+- 🟡 **TASK-SG-004（协作者: zxl85813-web）**：实现统一降级编排器（Fallback Orchestrator）
   - 交付物：优先级链路 `cache -> local lightweight -> backup provider` + 降级原因码
   - 验收：主模型不可用 10 分钟内，问答成功率保持在目标阈值以上
-- ⬜ **TASK-SG-005（协作者: zxl85813-web）**：实现路由级限流与令牌桶配置中心
+  - 进展：已新增 `FallbackOrchestrator`，实现 `cache -> local lightweight -> backup provider` 统一降级链路，并记录 reason code 与最近事件。
+  - 进展：`LLMService.chat_complete/stream_chat` 已接入统一降级编排；主调用失败后自动进入降级链路。
+  - 进展：`GET /api/v1/observability/service-governance` 已附带 fallback 编排器状态快照。
+  - 进展：已新增 `backend/tests/unit/services/test_fallback_orchestrator.py` 覆盖缓存命中、本地成功、备援成功、链路耗尽场景。
+- 🟡 **TASK-SG-005（协作者: zxl85813-web）**：实现路由级限流与令牌桶配置中心
   - 交付物：按 `route/user/key` 多粒度限流策略 + 热更新配置
   - 验收：压测突发流量下无大面积 5xx，且高优先级路由具备保底配额
-- ⬜ **TASK-SG-006（协作者: Uchihacc）**：接入 ClawRouter 多维评分与成本守卫
+  - 进展：已新增 `RateLimitGovernanceCenter`（令牌桶），支持 `route/user/key` 三粒度限流与拒绝原因码。
+  - 进展：`chat/completions`、`knowledge/documents`（上传/关联/解绑）已接入限流拦截，超限返回 429 + `Retry-After`。
+  - 进展：`GET/PUT /api/v1/observability/service-governance/rate-limit` 已支持策略快照与热更新。
+  - 进展：新增 `backend/tests/unit/services/test_rate_limit_governance.py` 覆盖路由限流、用户隔离、热更新场景。
+- 🟡 **TASK-SG-006（协作者: zxl85813-web）**：接入 ClawRouter 多维评分与成本守卫
   - 交付物：评分因子（复杂度/Token/SLA/成本）+ Eco/Premium 动态路由
   - 验收：在质量不回退前提下，单位请求平均成本下降并可观测
-- ⬜ **TASK-SG-007（协作者: zxl85813-web）**：建设高可用压测与故障演练流水线
+  - 进展：已新增 `ClawRouterGovernance`，实现多维加权评分（complexity/token/SLA/cost）与 Eco/Premium 动态路由。
+  - 进展：已落地成本守卫（高 token 且非高复杂度场景优先降级到 Eco），并记录 reason code。
+  - 进展：`LLMService._route_model` 已接入 SG-006 决策；`/api/v1/observability/service-governance` 已附带 `claw_router_governance` 快照。
+  - 进展：已新增 `backend/tests/unit/services/test_claw_router_governance.py` 覆盖基础路由与成本守卫场景。
+  - 进展：已新增 `GET/PUT /api/v1/observability/service-governance/claw-router`，支持 SG-006 配置热更新（阈值/权重/成本守卫开关）与即时快照。
+  - 进展：`ClawRouterGovernance.snapshot()` 已新增路由占比与成本守卫降级比率指标，便于 `GATE-SG-3` 持续观测。
+  - 进展：已新增 `backend/scripts/validate_step5_sg3_cost_quality.py`，对比基线路由与 ClawRouter 的成本-质量指标并输出 `step5_sg3_cost_quality_report.json|.md`。
+  - 进展：已在 `feature-ci.yml` / `develop-ci.yml` / `backend-ci.yml` 接入 SG-3 成本质量门禁（含 `--enforce`）并上传 `step5_sg3_cost_quality_report*` 产物。
+- 🟡 **TASK-SG-007（协作者: zxl85813-web）**：建设高可用压测与故障演练流水线
   - 交付物：`steady/spike/chaos` 三类场景脚本 + 自动报告模板
   - 验收：每周至少一次演练，输出 MTTR/错误预算消耗/降级触发比率
+  - 进展：已新增 `backend/scripts/run_sg007_governance_drills.py`，支持 steady/spike/chaos 三场景一键演练并输出 JSON/Markdown 报告。
+  - 进展：已新增报告模板 `docs/guides/service_governance_drill_template.md`，用于周度演练留档与值班复盘。
+  - 进展：已新增 `backend/tests/unit/scripts/test_run_sg007_governance_drills.py` 覆盖报告汇总与渲染核心逻辑。
+  - 进展：已在 `feature-ci.yml` / `develop-ci.yml` / `backend-ci.yml` 接入 SG-007 自动演练步骤，并上传 `sg007_drill_report.json|.md` 作为流水线产物。
+  - 进展：SG-007 演练脚本已支持阈值化失败门禁（`max_error_budget/max_degrade_trigger_ratio/max_mttr_sec`），并在三条 CI 流水线中启用超阈值失败策略。
+  - 进展：SG-007 报告已支持版本化命名（`timestamp + GITHUB_SHA + GITHUB_RUN_ID`），并保留稳定文件名，避免并行流水线覆盖。
+  - 进展：SG-007 稳态场景已支持按时长执行（`--steady-duration-sec` + `--steady-rps`），报告新增 `run` 元数据（起止时间/时长/run_key），用于 Step-7 稳定性门禁取证。
+  - 进展：新增 `backend/scripts/validate_step7_governance_gates.py` 联合门禁脚本，聚合 SG-003/SG-007 证据并输出 `step7_gate_report.json|.md`。
+  - 进展：`validate_step7_governance_gates.py` 已扩展聚合 SG-3 成本质量报告（若存在），用于 `GATE-SG-3` 的统一判定与回归留痕。
+  - 进展：`feature-ci.yml` / `develop-ci.yml` / `backend-ci.yml` 已接入 Step-7 联合门禁与产物上传（`step7_gate_report*`）。
 
 ##### Phase 5 统一验收门禁（Go/No-Go）
 
@@ -572,6 +606,49 @@
 - ⬜ **GATE-SG-2（韧性）**：LLM/ES/Neo4j 任一依赖故障时，系统 60s 内完成熔断与降级收敛
 - ⬜ **GATE-SG-3（成本）**：智能路由上线后单位请求综合成本下降，且核心质量指标不退化
 - ⬜ **GATE-SG-4（可运维）**：告警、仪表盘、演练手册齐备，支持值班同学独立处置
+  - 进展（GATE-SG-1）：已新增 `validate_gate_sg1_stability_window.py`，支持基于 SG-007 版本化报告做 24h 滚动聚合校验（全局错误预算/稳态阻断比/报告覆盖数）。
+  - 进展（GATE-SG-1）：已新增 `sg1-stability-window.yml` 定时流水线（每 2 小时）用于持续生成 SG-007 证据并执行窗口门禁。
+  - 进展（Step-7 联动）：`validate_step7_governance_gates.py` 已支持读取 `gate_sg1_window_report.json`，当窗口门禁失败时联动阻断 GATE-SG-1。
+  - 进展（阈值矩阵）：已将 feature/develop/main/sg1-schedule 四条流水线的门禁阈值统一上收为 workflow env 变量，便于集中调参与审计追踪。
+  - 进展（阈值文档）：已新增 `docs/guides/service_governance_gate_threshold_matrix.md` 维护正式阈值矩阵与工作流映射。
+  - 进展（自动收口）：已新增 `validate_step7_closure_readiness.py`，基于 Step-7 联合门禁结果 + SG-1 窗口通过次数输出 `step7_closure_readiness_report.json|.md`，用于 Step-7 关闭条件自动判定。
+  - 进展（CI 接入）：`backend-ci.yml` 已接入 Step-7 Closure Readiness 强制校验；`sg1-stability-window.yml` 已接入闭环就绪报告生成与产物上传。
+
+##### Phase 5 落地节奏（两周建议）
+
+- ✅ **W1-D1~D2（架构先行）**：完成 `TASK-SG-001`（拓扑 + 灰度开关）
+  - 依赖：无（Phase 5 起点）
+  - 里程碑：可在“单体兼容 / 双服务模式”之间切换并可回滚
+- 🟡 **W1-D3~D4（读路径隔离）**：完成 `TASK-SG-002`（Retrieval 只读服务 + 事件补偿）
+  - 依赖：`TASK-SG-001`
+  - 里程碑：写高峰下检索延迟不随写入线性劣化
+- 🟡 **W1-D5（韧性基线）**：完成 `TASK-SG-003`（分层熔断器）
+  - 依赖：`TASK-SG-002`
+  - 里程碑：单依赖故障不级联，半开探测可自动恢复
+- 🟡 **W2-D1（无感降级）**：完成 `TASK-SG-004`（Fallback Orchestrator）
+  - 依赖：`TASK-SG-003`
+  - 里程碑：主模型不可用时自动切换 `cache -> local -> backup`
+- 🟡 **W2-D2（流量治理）**：完成 `TASK-SG-005`（限流与令牌桶配置中心）
+  - 依赖：`TASK-SG-001`
+  - 里程碑：路由级限流可热更新，高优先级流量有保底
+- 🟡 **W2-D3（成本优化）**：完成 `TASK-SG-006`（ClawRouter 动态路由）
+  - 依赖：`TASK-SG-003` + `TASK-SG-004`
+  - 里程碑：质量不退化前提下，单位请求成本下降
+- 🟡 **W2-D4~D5（演练验收）**：完成 `TASK-SG-007`（压测与故障演练流水线）
+  - 依赖：`TASK-SG-002` + `TASK-SG-003` + `TASK-SG-004` + `TASK-SG-005` + `TASK-SG-006`
+  - 里程碑：输出稳态/突发/混沌三类报告，并对齐 `GATE-SG-1~4`
+
+##### Phase 5 开工顺序（必须按依赖）
+
+- ✅ Issue 指派策略：`TASK-SG-001~007` 先统一指派给 `zxl85813-web`，按 Step 顺序推进后再按需拆分协作。
+
+- ✅ Step-1: `TASK-SG-001`
+- 🟡 Step-2: `TASK-SG-002`
+- 🟡 Step-3: `TASK-SG-003`
+- 🟡 Step-4: `TASK-SG-004` + `TASK-SG-005`（可并行）
+- 🟡 Step-5: `TASK-SG-006`
+- 🟡 Step-6: `TASK-SG-007`
+- ✅ Step-7: `GATE-SG-1~4` 联合验收
 
 #### Phase 6: 前端与交互韧性 (Frontend Resilience) ⬜
 - ⬜ **组件级容错与断路 (Error Boundaries)**: Agent 流式请求失败时，停止空窗阻塞，展示可读的降级页面（例如离线/维护状态UI）。
@@ -820,6 +897,31 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ## 八、📝 变更日志 (按日期倒序)
 
 ### 2026-03-13
+- ✅ Phase 5 Step-7 自动收口条件落地：新增 `validate_step7_closure_readiness.py`（Step-7 联合门禁 + SG-1 窗口通过次数判定），输出 `step7_closure_readiness_report.json|.md`（稳定+版本化）；`backend-ci.yml` / `sg1-stability-window.yml` 已接入执行与产物上传。
+- ✅ Phase 5 Step-7 阈值矩阵收敛：feature/develop/main/sg1-schedule 四条流水线改为 env 驱动阈值；feature/develop/main 已接入 SG-1 窗口门禁步骤与产物上传，新增阈值矩阵文档 `service_governance_gate_threshold_matrix.md`。
+- ✅ Phase 5 Step-7 稳定性门禁增强（GATE-SG-1）：新增 `validate_gate_sg1_stability_window.py`（24h 滚动聚合）与 `sg1-stability-window.yml`（每 2 小时定时取证 + 门禁），并将 Step-7 脚本接入 SG-1 窗口证据聚合。
+- ✅ Phase 5 Step-5/6 成本门禁收口（SG-3）：新增 `validate_step5_sg3_cost_quality.py`，输出 `step5_sg3_cost_quality_report.json|.md`（稳定+版本化）；三条 CI 已接入 `--enforce` 执行与产物上传。
+- ✅ Phase 5 Step-7 联合门禁增强：`validate_step7_governance_gates.py` 已纳入 SG-3 成本质量报告聚合，`GATE-SG-3` 从单一降级比率扩展为“降级比率 + 成本下降 + 质量不回退”联合判定。
+- ✅ Phase 5 Step-7 开工（联合门禁）：新增 `validate_step7_governance_gates.py` 聚合 SG-003/SG-007 证据生成 `step7_gate_report.json|.md`，并接入 `feature/develop/main` 三条 CI（含产物上传 `step7_gate_report*`）。
+- ✅ Phase 5 Step-6 稳态取证增强（SG-007）：`run_sg007_governance_drills.py` 新增时长驱动稳态参数（`--steady-duration-sec`、`--steady-rps`）与 `run` 元数据（start/end/duration/run_key），支撑 GATE-SG-1 稳定性门禁取证。
+- ✅ Phase 5 Step-6 报告防覆盖增强（SG-007）：`run_sg007_governance_drills.py` 新增版本化产物副本（`timestamp + GITHUB_SHA + GITHUB_RUN_ID`），并在 `feature/develop/main` 调整上传通配符为 `sg007_drill_report*`，确保稳定文件与版本化文件均可归档。
+- ✅ Phase 5 Step-6 门禁增强（SG-007）：`run_sg007_governance_drills.py` 新增阈值化失败策略（错误预算/降级触发比率/MTTR），超阈值返回非 0；`feature/develop/main` 三条 CI 已注入对应阈值参数，形成可执行 Gate。
+- ✅ Phase 5 Step-6 CI 接入（SG-007）：在 `feature-ci.yml` / `develop-ci.yml` / `backend-ci.yml` 新增 `run_sg007_governance_drills.py` 自动演练步骤，并上传 `backend/logs/service_governance/sg007_drill_report.*` 产物用于周度证据留档。
+- ✅ Phase 5 Step-6 开工（SG-007）：新增 `run_sg007_governance_drills.py`，支持 `steady/spike/chaos` 三场景演练与 JSON/Markdown 自动报告输出（含 MTTR/错误预算/降级触发比率）；补充 `service_governance_drill_template.md` 与汇总渲染单测。
+- ✅ Phase 5 Step-5 硬化（SG-006）：新增 `GET/PUT /api/v1/observability/service-governance/claw-router` 配置中心，支持 `premium_threshold/max_tokens_for_eco_guard/cost_guard_enabled/weights` 热更新；`ClawRouterGovernance` 新增配置版本与路由占比指标快照，补充单测覆盖热更新与指标计算。
+- ✅ Phase 5 Step-5 开工（SG-006）：新增 `ClawRouterGovernance` 多维评分（complexity/token/SLA/cost）与成本守卫，驱动 Eco/Premium 动态路由并接入 `LLMService._route_model`；`/api/v1/observability/service-governance` 新增 `claw_router_governance` 快照，补充单测 `test_claw_router_governance.py`。
+- ✅ Phase 5 Step-4 推进（SG-005）：新增 `RateLimitGovernanceCenter`（route/user/key 令牌桶），并接入 `chat/completions` 与 `knowledge/documents`（上传/关联/解绑）429 拦截；新增 `/api/v1/observability/service-governance/rate-limit` 策略快照与热更新接口，补充单测 `test_rate_limit_governance.py`。
+- ✅ Phase 5 Step-4 开工（SG-004）：新增 `FallbackOrchestrator` 并接入 `LLMService`（`chat_complete/stream_chat`），落地 `cache -> local lightweight -> backup provider` 降级链路与 reason code；`/api/v1/observability/service-governance` 新增 fallback 快照，补充单测 `test_fallback_orchestrator.py`。
+- ✅ Phase 5 Step-3 报告防覆盖增强：`validate_step3_circuit_breaker.py` 新增版本化产物命名（`timestamp + GITHUB_SHA + GITHUB_RUN_ID`），在保留稳定文件名的同时输出唯一报告副本，避免并行流水线覆盖。
+- ✅ Phase 5 Step-3 CI 门禁接入：在 `feature-ci.yml` / `develop-ci.yml` / `backend-ci.yml` 增加 `validate_step3_circuit_breaker.py` 自动校验，并上传 `backend/logs/service_governance/` 报告产物。
+- ✅ Phase 5 Step-3 报告化验证：`validate_step3_circuit_breaker.py` 支持按依赖批量演练并输出 JSON/Markdown 证据报告（`backend/logs/service_governance/step3_cb_report.json|.md`），可用于 `GATE-SG-2` 留档。
+- ✅ Phase 5 Step-3 验证补齐：新增 `backend/tests/unit/services/test_dependency_circuit_breaker.py`（开路/半开/恢复/超时）与 `backend/scripts/validate_step3_circuit_breaker.py`（故障注入演练脚本）。
+- ✅ Phase 5 Step-3 开工：新增依赖级熔断器 `DependencyCircuitBreakerManager`（滑窗错误率/超时/开路/半开探测），并接入 LLM、Retrieval split 读路径（ES）、Neo4j 图查询；`/api/v1/observability/service-governance` 新增熔断状态快照。
+- ✅ Phase 5 Step-2 开工：新增 `RetrievalReadService`（split 读路径）与 `WriteEventBus`（写后异步事件通知），并接入文档上传/关联/解绑写路径。
+- ✅ Phase 5 Step-1 收口：补充拓扑与回滚说明文档 `docs/architecture/service_governance_topology.md`，`TASK-SG-001` 与 `W1-D1~D2`、`Step-1` 状态更新为完成。
+- ✅ Phase 5 Step-1 开工：落地服务治理灰度开关与拓扑判定器（`SERVICE_TOPOLOGY_MODE` / `SERVICE_GOVERNANCE_GRAY_PERCENT`），并新增 `GET /api/v1/observability/service-governance` 状态接口。
+- ✅ Phase 5 Issue 指派收敛：`TASK-SG-001~007` 协作者统一为 `zxl85813-web`，并明确按 Step-1~Step-7 顺序开工。
+- ✅ 完成 Phase 5 执行编排：新增两周落地节奏（W1/W2）与依赖顺序（Step-1~Step-7），可直接用于排期与建单。
 - ✅ 完成 TODO 治理补充：细化 `Phase 5: 服务治理与高可用` 为 7 个可执行任务（`TASK-SG-001~007`）+ 4 个验收门禁（`GATE-SG-1~4`）。
 - ✅ 完成 0.7 专项 `TASK-EVAL-001`：`backend/scripts/evals/skill_trigger_eval.py` 增加 CI Gate（`--min-pass-rate`、失败返回非 0、可保存结果）。
 - ✅ 完成 0.7 专项 `TASK-EVAL-003`：新增 `backend/app/services/evaluation/rag_assertion_grader.py`，并接入 Multi-Grader 强规则评分钳制。

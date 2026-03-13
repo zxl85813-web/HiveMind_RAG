@@ -11,6 +11,7 @@ Endpoints:
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import desc, select
 
@@ -19,13 +20,122 @@ from app.auth.permissions import Permission, require_permission
 from app.common.response import ApiResponse
 from app.models.chat import User
 from app.models.observability import RAGQueryTrace
+from app.services.claw_router_governance import claw_router_governance
+from app.services.dependency_circuit_breaker import breaker_manager
+from app.services.fallback_orchestrator import fallback_orchestrator
 from app.services.observability_service import (
     get_cold_documents,
     get_hot_queries,
     get_retrieval_quality,
 )
+from app.services.rate_limit_governance import rate_limit_governance_center
+from app.services.service_governance import get_topology_snapshot
 
 router = APIRouter()
+
+
+class BucketRulePayload(BaseModel):
+    enabled: bool = True
+    capacity: int = Field(default=60, ge=1)
+    refill_per_sec: float = Field(default=1.0, ge=0.0)
+
+
+class RouteRateLimitPolicyPayload(BaseModel):
+    route: str
+    route_rule: BucketRulePayload
+    user_rule: BucketRulePayload
+    key_rule: BucketRulePayload
+
+
+class RateLimitPolicyUpdatePayload(BaseModel):
+    policies: list[RouteRateLimitPolicyPayload]
+
+
+class ClawRouterWeightsPayload(BaseModel):
+    complexity: float = Field(ge=0.0)
+    token_pressure: float = Field(ge=0.0)
+    sla_pressure: float = Field(ge=0.0)
+    cost_pressure: float = Field(ge=0.0)
+
+
+class ClawRouterConfigUpdatePayload(BaseModel):
+    premium_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_tokens_for_eco_guard: int | None = Field(default=None, ge=1)
+    cost_guard_enabled: bool | None = None
+    weights: ClawRouterWeightsPayload | None = None
+
+
+@router.get(
+    "/service-governance",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="服务治理拓扑状态（Phase 5）",
+)
+async def get_service_governance_snapshot(
+    current_user: User = Depends(get_current_user),
+):
+    """Expose current topology mode and gray rollout settings for operations visibility."""
+    return ApiResponse.ok(
+        data={
+            **get_topology_snapshot(),
+            "dependency_circuit_breakers": breaker_manager.snapshot(),
+            "fallback_orchestrator": fallback_orchestrator.snapshot(),
+            "rate_limit_governance": rate_limit_governance_center.snapshot(),
+            "claw_router_governance": claw_router_governance.snapshot(),
+        }
+    )
+
+
+@router.get(
+    "/service-governance/rate-limit",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="流量治理配置快照（Phase 5 / SG-005）",
+)
+async def get_rate_limit_governance_snapshot(
+    current_user: User = Depends(get_current_user),
+):
+    return ApiResponse.ok(data=rate_limit_governance_center.snapshot())
+
+
+@router.put(
+    "/service-governance/rate-limit",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="热更新路由级限流策略（Phase 5 / SG-005）",
+)
+async def update_rate_limit_governance_policy(
+    payload: RateLimitPolicyUpdatePayload,
+    current_user: User = Depends(get_current_user),
+):
+    updated = rate_limit_governance_center.update_policies([item.model_dump() for item in payload.policies])
+    return ApiResponse.ok(data=updated)
+
+
+@router.get(
+    "/service-governance/claw-router",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="ClawRouter 配置快照（Phase 5 / SG-006）",
+)
+async def get_claw_router_governance_snapshot(
+    current_user: User = Depends(get_current_user),
+):
+    return ApiResponse.ok(data=claw_router_governance.snapshot())
+
+
+@router.put(
+    "/service-governance/claw-router",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="热更新 ClawRouter 治理配置（Phase 5 / SG-006）",
+)
+async def update_claw_router_governance_config(
+    payload: ClawRouterConfigUpdatePayload,
+    current_user: User = Depends(get_current_user),
+):
+    updated = claw_router_governance.update_config(payload.model_dump(exclude_none=True))
+    return ApiResponse.ok(data=updated)
 
 
 # ---------------------------------------------------------------------------

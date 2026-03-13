@@ -2,12 +2,13 @@
 Chat endpoints — SSE streaming for Q&A.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 
 from app.common.response import ApiResponse
+from app.services.rate_limit_governance import rate_limit_governance_center
 
 # 这里使用 Any 模拟 User，后续换成 auth 的 Depends
 from app.schemas.chat import ChatRequest, ConversationListItem
@@ -21,7 +22,8 @@ CURRENT_USER_ID = "mock-user-001"
 
 @router.post("/completions")
 async def chat_completions(
-    request: ChatRequest,
+    request: Request,
+    body: ChatRequest,
     # TODO: current_user: User = Depends(get_current_user)
 ):
     """
@@ -36,10 +38,28 @@ async def chat_completions(
         data: {"type": "content", "delta": "你"}
         ...
     """
-    logger.info(f"Stream request received: {request.message[:20]}...")
+    logger.info(f"Stream request received: {body.message[:20]}...")
+
+    api_key = request.headers.get("x-api-key")
+    decision = rate_limit_governance_center.check(
+        route=str(request.url.path),
+        user_id=CURRENT_USER_ID,
+        api_key=api_key,
+    )
+    if not bool(decision["allowed"]):
+        retry_after = int(decision["retry_after_sec"])
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": "Rate limit exceeded",
+                "reason_code": decision["reason_code"],
+                "dimension": decision["dimension"],
+            },
+            headers={"Retry-After": str(retry_after)},
+        )
 
     # 获取生成器
-    generator = ChatService.chat_stream(request, user_id=CURRENT_USER_ID)
+    generator = ChatService.chat_stream(body, user_id=CURRENT_USER_ID)
 
     return StreamingResponse(
         generator,

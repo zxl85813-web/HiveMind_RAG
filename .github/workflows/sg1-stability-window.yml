@@ -1,0 +1,80 @@
+name: SG1 Stability Window Gate
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  SG7_MAX_ERROR_BUDGET: '0.70'
+  SG7_MAX_DEGRADE_TRIGGER_RATIO: '0.80'
+  SG7_MAX_MTTR_SEC: '60'
+  SG1_WINDOW_HOURS: '24'
+  SG1_MIN_REPORTS: '4'
+  SG1_MAX_GLOBAL_ERROR_BUDGET: '0.25'
+  SG1_MAX_STEADY_BLOCK_RATIO: '0.10'
+  STEP7_CLOSURE_MIN_SG1_PASS_COUNT: '4'
+
+jobs:
+  sg1-window:
+    name: Phase 5 GATE-SG-1 Rolling Window
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Create minimal .env for drill
+        run: |
+          cat > .env << 'EOF'
+          APP_NAME="HiveMind RAG Test"
+          DEBUG=true
+          DATABASE_URL=sqlite+aiosqlite:///./test.db
+          VECTOR_STORE_TYPE=chroma
+          LLM_PROVIDER=siliconflow
+          LLM_API_KEY=sk-test
+          LLM_MODEL=test-model
+          LLM_BASE_URL=https://example.com/v1
+          SECRET_KEY=ci-test-secret-key
+          EOF
+
+      - name: Generate SG-007 Drill Evidence
+        run: python scripts/run_sg007_governance_drills.py --steady-duration-sec 600 --steady-rps 2 --spike-requests 120 --chaos-requests 40 --open-duration-sec 1.2 --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }}
+
+      - name: Validate SG1 Rolling Window
+        run: python scripts/validate_gate_sg1_stability_window.py --window-hours ${{ env.SG1_WINDOW_HOURS }} --min-reports ${{ env.SG1_MIN_REPORTS }} --max-global-error-budget ${{ env.SG1_MAX_GLOBAL_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --enforce
+
+      - name: Evaluate Step-7 Closure Readiness
+        run: python scripts/validate_step7_closure_readiness.py --sg1-window-hours ${{ env.SG1_WINDOW_HOURS }} --sg1-min-pass-count ${{ env.STEP7_CLOSURE_MIN_SG1_PASS_COUNT }}
+
+      - name: Upload SG1 Window Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sg1-window-reports
+          path: backend/logs/service_governance/gate_sg1_window_report*
+
+      - name: Upload SG-007 Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sg1-window-sg007-reports
+          path: backend/logs/service_governance/sg007_drill_report*
+
+      - name: Upload Step-7 Closure Readiness Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step7-closure-readiness-reports
+          path: backend/logs/service_governance/step7_closure_readiness_report*

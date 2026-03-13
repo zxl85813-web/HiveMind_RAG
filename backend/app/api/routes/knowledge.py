@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,8 @@ from app.schemas.knowledge_protocol import KBStatus
 from app.services.indexing import index_document_task
 from app.services.knowledge.kb_service import KnowledgeService
 from app.services.rag_gateway import RAGGateway
+from app.services.rate_limit_governance import rate_limit_governance_center
+from app.services.write_event_bus import fire_and_forget_write_event
 
 router = APIRouter()
 
@@ -243,11 +245,28 @@ async def delete_knowledge_base_permission(
     dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
 )
 async def upload_document_global(
+    request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a document to the global library (not linked to any KB yet)."""
+    decision = rate_limit_governance_center.check(
+        route=str(request.url.path),
+        user_id=current_user.id,
+        api_key=request.headers.get("x-api-key"),
+    )
+    if not bool(decision["allowed"]):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": "Rate limit exceeded",
+                "reason_code": decision["reason_code"],
+                "dimension": decision["dimension"],
+            },
+            headers={"Retry-After": str(int(decision["retry_after_sec"]))},
+        )
+
     # 1. Save file to local storage (TODO: Use MinIO/S3 via StorageBackend)
     upload_dir = "uploads"  # Should be configured in settings
     os.makedirs(upload_dir, exist_ok=True)
@@ -278,6 +297,12 @@ async def upload_document_global(
 
     service = KnowledgeService(db)
     doc = await service.create_document(doc)
+    fire_and_forget_write_event(
+        event_type="document_uploaded",
+        kb_id="global",
+        doc_id=doc.id,
+        payload={"filename": doc.filename, "file_type": doc.file_type},
+    )
     return ApiResponse.ok(data=doc)
 
 
@@ -289,11 +314,28 @@ async def upload_document_global(
 async def link_document(
     kb_id: str,
     doc_id: str,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Link an existing document to a knowledge base and start indexing."""
+    decision = rate_limit_governance_center.check(
+        route=str(request.url.path),
+        user_id=current_user.id,
+        api_key=request.headers.get("x-api-key"),
+    )
+    if not bool(decision["allowed"]):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": "Rate limit exceeded",
+                "reason_code": decision["reason_code"],
+                "dimension": decision["dimension"],
+            },
+            headers={"Retry-After": str(int(decision["retry_after_sec"]))},
+        )
+
     service = KnowledgeService(db)
     # Check ownership
     await service.get_kb(kb_id)
@@ -304,6 +346,14 @@ async def link_document(
 
     # Trigger background indexing
     background_tasks.add_task(index_document_task, kb_id, doc_id)
+    # Write-side async notification for split read service cache/index sync
+    background_tasks.add_task(
+        fire_and_forget_write_event,
+        event_type="document_linked",
+        kb_id=kb_id,
+        doc_id=doc_id,
+        payload={"action": "index_requested"},
+    )
 
     return ApiResponse.ok(data=link)
 
@@ -333,11 +383,28 @@ async def list_documents_in_kb(
 async def unlink_document(
     kb_id: str,
     doc_id: str,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Unlink a document from a knowledge base."""
+    decision = rate_limit_governance_center.check(
+        route=str(request.url.path),
+        user_id=current_user.id,
+        api_key=request.headers.get("x-api-key"),
+    )
+    if not bool(decision["allowed"]):
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": "Rate limit exceeded",
+                "reason_code": decision["reason_code"],
+                "dimension": decision["dimension"],
+            },
+            headers={"Retry-After": str(int(decision["retry_after_sec"]))},
+        )
+
     service = KnowledgeService(db)
     kb = await service.get_kb(kb_id)
     if not await service.check_kb_access(kb_id, current_user, level="write"):
@@ -353,6 +420,14 @@ async def unlink_document(
         import loguru
 
         loguru.logger.error(f"Failed to delete docs from vector store for {doc_id}: {e}")
+
+    background_tasks.add_task(
+        fire_and_forget_write_event,
+        event_type="document_unlinked",
+        kb_id=kb_id,
+        doc_id=doc_id,
+        payload={"action": "vector_cleanup"},
+    )
 
     return ApiResponse.ok(data={"status": "success", "message": "Document unlinked"})
 

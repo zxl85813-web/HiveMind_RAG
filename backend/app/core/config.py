@@ -27,6 +27,27 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./hivemind.db"
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # === Service Governance (Phase 5 / TASK-SG-001) ===
+    # monolith: 单体模式（默认）
+    # split:    读写分离模式（Retrieval/Ingestion 逻辑隔离）
+    SERVICE_TOPOLOGY_MODE: str = "monolith"
+    # 灰度开关：仅在 split 模式生效，按 user_id/query hash 百分比分流到 split 路径。
+    SERVICE_GOVERNANCE_GRAY_PERCENT: int = 0
+    # 预留：未来双服务部署时用于配置独立入口。
+    RETRIEVAL_SERVICE_URL: str | None = None
+    INGESTION_SERVICE_URL: str | None = None
+
+    # === Dependency Circuit Breakers (Phase 5 / TASK-SG-003) ===
+    CB_ENABLED: bool = True
+    CB_WINDOW_SIZE: int = 20
+    CB_MIN_REQUESTS: int = 10
+    CB_ERROR_RATE_THRESHOLD: float = 0.5
+    CB_OPEN_DURATION_SEC: int = 300
+    CB_HALF_OPEN_PROBES: int = 2
+    CB_TIMEOUT_LLM_MS: int = 30000
+    CB_TIMEOUT_ES_MS: int = 8000
+    CB_TIMEOUT_NEO4J_MS: int = 5000
+
     # === Vector Store ===
     VECTOR_STORE_TYPE: str = "elasticsearch"  # chroma | milvus | qdrant | elasticsearch
 

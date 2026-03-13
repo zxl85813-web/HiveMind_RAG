@@ -14,6 +14,15 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '20'
+  SG7_MAX_ERROR_BUDGET: '0.65'
+  SG7_MAX_DEGRADE_TRIGGER_RATIO: '0.75'
+  SG7_MAX_MTTR_SEC: '60'
+  SG3_MIN_COST_REDUCTION_RATIO: '0.10'
+  SG3_MAX_QUALITY_REGRESSION: '0.03'
+  SG1_WINDOW_HOURS: '24'
+  SG1_MIN_REPORTS: '1'
+  SG1_MAX_GLOBAL_ERROR_BUDGET: '0.28'
+  SG1_MAX_STEADY_BLOCK_RATIO: '0.15'
 
 jobs:
   backend-full:
@@ -63,12 +72,62 @@ jobs:
       - name: Run Full Tests (Unit + Integration, Coverage > 80%)
         run: pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
 
+      - name: Phase 5 Step-3 Gate (Circuit Breaker Convergence)
+        run: python scripts/validate_step3_circuit_breaker.py --deps llm es neo4j
+
+      - name: Phase 5 Step-6 Drill (SG-007)
+        run: python scripts/run_sg007_governance_drills.py --steady-requests 120 --spike-requests 260 --chaos-requests 80 --open-duration-sec 1.2 --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }}
+
+      - name: Phase 5 Step-5/6 Cost-Quality Gate (SG-3)
+        run: python scripts/validate_step5_sg3_cost_quality.py --samples 260 --baseline premium --min-cost-reduction-ratio ${{ env.SG3_MIN_COST_REDUCTION_RATIO }} --max-quality-regression ${{ env.SG3_MAX_QUALITY_REGRESSION }} --enforce
+
+      - name: Phase 5 GATE-SG-1 Rolling Window
+        run: python scripts/validate_gate_sg1_stability_window.py --window-hours ${{ env.SG1_WINDOW_HOURS }} --min-reports ${{ env.SG1_MIN_REPORTS }} --max-global-error-budget ${{ env.SG1_MAX_GLOBAL_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --enforce
+
+      - name: Phase 5 Step-7 Gate (Unified Go/No-Go)
+        run: python scripts/validate_step7_governance_gates.py --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --min-run-duration-sec 0 --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }} --max-convergence-ms 60000 --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --enforce
+
       - name: Upload Coverage Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage-develop
           path: backend/coverage.xml
+
+      - name: Upload Step-3 Gate Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step3-cb-report-develop
+          path: backend/logs/service_governance/
+
+      - name: Upload Step-6 Drill Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step6-sg007-report-develop
+          path: backend/logs/service_governance/sg007_drill_report*
+
+      - name: Upload SG-3 Cost-Quality Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step5-sg3-report-develop
+          path: backend/logs/service_governance/step5_sg3_cost_quality_report*
+
+      - name: Upload SG-1 Window Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-sg1-window-report-develop
+          path: backend/logs/service_governance/gate_sg1_window_report*
+
+      - name: Upload Step-7 Gate Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step7-gate-report-develop
+          path: backend/logs/service_governance/step7_gate_report*
 
   frontend-full:
     name: ⚛️ Frontend Full CI (Lint + Type + Test + Build)
