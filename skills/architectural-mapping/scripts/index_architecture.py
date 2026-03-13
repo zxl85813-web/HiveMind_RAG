@@ -71,6 +71,16 @@ class ArchitectureIndexer:
                     MATCH (d:Design {id: $did}), (r:Requirement {id: $rid})
                     MERGE (d)-[:ADDRESSES]->(r)
                     """, {"did": design_id, "rid": req_id})
+                
+                # Link to implementation files mentioned in the design
+                file_matches = re.findall(r"`(app/.*?\.(?:py|js|ts))`", content)
+                for file_path in file_matches:
+                    self.run_query("""
+                    MATCH (d:Design {id: $did})
+                    MERGE (f:ArchNode:File {id: $path})
+                    SET f.path = $path, f.type = 'File'
+                    MERGE (d)-[:SPECIFIES]->(f)
+                    """, {"did": design_id, "path": file_path})
 
     def index_skills(self):
         registry_file = BASE_DIR / "REGISTRY.md"
@@ -124,6 +134,41 @@ class ArchitectureIndexer:
                     MERGE (s)-[:USES_FILE]->(f)
                     """, {"path": str(script.relative_to(BASE_DIR)).replace("\\", "/")})
 
+    def index_tests(self):
+        tests_dir = BASE_DIR / "backend" / "tests"
+        if not tests_dir.exists(): return
+        
+        logger.info("Indexing Tests and creating traceability links...")
+        for test_file in tests_dir.rglob("test_*.py"):
+            relative_path = str(test_file.relative_to(BASE_DIR)).replace("\\", "/")
+            test_id = test_file.stem
+            
+            self.run_query("""
+            MERGE (t:ArchNode:Test {id: $id})
+            SET t.path = $path, t.type = 'Test'
+            """, {"id": test_id, "path": relative_path})
+            
+            # Heuristic: Link test_example.py to app/example.py or similar
+            target_name = test_file.name.replace("test_", "")
+            # Look for matching source file
+            source_candidates = list((BASE_DIR / "backend" / "app").rglob(target_name))
+            for src in source_candidates:
+                src_path = str(src.relative_to(BASE_DIR)).replace("\\", "/")
+                self.run_query("""
+                MATCH (t:Test {id: $tid}), (f:File {id: $fid})
+                MERGE (t)-[:VERIFIES]->(f)
+                """, {"tid": test_id, "fid": src_path})
+                
+            # Parse test content for @covers tags or DES references
+            with open(test_file, encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                des_matches = re.findall(r"DES-\d+", content)
+                for des_id in des_matches:
+                    self.run_query("""
+                    MATCH (t:Test {id: $tid}), (d:Design {id: $did})
+                    MERGE (t)-[:VALIDATES_DESIGN]->(d)
+                    """, {"tid": test_id, "did": des_id})
+
 def main():
     # Load env for Neo4j
     from dotenv import load_dotenv
@@ -139,6 +184,7 @@ def main():
     indexer.index_designs()
     indexer.index_skills()
     indexer.link_files_to_skills()
+    indexer.index_tests()
     indexer.close()
     logger.success("Architectural Mapping Complete!")
 
