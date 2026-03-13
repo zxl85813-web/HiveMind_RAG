@@ -552,21 +552,21 @@
   - ⬜ **状态机入口规范化**: 每一个 Agent 节点必须定义明确的 Input/Output Schema (契约驱动)
 
 
-### 2.1H Agent 架构增强 (Anthropic 文档启示) ⬜
+### 2.1H Agent 架构增强 (Anthropic 文档启示) ✅
 
 - ✅ **Agentic Search Skills**: 实现 `grep`/`glob`/`head` 等 JIT 上下文获取工具
 - ✅ **Dynamic Tool Loading**: 实现 `search_available_tools` 模式，降低 Context 负载
 - ✅ **Programmatic Tool Execution**: 实现 `python_interpreter` 供 Agent 批量编排工具
 - ✅ **Think Tool Integration**: 为所有 Agent 注入专用 `think` 工具，用于在执行复杂工具链前记录显式推理逻辑和多步计划。
-- ⬜ **Progressive Skill Disclosure**: 优化 `.agent/skills/` 结构，引导 Agent 先读取目录 metadata，再按需通过 `cat` 读取详细文档，支持超大规模 Skill 库。
-- ⬜ **Semantic Identifier Mapping**: 改造 Skill 输出，将数据库 UUID 自动映射为语义化名称或 0-indexed ID，降低模型幻觉。
-- ⬜ **Context Compaction Node**: 在 Swarm 流程中增加自动摘要压缩节点，当消息记录过长时自动触发，防止 Token 爆炸。
-- ⬜ **Hybrid Reflection**: 在 Reflection 节点中集成 Linter、Schema 校验等硬规则验证，不完全依赖 LLM 裁判。
-- ⬜ **Contextual BM25 Integration**: 基于增强后的 Situational Chunks 构建高精度关键词索引，实现 Hybrid 检索的最佳性能（Recall@20 指标对齐 Anthropic 实验室数据）。
-- ⬜ **Search Subagents**: 实现子智能体并行检索模式，用于处理大规模、高模糊度的知识搜索任务。
-- ⬜ **Contextual Reranking (P0)**: 将 Reranking 提升为核心检索组件，支持 `Top 150 Retrieve -> Cross-Encoder Rerank -> Top 20 Inject` 的分段式高精度检索流。
-- ⬜ **Tool Result Clearing (Advanced Compaction)**: 在 Swarm 会话滚动中，对旧的 Tool 调用结果进行“选择性擦除”，仅保留结果摘要和状态变更，防止长会话下的 Context 污染。
-- ⬜ **Just-in-Time (JIT) Context Navigation**: 完善 Agent 的文件系统/Web 动态探索路径，优先使用 `glob`/`grep`/`head` 定向加载上下文，而非暴力检索全库。
+- ✅ **Progressive Skill Disclosure**: 优化 `.agent/skills/` 结构，引导 Agent 先读取目录 metadata，再按需通过 `cat` 读取详细文档，支持超大规模 Skill 库。
+- ✅ **Semantic Identifier Mapping**: 改造 Skill 输出，将数据库 UUID 自动映射为语义化名称或 0-indexed ID，降低模型幻觉。
+- ✅ **Context Compaction Node**: 在 Swarm 流程中增加自动摘要压缩节点，当消息记录过长时自动触发，防止 Token 爆炸。
+- ✅ **Hybrid Reflection**: 在 Reflection 节点中集成 Linter、Schema 校验等硬规则验证，不完全依赖 LLM 裁判。
+- ✅ **Contextual BM25 Integration**: 基于增强后的 Situational Chunks 构建高精度关键词索引，实现 Hybrid 检索的最佳性能（Recall@20 指标对齐 Anthropic 实验室数据）。
+- ✅ **Search Subagents**: 实现子智能体并行检索模式，用于处理大规模、高模糊度的知识搜索任务。
+- ✅ **Contextual Reranking (P0)**: 将 Reranking 提升为核心检索组件，支持 `Top 150 Retrieve -> Cross-Encoder Rerank -> Top 20 Inject` 的分段式高精度检索流。
+- ✅ **Tool Result Clearing (Advanced Compaction)**: 在 Swarm 会话滚动中，对旧的 Tool 调用结果进行“选择性擦除”，仅保留结果摘要和状态变更，防止长会话下的 Context 污染。
+- ✅ **Just-in-Time (JIT) Context Navigation**: 完善 Agent 的文件系统/Web 动态探索路径，优先使用 `glob`/`grep`/`head` 定向加载上下文，而非暴力检索全库。
 
 ### 2.1J Agent 安全沙箱与生产治理 (Sandboxing & Reliability) ⬜
 

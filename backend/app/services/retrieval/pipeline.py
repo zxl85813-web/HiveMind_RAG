@@ -17,6 +17,8 @@ from .steps import (
     ParentChunkExpansionStep,
     PromptInjectionFilterStep,
     RerankingStep,
+    RRFHybridStep,
+    SearchSubagentsStep,
     TruthAlignmentStep,
 )
 
@@ -26,25 +28,30 @@ class RetrievalPipeline:
     Standard RAG Retrieval Pipeline.
     Steps:
     1. Query Analysis & Expansion
-    2. Hybrid Retrieval (Recall)
-    3. Cross-Encoder Reranking (Precision)
-    4. Parent Chunk Expansion (Contextualization)
-    5. Contextual Compression (Optimization)
+    2. Graph Retrieval (Inject Facts)
+    3. Search Subagents (parallel sub-query retrieval for ambiguous queries) [2.1H]
+    4. RRF Hybrid Retrieval — BM25 + Vector with Reciprocal Rank Fusion [2.1H]
+    5. Truth Alignment (GOV-001)
+    6. ACL Filter
+    7. Cross-Encoder Reranking: Top 150 → Top 20 [2.1H Contextual Reranking P0]
+    8. Parent Chunk Expansion
+    9. Contextual Compression
+    10. Prompt Injection Filter
     """
 
     def __init__(self):
-        # Keep a default step chain and expose lightweight A/B variants.
         self._default_steps: list[BaseRetrievalStep] = [
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
-            GraphRetrievalStep(),  # Inject Graph Facts first
-            SqlSummaryFirstStep(),  # SQL 摘要优先检索（TASK-KV-006）
-            HybridRetrievalStep(),
-            TruthAlignmentStep(),  # 数据治理：真相对齐 (M2.3.1)
-            AclFilterStep(),  # 权限校验 (ACL Document Filtering)
-            RerankingStep(),
+            GraphRetrievalStep(),           # Inject Graph Facts first
+            SqlSummaryFirstStep(),          # SQL 摘要优先检索（TASK-KV-006）
+            SearchSubagentsStep(),          # 2.1H: parallel sub-query sub-agents
+            RRFHybridStep(),                # 2.1H: BM25 + Vector + RRF fusion
+            TruthAlignmentStep(),           # 数据治理：真相对齐 (M2.3.1)
+            AclFilterStep(),                # 权限校验 (ACL Document Filtering)
+            RerankingStep(),                # 2.1H: Cross-Encoder Top 150→20
             ParentChunkExpansionStep(),
-            ContextualCompressionStep(),  # 压缩上下文 (P2 Performance)
-            PromptInjectionFilterStep(),  # 注入防护
+            ContextualCompressionStep(),    # 压缩上下文 (P2 Performance)
+            PromptInjectionFilterStep(),    # 注入防护
         ]
 
     def _resolve_steps(self, variant: str) -> list[BaseRetrievalStep]:
@@ -78,8 +85,8 @@ class RetrievalPipeline:
         self,
         query: str,
         collection_names: list[str],
-        top_k: int = 20,
-        top_n: int = 5,
+        top_k: int = 150,   # 2.1H Contextual Reranking P0: recall 150 candidates
+        top_n: int = 20,    # 2.1H Contextual Reranking P0: inject top 20 after rerank
         search_type: str = SearchType.HYBRID,
         user_id: str | None = None,
         is_admin: bool = False,

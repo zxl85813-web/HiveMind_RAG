@@ -466,3 +466,119 @@ class TruthAlignmentStep(BaseRetrievalStep):
                 ctx.log("Alignment", f"Strong reinforcement: {len(decision.reinforcements)} facts confirmed by both.")
         except Exception as e:
             ctx.log("Alignment", f"Alignment failed: {e}")
+
+
+class RRFHybridStep(BaseRetrievalStep):
+    """
+    2.1H Contextual BM25 Integration — Explicit BM25 + Vector with RRF Fusion.
+
+    Runs BM25 (keyword) and Vector (semantic) searches as separate passes, then
+    combines results using Reciprocal Rank Fusion (RRF) for maximum Recall@N.
+
+    This replaces the single-pass HybridRetrievalStep for the high-precision path.
+    RRF formula: score(d) = Σ 1/(k + rank_i) where k=60 (standard).
+    """
+
+    def __init__(self, rrf_k: int = 60) -> None:
+        self.rrf_k = rrf_k
+
+    async def execute(self, ctx: RetrievalContext) -> None:
+        import asyncio
+
+        from app.core.vector_store import SearchType, get_vector_store
+
+        store = get_vector_store()
+        queries = ctx.expanded_queries or [ctx.query]
+        k = self.rrf_k
+
+        # Build parallel tasks: BM25 and Vector per (query, kb) combination
+        bm25_tasks = [
+            store.search(q, SearchType.BM25, ctx.top_k, kb)
+            for q in queries
+            for kb in ctx.kb_ids
+        ]
+        vector_tasks = [
+            store.search(q, SearchType.VECTOR, ctx.top_k, kb)
+            for q in queries
+            for kb in ctx.kb_ids
+        ]
+
+        all_tasks = bm25_tasks + vector_tasks
+        all_results = await asyncio.gather(*all_tasks, return_exceptions=True)
+
+        bm25_lists = all_results[: len(bm25_tasks)]
+        vector_lists = all_results[len(bm25_tasks) :]
+
+        # --- RRF Fusion ---
+        rrf_scores: dict[str, float] = {}
+        doc_index: dict[str, object] = {}
+
+        for result_list in (bm25_lists, vector_lists):
+            for maybe_docs in result_list:
+                if isinstance(maybe_docs, Exception):
+                    ctx.log("RRFHybrid", f"Partial retrieval error: {maybe_docs}")
+                    continue
+                for rank, doc in enumerate(maybe_docs):
+                    key = doc.page_content[:120]   # dedup key (first 120 chars)
+                    doc_index[key] = doc
+                    rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+
+        # Sort by descending RRF score and trim to top_k
+        sorted_keys = sorted(rrf_scores, key=lambda x: rrf_scores[x], reverse=True)
+        ctx.candidates = [doc_index[kk] for kk in sorted_keys[: ctx.top_k]]
+
+        ctx.log(
+            "RRFHybrid",
+            f"BM25+Vector RRF fusion: {len(sorted_keys)} unique docs → top {len(ctx.candidates)} candidates.",
+        )
+
+
+class SearchSubagentsStep(BaseRetrievalStep):
+    """
+    2.1H Search Subagents — Parallel sub-query retrieval.
+
+    When the QueryPreProcessingStep produces decomposed sub-queries (ctx.sub_queries),
+    this step launches a mini-retrieval per sub-query in parallel and merges the results
+    into ctx.candidates before the reranker.
+
+    This handles large, high-ambiguity knowledge searches where a single query would
+    miss diverse relevant chunks.
+    """
+
+    async def execute(self, ctx: RetrievalContext) -> None:
+        import asyncio
+
+        from app.core.vector_store import SearchType, get_vector_store
+
+        sub_queries = getattr(ctx, "sub_queries", [])
+        if not sub_queries or len(sub_queries) <= 1:
+            # Nothing to parallelize; HybridRetrievalStep / RRFHybridStep covers this
+            return
+
+        store = get_vector_store()
+        per_sub_k = max(5, ctx.top_k // max(len(sub_queries), 1))
+
+        tasks = [
+            store.search(q, SearchType.HYBRID, per_sub_k, kb)
+            for q in sub_queries[:6]   # cap at 6 sub-agents to avoid runaway parallelism
+            for kb in ctx.kb_ids
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        existing = {d.page_content for d in ctx.candidates}
+        added = 0
+        for maybe_docs in results:
+            if isinstance(maybe_docs, Exception):
+                ctx.log("SearchSubagents", f"Sub-agent partial error: {maybe_docs}")
+                continue
+            for doc in maybe_docs:
+                if doc.page_content not in existing:
+                    ctx.candidates.append(doc)
+                    existing.add(doc.page_content)
+                    added += 1
+
+        ctx.log(
+            "SearchSubagents",
+            f"Parallel sub-query retrieval: {len(sub_queries)} sub-agents added {added} unique docs.",
+        )

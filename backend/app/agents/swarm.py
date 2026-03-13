@@ -785,7 +785,13 @@ class SwarmOrchestrator:
         """
         Reflection node — evaluates agent output quality using LLM.
 
-        Uses PromptEngine's reflection template.
+        2.1H Hybrid Reflection: Hard-rule validators run FIRST (cheap, deterministic).
+        Only if all hard rules pass does the expensive LLM evaluation run.
+
+        Hard rules checked:
+          1. Empty / too-short response (< 5 meaningful chars)
+          2. Security: prohibited injection patterns (OWASP Top 10 injection defense)
+          3. JSON schema integrity (when agent was asked to output structured JSON)
         """
         last_message = state["messages"][-1]
         reflection_count = state.get("reflection_count", 0) + 1
@@ -799,6 +805,48 @@ class SwarmOrchestrator:
                 "reflection_count": reflection_count,
                 "next_step": "FINISH",
             }
+
+        # ── 2.1H: Hybrid Reflection — Tier 0: Hard-Rule Validators ───────────
+        content = getattr(last_message, "content", "") or ""
+        hard_violations: list[str] = []
+
+        # Rule 1: Empty / too-short response
+        if len(content.strip()) < 5:
+            hard_violations.append("empty_response")
+
+        # Rule 2: Security — detect prompt-injection and dangerous code patterns
+        _PROHIBITED_PATTERNS = [
+            "<script",
+            "javascript:",
+            "DROP TABLE",
+            "sudo rm -rf",
+            "ignore previous instructions",
+            "ignore all instructions",
+            "system: override",
+        ]
+        for pattern in _PROHIBITED_PATTERNS:
+            if pattern.lower() in content.lower():
+                hard_violations.append(f"prohibited_content:{pattern[:24]}")
+                break
+
+        # Rule 3: JSON schema check — when the agent explicitly requested JSON output
+        if state.get("expect_json_output"):
+            try:
+                json.loads(content)
+            except (json.JSONDecodeError, ValueError):
+                hard_violations.append("invalid_json_output")
+
+        if hard_violations:
+            logger.warning(f"🔍 [Hybrid Reflection] Hard-rule violations detected: {hard_violations}")
+            return {
+                "reflection_count": reflection_count,
+                "next_step": "supervisor",  # Force retry
+                "hard_rule_violations": hard_violations,
+                "thought_log": f"⚠️ Hard-rule validation failed: {hard_violations}. Routing back to supervisor.",
+            }
+
+        logger.debug("🔍 [Hybrid Reflection] Hard rules passed — proceeding to LLM evaluation.")
+        # ── End of Hard-Rule Validators ───────────────────────────────────────
 
         # Determine which agent produced the last output
         agent_outputs = state.get("agent_outputs", {})
