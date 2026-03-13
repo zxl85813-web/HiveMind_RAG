@@ -7,9 +7,9 @@ based on the query intent and descriptions of available KBs.
 
 # ruff: noqa: W293
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
-from app.core.database import engine
+from app.core.database import async_session_factory
 from app.core.logging import logger
 from app.llm.router import LLMRouter
 from app.models.knowledge import KnowledgeBase
@@ -25,8 +25,8 @@ class KnowledgeBaseSelector:
         """
 
         # 1. Fetch available KBs
-        with Session(engine) as session:
-            all_kbs = session.exec(select(KnowledgeBase)).all()
+        async with async_session_factory() as session:
+            all_kbs = (await session.exec(select(KnowledgeBase))).all()
 
         if not all_kbs:
             return []

@@ -8,10 +8,9 @@ housed in the linear IngestionExecutor stages.
 from typing import Any
 
 from loguru import logger
-from sqlmodel import Session
 
 from app.batch.ingestion.chunking import ChunkingStrategyRegistry
-from app.core.database import engine
+from app.core.database import async_session_factory
 from app.core.embeddings import get_embedding_service
 from app.core.vector_store import VectorDocument, get_vector_store
 from app.models.knowledge import KnowledgeBase
@@ -47,15 +46,15 @@ class SwarmAssembler:
         chunks = strategy.chunk(doc_id=doc_id, resource=resource)
 
         # 2. Persist Chunks to SQL
-        with Session(engine) as session:
+        async with async_session_factory() as session:
             for c in chunks:
                 session.add(c)
-            session.commit()
+            await session.commit()
 
         # 3. Vectorization
         try:
-            with Session(engine) as session:
-                kb = session.get(KnowledgeBase, kb_id)
+            async with async_session_factory() as session:
+                kb = await session.get(KnowledgeBase, kb_id)
                 if not kb:
                     raise Exception(f"KB {kb_id} not found")
                 collection_name = kb.vector_collection

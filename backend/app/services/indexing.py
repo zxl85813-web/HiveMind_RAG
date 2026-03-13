@@ -7,9 +7,8 @@ Indexing Service — Handles background parsing and vectorization using the Pipe
 """
 
 from loguru import logger
-from sqlmodel import Session
 
-from app.core.database import engine
+from app.core.database import async_session_factory
 from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
 
 
@@ -19,30 +18,29 @@ async def index_document_task(kb_id: str, doc_id: str):
     """
     logger.info(f"🚀 [Pipeline] Starting task: Doc {doc_id} -> KB {kb_id}")
 
-    with Session(engine) as session:
+    async with async_session_factory() as session:
         # 1. Initialization
-        link = session.get(KnowledgeBaseDocumentLink, (kb_id, doc_id))
+        link = await session.get(KnowledgeBaseDocumentLink, (kb_id, doc_id))
         if not link:
             logger.error(f"Link not found for KB {kb_id}, Doc {doc_id}")
             return
 
-        doc = session.get(Document, doc_id)
-        kb = session.get(KnowledgeBase, kb_id)
+        doc = await session.get(Document, doc_id)
+        kb = await session.get(KnowledgeBase, kb_id)
         if not doc or not kb:
             logger.error(f"Document {doc_id} or KB {kb_id} not found")
             link.status = "failed"
             session.add(link)
-            session.commit()
+            await session.commit()
             return
 
         try:
             # 2. V3 Dispatcher (Extreme Parallelism & Swarm Orchestration)
             logger.info(f"🧠 [V3 Refactor] Dispatching Doc {doc_id} to Native Swarm...")
 
-            from app.core.database import async_session_factory
             from app.services.ingestion.dispatcher import IngestionDispatcher
 
-            # Use AsyncSession for the dispatcher
+            # Use a separate AsyncSession for the dispatcher to avoid session conflicts
             async with async_session_factory() as async_db:
                 dispatcher = IngestionDispatcher(async_db)
                 batch_id = await dispatcher.dispatch_batch(
@@ -53,11 +51,11 @@ async def index_document_task(kb_id: str, doc_id: str):
             link.status = "processing"
             link.error_message = f"V3 Swarm Batch: {batch_id}"
             session.add(link)
-            session.commit()
+            await session.commit()
 
         except Exception as e:
             logger.exception(f"💥 Critical Error during V3 Swarm Dispatch for Doc {doc_id}")
             link.status = "failed"
             link.error_message = str(e)
             session.add(link)
-            session.commit()
+            await session.commit()
