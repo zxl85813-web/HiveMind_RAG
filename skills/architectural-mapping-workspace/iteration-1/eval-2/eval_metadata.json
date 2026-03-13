@@ -1,0 +1,10 @@
+{
+  "case_id": "impact-analysis-file",
+  "name": "File-based Impact Analysis",
+  "assertions": [
+    {
+      "description": "Uses the graph query script with --file",
+      "expected": "query_architecture.py --file"
+    }
+  ]
+}

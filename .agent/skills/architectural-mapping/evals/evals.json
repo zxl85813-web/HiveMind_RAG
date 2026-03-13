@@ -1,0 +1,46 @@
+[
+  {
+    "id": "lookup-requirement-context",
+    "name": "Lookup Requirement Context",
+    "prompt": "Find all designs and files related to REQ-011 using the graph mapping.",
+    "expected_output": "python skills/architectural-mapping/scripts/query_architecture.py --req \"REQ-011\"",
+    "assertions": [
+      {
+        "type": "contains",
+        "value": "query_architecture.py"
+      },
+      {
+        "type": "contains",
+        "value": "--req \"REQ-011\""
+      }
+    ]
+  },
+  {
+    "id": "impact-analysis-file",
+    "name": "File-based Impact Analysis",
+    "prompt": "I want to modify 'backend/app/main.py'. Show me what requirements or skills this file affects according to the architecture graph.",
+    "expected_output": "python skills/architectural-mapping/scripts/query_architecture.py --file \"backend/app/main.py\"",
+    "assertions": [
+      {
+        "type": "contains",
+        "value": "query_architecture.py"
+      },
+      {
+        "type": "contains",
+        "value": "--file \"backend/app/main.py\""
+      }
+    ]
+  },
+  {
+    "id": "refresh-architecture-graph",
+    "name": "Refresh Architecture Graph",
+    "prompt": "We just added a new skill. Update the architectural mapping graph to include latest changes.",
+    "expected_output": "python skills/architectural-mapping/scripts/index_architecture.py",
+    "assertions": [
+      {
+        "type": "contains",
+        "value": "index_architecture.py"
+      }
+    ]
+  }
+]

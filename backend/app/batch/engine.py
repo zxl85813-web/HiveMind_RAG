@@ -24,8 +24,8 @@ from loguru import logger
 
 from app.agents.swarm import SwarmOrchestrator
 
-# from langgraph.checkpoint.memory import MemorySaver (Replaced by PickleCheckpointer)
-from app.batch.checkpointer import PickleCheckpointer
+# from langgraph.checkpoint.memory import MemorySaver (Replaced by JsonCheckpointer)
+from app.batch.checkpointer import JsonCheckpointer
 from app.batch.models import BatchJob, BatchStatus, TaskStatus, TaskStep, TaskUnit
 from app.batch.task_queue import TaskQueue
 from app.skills.registry import SkillRegistry
@@ -247,8 +247,8 @@ class JobManager:
         self.swarm = swarm or SwarmOrchestrator()
         self.skills = SkillRegistry()
         self.nodes = BatchEngineNodes(self.swarm, self.skills)
-        # Use persistent checkpointer by default, stored in .checkpoints/batch_engine.pkl
-        self.checkpointer = checkpointer or PickleCheckpointer(filepath=".checkpoints/batch_engine.pkl")
+        # Use persistent checkpointer by default, stored in .checkpoints/batch_engine.json
+        self.checkpointer = checkpointer or JsonCheckpointer(filepath=".checkpoints/batch_engine.json")
         self.graph = self._build_graph()
         self._jobs_index: dict[str, BatchJob] = {}  # Simple in-memory index (TODO: Persist this too?)
         self._skills_loaded = False

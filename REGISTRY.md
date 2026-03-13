@@ -259,6 +259,7 @@
 | `generate-design-doc` | 严谨的 4 层架构设计说明书生成器 | `.agent/skills/generate-design-doc/` | ✅ 已验证 |
 | `generate-tests` | 基于 Mock 决策树的测试代码生成器 | `.agent/skills/generate-tests/` | ✅ 已抽检 |
 | `github-collaboration` | GitHub Discussions & Projects 协作集成 | `.agent/skills/github-collaboration/` | ✅ 已实装 |
+| `architectural-mapping` | 基于 Neo4j 的架构资产图谱映射 | `.agent/skills/architectural-mapping/` | ✅ 已入库 |
 
 ### 写作协作 Skills
 
