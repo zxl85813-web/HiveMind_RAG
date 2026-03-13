@@ -748,9 +748,9 @@
 ### 5.3 核心算法库重构 (Core Algorithms Abstraction)
 > 📄 设计文档: `docs/architecture/core_routing_classification_design.md`
 > 🔍 参考项目与选型: `docs/architecture/open_source_references.md`
-- ⬜ **统一的分类引擎 (Classification Engine)** — 抽取 `QueryPreProcessingStep` 等处的 prompt 为统一的服务接口，支持级联降级 (规则 -> 向量 -> LLM)。推荐引入 `jxnl/instructor` 基于 Pydantic 化归类别。
-- ⬜ **统一的分词切分 (Tokenization & Chunking)** — 将入库的常规分割器改造为 `Semantic Chunker` 语义切分，辅以 `tiktoken` 精准限额，以及后期挂载 `LLMLingua` 记忆压缩器。
-- ⬜ **动态智能路由 (Routing Algorithms)** — 扬弃纯 Prompt 大模型路由，在 Swarm Supervisor 中挂载超高速的向量分类树路由器（如对标 `aurelio-labs/semantic-router` 的机制）。
+- ✅ **统一的分类引擎 (Classification Engine)** — 抽取 `QueryPreProcessingStep` 等处的 prompt 为统一的服务接口，支持级联降级 (规则 -> 向量 -> LLM)。推荐引入 `jxnl/instructor` 基于 Pydantic 化归类别。
+- ✅ **统一的分词切分 (Tokenization & Chunking)** — 将入库的常规分割器改造为 `Semantic Chunker` 语义切分，辅以 `tiktoken` 精准限额，以及后期挂载 `LLMLingua` 记忆压缩器。
+- ✅ **动态智能路由 (Routing Algorithms)** — 扬弃纯 Prompt 大模型路由，在 Swarm Supervisor 中挂载超高速的向量分类树路由器（如对标 `aurelio-labs/semantic-router` 的机制）。
 
 ---
 

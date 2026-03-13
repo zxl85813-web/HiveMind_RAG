@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.agentic_search import SEARCH_TOOLS
 from app.agents.llm_router import LLMRouter, ModelTier
+from app.core.algorithms.routing import VectorAgentRouter, vector_agent_router
 from app.agents.memory import SharedMemoryManager
 from app.agents.tools import NATIVE_TOOLS
 from app.core.config import settings
@@ -269,6 +270,9 @@ class SwarmOrchestrator:
 
         self._agents[agent.name] = agent
         logger.info(f"Agent registered: {agent.name} (model_hint={agent.model_hint})")
+        # 5.3 向量路由：同步注册到 VectorAgentRouter 缓存（Tier 1 快速路径）
+        if agent.description:
+            vector_agent_router.register_agent(agent.name, agent.description)
 
     def unregister_agent(self, name: str) -> None:
         """Remove an agent from the swarm."""
@@ -468,6 +472,19 @@ class SwarmOrchestrator:
                     "last_node_id": "supervisor_fast",
                     "thought_log": f"⚡ 快速匹配: 检测到平台操作指令 '{keywords[0]}'",
                 }
+
+        # === Mid Path: Vector-based Agent Routing (5.3 VectorAgentRouter, Tier 1) ===
+        # Faster than LLM but richer than keyword matching. Falls through to LLM if confidence < threshold.
+        vector_route = await vector_agent_router.route(user_query)
+        if vector_route and vector_route in self._agents:
+            logger.info(f"⚡ [Vector Router] Matched → '{vector_route}'")
+            return {
+                "next_step": vector_route,
+                "uncertainty_level": 0.25,
+                "current_task": f"向量路由 → {vector_route}",
+                "last_node_id": "supervisor_vector",
+                "thought_log": f"⚡ 向量路由命中: 直接分配给 {vector_route}",
+            }
 
         # === Regular Path: Use LLM for routing ===
         # Build agent info for PromptEngine

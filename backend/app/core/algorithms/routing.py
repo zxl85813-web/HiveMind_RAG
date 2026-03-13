@@ -87,3 +87,54 @@ class SemanticRouter:
 
 
 semantic_router = SemanticRouter()
+
+
+class VectorAgentRouter:
+    """
+    5.3 动态智能路由：向量Agent路由器。
+    在 SwarmOrchestrator Supervisor 中作为「第 2.5 层」使用：
+      关键字快速路径（Tier 0）→ 向量相似度（Tier 1, 本类）→ LLM（Tier 2）
+
+    预先缓存每个 Agent 描述的 Embedding。每次路由请求只做一次 embed
+    + N 次余弦运算，比 LLM 调用快 2~3 个数量级。
+    如果最高相似度 < threshold，返回 None，由调用方继续降级到 LLM。
+    """
+
+    def __init__(self, default_threshold: float = 0.40) -> None:
+        self._agents: dict[str, list[float]] = {}  # name → description embedding
+        self.default_threshold = default_threshold
+
+    def register_agent(self, name: str, description: str) -> None:
+        """Pre-compute and cache the embedding for 'description'."""
+        try:
+            emb = get_embedding_service().embed_query(description)
+            self._agents[name] = emb
+        except Exception:
+            # Embedding service may not be initialised at import time; skip silently.
+            pass
+
+    async def route(self, query: str, threshold: float | None = None) -> str | None:
+        """
+        Return the best-matching agent name, or None if confidence is too low.
+
+        Args:
+            query:     The user query string.
+            threshold: Minimum cosine similarity (default: self.default_threshold).
+        """
+        if not self._agents:
+            return None
+
+        thr = threshold if threshold is not None else self.default_threshold
+        try:
+            query_emb = get_embedding_service().embed_query(query)
+        except Exception:
+            return None
+
+        best_name, best_score = max(
+            ((_n, _cosine_similarity(query_emb, _e)) for _n, _e in self._agents.items()),
+            key=lambda x: x[1],
+        )
+        return best_name if best_score >= thr else None
+
+
+vector_agent_router = VectorAgentRouter()
