@@ -422,8 +422,8 @@ class SwarmOrchestrator:
         [🛡️ AI-LOCKED (AI 修改禁区)]:
         绝对不要把这里的 Fast Path 逻辑给删掉，也不要强行用 LLM覆盖这个兜底逻辑。如果需要新增快速匹配命令，请在 `PLATFORM_INTENTS` 数组中追加。
         """
-        # --- Context Compaction (2.1H) ---
-        state["messages"] = self._prune_messages(state["messages"])
+        # --- Context Compaction (P2: LLM Summarization) ---
+        state["messages"] = await self._compact_messages(state["messages"])
 
         messages = state["messages"]
         user_query = str(state.get("original_query", "") or (messages[-1].content if messages else ""))
@@ -672,8 +672,8 @@ class SwarmOrchestrator:
             if available_tools:
                 llm = llm.bind_tools(available_tools)
 
-            # --- Context Compaction (2.1H) ---
-            state["messages"] = self._prune_messages(state["messages"])
+            # --- Context Compaction (P2: LLM Summarization) ---
+            state["messages"] = await self._compact_messages(state["messages"])
 
             # 4. Invoke LLM (with tool-calling loop)
             # We perform a simple ReAct loop inside the node for native tools
@@ -1045,12 +1045,17 @@ class SwarmOrchestrator:
     #  Context Compaction Utilities (2.1H)
     # ============================================================
 
+    # Token budget for swarm chat history (20% of 32K = 6400 tokens).
+    _HISTORY_TOKEN_BUDGET: int = 6400
+    # Keep the last N turns fully intact, only summarize older history.
+    _KEEP_INTACT_TURNS: int = 6
+
     def _prune_messages(
         self, messages: list[BaseMessage], max_messages: int = 25, char_budget: int = 24000
     ) -> list[BaseMessage]:
         """
-        Prunes message history to stay within token/char limits.
-        Uses 'Tool Result Clearing' for older tool calls and keeps a strict character budget.
+        Fast synchronous pruning: count-based + Tool Result Clearing + char budget.
+        Called as a cheap guard before entering the async LLM summarization path.
         """
         if not messages:
             return []
@@ -1058,21 +1063,18 @@ class SwarmOrchestrator:
         # 1. Message Count Pruning
         if len(messages) > max_messages:
             logger.info(f"🧹 [Phase 6] Pruning by count: {len(messages)} -> {max_messages}")
-            # Keep system, and last max_messages
             system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
             other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
             messages = system_msgs + other_msgs[-(max_messages - len(system_msgs)) :]
 
-        # 2. Tool Result Clearing (Content-based)
-        # We always keep the last 6 messages completely intact
-        keep_intact_count = 6
+        # 2. Tool Result Clearing
+        keep_intact_count = self._KEEP_INTACT_TURNS
         head_msgs = messages[:-keep_intact_count] if len(messages) > keep_intact_count else []
         tail_msgs = messages[-keep_intact_count:] if len(messages) > keep_intact_count else messages
 
         refined_head = []
         for msg in head_msgs:
             if isinstance(msg, ToolMessage) and len(str(msg.content)) > 150:
-                # Clear content but keep tool result status/summary
                 summary = f"[Output of {msg.tool_call_id[:8]}... summarized: {len(str(msg.content))} chars truncated]"
                 refined_head.append(ToolMessage(tool_call_id=msg.tool_call_id, content=summary))
             else:
@@ -1084,13 +1086,11 @@ class SwarmOrchestrator:
         total_chars = sum(len(str(m.content)) for m in current_messages)
         if total_chars > char_budget:
             logger.info(f"⚖️ [Phase 6] Budget exceeded ({total_chars} > {char_budget}). Removing intermediate history.")
-            # Drop older messages (after system) until within budget
             system_msgs = [m for m in current_messages if isinstance(m, SystemMessage)]
             other_msgs = [m for m in current_messages if not isinstance(m, SystemMessage)]
 
             while other_msgs and sum(len(str(m.content)) for m in system_msgs + other_msgs) > char_budget:
                 if len(other_msgs) <= keep_intact_count:
-                    # Don't prune the very end, just truncate the oldest among them
                     other_msgs[0].content = "[Older context truncated to save tokens...]"
                     break
                 other_msgs.pop(0)
@@ -1098,6 +1098,78 @@ class SwarmOrchestrator:
             current_messages = system_msgs + other_msgs
 
         return current_messages
+
+    async def _compact_messages(self, messages: list[BaseMessage]) -> list[BaseMessage]:
+        """
+        P2 — 对话短期记忆流压缩 (Chat History Compaction with LLM Summarization).
+
+        当历史消息的 Token 总量超过 _HISTORY_TOKEN_BUDGET 时，使用廉价 LLM（SIMPLE tier）
+        对旧历史进行提炼，生成 SummaryMessage（SystemMessage 格式）替换老历史，
+        仅保留最近 _KEEP_INTACT_TURNS 轮完整对话。
+
+        流程：
+          1. Count tokens → if within budget, skip.
+          2. Split into [head (to summarize)] + [tail (to keep)].
+          3. Call cheap LLM to distill head into a concise summary.
+          4. Replace head with a single SummaryMessage.
+        """
+        if not messages:
+            return messages
+
+        # First apply fast sync pruning as a first pass
+        messages = self._prune_messages(messages)
+
+        from app.core.algorithms.token_service import token_service
+
+        # Measure total tokens (exclude SystemMessages from budget count as they are mandatory)
+        non_system = [m for m in messages if not isinstance(m, SystemMessage)]
+        system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+
+        total_tokens = sum(token_service.count_tokens(str(m.content)) for m in non_system)
+
+        if total_tokens <= self._HISTORY_TOKEN_BUDGET:
+            return messages  # Within budget, nothing to do.
+
+        # Split: keep the last _KEEP_INTACT_TURNS messages, summarize the rest
+        tail = non_system[-self._KEEP_INTACT_TURNS:]
+        head = non_system[: len(non_system) - self._KEEP_INTACT_TURNS]
+
+        if not head:
+            return messages  # Nothing old enough to summarize
+
+        # Build dialogue text for summarization (capped to avoid very expensive calls)
+        max_summary_chars = 8000
+        dialogue_text = ""
+        for msg in head:
+            role = "User" if isinstance(msg, HumanMessage) else "Assistant"
+            line = f"{role}: {str(msg.content)[:400]}\n"
+            if len(dialogue_text) + len(line) > max_summary_chars:
+                break
+            dialogue_text += line
+
+        summary_content = None
+        try:
+            llm = self.router.get_model(ModelTier.SIMPLE)
+            compress_prompt = (
+                "You are a precise dialogue summarizer. "
+                "Condense the following conversation history into a compact summary (max 200 words). "
+                "Preserve: key decisions, stated goals, important facts, user preferences. "
+                "Output ONLY the summary text, no preamble.\n\n"
+                f"--- HISTORY TO SUMMARIZE ---\n{dialogue_text}"
+            )
+            response = await llm.ainvoke([HumanMessage(content=compress_prompt)])
+            summary_content = response.content.strip()
+            logger.info(
+                f"📝 [Compaction] Summarized {len(head)} messages ({total_tokens} tokens) "
+                f"into {token_service.count_tokens(summary_content)} tokens."
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ [Compaction] LLM summarization failed, falling back to truncation: {e}")
+            # Fallback: Use a static placeholder rather than leaving oversized context
+            summary_content = f"[Earlier conversation ({len(head)} turns) condensed — key context preserved by system.]"
+
+        summary_msg = SystemMessage(content=f"[CONVERSATION SUMMARY]\n{summary_content}")
+        return system_msgs + [summary_msg] + tail
 
     # ============================================================
     #  JSON Parsing Helpers

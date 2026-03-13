@@ -96,6 +96,41 @@ class AgentSpan(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class RAGQueryTrace(SQLModel, table=True):
+    """
+    Records every RAG retrieval request for observability:
+    - Retrieval quality monitoring (hit rate, latency, empty result rate)
+    - Usage analysis (hot queries, cold documents)
+    """
+
+    __tablename__ = "obs_rag_query_traces"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+
+    # Request context
+    query: str = Field(index=True)
+    kb_ids: list[str] = Field(default_factory=list, sa_type=JSON)
+    retrieval_strategy: str = Field(default="hybrid")
+    user_id: str | None = Field(default=None, index=True)
+
+    # Results
+    total_found: int = Field(default=0)
+    returned_count: int = Field(default=0)
+    has_results: bool = Field(default=False, index=True)
+
+    # Performance
+    latency_ms: float = Field(default=0.0)
+    is_error: bool = Field(default=False, index=True)
+
+    # Retrieved document IDs (for cold-document analysis)
+    retrieved_doc_ids: list[str] = Field(default_factory=list, sa_type=JSON)
+
+    # Per-step trace log from RetrievalContext.trace_log
+    step_traces: list[str] = Field(default_factory=list, sa_type=JSON)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class HITLTask(SQLModel, table=True):
     """
     Queue for Human-in-the-Loop review of ambiguous or low-confidence data.

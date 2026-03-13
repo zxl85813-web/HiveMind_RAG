@@ -16,6 +16,7 @@ from app.api.routes import (
     knowledge,
     learning,
     memory,
+    observability,
     pipelines,
     security,
     settings,
@@ -41,3 +42,4 @@ router.include_router(evaluation.router, prefix="/evaluation", tags=["RAG Evalua
 router.include_router(finetuning.router, prefix="/finetuning", tags=["Fine-tuning SFT Data"])
 router.include_router(pipelines.router, prefix="/pipelines", tags=["Pipelines"])
 router.include_router(settings.router, prefix="/settings", tags=["Platform Settings"])
+router.include_router(observability.router, prefix="/observability", tags=["Observability"])

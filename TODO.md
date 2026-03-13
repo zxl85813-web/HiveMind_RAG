@@ -475,11 +475,11 @@
 
 #### 上下文压缩与 Token 管理 (P2)
 > 📄 设计文档: `docs/architecture/memory_compression_design.md`
-- ⬜ **语义 Token 服务** — `TokenService` 集成 `tiktoken` 统一计量
-- ⬜ **抽取式压缩** — 从检索块中提取与 Query 最相关的句子，拦截长尾
-- ⬜ **对话短期记忆流压缩** — 会话超出 Token 阈值时自动生成摘要对象(`SummaryMessage`)替换长历史
-- ⬜ **Lost in the Middle 优化** — 重排文档顺序，相关内容放首尾 (已在 RerankingStep 完成基础版本)
-- ⬜ **长期记忆衰减** — 建立记忆热度（Temperature）时间惩罚与清除冷数据机制
+- ✅ **语义 Token 服务** — `TokenService` 集成 `tiktoken` 统一计量 (`app/core/algorithms/token_service.py`)
+- ✅ **抽取式压缩** — `ContextualCompressionStep`: 关键词句子级抽取，拦截长尾检索块 (`app/services/retrieval/steps.py`)
+- ✅ **对话短期记忆流压缩** — `_compact_messages` 异步 LLM 摘要压缩：Token 超限自动生成 `SummaryMessage` 替换老历史 (`app/agents/swarm.py`)
+- ✅ **Lost in the Middle 优化** — `RerankingStep` 交错重排: 高相关内容置于首尾 (`app/services/retrieval/steps.py`)
+- ✅ **长期记忆衰减** — `apply_decay` + `evict_cold` + Celery Beat 每日 03:00 定时衰减任务 (`app/services/memory/tier/abstract_index.py`, `app/services/memory/tasks.py`)
 
 #### 文档生命周期 (P2)
 - ⬜ **增量更新** — 文档修改时仅重索引变更 Chunk
@@ -493,9 +493,9 @@
 - ✅ **Content Dedup**: SHA-256 hash-based strict deduplication implemented.
 
 #### 可观测性 (P2)
-- ⬜ **V3 Trace 集成** — RAG 全链路追踪（Redis Buffer + FileTrace/AgentSpan）
-- ⬜ **检索质量监控** — 命中率、延迟、空结果率
-- ⬜ **知识库使用分析** — 热门查询、冷门文档
+- ✅ **V3 Trace 集成** — `RAGQueryTrace` 模型 (`obs_rag_query_traces`) + `fire_and_forget_trace` 在 `RAGGateway.retrieve()` 中自动埋点，记录查询、延迟、步骤日志 (`app/models/observability.py`, `app/services/rag_gateway.py`)
+- ✅ **检索质量监控** — `get_retrieval_quality` 聚合命中率 / 平均延迟 / 空结果率 / 错误率，暴露 `GET /api/v1/observability/retrieval-quality` (`app/services/observability_service.py`)
+- ✅ **知识库使用分析** — `get_hot_queries` + `get_cold_documents` 热门查询 Top-N / 冷门文档 Bottom-N，暴露 `GET /api/v1/observability/hot-queries` 与 `GET /api/v1/observability/cold-documents/{kb_id}` (`app/api/routes/observability.py`)
 
 #### 自适应 RAG (P3)
 - ✅ **Adaptive RAG (Self-RAG)**: Supervisor dynamically decides whether to retrieve context or answer directly.
@@ -541,6 +541,37 @@
 - ⬜ **分布式流控与压测**: 提供 API 路由级别的 Rate Limiting 与 Token 令牌桶机制配置。
 - ⬜ **Agent-Native LLM 智能路由 (ClawRouter 模式)**: 引入多维度加权评分引擎（Token量、复杂度、响应速度等），动态决定 Agent 请求走 `Eco` (如 GLM-4-flash) 还是 `Premium` 模型。
 - ⬜ **无感 LLM 降级容错**: 商业/主 API 不可用时，隐式回退至端侧开源模型或备用廉价线路，确保对话体验零中断。
+
+##### Phase 5 执行拆解（可直接建 Issue）
+
+- ⬜ **TASK-SG-001（协作者: zxl85813-web）**：完成读写分离拓扑设计与灰度开关
+  - 交付物：Ingestion/Retrieval 双服务边界图 + 配置开关（单体兼容 / 双服务模式）
+  - 验收：在不改 API 契约下可切换部署模式；回滚路径明确且可脚本化
+- ⬜ **TASK-SG-002（协作者: Uchihacc）**：实现 Retrieval 只读服务与异步事件补偿
+  - 交付物：Retrieval 只读实例 + 写后异步索引通知（Event/Queue）
+  - 验收：写高峰期间检索 P95 延迟较基线下降，且无数据可见性异常告警
+- ⬜ **TASK-SG-003（协作者: zxl85813-web）**：实现分层熔断器策略（LLM/ES/Neo4j）
+  - 交付物：按依赖维度独立阈值（timeout/error_rate/open_duration）+ 半开探测机制
+  - 验收：任一依赖故障时不触发级联雪崩，服务可维持降级可用
+- ⬜ **TASK-SG-004（协作者: Uchihacc）**：实现统一降级编排器（Fallback Orchestrator）
+  - 交付物：优先级链路 `cache -> local lightweight -> backup provider` + 降级原因码
+  - 验收：主模型不可用 10 分钟内，问答成功率保持在目标阈值以上
+- ⬜ **TASK-SG-005（协作者: zxl85813-web）**：实现路由级限流与令牌桶配置中心
+  - 交付物：按 `route/user/key` 多粒度限流策略 + 热更新配置
+  - 验收：压测突发流量下无大面积 5xx，且高优先级路由具备保底配额
+- ⬜ **TASK-SG-006（协作者: Uchihacc）**：接入 ClawRouter 多维评分与成本守卫
+  - 交付物：评分因子（复杂度/Token/SLA/成本）+ Eco/Premium 动态路由
+  - 验收：在质量不回退前提下，单位请求平均成本下降并可观测
+- ⬜ **TASK-SG-007（协作者: zxl85813-web）**：建设高可用压测与故障演练流水线
+  - 交付物：`steady/spike/chaos` 三类场景脚本 + 自动报告模板
+  - 验收：每周至少一次演练，输出 MTTR/错误预算消耗/降级触发比率
+
+##### Phase 5 统一验收门禁（Go/No-Go）
+
+- ⬜ **GATE-SG-1（稳定性）**：连续 24h 稳态压测无 P0 故障，关键接口错误率低于目标阈值
+- ⬜ **GATE-SG-2（韧性）**：LLM/ES/Neo4j 任一依赖故障时，系统 60s 内完成熔断与降级收敛
+- ⬜ **GATE-SG-3（成本）**：智能路由上线后单位请求综合成本下降，且核心质量指标不退化
+- ⬜ **GATE-SG-4（可运维）**：告警、仪表盘、演练手册齐备，支持值班同学独立处置
 
 #### Phase 6: 前端与交互韧性 (Frontend Resilience) ⬜
 - ⬜ **组件级容错与断路 (Error Boundaries)**: Agent 流式请求失败时，停止空窗阻塞，展示可读的降级页面（例如离线/维护状态UI）。
@@ -789,6 +820,7 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ## 八、📝 变更日志 (按日期倒序)
 
 ### 2026-03-13
+- ✅ 完成 TODO 治理补充：细化 `Phase 5: 服务治理与高可用` 为 7 个可执行任务（`TASK-SG-001~007`）+ 4 个验收门禁（`GATE-SG-1~4`）。
 - ✅ 完成 0.7 专项 `TASK-EVAL-001`：`backend/scripts/evals/skill_trigger_eval.py` 增加 CI Gate（`--min-pass-rate`、失败返回非 0、可保存结果）。
 - ✅ 完成 0.7 专项 `TASK-EVAL-003`：新增 `backend/app/services/evaluation/rag_assertion_grader.py`，并接入 Multi-Grader 强规则评分钳制。
 - ✅ 完成 0.7 专项 `TASK-RAG-001`：重构 `skills/rag_search/SKILL.md` 为渐进式加载结构（Quick Reference + Full Protocol）。

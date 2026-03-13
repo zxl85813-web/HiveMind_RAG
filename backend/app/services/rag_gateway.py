@@ -10,6 +10,7 @@ from typing import ClassVar
 from loguru import logger
 
 from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse
+from app.services.observability_service import fire_and_forget_trace
 from app.services.retrieval.pipeline import RetrievalPipeline
 
 
@@ -73,9 +74,25 @@ class RAGGateway:
         # (Simplified for now: just sort by score)
         all_fragments.sort(key=lambda x: x.score, reverse=True)
 
+        final_fragments = all_fragments[: top_k * len(active_kbs)]
+
+        # 4. Fire-and-forget observability trace
+        retrieved_doc_ids = list({f.source_id for f in final_fragments})
+        fire_and_forget_trace(
+            query=query,
+            kb_ids=kb_ids,
+            retrieval_strategy=strategy,
+            total_found=len(all_fragments),
+            returned_count=len(final_fragments),
+            latency_ms=(time.time() - start_time) * 1000,
+            retrieved_doc_ids=retrieved_doc_ids,
+            step_traces=warnings,
+            is_error=bool(warnings),
+        )
+
         return KnowledgeResponse(
             query=query,
-            fragments=all_fragments[: top_k * len(active_kbs)],
+            fragments=final_fragments,
             total_found=len(all_fragments),
             processing_time_ms=(time.time() - start_time) * 1000,
             retrieval_strategy=strategy,

@@ -339,6 +339,10 @@ class MemoryService:
                     )
                     context_blocks.append(f"--- HOT MEMORY (Tier-1 Radar) ---\n{radar_lines}")
 
+                    # P2: 记录命中热度，防止热记忆被衰减驱逐
+                    for h in hits:
+                        abstract_index.increment_hit(h["id"])
+
                 # ── Block 3: Tier-2 Graph — 图谱关系邻居
                 graph_neighbors = await graph_index.get_neighborhood(radar_tags)
                 if graph_neighbors:
