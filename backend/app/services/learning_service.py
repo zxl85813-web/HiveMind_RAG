@@ -238,6 +238,154 @@ class LearningService:
                     continue
         return signals
 
+    # ------------------------------------------------------------------
+    # 实际爬取引擎 — Tier 2: GitHub Trending / Hacker News / ArXiv
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def _fetch_github_trending() -> list[dict[str, str]]:
+        """
+        爬取 GitHub Trending（近 7 天 Stars 增长最快的仓库）。
+        使用 GitHub Search API 模拟 Trending 效果：按语言过滤，按上周创建 + Star 数排序。
+        """
+        lang = settings.LEARNING_GITHUB_TRENDING_LANGUAGE
+        limit = max(1, min(settings.LEARNING_GITHUB_TRENDING_LIMIT, 10))
+
+        from datetime import timedelta
+
+        since = (datetime.now(UTC).date() - timedelta(days=7)).isoformat()
+        query = f"language:{lang} created:>{since}"
+        url = "https://api.github.com/search/repositories"
+        params = {"q": query, "sort": "stars", "order": "desc", "per_page": limit}
+        headers: dict[str, str] = {"Accept": "application/vnd.github+json"}
+        if settings.GITHUB_TOKEN:
+            headers["Authorization"] = f"Bearer {settings.GITHUB_TOKEN}"
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0, headers=headers) as client:
+                resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                logger.debug("GitHub trending fetch failed: status={}", resp.status_code)
+                return []
+            items = resp.json().get("items", [])
+            return [
+                {
+                    "source": "github_trending",
+                    "title": f"{item['full_name']} ⭐{item.get('stargazers_count', 0):,} — {item.get('description', '')[:80]}",
+                    "url": item.get("html_url", ""),
+                    "origin": item.get("full_name", ""),
+                    "github_stars": str(item.get("stargazers_count", 0)),
+                    "language": item.get("language") or lang,
+                    "description": item.get("description") or "",
+                }
+                for item in items
+            ]
+        except Exception as e:
+            logger.debug("GitHub trending exception: {}", e)
+            return []
+
+    @staticmethod
+    async def _fetch_hacker_news() -> list[dict[str, str]]:
+        """
+        爬取 Hacker News 高分技术贴（使用 Algolia HN Search API）。
+        只拉 AI/ML/Python/Agent 相关关键词，减少噪音。
+        """
+        min_score = settings.LEARNING_HN_MIN_SCORE
+        limit = max(1, min(settings.LEARNING_HN_LIMIT, 10))
+        tech_queries = [
+            "LLM RAG agent vector",
+            "python fastapi langchain",
+            "artificial intelligence machine learning",
+        ]
+
+        signals: list[dict[str, str]] = []
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            for q in tech_queries:
+                if len(signals) >= limit:
+                    break
+                try:
+                    resp = await client.get(
+                        "https://hn.algolia.com/api/v1/search",
+                        params={
+                            "query": q,
+                            "tags": "story",
+                            "numericFilters": f"points>{min_score}",
+                            "hitsPerPage": limit,
+                        },
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    for hit in resp.json().get("hits", []):
+                        title = hit.get("title") or ""
+                        story_url = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
+                        if title and not any(s["url"] == story_url for s in signals):
+                            signals.append(
+                                {
+                                    "source": "hacker_news",
+                                    "title": f"[HN] {title}",
+                                    "url": story_url,
+                                    "origin": "news.ycombinator.com",
+                                    "hn_points": str(hit.get("points", 0)),
+                                }
+                            )
+                except Exception as e:
+                    logger.debug("HN fetch error for query '{}': {}", q, e)
+        return signals[:limit]
+
+    @staticmethod
+    async def _fetch_arxiv() -> list[dict[str, str]]:
+        """
+        爬取 ArXiv 最新论文（使用官方 Atom Feed API）。
+        按配置的分类拉取最新提交的论文。
+        """
+        categories = LearningService._split_csv(settings.LEARNING_ARXIV_CATEGORIES)
+        max_results = max(1, min(settings.LEARNING_ARXIV_MAX_RESULTS, 20))
+        if not categories:
+            return []
+
+        cat_query = " OR ".join(f"cat:{c}" for c in categories[:5])
+        url = "https://export.arxiv.org/api/query"
+        params = {
+            "search_query": cat_query,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
+
+        _ATOM = "http://www.w3.org/2005/Atom"
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                logger.debug("ArXiv fetch failed: status={}", resp.status_code)
+                return []
+
+            root = ElementTree.fromstring(resp.text)
+            entries = root.findall(f"{{{_ATOM}}}entry")
+            signals: list[dict[str, str]] = []
+            for entry in entries:
+                title_el = entry.find(f"{{{_ATOM}}}title")
+                id_el = entry.find(f"{{{_ATOM}}}id")
+                summary_el = entry.find(f"{{{_ATOM}}}summary")
+                title = (title_el.text or "").strip().replace("\n", " ") if title_el is not None else ""
+                link = (id_el.text or "").strip() if id_el is not None else ""
+                abstract = (summary_el.text or "").strip()[:180].replace("\n", " ") if summary_el is not None else ""
+                if title:
+                    signals.append(
+                        {
+                            "source": "arxiv",
+                            "title": f"[ArXiv] {title}",
+                            "url": link,
+                            "origin": "arxiv.org",
+                            "abstract": abstract,
+                        }
+                    )
+            return signals
+        except Exception as e:
+            logger.debug("ArXiv fetch exception: {}", e)
+            return []
+
     @staticmethod
     def _build_x_watchlist() -> list[dict[str, str]]:
         accounts = LearningService._split_csv(settings.SELF_LEARNING_X_ACCOUNTS)
@@ -350,6 +498,155 @@ class LearningService:
         except Exception as e:
             logger.warning("Error fetching GitHub project items: {}", e)
             return []
+
+    # ------------------------------------------------------------------
+    # 相关性评估模型 — LLM 评估新技术与项目栈的匹配度
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def assess_relevance(
+        signals: list[dict[str, str]],
+        tech_stack_context: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        使用 LLM 批量评估外部信号与当前项目技术栈的相关性。
+
+        每条 signal 追加两个字段：
+          - relevance_score  float  0.0 ~ 1.0
+          - relevance_reason str    LLM 给出的简短理由（中文）
+
+        低于 settings.LEARNING_RELEVANCE_MIN_SCORE 的条目仍返回，由调用方决定是否过滤。
+        LLM 不可用时降级为全部赋予 0.5，保证流程不中断。
+        """
+        if not signals:
+            return []
+
+        stack = tech_stack_context or settings.LEARNING_TECH_STACK_CONTEXT
+
+        # Build a numbered list for LLM context
+        items_text = "\n".join(
+            f"{i + 1}. {s.get('title', '')} (source={s.get('source', '')})" for i, s in enumerate(signals)
+        )
+        prompt = (
+            f"你是一位技术架构师，负责评估外部技术资讯与当前项目技术栈的相关性。\n"
+            f"当前项目技术栈关键词：{stack}\n\n"
+            f"请为以下每条资讯评分（0.0=完全无关，1.0=高度相关），并给出一句中文理由。\n"
+            f"严格按 JSON 数组输出，格式："
+            '[{"index":1,"score":0.8,"reason":"..."}, ...]\n'
+            "不要输出任何其他内容。\n\n"
+            f"资讯列表：\n{items_text}"
+        )
+
+        scored: list[dict[str, Any]] = [dict(s) for s in signals]
+        try:
+            from openai import AsyncOpenAI
+
+            llm_key = settings.OPENAI_API_KEY or settings.ARK_API_KEY
+            llm_base = settings.OPENAI_BASE_URL if settings.OPENAI_API_KEY else settings.ARK_BASE_URL
+            llm_model = settings.LLM_MODEL if hasattr(settings, "LLM_MODEL") else settings.ARK_MODEL
+
+            client = AsyncOpenAI(api_key=llm_key, base_url=llm_base)
+            response = await client.chat.completions.create(
+                model=llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=512,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+
+            # Robustly extract JSON array from response
+            import json as _json
+            import re as _re
+
+            match = _re.search(r"\[.*\]", raw, _re.DOTALL)
+            if match:
+                results = _json.loads(match.group())
+                score_map: dict[int, tuple[float, str]] = {}
+                for r in results:
+                    idx = int(r.get("index", 0)) - 1
+                    score_map[idx] = (float(r.get("score", 0.5)), r.get("reason", ""))
+                for i, item in enumerate(scored):
+                    s, reason = score_map.get(i, (0.5, ""))
+                    item["relevance_score"] = round(s, 3)
+                    item["relevance_reason"] = reason
+                logger.debug("[assess_relevance] Scored {} signals via LLM.", len(scored))
+                return scored
+        except Exception as e:
+            logger.warning("[assess_relevance] LLM scoring failed ({}), defaulting to 0.5.", e)
+
+        # Fallback: neutral score
+        for item in scored:
+            item.setdefault("relevance_score", 0.5)
+            item.setdefault("relevance_reason", "LLM 评分不可用")
+        return scored
+
+    @staticmethod
+    async def run_external_crawl() -> list[TechDiscovery]:
+        """
+        定时爬取入口：拉取 GitHub Trending + HN + ArXiv，
+        经相关性评估后存入 _discoveries 并返回高质量发现列表。
+        """
+        import uuid
+
+        logger.info("[ExternalCrawl] Starting crawl cycle...")
+        raw: list[dict[str, str]] = []
+        raw += await LearningService._fetch_github_trending()
+        raw += await LearningService._fetch_hacker_news()
+        raw += await LearningService._fetch_arxiv()
+
+        if not raw:
+            logger.info("[ExternalCrawl] No signals fetched this cycle.")
+            return []
+
+        scored = await LearningService.assess_relevance(raw)
+        min_score = settings.LEARNING_RELEVANCE_MIN_SCORE
+        discoveries: list[TechDiscovery] = []
+        for item in scored:
+            score = item.get("relevance_score", 0.0)
+            if score < min_score:
+                continue
+            source = item.get("source", "external")
+            discoveries.append(
+                TechDiscovery(
+                    id=f"{source}_{uuid.uuid4().hex[:8]}",
+                    title=item.get("title", ""),
+                    summary=item.get("relevance_reason") or item.get("abstract") or item.get("description") or "",
+                    url=item.get("url", ""),
+                    category=(
+                        "paper" if source == "arxiv"
+                        else "tool" if source == "github_trending"
+                        else "article"
+                    ),
+                    relevance_score=score,
+                    discovered_at=datetime.now(UTC),
+                )
+            )
+
+        # Prepend new discoveries, keep at most 100 total
+        existing_urls = {d["url"] for d in LearningService._mock_discoveries}
+        for disc in discoveries:
+            if disc.url not in existing_urls:
+                LearningService._mock_discoveries.insert(
+                    0,
+                    {
+                        "id": disc.id,
+                        "title": disc.title,
+                        "summary": disc.summary,
+                        "url": disc.url,
+                        "category": disc.category,
+                        "relevance_score": disc.relevance_score,
+                        "discovered_at": disc.discovered_at,
+                    },
+                )
+        LearningService._mock_discoveries = LearningService._mock_discoveries[:100]
+
+        logger.info(
+            "[ExternalCrawl] Cycle complete: {} raw signals → {} stored discoveries (min_score={}).",
+            len(raw),
+            len(discoveries),
+            min_score,
+        )
+        return discoveries
 
     @staticmethod
     def _build_suggestions(
@@ -575,7 +872,11 @@ class LearningService:
         x_watchlist = LearningService._build_x_watchlist()
         ai_feed_signals = await LearningService._fetch_ai_company_feed_signals()
         github_repo_signals = await LearningService._fetch_github_watch_repo_signals()
-        external_signals = ai_feed_signals + github_repo_signals + x_watchlist
+        # 实际爬取引擎 (2.4): GitHub Trending / HN / ArXiv
+        crawl_github = await LearningService._fetch_github_trending()
+        crawl_hn = await LearningService._fetch_hacker_news()
+        crawl_arxiv = await LearningService._fetch_arxiv()
+        external_signals = ai_feed_signals + github_repo_signals + x_watchlist + crawl_github + crawl_hn + crawl_arxiv
 
         analyst = LearningAnalystAgent()
         system_characteristics = [item["title"] for item in local_materials]

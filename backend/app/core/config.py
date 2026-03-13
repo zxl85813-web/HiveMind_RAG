@@ -114,6 +114,28 @@ class Settings(BaseSettings):
         "huggingface/transformers,langchain-ai/langchain,microsoft/autogen"
     )
 
+    # === Crawler — GitHub Trending ===
+    LEARNING_GITHUB_TRENDING_LANGUAGE: str = "python"
+    LEARNING_GITHUB_TRENDING_LIMIT: int = 5
+
+    # === Crawler — Hacker News ===
+    LEARNING_HN_MIN_SCORE: int = 100
+    LEARNING_HN_LIMIT: int = 5
+
+    # === Crawler — ArXiv ===
+    # Comma-separated ArXiv category IDs (cs.AI, cs.CL, cs.IR, cs.LG, …)
+    LEARNING_ARXIV_CATEGORIES: str = "cs.AI,cs.CL,cs.IR"
+    LEARNING_ARXIV_MAX_RESULTS: int = 5
+
+    # === Relevance Model ===
+    # Comma-separated tech stack terms used as context in LLM relevance scoring.
+    LEARNING_TECH_STACK_CONTEXT: str = (
+        "FastAPI,LangChain,LangGraph,RAG,Vector Database,Knowledge Graph,"
+        "Python,TypeScript,React,PostgreSQL,Redis,Docker,Agent Swarm,Embedding"
+    )
+    # Discoveries below this threshold are discarded before storing.
+    LEARNING_RELEVANCE_MIN_SCORE: float = 0.45
+
     # === ARK Deep Interpretation ===
     ARK_API_KEY: str = ""
     ARK_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"

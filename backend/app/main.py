@@ -72,11 +72,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await sync_service.start()
 
+    # Start External Learning Crawler Scheduler (2.4 实际爬取引擎)
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from app.core.config import settings as _cfg
+    from app.services.learning_service import LearningService
+
+    _scheduler = AsyncIOScheduler(timezone="UTC")
+    _scheduler.add_job(
+        LearningService.run_external_crawl,
+        trigger="interval",
+        hours=_cfg.LEARNING_FETCH_INTERVAL_HOURS,
+        id="external_learning_crawl",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.start()
+    logger.info(
+        "🌐 External Learning Crawler scheduled every {} hours.",
+        _cfg.LEARNING_FETCH_INTERVAL_HOURS,
+    )
+
     # TODO: Initialize WebSocket manager
 
     yield
 
     logger.info("🐝 HiveMind RAG Platform shutting down...")
+    _scheduler.shutdown(wait=False)
     await sync_service.stop()
     await close_db()
     # TODO: Cleanup resources
