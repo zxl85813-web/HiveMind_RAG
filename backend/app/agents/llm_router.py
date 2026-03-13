@@ -183,9 +183,18 @@ class LLMRouter:
         return self.get_model(target_tier)
 
     def get_model(self, tier: ModelTier = ModelTier.MEDIUM) -> BaseChatModel:
-        """Get the chat model instance for the requested tier, with automatic cascading fallback."""
-        if tier in self._instances:
-            return self._instances[tier]
+        """
+        Get the chat model instance for the requested tier.
+        GOV-002: Routing Watchdog escalation is applied transparently. If the
+        requested tier has exceeded its failure threshold, a higher tier is used.
+        """
+        from app.agents.routing_watchdog import routing_watchdog
+
+        effective_tier = routing_watchdog.get_effective_tier(tier)
+        if effective_tier != tier:
+            logger.debug(f"🔀 [ClawRouter] GOV-002 escalation: {tier.value} → {effective_tier.value}")
+        if effective_tier in self._instances:
+            return self._instances[effective_tier]
         if ModelTier.MEDIUM in self._instances:
             return self._instances[ModelTier.MEDIUM]
         if self._instances:

@@ -407,7 +407,14 @@ class ContextualCompressionStep(BaseRetrievalStep):
 class TruthAlignmentStep(BaseRetrievalStep):
     """
     Governance Phase: Align Graph facts with Vector chunks to ensure consistency.
-    (M2.3.1 Truth Alignment)
+    (GOV-001 Truth Alignment — M2.3.1)
+
+    When conflicts are detected:
+    - Conflicting graph facts are pruned from ctx.graph_facts.
+    - GraphRAG candidate blocks are removed from ctx.candidates to prevent
+      contaminating the reranker with disputed content.
+    - ctx.alignment_report is populated so the final Prompt Engine can surface
+      the governance warning to the LLM.
     """
 
     async def execute(self, ctx: RetrievalContext):
@@ -417,7 +424,6 @@ class TruthAlignmentStep(BaseRetrievalStep):
         from app.core.algorithms.alignment import truth_alignment_service
 
         vector_contents = [d.page_content for d in ctx.candidates if d.metadata.get("source") != "GraphRAG"]
-
         if not vector_contents:
             return
 
@@ -425,13 +431,38 @@ class TruthAlignmentStep(BaseRetrievalStep):
             decision = await truth_alignment_service.align(ctx.graph_facts, vector_contents)
 
             if not decision.is_consistent:
-                ctx.log("Alignment", f"🚨 CONFLICT DETECTED: {len(decision.conflicts)} issues.")
-                ctx.alignment_report = decision.summary
+                # ── GOV-001 Action 1: prune conflicting graph facts ──────────
+                if decision.conflicting_entities:
+                    original_count = len(ctx.graph_facts)
+                    ctx.graph_facts = [
+                        f for f in ctx.graph_facts
+                        if not any(ent.lower() in f.lower() for ent in decision.conflicting_entities)
+                    ]
+                    pruned = original_count - len(ctx.graph_facts)
+                    if pruned:
+                        ctx.log("Alignment", f"Pruned {pruned} conflicting graph facts (entities: {decision.conflicting_entities})")
+
+                # ── GOV-001 Action 2: remove GraphRAG candidate blocks ───────
+                pre_count = len(ctx.candidates)
+                ctx.candidates = [d for d in ctx.candidates if d.metadata.get("source") != "GraphRAG"]
+                removed_docs = pre_count - len(ctx.candidates)
+                if removed_docs:
+                    ctx.log("Alignment", f"Removed {removed_docs} GraphRAG candidate block(s) due to conflict.")
+
+                # ── GOV-001 Action 3: structured report for LLM context ──────
+                entities_str = ", ".join(decision.conflicting_entities) or "unspecified"
+                ctx.alignment_report = (
+                    f"[Truth Alignment — {decision.severity.upper()} CONFLICT]\n"
+                    f"{decision.summary}\n"
+                    f"Conflicting entities: {entities_str}\n"
+                    f"Note: Conflicting graph facts have been removed from context."
+                )
+                ctx.log("Alignment", f"🚨 CONFLICT DETECTED ({decision.severity}): {len(decision.conflicts)} issues.")
             else:
+                ctx.alignment_report = None
                 ctx.log("Alignment", "✅ Facts aligned (Graph vs Vector).")
 
             if decision.reinforcements:
                 ctx.log("Alignment", f"Strong reinforcement: {len(decision.reinforcements)} facts confirmed by both.")
-
         except Exception as e:
             ctx.log("Alignment", f"Alignment failed: {e}")

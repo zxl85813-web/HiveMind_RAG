@@ -5,8 +5,22 @@ from pydantic import BaseModel, Field
 class AlignmentDecision(BaseModel):
     is_consistent: bool
     conflicts: list[str] = []
+    # GOV-001: specific entities (people/orgs/concepts) at the centre of each conflict
+    conflicting_entities: list[str] = []
     reinforcements: list[str] = []
     summary: str
+
+    @property
+    def severity(self) -> str:
+        """Return 'clean' | 'low' | 'medium' | 'high' based on conflict count."""
+        if self.is_consistent:
+            return "clean"
+        n = len(self.conflicts)
+        if n >= 3:
+            return "high"
+        if n >= 1:
+            return "medium"
+        return "low"
 
 class TruthAlignmentService:
     """
@@ -33,6 +47,10 @@ class TruthAlignmentService:
         class ConsistencyCheck(BaseModel):
             has_contradiction: bool = Field(..., description="Whether there is a direct logic contradiction between graph and vector content.")
             conflicts: list[str] = Field(default_factory=list, description="Specific descriptions of found contradictions.")
+            conflicting_entities: list[str] = Field(
+                default_factory=list,
+                description="Entity names (people, organizations, dates, concept IDs) that appear in contradicting statements.",
+            )
             reinforcements: list[str] = Field(default_factory=list, description="Facts that are explicitly confirmed by both sources.")
             analysis: str = Field(..., description="Brief reasoning of the consistency state.")
 
@@ -64,8 +82,9 @@ class TruthAlignmentService:
             return AlignmentDecision(
                 is_consistent=not result.has_contradiction,
                 conflicts=result.conflicts,
+                conflicting_entities=result.conflicting_entities,
                 reinforcements=result.reinforcements,
-                summary=summary
+                summary=summary,
             )
 
         except Exception as e:

@@ -103,8 +103,8 @@
 
 ### 0.6 🏮 架构治理与路由自愈 (Architectural Critique Work)
 > 目标：解决路由逃逸与语义分裂，落实 `critique_and_governance_backlog.md`
-- ⬜ **GOV-001 (P0)**: 向量与图谱的一致性治理（Truth Alignment 校验器）
-- ⬜ **GOV-002 (P1)**: 路由自愈机制（Routing Watchdog + Tier Escalation）
+- ✅ **GOV-001 (P0)**: 向量与图谱的一致性治理（Truth Alignment 校验器）— 增加 `conflicting_entities` 抽取 + `severity` 属性；冲突时自动剪枝 graph_facts 并移除 GraphRAG 候选块，结构化 `alignment_report` 传递给 LLM。
+- ✅ **GOV-002 (P1)**: 路由自愈机制（Routing Watchdog + Tier Escalation）— 新增 `routing_watchdog.py`：滑动窗口（20 events/tier）+ 50% 失败率触发升级 + 5min 冷却自动复原；`LLMRouter.get_model()` 透明接入。
 - ⬜ **GOV-003 (P1)**: 记忆价值密度采样（Importance-based Retention）
 - ⬜ **GOV-004 (P2)**: 路由缓存 (JIT Route Cache with LRU)
 
@@ -794,6 +794,8 @@ npm install i18next react-i18next i18next-browser-languagedetector
 - ✅ 完成 0.7 专项 `TASK-RAG-001`：重构 `skills/rag_search/SKILL.md` 为渐进式加载结构（Quick Reference + Full Protocol）。
 - ✅ 完成 0.7 专项 `TASK-RAG-002`：在 `SwarmOrchestrator` 输入层新增查询预处理（代词消歧与模糊补全）。
 - ✅ 完成 0.7 专项 `TASK-RAG-003`：前端 `ChatPanel` 支持 `[N]` 引用标签解析并弹窗查看片段。
+- ✅ **GOV-001**：增强 `TruthAlignmentStep` —增加 `conflicting_entities` 实体抽取、`severity` 等级属性；冲突时自动剪枝 `graph_facts` + 移除 GraphRAG 候选块 + 向 LLM 传递结构化 `alignment_report`。
+- ✅ **GOV-002**：新增 `backend/app/agents/routing_watchdog.py` —滑动窗口（20 events/tier）+ 失败率 ≥ 50% 触发 Tier 升级 + 5 min 冷却自动复原；`LLMRouter.get_model()` 透明接入，无需调用方改动。
 
 ### 2026-03-09
 - ✅ **测试基座搭建** — 集成 Vitest (Frontend) 并配置后端使用 SQLite 内存库进行隔离测试。
