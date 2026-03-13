@@ -4,6 +4,7 @@ Retrieval Pipeline — Orchestrator for RAG Retrieval.
 
 from app.core.vector_store import SearchType, VectorDocument
 from app.schemas.auth import AuthorizationContext
+from app.services.knowledge.sql.retrieval_chain import SqlSummaryFirstStep
 
 from .preprocessing import QueryPreProcessingStep
 from .protocol import RetrievalContext
@@ -36,6 +37,7 @@ class RetrievalPipeline:
         self._default_steps: list[BaseRetrievalStep] = [
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
             GraphRetrievalStep(),  # Inject Graph Facts first
+            SqlSummaryFirstStep(),  # SQL 摘要优先检索（TASK-KV-006）
             HybridRetrievalStep(),
             TruthAlignmentStep(),  # 数据治理：真相对齐 (M2.3.1)
             AclFilterStep(),  # 权限校验 (ACL Document Filtering)
