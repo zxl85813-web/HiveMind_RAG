@@ -31,6 +31,8 @@ class RetrievalContext(BaseModel):
     expanded_queries: list[str] = Field(default_factory=list)
     sub_queries: list[str] = Field(default_factory=list)  # Decomposed sub-questions
     candidates: list[VectorDocument] = Field(default_factory=list)
+    graph_facts: list[str] = Field(default_factory=list)
+    alignment_report: str | None = None
 
     # Final Output
     final_results: list[VectorDocument] = Field(default_factory=list)

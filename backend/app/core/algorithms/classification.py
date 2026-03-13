@@ -5,7 +5,7 @@
 """
 
 from enum import Enum
-from typing import TypeVar, Any
+from typing import TypeVar
 
 import instructor
 from loguru import logger
@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.llm import get_llm_service
-
 
 T = TypeVar("T", bound=Enum)
 M = TypeVar("M", bound=BaseModel)
@@ -38,7 +37,7 @@ class ClassifierService:
         Returns the enum value and confidence score (defaulting to 1.0 for now, as logprobs might not always be available).
         """
         logger.debug(f"Classifying '{text[0:20]}...' against {target_enum.__name__}")  # type: ignore
-        
+
         # Create a dynamic Pydantic model to enforce enum output
         class EnumExtractionModel(BaseModel):
             label: target_enum = Field(..., description="The highly matching category based on context.")
@@ -57,7 +56,7 @@ class ClassifierService:
             return resp.label, 1.0
         except Exception as e:
             logger.warning(f"Failed to classify using LLM: {e}")
-            return fallback or list(target_enum.__members__.values())[0], 0.0  # type: ignore
+            return fallback or next(iter(target_enum.__members__.values())), 0.0  # type: ignore
 
     async def extract_model(self, text: str, target_model: type[M], instruction: str = "Extract data matching the schema:") -> M:
         """

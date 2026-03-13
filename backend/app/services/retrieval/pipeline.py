@@ -16,6 +16,7 @@ from .steps import (
     ParentChunkExpansionStep,
     PromptInjectionFilterStep,
     RerankingStep,
+    TruthAlignmentStep,
 )
 
 
@@ -36,6 +37,7 @@ class RetrievalPipeline:
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
             GraphRetrievalStep(),  # Inject Graph Facts first
             HybridRetrievalStep(),
+            TruthAlignmentStep(),  # 数据治理：真相对齐 (M2.3.1)
             AclFilterStep(),  # 权限校验 (ACL Document Filtering)
             RerankingStep(),
             ParentChunkExpansionStep(),
@@ -61,6 +63,7 @@ class RetrievalPipeline:
                 QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
                 GraphRetrievalStep(),
                 HybridRetrievalStep(),
+                TruthAlignmentStep(),
                 AclFilterStep(),
                 RerankingStep(),
                 ParentChunkExpansionStep(),

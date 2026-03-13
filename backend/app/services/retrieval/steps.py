@@ -24,6 +24,7 @@ class QueryPreProcessingStep(BaseRetrievalStep):
 
     async def execute(self, ctx: RetrievalContext):
         from pydantic import BaseModel, Field
+
         from app.core.algorithms.classification import classifier_service
 
         ctx.expanded_queries = [ctx.query]
@@ -56,7 +57,7 @@ class QueryPreProcessingStep(BaseRetrievalStep):
                 ctx.expanded_queries.append(ctx.rewritten_query)
             if ctx.hyde_document:
                 ctx.expanded_queries.append(ctx.hyde_document)
-                
+
             ctx.log(
                 "QueryProc",
                 f"Intent: {ctx.query_intent}, Expanded: {len(ctx.expanded_queries)} "
@@ -188,8 +189,8 @@ class GraphRetrievalStep(BaseRetrievalStep):
 
         # 1. Evaluate Semantic Route to determine whether graph lookup is needed
         try:
-            from app.core.algorithms.routing import semantic_router, Route
-            
+            from app.core.algorithms.routing import Route, semantic_router
+
             graph_route = Route(
                 name="graph",
                 utterances=[
@@ -200,7 +201,7 @@ class GraphRetrievalStep(BaseRetrievalStep):
                     "What events occurred with this person?"
                 ]
             )
-            
+
             vector_route = Route(
                 name="vector",
                 utterances=[
@@ -211,10 +212,10 @@ class GraphRetrievalStep(BaseRetrievalStep):
                     "Give me the facts from the report."
                 ]
             )
-            
+
             decision = await semantic_router.route(ctx.query, [graph_route, vector_route], threshold=0.1)
             ctx.log("GraphRetrieval", f"Semantic Router decision: {decision.target_node} ({decision.confidence:.2f})")
-            
+
             if decision.target_node != "graph":
                 ctx.log("GraphRetrieval", "Skipped graph traversal due to low semantic match.")
                 return
@@ -239,7 +240,7 @@ class GraphRetrievalStep(BaseRetrievalStep):
                 for entity in entity_names:
                     # Basic neighborhood query
                     cypher = """
-                    MATCH (n {kb_id: $kb_id})-[r]-(m) 
+                    MATCH (n {kb_id: $kb_id})-[r]-(m)
                     WHERE n.id CONTAINS $entity OR n.name CONTAINS $entity
                     RETURN n.id AS source, type(r) AS rel, m.id AS target, getattr(r, 'description', '') AS desc
                     LIMIT 20
@@ -265,6 +266,7 @@ class GraphRetrievalStep(BaseRetrievalStep):
                     ctx.candidates = []
                 # Prepend graph context so it has high priority in hybrid retrieval
                 ctx.candidates.insert(0, graph_doc)
+                ctx.graph_facts.extend(graph_facts)
                 ctx.log("GraphRetrieval", f"Injected {len(graph_facts)} graph facts for entities: {entity_names}")
         except Exception as e:
             ctx.log("GraphRetrieval", f"Graph retrieval failed: {e}")
@@ -401,3 +403,35 @@ class ContextualCompressionStep(BaseRetrievalStep):
 
         ctx.final_results = compressed_results
         ctx.log("Compression", f"Reduced context by {reduction_total} chars using keyword extraction.")
+
+class TruthAlignmentStep(BaseRetrievalStep):
+    """
+    Governance Phase: Align Graph facts with Vector chunks to ensure consistency.
+    (M2.3.1 Truth Alignment)
+    """
+
+    async def execute(self, ctx: RetrievalContext):
+        if not ctx.graph_facts or not ctx.candidates:
+            return
+
+        from app.core.algorithms.alignment import truth_alignment_service
+
+        vector_contents = [d.page_content for d in ctx.candidates if d.metadata.get("source") != "GraphRAG"]
+
+        if not vector_contents:
+            return
+
+        try:
+            decision = await truth_alignment_service.align(ctx.graph_facts, vector_contents)
+
+            if not decision.is_consistent:
+                ctx.log("Alignment", f"🚨 CONFLICT DETECTED: {len(decision.conflicts)} issues.")
+                ctx.alignment_report = decision.summary
+            else:
+                ctx.log("Alignment", "✅ Facts aligned (Graph vs Vector).")
+
+            if decision.reinforcements:
+                ctx.log("Alignment", f"Strong reinforcement: {len(decision.reinforcements)} facts confirmed by both.")
+
+        except Exception as e:
+            ctx.log("Alignment", f"Alignment failed: {e}")

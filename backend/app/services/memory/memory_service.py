@@ -224,17 +224,36 @@ class MemoryService:
         role = meta.get("role", "system")
         meta.update({"user_id": self.user_id, "timestamp": datetime.now().isoformat()})
 
-        # Tier-1: 摘要索引（异步，不阻塞主流程）
-        self._track_task(self._extract_and_index_abstract(doc_id, content, role))
+        # Tier-0: Value Density Evaluation (GOV-003 Memory Governance)
+        from app.core.algorithms.memory_governance import memory_governance_service
 
-        # Tier-2: 图谱提取（异步，不阻塞主流程）
-        from app.services.memory.tier.graph_index import graph_index
+        density = await memory_governance_service.evaluate_density(content)
+        meta.update({
+            "value_score": density.score,
+            "tier_target": density.tier_recommendation,
+            "governance_reason": density.reasoning
+        })
 
-        self._track_task(graph_index.extract_and_store(doc_id, content))
+        logger.info(f"⚖️ [MemoryGov] Density: {density.score:.2f} ({density.tier_recommendation})")
 
-        # Tier-3: 向量存储（同步，本地 ChromaDB，快）
+        # Tier-1: 摘要索引 (Abstract Index)
+        # Threshold: Only for ABSTRACT or GRAPH recommendations (Score > 0.3)
+        if density.score > 0.3 or density.tier_recommendation in ["ABSTRACT", "GRAPH"]:
+            self._track_task(self._extract_and_index_abstract(doc_id, content, role))
+        else:
+            logger.debug(f"⏭️ Skipping Tier-1 for low-value memory: {doc_id}")
+
+        # Tier-2: 图谱提取 (Graph Index)
+        # Threshold: Only for GRAPH recommendations (Score > 0.7)
+        if density.score > 0.7 or density.tier_recommendation == "GRAPH":
+            from app.services.memory.tier.graph_index import graph_index
+            self._track_task(graph_index.extract_and_store(doc_id, content))
+        else:
+            logger.debug(f"⏭️ Skipping Tier-2 for low-value memory: {doc_id}")
+
+        # Tier-3: 向量存储（同步，本地 ChromaDB，快） — Always persist as baseline
         memory_collection.add(documents=[content], metadatas=[meta], ids=[doc_id])
-        logger.info(f"Memory written to all 3 tiers: {doc_id}")
+        logger.info(f"Memory persisted as {density.tier_recommendation} with score {density.score:.2f}")
 
     async def log_interaction(self, role: str, content: str):
         """

@@ -130,6 +130,6 @@ class RoutingDecision(BaseModel):
 
 ## 六、下一步实现路径 (Implementation TODO)
 
-1. [ ] **建立 Core 目录**：将现有的分散路由逻辑 (e.g., `orchestrator.py` 中的意图解析, `steps.py` 中的 json 解析) 重构成高度泛化的组件（`TokenService`, `SemanticRouter`, `CascadeClassifier`）。
+1. [x] **建立 Core 目录**：将现有的分散路由逻辑 (e.g., `orchestrator.py` 中的意图解析, `steps.py` 中的 json 解析) 重构成高度泛化的组件（`TokenService`, `SemanticRouter`, `CascadeClassifier`）。
 2. [ ] **依赖注入化 (DI)**：将通用的服务以依赖的形式让各个层的组件按需调用。
 3. [ ] **制定指标与评估 (Eval)**：因为它们成为独立的核心能力，我们现在可以通过 M2.1E (RAGAS / Eval) 建立“意图识别准确率”、“路由命中率”的标准数据集，杜绝牵一发而动全身。

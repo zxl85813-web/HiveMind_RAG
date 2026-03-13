@@ -1,0 +1,29 @@
+{
+  "skill_name": "generate-design-doc",
+  "evals": [
+    {
+      "id": 0,
+      "name": "file-versioning-system",
+      "prompt": "Design a 'File Versioning System' based on REQ-042. Users should be able to revert files to previous states and see a history of changes.",
+      "expected_output": "A complete DES-042 document follows the 4-tier methodology.",
+      "assertions": [
+        {
+          "name": "mermaid_er_diagram",
+          "description": "Must include a Mermaid ER diagram showing File and FileVersion entities."
+        },
+        {
+          "name": "service_layer_definition",
+          "description": "Must define a VersioningService in backend/app/services/."
+        },
+        {
+          "name": "component_reuse",
+          "description": "Must explicitly mention re-using 'ConfirmAction' or 'DataTable' from common components."
+        },
+        {
+          "name": "error_handling_schema",
+          "description": "Must list at least 3 custom exceptions (e.g., VersionNotFoundError)."
+        }
+      ]
+    }
+  ]
+}

@@ -249,6 +249,16 @@
 | `web-artifacts-builder` | React/Tailwind 独立 HTML 制品构建 | `skills/web-artifacts-builder/` | ✅ 已集成 |
 | `slack-gif-creator` | Slack 优化 GIF 动图制作 | `skills/slack-gif-creator/` | ✅ 已集成 |
 
+### 🧠 智能工程 Skills (Engineering Intelligence)
+
+| 名称 | 描述 | 目录 | 状态 |
+|------|------|------|------|
+| `backend-expert` | 后端五层架构生成专家（标准/安全/高性能） | `skills/backend-expert/` | ✅ 已验证 |
+| `code-intelligence` | 架构拓扑扫描与影响评估专家 | `skills/code-intelligence/` | ✅ 已验证 |
+| `project-steward` | 项目资产登记与合规性维护管家 | `skills/project-steward/` | ✅ 已验证 |
+| `generate-design-doc` | 严谨的 4 层架构设计说明书生成器 | `.agent/skills/generate-design-doc/` | ✅ 已验证 |
+| `generate-tests` | 基于 Mock 决策树的测试代码生成器 | `.agent/skills/generate-tests/` | ✅ 已抽检 |
+
 ### 写作协作 Skills
 
 | 名称 | 描述 | 目录 | 状态 |

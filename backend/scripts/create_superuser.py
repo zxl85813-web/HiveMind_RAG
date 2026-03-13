@@ -15,10 +15,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
 
-from app.models.user import User
-
 from app.auth.security import hash_password
 from app.core.database import get_db_session, init_db
+from app.models.user import User
 
 
 async def create_superuser(username: str, password: str, email: str = "admin@example.com"):

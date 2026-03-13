@@ -7,7 +7,7 @@
 """
 
 import os
-import pickle
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -16,51 +16,57 @@ from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata, Serializer
 from langgraph.checkpoint.memory import MemorySaver
 
 
-class PickleCheckpointer(MemorySaver):
+class SafeJsonEncoder(json.JSONEncoder):
+    """Custom encoder to handle non-JSON types like bytes or timestamps if needed."""
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return {"__bytes__": obj.hex()}
+        return super().default(obj)
+
+def safe_json_hook(dct):
+    """Custom hook to restore non-JSON types."""
+    if "__bytes__" in dct:
+        return bytes.fromhex(dct["__bytes__"])
+    return dct
+
+
+class JsonCheckpointer(MemorySaver):
     """
-    A persistent checkpointer that saves state to a local pickle file.
-    Inherits from MemorySaver to reuse in-memory logic, but adds disk persistence.
+    A persistent checkpointer that saves state to a local JSON file.
+    Replaces PickleCheckpointer to mitigate RCE risks (SEC005).
     """
 
-    def __init__(self, filepath: str = "checkpoints.pkl", serde: SerializerProtocol | None = None):
+    def __init__(self, filepath: str = "checkpoints.json", serde: SerializerProtocol | None = None):
         super().__init__(serde=serde)
         self.filepath = filepath
         self._load()
 
     def _load(self):
-        """Load state from disk if exists."""
+        """Load state from disk if exists using safe JSON."""
         if os.path.exists(self.filepath):
             try:
-                with open(self.filepath, "rb") as f:
-                    # SECURITY NOTE: This is for local persistent state only.
-                    # Use a secure database checkpointer for multi-tenant production apps.
-                    data = pickle.load(f)
+                with open(self.filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f, object_hook=safe_json_hook)
                     if isinstance(data, dict):
                         # Restore internal storage
-                        # MemorySaver uses self.storage (dict) and self.writes (dict)
-                        # We need to restore both if present
                         if "storage" in data:
                             self.storage = data["storage"]
                         if "writes" in data:
                             self.writes = data["writes"]
             except Exception as e:
                 print(f"⚠️ Failed to load checkpoint file {self.filepath}: {e}")
-                # Start fresh on error
 
     def _save(self):
-        """Save state to disk."""
+        """Save state to disk safely."""
         try:
-            # Create directory if needed
             os.makedirs(os.path.dirname(os.path.abspath(self.filepath)), exist_ok=True)
 
             data = {"storage": self.storage, "writes": self.writes}
 
-            # Atomic write pattern
             temp_path = f"{self.filepath}.tmp"
-            with open(temp_path, "wb") as f:
-                pickle.dump(data, f)
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, cls=SafeJsonEncoder, indent=2)
 
-            # Replace original file
             if os.path.exists(self.filepath):
                 os.replace(temp_path, self.filepath)
             else:

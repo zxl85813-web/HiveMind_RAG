@@ -1,0 +1,29 @@
+{
+  "skill_name": "generate-tests",
+  "evals": [
+    {
+      "id": 0,
+      "name": "backend-service-test",
+      "prompt": "Generate tests for a new 'SentimentService' located in 'backend/app/services/sentiment.py'. The service calls an external LLM API and saves results to the DB.",
+      "expected_output": "A test file following the dual-view approach with correct mocking.",
+      "assertions": [
+        {
+          "name": "mock_decision_tree",
+          "description": "Must mock the external LLM API call but use a real/sqlite DB session if feasible."
+        },
+        {
+          "name": "dual_view_coverage",
+          "description": "Must include both 'Contract View' (success/return types) and 'Resilience View' (error handling)."
+        },
+        {
+          "name": "correct_location",
+          "description": "Test file must be placed at 'backend/tests/unit/services/test_sentiment.py'."
+        },
+        {
+          "name": "pydantic_v2_compat",
+          "description": "Must use model_validate or correct constructor for Pydantic V2 models."
+        }
+      ]
+    }
+  ]
+}

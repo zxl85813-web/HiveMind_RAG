@@ -130,13 +130,13 @@ class SwarmState(TypedDict):
     retrieval_trace: list[str]
     retrieved_docs: list[dict]
 
-    # --- Phase 5: Task Progress ---
-    status_update: str | None
-    thought_log: str | None
-
     # --- Phase 7: Permission Guard ---
     user_id: str | None
     auth_context: AuthorizationContext | None
+
+    # --- P1: Routing Watchdog Flag ---
+    force_reasoning_tier: bool
+
 
 
 # ============================================================
@@ -164,6 +164,7 @@ class ReflectionResult(BaseModel):
     issues: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     verdict: str = Field(description="APPROVE | REVISE | ESCALATE")
+    trigger_reasoning_tier: bool = Field(default=False, description="Whether to escalate to the highest reasoning LLM tier")
 
 
 # ============================================================
@@ -388,6 +389,18 @@ class SwarmOrchestrator:
         messages = state["messages"]
         user_query = str(state.get("original_query", "") or (messages[-1].content if messages else ""))
 
+        # === Fast Path: JIT Route Cache (GOV-004) ===
+        cached_route = await CacheService.get_cached_route(user_query)
+        if cached_route:
+            logger.info(f"⚡ [JIT Route Cache] Hit: {user_query[:30]} -> {cached_route}")
+            return {
+                "next_step": cached_route,
+                "uncertainty_level": 0.0,
+                "current_task": "Restored from route cache.",
+                "last_node_id": "supervisor_cache",
+                "thought_log": f"⚡ JIT 缓存命中: 直接跳转到 {cached_route}",
+            }
+
         # === Fast Path: Keyword-based Platform Action Detection ===
         # Intercept navigation intents BEFORE calling LLM for routing.
         # This is deterministic, cheap, and prevents hallucination in RAG agents.
@@ -451,8 +464,15 @@ class SwarmOrchestrator:
             retrieval_task = asyncio.create_task(self._do_retrieval_work(state))
 
         # Setup LLM and Prompt
-        llm = self.router.get_model(ModelTier.SIMPLE)
+        # --- P1: Routing Watchdog (Tier Escalation) ---
+        tier = ModelTier.SIMPLE
+        if state.get("force_reasoning_tier"):
+            logger.warning("🦅 [Routing Watchdog] Escalating Supervisor to REASONING tier due to prior conflict.")
+            tier = ModelTier.REASONING
+
+        llm = self.router.get_model(tier)
         final_prompt = [SystemMessage(content=system_prompt), *messages]
+
 
         # Parallel: Router LLM + Speculative Retrieval (M6.1.1)
         aws = [llm.ainvoke(final_prompt)]
@@ -532,7 +552,9 @@ class SwarmOrchestrator:
                 f"🗺️ Supervisor planned {len(decision.planned_steps)} steps" if decision.planned_steps else None
             ),
             "thought_log": f"👨‍✈️ 决策路径: {decision.reasoning}",
+            "force_reasoning_tier": False, # Reset after use
         }
+
 
     # ============================================================
     #  Agent Node — uses PromptEngine
@@ -740,19 +762,43 @@ class SwarmOrchestrator:
 
         # Invoke LLM for quality check (using BALANCED or FAST)
         # --- Advanced Multi-Grader Evaluation (Phase 3) ---
-        from app.services.evaluation.multi_grader import MultiGraderEval
-
         evaluator = MultiGraderEval()
 
+        # --- Routing Watchdog: Truth Alignment Integration (P1) ---
+        # If the context data contains a conflict warning, we explicitly tell the evaluator to look for it.
+        context_data = state.get("context_data", "")
+        if "⚠️ CONFLICT" in context_data:
+            logger.warning("🚨 [Routing Watchdog] Factual conflict detected in retrieval. Triggering enhanced scrutiny.")
+            # We don't change the evaluation data, but the MultiGrader will catch it via the 'consistency' criteria
+
         eval_result = await evaluator.evaluate(
-            query=state.get("original_query", ""), response=last_message.content, context=state.get("context_data", "")
+            query=state.get("original_query", ""), response=last_message.content, context=context_data
         )
 
-        # --- Automatic Semantic Caching (Phase 4) ---
+        # --- Tier Escalation Logic (P1) ---
+        # If the verdict is ESCALATE or consistency score is extremely low,
+        # we can force the next supervisor loop into the REASONING tier.
+        should_escalate = eval_result.verdict == "ESCALATE"
+        consistency_score = next((o.score for o in eval_result.opinions if o.aspect == "consistency"), 1.0)
+
+        if consistency_score < 0.4:
+            logger.error(f"🚨 [Routing Watchdog] Critical factual inconsistency! Forcing REASONING tier. Score: {consistency_score}")
+            should_escalate = True
+
+        # Decide next step based on composite score
+        next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
+
+        if should_escalate:
+             # We can't change the model here directly, but we can set a flag in the state
+             # that the supervisor/router will pick up in the next loop.
+             # For now, we use node metadata or state updates.
+             pass
+
+        # --- Automatic Semantic Caching (Phase 4 / GOV-004) ---
         if eval_result.verdict in ["PASS", "EXCELLENT"] and eval_result.composite_score >= 0.8:
             from app.services.cache_service import CacheService
 
-            # background task to cache the result
+            # 1. Cache the Answer
             self._track_task(
                 CacheService.set_cached_response(
                     query=state.get("original_query", ""),
@@ -760,12 +806,19 @@ class SwarmOrchestrator:
                     metadata={"agent": last_agent_name, "score": eval_result.composite_score},
                 )
             )
-            logger.info("💾 [Phase 4] Queued high-quality response for semantic cache.")
 
-        # Decide next step based on composite score
-        next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
+            # 2. Cache the Route (GOV-004 JIT)
+            # Only cache if it's not a generic 'supervisor' route
+            if last_agent_name not in ["supervisor", "reflection", "pre_processor"]:
+                self._track_task(
+                    CacheService.set_cached_route(
+                        query=state.get("original_query", ""),
+                        target=last_agent_name
+                    )
+                )
 
-        logger.info(f"🧪 [MultiGrader] Verdict: {eval_result.verdict} (score={eval_result.composite_score:.2f})")
+            logger.info("💾 [GOV-004] Queued response and route for cache.")
+
 
         import uuid
 
@@ -775,7 +828,9 @@ class SwarmOrchestrator:
             "reflection_count": reflection_count,
             "next_step": next_step,
             "last_node_id": node_id,
+            "force_reasoning_tier": should_escalate,
         }
+
 
     def _route_after_reflection(self, state: SwarmState) -> Literal["supervisor", "FINISH"]:
         """Route based on reflection's decision."""

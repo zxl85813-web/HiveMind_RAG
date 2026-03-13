@@ -4,8 +4,6 @@ import pytest
 
 from app.services.retrieval.protocol import RetrievalContext
 from app.services.retrieval.steps import HybridRetrievalStep, QueryPreProcessingStep, RerankingStep
-import app.core.algorithms.classification
-import app.core.algorithms.routing
 
 
 @pytest.fixture

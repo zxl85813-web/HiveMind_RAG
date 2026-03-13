@@ -94,6 +94,11 @@ def sync_req_to_github():
             "REQ-012: Task 4 - RAG 路由注入与积分打赏",
             "RAG 检索阶段强制注入 Common/SQL 资产，生成采用后计算贡献打赏源码作者",
         ),
+        ("GOV-001: Truth Alignment 校验器", "向量与图谱的一致性治理，确保多模态检索结果不冲突"),
+        ("GOV-002: Routing Watchdog", "路由自愈机制，自动升级模型 Tier 应对复杂语义"),
+        ("GOV-003: Memory Retention Sampling", "记忆价值密度采样，基于重要程度的记忆留存策略"),
+        ("GOV-004: JIT Route Cache", "带有 LRU 淘汰机制的即时路由缓存"),
+        ("INFRA: Hook-based Skill Linkage", "实现 Rules -> Skill -> Workflow 的自动化钩子联动"),
     ]
 
     for st_title, st_desc in subtasks:

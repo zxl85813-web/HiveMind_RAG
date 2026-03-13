@@ -5,8 +5,9 @@
 """
 
 import math
-from loguru import logger
+
 from pydantic import BaseModel
+
 from app.core.embeddings import get_embedding_service
 
 
@@ -24,7 +25,7 @@ class RoutingDecision(BaseModel):
 
 
 def _cosine_similarity(v1: list[float], v2: list[float]) -> float:
-    dot_product = sum(a * b for a, b in zip(v1, v2))
+    dot_product = sum(a * b for a, b in zip(v1, v2, strict=False))
     norm_v1 = math.sqrt(sum(a * a for a in v1))
     norm_v2 = math.sqrt(sum(b * b for b in v2))
     if norm_v1 == 0 or norm_v2 == 0:

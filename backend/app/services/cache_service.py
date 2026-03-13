@@ -13,7 +13,10 @@ from app.core.vector_store import VectorDocument, get_vector_store
 
 class CacheService:
     CACHE_COLLECTION: ClassVar[str] = "semantic_cache"
+    ROUTE_CACHE_COLLECTION: ClassVar[str] = "route_cache"
     THRESHOLD: ClassVar[float] = 0.96  # High threshold for semantic equivalence
+    ROUTE_THRESHOLD: ClassVar[float] = 0.92 # Slightly lower for routing variations
+
 
     # Tokens that indicate a corrupted/internal response — NEVER cache or return these
     POISON_TOKENS: ClassVar[list[str]] = ["tool_calls_begin", "tool_sep", "tool_call_end", "tool▁calls", "tool▁sep"]
@@ -90,6 +93,45 @@ class CacheService:
             logger.debug(f"💾 Cached response for: '{query}'")
         except Exception as e:
             logger.error(f"Failed to cache response: {e}")
+
+    @staticmethod
+    async def get_cached_route(query: str) -> str | None:
+        """
+        JIT Route Cache (GOV-004).
+        Retrieves a previously successful agent/step routing for this query.
+        """
+        store = get_vector_store()
+        try:
+            results = await store.search(
+                query=query,
+                k=1,
+                collection_name=CacheService.ROUTE_CACHE_COLLECTION,
+                search_type="vector"
+            )
+            if results and results[0].score >= CacheService.ROUTE_THRESHOLD:
+                target_route = results[0].metadata.get("target")
+                if target_route:
+                    logger.info(f"⚡ [JIT Cache] Route Hit: '{query[:30]}' -> {target_route}")
+                    return target_route
+        except Exception as e:
+            logger.warning(f"Route cache lookup failed: {e}")
+        return None
+
+    @staticmethod
+    async def set_cached_route(query: str, target: str):
+        """
+        Store a routing decision in the JIT cache.
+        """
+        store = get_vector_store()
+        try:
+            cache_doc = VectorDocument(
+                page_content=query,
+                metadata={"target": target, "cached_at": time.time()}
+            )
+            await store.add_documents([cache_doc], collection_name=CacheService.ROUTE_CACHE_COLLECTION)
+        except Exception as e:
+            logger.error(f"Failed to cache route: {e}")
+
 
 
 try:

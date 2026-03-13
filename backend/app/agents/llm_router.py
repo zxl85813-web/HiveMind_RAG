@@ -18,8 +18,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from loguru import logger
 
+from app.core.algorithms.routing import Route, semantic_router
 from app.core.config import settings
-from app.core.algorithms.routing import SemanticRouter, Route, semantic_router
 
 
 class ModelTier(StrEnum):
@@ -176,10 +176,10 @@ class LLMRouter:
         # 1. Use SemanticRouter to find matching quadrant
         # (Using threshold 0.15 since embeddings for varied tasks can drift to 0.1 - 0.2)
         decision = await semantic_router.route(prompt, routes=[], threshold=0.15)
-        
+
         target_tier = ModelTier(decision.target_node) if decision.target_node in [t.value for t in ModelTier] else ModelTier.MEDIUM
         logger.debug(f"🦀 [ClawRouter] Routed to {target_tier.name} (confidence={decision.confidence:.2f})")
-        
+
         return self.get_model(target_tier)
 
     def get_model(self, tier: ModelTier = ModelTier.MEDIUM) -> BaseChatModel:

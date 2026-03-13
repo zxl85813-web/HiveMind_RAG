@@ -148,6 +148,20 @@
   - 在 `CL-3` 未形成可读周报前，不开启 `CL-2` 自动化（防止先自动化后无验收口径）。
   - 任一子任务完成后，必须回填本节状态并关联 Issue/PR。
 
+### 0.7 Skill-Creator 与 RAG 深度整合专项 (Eval & Action Integration)
+
+> 目标：将 `skill-creator` 的评测自动化理念引入系统 CI/CD，并将 `rag_search` 从单个技能提升为系统的基础知识协议。
+
+#### 1. 军工厂：评测自动化 (Skill-Creator 落地)
+- 🟡 **TASK-EVAL-001（评测脚本工程化）**：将 `skill-creator/scripts/run_eval.py` 迁移适配为系统的核心测试脚本 `backend/scripts/evals/skill_trigger_eval.py`，用于 CI/CD 阶段拦截所有 Agent Tool 的误触发（协作者: zxl85813-web）。
+- ✅ **TASK-EVAL-002（RAG 黄金测试集）**：建立 `skills/rag_search/evals/rag_search_evals.json`，包含至少 10 个正向触发样本和 10 个负向边界样本(如需转 Web/Memory 的问题)（协作者: Uchihacc）。
+- ⬜ **TASK-EVAL-003（断言评分器介入）**：在 M2.1E Multi-Grader 中集成 RAG 强规则校验：1. 必须包含格式化引用 `[1][2]`；2. 知识库无内容时必须声明“未找到”。
+
+#### 2. 武器库：RAG 的资产化与下沉 (RAG 架构重构)
+- 🟡 **TASK-RAG-001（Skill 三段式解耦）**：重构 `rag_search/SKILL.md`，遵循渐进式加载（Progressive Disclosure）。把 RRF 排序、Query Rewriting 等复杂逻辑剥离为 Python 工具块存入 `skills/rag_search/scripts/`，供模型即时调用（协作者: zxl85813-web）。
+- ⬜ **TASK-RAG-002（系统级路由预处理）**：将 `rag_search` 倡导的查询重写前置到 `SwarmOrchestrator` 输入层，将代词消除、模糊问题补全操作在实际调用 RAG 检索前完成（协作者: zxl85813-web）。
+- ⬜ **TASK-RAG-003（前端引用协议渲染）**：解析大模型遵循 `rag_search` 生成的 `[1][2]` 样式，在前端 `Generative UI` 中渲染为交互式标签，点击弹出引用的文档片段 (Snippet) 抽屉（协作者: Uchihacc）。
+
 ---
 
 ## 一、🔥 紧急 / 阻塞项 (Blockers & Tracking)
