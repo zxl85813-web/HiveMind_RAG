@@ -9,6 +9,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from app.core.llm import get_llm_service
+from app.services.evaluation.rag_assertion_grader import rag_assertion_grader
 
 
 class GraderOpinion(BaseModel):
@@ -52,27 +53,20 @@ class MultiGraderEval:
             opinions.append(opinion)
 
         # --- TASK-EVAL-003: Hard Rule Guard (RAG Integrity) ---
-        is_rag_query = any(kw in query.lower() for kw in ["search", "what", "how", "query", "搜索", "什么是"])
-        has_citations = "[" in response and "]" in response
-        context_is_empty = not context.strip() or "No relevant information found" in context
-
-        # Penalize if RAG was likely used but no citations provided
-        if is_rag_query and not context_is_empty and not has_citations:
-            logger.warning("🚩 [RAG Guard] Penalty: Missing citations in RAG response.")
-            for o in opinions:
-                if o.aspect == "citation_accuracy":
-                    o.score = min(o.score, 0.2)
-                    o.reasoning += " | [HARD RULE] Missing mandatory bracketed citations ([1], [2])."
-
-        # Penalize if it tried to answer despite empty context
-        if context_is_empty and not any(kw in response for kw in ["未找到", "没有找到", "not found", "don't know", "sorry"]):
-             # Looking for grounding: if there's no context, it shouldn't be too confident
-             if len(response) > 50: # Arbitrary "too long" threshold for a 'not found' response
-                logger.warning("🚩 [RAG Guard] Penalty: Hallucination suspected - answering with no context.")
-                for o in opinions:
-                    if o.aspect == "accuracy":
-                        o.score = min(o.score, 0.1)
-                        o.reasoning += " | [HARD RULE] Hallmark of hallucination: answering with empty reference context."
+        assertion_result = rag_assertion_grader.check(query, response, context)
+        if not assertion_result.is_clean:
+            for opinion in opinions:
+                penalty = assertion_result.get_penalty_for_aspect(opinion.aspect)
+                if penalty is not None and opinion.score > penalty:
+                    violation = next(
+                        (v for v in assertion_result.violations
+                         if (v.rule_id == "CITE-001" and opinion.aspect == "citation_accuracy")
+                         or (v.rule_id == "CITE-002" and opinion.aspect == "accuracy")),
+                        None,
+                    )
+                    if violation:
+                        opinion.score = penalty
+                        opinion.reasoning += f" | [HARD RULE {violation.rule_id}] {violation.description}"
 
         avg_score = sum(o.score for o in opinions) / len(opinions)
 

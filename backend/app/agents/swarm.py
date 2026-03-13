@@ -1083,6 +1083,54 @@ class SwarmOrchestrator:
         return content.strip()
 
     # ============================================================
+    #  Query Preprocessing (TASK-RAG-002)
+    # ============================================================
+
+    # Ambiguous pronouns that might refer to prior conversation context
+    _AMBIGUOUS_PRONOUNS = frozenset([
+        "它", "这个", "那个", "它们", "这些", "那些", "他", "她", "其",
+        "this", "that", "it", "they", "these", "those", "them", "its",
+    ])
+
+    def _needs_rewrite(self, query: str) -> bool:
+        """Quickly determine if a query likely has ambiguous references."""
+        words = query.lower().split()
+        if len(words) > 20:
+            # Longer queries are usually self-contained
+            return False
+        return any(p in words or p in query for p in self._AMBIGUOUS_PRONOUNS)
+
+    async def _preprocess_query(self, user_message: str) -> str:
+        """
+        Lightweight query rewrite at the Swarm input layer (TASK-RAG-002).
+
+        Resolves ambiguous pronouns and completes vague queries BEFORE routing,
+        so the supervisor can make better routing decisions for RAG queries.
+        Only invokes the LLM when the query appears to contain ambiguous references.
+        """
+        if not self._needs_rewrite(user_message):
+            return user_message
+
+        try:
+            llm = self.router.get_model(ModelTier.SIMPLE)
+            prompt = (
+                "You are a query clarification assistant.\n"
+                "Rewrite the following user query to resolve any ambiguous pronouns "
+                "(it, this, that, 它, 这个, etc.) and complete vague references. "
+                "Return ONLY the rewritten query as a single line, no explanations.\n"
+                "If the query is already clear, return it unchanged.\n\n"
+                f"Original: {user_message}\nRewritten:"
+            )
+            resp = await llm.ainvoke([HumanMessage(content=prompt)])
+            rewritten = resp.content.strip().splitlines()[0].strip()
+            if rewritten and rewritten != user_message:
+                logger.debug(f"[QueryPreprocess] Rewritten: '{user_message[:50]}' → '{rewritten[:50]}'")
+                return rewritten
+        except Exception as exc:
+            logger.debug(f"[QueryPreprocess] Skipped (error): {exc}")
+        return user_message
+
+    # ============================================================
     #  Main Entry Point
     # ============================================================
 
@@ -1094,6 +1142,9 @@ class SwarmOrchestrator:
         """
         if not self._graph:
             await self.build_graph()
+
+        # TASK-RAG-002: Preprocess query — pronoun resolution + vague query completion
+        user_message = await self._preprocess_query(user_message)
 
         # If context is provided (e.g., from Pipeline), augment the user message
         augmented_message = user_message
@@ -1142,6 +1193,9 @@ class SwarmOrchestrator:
         """
         if not self._graph:
             await self.build_graph()
+
+        # TASK-RAG-002: Preprocess query — pronoun resolution + vague query completion
+        user_message = await self._preprocess_query(user_message)
 
         messages = history.copy() if history else []
         augmented_message = user_message

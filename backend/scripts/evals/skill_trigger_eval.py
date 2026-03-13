@@ -257,16 +257,25 @@ def run_eval(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run trigger evaluation for a skill description")
+    parser = argparse.ArgumentParser(
+        description="Run trigger evaluation for a skill description. Exit code 0 = CI gate passed."
+    )
     parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
     parser.add_argument("--skill-path", required=True, help="Path to skill directory")
     parser.add_argument("--description", default=None, help="Override description to test")
     parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
-    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
+    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold per query")
+    parser.add_argument(
+        "--min-pass-rate",
+        type=float,
+        default=0.8,
+        help="Minimum fraction of queries that must pass for CI gate (default: 0.8 = 80%%)",
+    )
     parser.add_argument("--model", default=None, help="Model to use for claude -p (default: user's configured model)")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
+    parser.add_argument("--save-results", default=None, help="Optional path to write JSON results to a file")
     args = parser.parse_args()
 
     eval_set = json.loads(Path(args.eval_set).read_text(encoding="utf-8"))
@@ -281,7 +290,9 @@ def main():
     project_root = find_project_root()
 
     if args.verbose:
-        print(f"Evaluating: {description}", file=sys.stderr)
+        print(f"[CI-Gate] Evaluating skill '{name}'", file=sys.stderr)
+        print(f"[CI-Gate] Min pass rate required: {args.min_pass_rate:.0%}", file=sys.stderr)
+        print(f"[CI-Gate] Description: {description[:80]}{'...' if len(description) > 80 else ''}", file=sys.stderr)
 
     output = run_eval(
         eval_set=eval_set,
@@ -295,15 +306,35 @@ def main():
         model=args.model,
     )
 
+    summary = output["summary"]
+    actual_pass_rate = summary["passed"] / summary["total"] if summary["total"] > 0 else 0.0
+    output["summary"]["pass_rate"] = round(actual_pass_rate, 4)
+    output["summary"]["min_pass_rate"] = args.min_pass_rate
+    output["summary"]["ci_gate_passed"] = actual_pass_rate >= args.min_pass_rate
+
     if args.verbose:
-        summary = output["summary"]
-        print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
+        print(f"[CI-Gate] Results: {summary['passed']}/{summary['total']} passed ({actual_pass_rate:.0%})", file=sys.stderr)
         for r in output["results"]:
             status = "PASS" if r["pass"] else "FAIL"
             rate_str = f"{r['triggers']}/{r['runs']}"
-            print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
+            print(
+                f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
+                file=sys.stderr,
+            )
+        gate_status = "✅ GATE PASSED" if output["summary"]["ci_gate_passed"] else "❌ GATE FAILED"
+        print(f"\n[CI-Gate] {gate_status} (actual={actual_pass_rate:.0%} required={args.min_pass_rate:.0%})", file=sys.stderr)
 
-    print(json.dumps(output, indent=2))
+    result_json = json.dumps(output, indent=2, ensure_ascii=False)
+    print(result_json)
+
+    if args.save_results:
+        Path(args.save_results).write_text(result_json, encoding="utf-8")
+        if args.verbose:
+            print(f"[CI-Gate] Results saved to {args.save_results}", file=sys.stderr)
+
+    # Exit with non-zero code if CI gate not passed — prevents pipeline from continuing
+    if not output["summary"]["ci_gate_passed"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

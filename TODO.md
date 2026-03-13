@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-12
+> 📅 最后更新: 2026-03-13
 
 ---
 
@@ -154,14 +154,14 @@
 > 目标：将 `skill-creator` 的评测自动化理念引入系统 CI/CD，并将 `rag_search` 从单个技能提升为系统的基础知识协议。
 
 #### 1. 军工厂：评测自动化 (Skill-Creator 落地)
-- 🟡 **TASK-EVAL-001（评测脚本工程化）**：将 `skill-creator/scripts/run_eval.py` 迁移适配为系统的核心测试脚本 `backend/scripts/evals/skill_trigger_eval.py`，用于 CI/CD 阶段拦截所有 Agent Tool 的误触发（协作者: zxl85813-web）。
+- ✅ **TASK-EVAL-001（评测脚本工程化）**：将 `skill-creator/scripts/run_eval.py` 迁移适配为系统的核心测试脚本 `backend/scripts/evals/skill_trigger_eval.py`，用于 CI/CD 阶段拦截所有 Agent Tool 的误触发（协作者: zxl85813-web）。
 - ✅ **TASK-EVAL-002（RAG 黄金测试集）**：建立 `skills/rag_search/evals/rag_search_evals.json`，包含至少 10 个正向触发样本和 10 个负向边界样本(如需转 Web/Memory 的问题)（协作者: Uchihacc）。
-- ⬜ **TASK-EVAL-003（断言评分器介入）**：在 M2.1E Multi-Grader 中集成 RAG 强规则校验：1. 必须包含格式化引用 `[1][2]`；2. 知识库无内容时必须声明“未找到”。
+- ✅ **TASK-EVAL-003（断言评分器介入）**：在 M2.1E Multi-Grader 中集成 RAG 强规则校验：1. 必须包含格式化引用 `[1][2]`；2. 知识库无内容时必须声明“未找到”。
 
 #### 2. 武器库：RAG 的资产化与下沉 (RAG 架构重构)
-- 🟡 **TASK-RAG-001（Skill 三段式解耦）**：重构 `rag_search/SKILL.md`，遵循渐进式加载（Progressive Disclosure）。把 RRF 排序、Query Rewriting 等复杂逻辑剥离为 Python 工具块存入 `skills/rag_search/scripts/`，供模型即时调用（协作者: zxl85813-web）。
-- ⬜ **TASK-RAG-002（系统级路由预处理）**：将 `rag_search` 倡导的查询重写前置到 `SwarmOrchestrator` 输入层，将代词消除、模糊问题补全操作在实际调用 RAG 检索前完成（协作者: zxl85813-web）。
-- ⬜ **TASK-RAG-003（前端引用协议渲染）**：解析大模型遵循 `rag_search` 生成的 `[1][2]` 样式，在前端 `Generative UI` 中渲染为交互式标签，点击弹出引用的文档片段 (Snippet) 抽屉（协作者: Uchihacc）。
+- ✅ **TASK-RAG-001（Skill 三段式解耦）**：重构 `rag_search/SKILL.md`，遵循渐进式加载（Progressive Disclosure）。把 RRF 排序、Query Rewriting 等复杂逻辑剥离为 Python 工具块存入 `skills/rag_search/scripts/`，供模型即时调用（协作者: zxl85813-web）。
+- ✅ **TASK-RAG-002（系统级路由预处理）**：将 `rag_search` 倡导的查询重写前置到 `SwarmOrchestrator` 输入层，将代词消除、模糊问题补全操作在实际调用 RAG 检索前完成（协作者: zxl85813-web）。
+- ✅ **TASK-RAG-003（前端引用协议渲染）**：解析大模型遵循 `rag_search` 生成的 `[1][2]` 样式，在前端 `Generative UI` 中渲染为交互式标签，点击弹出引用的文档片段 (Snippet) 抽屉（协作者: Uchihacc）。
 
 ---
 
@@ -787,6 +787,13 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ---
 
 ## 八、📝 变更日志 (按日期倒序)
+
+### 2026-03-13
+- ✅ 完成 0.7 专项 `TASK-EVAL-001`：`backend/scripts/evals/skill_trigger_eval.py` 增加 CI Gate（`--min-pass-rate`、失败返回非 0、可保存结果）。
+- ✅ 完成 0.7 专项 `TASK-EVAL-003`：新增 `backend/app/services/evaluation/rag_assertion_grader.py`，并接入 Multi-Grader 强规则评分钳制。
+- ✅ 完成 0.7 专项 `TASK-RAG-001`：重构 `skills/rag_search/SKILL.md` 为渐进式加载结构（Quick Reference + Full Protocol）。
+- ✅ 完成 0.7 专项 `TASK-RAG-002`：在 `SwarmOrchestrator` 输入层新增查询预处理（代词消歧与模糊补全）。
+- ✅ 完成 0.7 专项 `TASK-RAG-003`：前端 `ChatPanel` 支持 `[N]` 引用标签解析并弹窗查看片段。
 
 ### 2026-03-09
 - ✅ **测试基座搭建** — 集成 Vitest (Frontend) 并配置后端使用 SQLite 内存库进行隔离测试。

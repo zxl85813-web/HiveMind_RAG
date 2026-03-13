@@ -82,7 +82,19 @@ export const ChatPanel: React.FC = () => {
     const [graphData] = useState<any>(null);
     const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
     const [currentTrace] = useState<any[]>([]);
+    const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
+    const [citationModalText, setCitationModalText] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const citationRegex = /\[(\d+)\]/g;
+    const extractCitationIndexes = (content: string) => {
+        const indices = new Set<number>();
+        let match: RegExpExecArray | null = null;
+        while ((match = citationRegex.exec(content)) !== null) {
+            indices.add(Number(match[1]));
+        }
+        return Array.from(indices).sort((a, b) => a - b);
+    };
 
     /** 滚动触底 */
     useEffect(() => {
@@ -317,6 +329,31 @@ export const ChatPanel: React.FC = () => {
                                                 {msg.message || (loading ? '...' : '')}
                                             </ReactMarkdown>
                                         </div>
+                                        {msg.role === 'assistant' && msg.message && (
+                                            <Flex gap={6} wrap>
+                                                {extractCitationIndexes(String(msg.message)).map((idx) => {
+                                                    const source = msg.metadata?.sources?.[idx - 1];
+                                                    return (
+                                                        <Tag
+                                                            key={`cite-tag-${msg.id}-${idx}`}
+                                                            color="blue"
+                                                            style={{ cursor: source ? 'pointer' : 'default' }}
+                                                            onClick={source ? () => {
+                                                                const text = [
+                                                                    `[#${idx}] ${source.document_name || 'Unknown Source'}`,
+                                                                    source.page_number ? `Page: ${source.page_number}` : null,
+                                                                    source.chunk_content || '',
+                                                                ].filter(Boolean).join('\n');
+                                                                setCitationModalText(text);
+                                                                setIsCitationModalOpen(true);
+                                                            } : undefined}
+                                                        >
+                                                            [{idx}] {source?.document_name || 'Source unavailable'}
+                                                        </Tag>
+                                                    );
+                                                })}
+                                            </Flex>
+                                        )}
                                         {msg.extraInfo?.actions && (
                                             <Flex gap={6} wrap>
                                                 {msg.extraInfo.actions.map((action: any, i: number) => <ActionButton key={i} action={action} />)}
@@ -360,6 +397,17 @@ export const ChatPanel: React.FC = () => {
                     color: step.status === 'success' ? token.colorSuccess : token.colorInfo,
                     children: <Text strong>{step.name} ({step.duration_ms.toFixed(0)}ms)</Text>
                 }))} />
+            </Modal>
+
+            <Modal
+                title="引用片段"
+                open={isCitationModalOpen}
+                onCancel={() => setIsCitationModalOpen(false)}
+                footer={null}
+                width={720}
+                centered
+            >
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{citationModalText}</pre>
             </Modal>
         </div>
     );

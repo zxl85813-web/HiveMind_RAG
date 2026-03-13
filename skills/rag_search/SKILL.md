@@ -1,52 +1,58 @@
 ---
 name: rag_search
-description: "必须用于处理任何需要知识库信息的任务。包括：语义搜索、文档问答、跨库查询、引用生成。当用户提到‘搜索、查找、根据文档回答、RAG’时，务必首先激活此技能。即便用户没有明确要求引用，也必须提供带格式来源的回答。"
+description: "知识库检索与引用。用于：文档问答、语义搜索、跨库查询、带来源引用的回答。当用户提及搜索、查找、根据文档、知识库时触发。"
 ---
 
 # RAG Search Skill
 
-## 1. 核心操作规程 (Mandatory Workflow)
+## ⚡ 快速参考 (Quick Reference)
 
-**在处理任何检索任务前，必须严格执行以下三步：**
+三步必须执行：**Analyze → Retrieve → Cite**
+
+| 步骤 | 命令 / 工具 | 强制 |
+|------|-------------|------|
+| 1. 查询增强 | `python skills/rag_search/scripts/rag_ops.py analyze --query "<问题>"` | ✅ |
+| 2. 知识检索 | 调用 `search_knowledge_base`（用 expanded_queries 中每条查询） | ✅ |
+| 3. 引用格式化 | `python skills/rag_search/scripts/rag_ops.py cite --results "<JSON>"` | ✅ |
+
+> **零容忍规则**：检索结果为空 → 必须回答"在当前知识库中未找到相关信息"，禁止凭通用知识作答。
+
+---
+
+## 📋 完整规程 (Full Protocol)
 
 ### 第一步：查询分析与增强 (Analyze)
-严禁直接使用用户原始查询。必须运行以下脚本获取优化后的查询列表：
+严禁直接使用用户原始查询。脚本自动完成代词消歧、HyDE 增强、子问题拆分：
 ```bash
 python skills/rag_search/scripts/rag_ops.py analyze --query "<用户问题>"
 ```
-*   **动作**：使用返回结果中的 `expanded_queries` 分别进行检索，以覆盖语义盲区。
-*   **策略**：如果包含 `sub_queries`（复杂问题），必须针对每个子问题独立检索再汇总。
+- 使用返回的 `expanded_queries` 逐条检索，覆盖语义盲区。
+- 若包含 `sub_queries`（复杂问题），对每个子问题独立检索后汇总。
 
-### 第二步：智能检索与重排 (Retrieve)
-根据分析结果，调用系统工具进行检索：
-1.  **调用工具**：使用 `search_knowledge_base`。
-2.  **混合模式**：当用户查询包含特定术语或 ID 时，必须开启 `hybrid_search=true`。
-3.  **结果筛选**：仅保留相关度得分 `score > 0.7` 的结果。
+### 第二步：智能检索与筛选 (Retrieve)
+1. 调用 `search_knowledge_base`（`hybrid_search=true` 当查询含特定术语或 ID）。
+2. 仅保留 `score > 0.7` 的结果。
+3. 多库场景：对每个 KB 分别检索，合并后按分数重排。
 
 ### 第三步：答案生成与引用 (Cite)
-回答必须紧扣检索到的内容。
-1.  **注入背景**：在回答开头明确“基于知识库信息...”。
-2.  **标注引用**：在文中句子末尾使用 `[1][2]` 标注。
-3.  **自动格式化引用区**：运行以下脚本生成标准来源列表：
-    ```bash
-    python skills/rag_search/scripts/rag_ops.py cite --results '<检索到的 JSON 结果>'
-    ```
+1. 回答开头注明"基于知识库信息..."。
+2. 句末用 `[1][2]` 标注来源索引。
+3. 运行引用格式化脚本生成标准来源列表：
+   ```bash
+   python skills/rag_search/scripts/rag_ops.py cite --results "<检索 JSON>"
+   ```
 
-## 2. 常用操作指令预览
+---
 
-| 场景 | 推荐参数 | 说明 |
-|------|-------|-----------|
-| **精确问答** | `top_k: 5`, `threshold: 0.8` | 高精度、低召回 |
-| **知识对比** | `top_k: 15`, `multi_search: true` | 跨库对比 |
-| **详细摘要** | `top_k: 10`, `hyde: true` | 逻辑更连贯 |
+## 🔒 强制准则 (Critical Rules)
 
-## 3. 强制准则 (Critical Rules)
+| 规则 | 说明 |
+|------|------|
+| 不跳过分析脚本 | 代词消歧和 HyDE 增强由脚本完成，跳过导致召回断崖式下降 |
+| 禁止无来源作答 | 检索空 → 声明未找到，建议用户上传文档 |
+| 引用一致性 | 正文 `[N]` 索引必须与底部来源列表一一对应 |
+| 元数据过滤 | 用户指定文档类型时，必须在 `metadata_filter` 中设置 |
 
--   **不要跳过分析脚本**：分析脚本会处理代词消歧和 HyDE 增强，跳过会导致召回质量断崖式下跌。
--   **禁止通过通用知识回答**：如果检索结果为空，必须回答：“在当前知识库中未找到相关信息”，并建议用户上传对应文档。
--   **引用一致性**：回答中标注的 `[N]` 索引必须与结尾“来源”列表一一对应。
--   **元数据优先**：如果用户明确提到了文档类型（如：API 规范），必须在 `search_knowledge_base` 的 `metadata_filter` 中指明。
-
-## 4. 相关资源
--   `scripts/rag_ops.py`：查询分析、HyDE 增强与引用格式化核心工具。
--   `backend/app/services/retrieval/`：后端检索 Pipeline 核心代码，脚本通过它调用模型。
+## 🗂️ 资源
+- `scripts/rag_ops.py`：查询分析 / HyDE 增强 / 引用格式化核心工具
+- `backend/app/services/retrieval/`：后端检索 Pipeline（包含 RRF 重排、QueryPreProcessingStep）
