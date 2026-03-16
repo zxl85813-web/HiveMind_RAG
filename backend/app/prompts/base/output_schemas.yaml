@@ -1,50 +1,63 @@
 # ============================================================
-# Layer 1.5: JSON Output Schemas — 可复用的输出格式片段
-# 通过 Jinja2 include 机制插入到任务层
+# Layer 1.5: Schema Driven Orchestration (TS Definition Mode)
+# Using TypeScript Interfaces to guide LLM output with high semantic density.
 # ============================================================
 
-# Supervisor 路由决策的 JSON Schema
+# Supervisor 路由决策的 TS 契约
 routing_decision: |
-  You MUST respond with a JSON object containing EXACTLY these fields:
-  ```json
-  {
-    "next_agent": "<agent_name or 'FINISH'>",
-    "uncertainty": <float 0.0-1.0>,
-    "reasoning": "<why you chose this agent>",
-    "task_refinement": "<specific instructions for the agent>"
+  Your output MUST be a valid JSON object reflecting the following TypeScript interface:
+  ```typescript
+  interface RoutingDecision {
+    /** The ID of the next specialist agent to invoke, or "FINISH" if the task is complete. */
+    next_agent: "rag_agent" | "code_agent" | "qa_tester" | "retrieval" | "FINISH" | "PLATFORM_ACTION";
+    /** Confidence score: 0.0 (completely sure) to 1.0 (no confidence). */
+    uncertainty: number;
+    /** Logical reasoning behind this routing choice. */
+    reasoning: string;
+    /** Specific, refined task instructions for the next agent. */
+    task_refinement: string;
+    /** Optional: Breakdown of complex tasks into serial sub-steps. */
+    planned_steps?: string[];
   }
   ```
   Rules:
-  - `next_agent`: Must be one of the available agent names listed above, or "FINISH".
-  - `uncertainty`: 0.0 = completely confident, 1.0 = no idea.
-  - `reasoning`: Be concise (1-2 sentences).
-  - `task_refinement`: Rephrase the user's request as a clear instruction for the chosen agent.
-  - Do NOT include any text outside the JSON object.
+  - Respond ONLY with the JSON object. 
+  - Do not include markdown code block backticks in the final raw output if using a direct API.
 
-# Reflection 评估的 JSON Schema
+# Reflection 评估的 TS 契约
 reflection_result: |
-  You MUST respond with a JSON object:
-  ```json
-  {
-    "quality_score": <float 0.0-1.0>,
-    "issues": ["<issue 1>", "<issue 2>"],
-    "suggestions": ["<suggestion 1>"],
-    "verdict": "APPROVE" | "REVISE" | "ESCALATE"
+  Evaluate the agent's work based on this interface:
+  ```typescript
+  interface ReflectionResult {
+    /** Quality score: 0.0 (Fail) to 1.0 (Excellent). */
+    quality_score: number;
+    /** Bullet points of identified issues or hallucinations. */
+    issues: string[];
+    /** Actionable tips for the agent to recover or improve. */
+    suggestions: string[];
+    /** The final verdict for the state transition. */
+    verdict: "APPROVE" | "REVISE" | "ESCALATE";
+    /** If true, the next loop will use a more powerful model tier. */
+    trigger_reasoning_tier: boolean;
   }
   ```
-  Rules:
-  - `quality_score`: 0.0 = terrible, 1.0 = perfect.
-  - `verdict`: 
-    - APPROVE: Response is good enough to return to user.
-    - REVISE: Send back to the agent with suggestions.
-    - ESCALATE: Forward to a different agent or human.
 
 # Agent 通用任务结果格式
 agent_response: |
-  Structure your response clearly:
-  1. **Answer**: Direct answer to the question.
-  2. **Reasoning**: How you arrived at this answer (if non-trivial).
-  3. **Sources**: References or evidence (if applicable).
-  4. **Actions**: (Optional) Suggested UI actions if the user wants to navigate or perform a task. 
-     Format: `[ACTION: {"type": "navigate", "label": "Upload", "target": "/knowledge", "icon": "UploadOutlined"}]`
-  5. **Confidence**: Your confidence level (low/medium/high).
+  Structure your final answer as an implementation of this interface:
+  ```typescript
+  interface AgentFinalResponse {
+    /** The core answer or solution to the user's request. */
+    answer: string;
+    /** Internal monologue explaining the rationale. */
+    reasoning: string;
+    /** Evidence mapping: [Source ID] -> key takeaway. */
+    sources?: Record<string, string>;
+    /** Suggested UI navigation or actions. 
+     * Format: [ACTION: {"type": "navigate" | "open_modal", "target": string, "label": string}]
+     */
+    ui_actions?: string[];
+    /** Self-assessed confidence level. */
+    confidence: "low" | "medium" | "high";
+  }
+  ```

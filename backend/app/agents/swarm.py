@@ -44,6 +44,7 @@ from app.core.config import settings
 from app.schemas.auth import AuthorizationContext
 from app.services.cache_service import CacheService
 from app.services.evaluation.multi_grader import MultiGraderEval
+from app.services.sandbox.tool_sandbox import ToolSandbox
 
 # ============================================================
 #  Agent Definition
@@ -343,9 +344,19 @@ class SwarmOrchestrator:
             },
         )
 
-        # All agents → Reflection
+        # All agents → Decision Node (Flexible Reflection)
+        # Instead of going straight to reflection, we go to a decision node 
+        # to see if reflection is even necessary.
+        workflow.add_node("reflection_decision", self._reflection_decision_node)
         for name in self._agents:
-            workflow.add_edge(name, "reflection")
+            workflow.add_edge(name, "reflection_decision")
+
+        # Reflection Decision → Reflection or END/Supervisor
+        workflow.add_conditional_edges(
+            "reflection_decision",
+            lambda state: state["next_step"],
+            {"REFLECTION": "reflection", "FINISH": END, "supervisor": "supervisor"}
+        )
 
         # Reflection → Supervisor or END
         workflow.add_conditional_edges(
@@ -595,6 +606,12 @@ class SwarmOrchestrator:
 
         node_id = f"supervisor_{uuid.uuid4().hex[:6]}"
 
+        # --- P1: Smart Cache & Short-Circuit ---
+        # If uncertainty is extremely low AND next_step is FINISH, avoid any morehops.
+        if decision.uncertainty < 0.1 and next_step == "FINISH":
+             logger.info("⚡ [Supervisor] High confidence end. Short-circuiting.")
+             return {"next_step": "FINISH", "messages": [AIMessage(content="Task completed with high confidence.")]}
+
         return {
             "next_step": next_step,
             "uncertainty_level": decision.uncertainty,
@@ -635,14 +652,31 @@ class SwarmOrchestrator:
             # Combine native tools with agent-specific tools, and MCP tools
             available_tools = list(agent_def.tools)
             if agent_def.name != "supervisor":
-                # Add memory tools to all business agents
+                # 1.1 Always add core native tools (essential)
                 available_tools.extend(NATIVE_TOOLS)
-                # Add agentic search tools (Tier 0)
-                available_tools.extend(SEARCH_TOOLS)
-                # Add discovered MCP tools
-                available_tools.extend(self.mcp.get_tools())
-                # Add dynamically loaded Skills
-                available_tools.extend(self.skills.get_all_tools())
+                
+                # 1.2 Adaptive Discovery: Only load relevant tools for the current task
+                # This prevents context explosion and improves model focus.
+                if task:
+                    logger.debug(f"🔍 [Tool Discovery] Filtering tools for task: {task[:50]}...")
+                    
+                    # Discover relevant MCP tools
+                    mcp_tools = self.mcp.discover_tools(task, limit=10)
+                    available_tools.extend(mcp_tools)
+                    
+                    # Discover relevant Skills
+                    discovered_skills = self.skills.discover(task, limit=5)
+                    for skill in discovered_skills:
+                        available_tools.extend(skill.tools)
+                        
+                    # Add agentic search tools (usually needed for research)
+                    if any(kw in task.lower() for kw in ["search", "find", "who", "what", "how", "搜索", "查找"]):
+                        available_tools.extend(SEARCH_TOOLS)
+                        
+                else:
+                    # Fallback for empty task: load a minimal set
+                    logger.warning(f"⚠️ Empty task for agent {agent_def.name}, loading minimal tools")
+                    available_tools.extend(SEARCH_TOOLS[:2])
 
             # --- Tool Auditing (Phase 3) ---
             from app.services.security.sanitizer import SecuritySanitizer, ToolAuditor
@@ -706,11 +740,18 @@ class SwarmOrchestrator:
                         if "agent_name" in tool_args:
                             tool_args["agent_name"] = agent_def.name
 
-                        # Audit tool call (Phase 3)
-                        if not ToolAuditor.audit_tool_call(tool_name, tool_args):
-                            result = "Error: Tool call blocked by security policy."
+                        # --- Integrated Tool Sandbox (Programmatic Execution Mode) ---
+                        if tool_name == "programmatic_execute":
+                            logger.info(f"⚡ [Phase 1] Entering Tool Sandbox for Agent: {agent_def.name}")
+                            sandbox = ToolSandbox(available_tools=available_tools)
+                            script_code = tool_args.get("script", "")
+                            result = await sandbox.run_script(script_code)
                         else:
-                            result = await tool_obj.ainvoke(tool_args)
+                            # Audit tool call (Phase 3)
+                            if not ToolAuditor.audit_tool_call(tool_name, tool_args):
+                                result = "Error: Tool call blocked by security policy."
+                            else:
+                                result = await tool_obj.ainvoke(tool_args)
 
                         current_messages.append(ToolMessage(tool_call_id=tool_call["id"], content=str(result)))
                     else:
@@ -756,10 +797,6 @@ class SwarmOrchestrator:
 
         return agent_node
 
-    # ============================================================
-    #  Platform Action Node — handles UI navigation/modal requests
-    # ============================================================
-
     async def _platform_action_node(self, state: SwarmState) -> dict:
         """
         Platform Action node — directly emits a pre-built response with [ACTION: ...] tag.
@@ -776,6 +813,38 @@ class SwarmOrchestrator:
             "messages": [AIMessage(content=reply)],
             "agent_outputs": {"platform_action": reply},
         }
+
+    async def _reflection_decision_node(self, state: SwarmState) -> dict:
+        """
+        Decision node to determine if explicit reflection is required.
+        
+        Logic:
+        1. If it's a simple informational task with low uncertainty, skip reflection.
+        2. If hard rules (sanitizer) are already tripped in the agent output, force reflection.
+        3. If it's a critical write operation, always reflect.
+        """
+        uncertainty = state.get("uncertainty_level", 0.5)
+        last_node = state.get("last_node_id", "")
+        agent_outputs = state.get("agent_outputs", {})
+        last_output = list(agent_outputs.values())[-1] if agent_outputs else ""
+        
+        # 1. Hard Rule: Security check (Cheap/Local)
+        from app.services.security.sanitizer import SecuritySanitizer
+        if SecuritySanitizer.contains_sensitive_data(str(last_output)):
+            logger.warning("🛡️ [Reflection Decision] Sensitive data detected. Forcing Reflection.")
+            return {"next_step": "REFLECTION"}
+            
+        # 2. Heuristic: Confidence & Node Type
+        # If uncertainty is low (< 0.3) and it's not a complex code task, skip.
+        is_complex = any(agent in last_node for agent in ["code", "sql", "orchestrator"])
+        
+        if uncertainty < 0.3 and not is_complex:
+            logger.info(f"⚡ [Reflection Decision] High confidence ({uncertainty:.2f}) & Low complexity. Skipping Reflection.")
+            return {"next_step": "FINISH"}
+            
+        # 3. Default: Fallback to Reflection for safety
+        logger.info(f"🪞 [Reflection Decision] Proceeding to Reflection (Uncertainty: {uncertainty:.2f}).")
+        return {"next_step": "REFLECTION"}
 
     # ============================================================
     #  Reflection Node — uses PromptEngine + LLM

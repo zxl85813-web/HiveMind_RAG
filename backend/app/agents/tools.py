@@ -296,4 +296,5 @@ NATIVE_TOOLS = [
     think,
     search_available_tools,
     python_interpreter,
+    programmatic_execute,
 ]
