@@ -11,6 +11,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
 import './i18n/config';
+import { monitor } from './core/MonitorService';
+
+// 🛰️ [FE-GOV-002]: 应用启动上报
+monitor.log({
+  category: 'system',
+  action: 'app_start',
+  metadata: { version: '0.0.0' }
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {

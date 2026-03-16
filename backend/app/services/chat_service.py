@@ -223,7 +223,7 @@ class ChatService:
         return False
 
     @staticmethod
-    async def chat_stream(request: ChatRequest, user_id: str) -> AsyncGenerator[str, None]:
+    async def chat_stream(request: ChatRequest, user_id: str, accept_language: str | None = None) -> AsyncGenerator[str, None]:
         """
         核心流式对话生成器 — 使用 SwarmOrchestrator 进行智能编排与多级存储检索。
         P2: 集成语义缓存 (Semantic Cache) 与 Token 追踪。
@@ -347,6 +347,7 @@ class ChatService:
                 "auth_context": auth_context,
                 "prompt_variant": request.prompt_variant,
                 "retrieval_variant": request.retrieval_variant,
+                "language": accept_language or "zh-CN",
             }  # Inject user identity and experiment variants
             if request.knowledge_base_ids:
                 context["knowledge_base_ids"] = request.knowledge_base_ids

@@ -140,6 +140,9 @@ class SwarmState(TypedDict):
     # --- P1: Routing Watchdog Flag ---
     force_reasoning_tier: bool
 
+    # --- FE-GOV-003: i18n Bridge ---
+    language: str | None
+
 
 
 # ============================================================
@@ -512,6 +515,7 @@ class SwarmOrchestrator:
         system_prompt = self.prompt_engine.build_supervisor_prompt(
             agents=agents_info,
             memory_context=state.get("context_data", ""),
+            language=state.get("language", "zh-CN"),
         )
 
         # --- Speculative Retrieval (Phase 6: Parallel Intent & Recall) ---
@@ -699,6 +703,7 @@ class SwarmOrchestrator:
                 memory_context=memory_context,
                 tools_available=[t.name for t in available_tools if hasattr(t, "name")],
                 prompt_variant=state.get("prompt_variant", "default"),
+                language=state.get("language", "zh-CN"),
             )
 
             # 3. Get the appropriate LLM and bind tools
@@ -927,6 +932,7 @@ class SwarmOrchestrator:
             agent_name=last_agent_name,
             agent_response=last_message.content[:1500],  # Truncate to save tokens
             task_description=state.get("current_task", ""),
+            language=state.get("language", "zh-CN"),
         )
 
         # Invoke LLM for quality check (using BALANCED or FAST)
@@ -1379,6 +1385,7 @@ class SwarmOrchestrator:
             "status_update": None,
             "thought_log": None,
             "user_id": context.get("user_id") if context else None,
+            "language": context.get("language", "zh-CN") if context else "zh-CN",
         }
 
         # Execute the graph with config for checkpointer
@@ -1434,6 +1441,7 @@ class SwarmOrchestrator:
             "status_update": None,
             "thought_log": None,
             "user_id": context.get("user_id") if context else None,
+            "language": context.get("language", "zh-CN") if context else "zh-CN",
         }
 
         # Use LangGraph's streaming mode with config

@@ -1,0 +1,84 @@
+# 🏗️ 设计说明书: DES-{{ design_id }} ({{ title }})
+
+> **关联需求**: [REQ-{{ req_id }}]({{ req_path }})
+> **作者**: HiveMind {{ agent_name }}
+> **状态**: 草案 / 评审中
+
+---
+
+## 1. 架构概览 (Architecture Overview)
+
+### 1.1 设计目标
+{{ description }}
+
+### 1.2 核心流程图 (Mermaid)
+```mermaid
+{{ mermaid_flow }}
+```
+
+---
+
+## 2. 数据层设计 (Data Persistence)
+
+### 2.1 实体变更清单
+| 模型名称 | 操作 | 关键字段变更 |
+| :--- | :--- | :--- |
+{% for model in models %}
+| `{{ model.name }}` | {{ model.action }} | {{ model.fields }} |
+{% endfor %}
+
+### 2.2 ER 关系图
+```mermaid
+{{ mermaid_er }}
+```
+
+---
+
+## 3. 后端服务逻辑 (Backend Services)
+
+### 3.1 `{{ service_name }}` 逻辑
+- **职责**: {{ service_responsibility }}
+- **核心方法**:
+{% for method in methods %}
+  - `{{ method.name }}({{ method.args }})`: {{ method.desc }}
+{% endfor %}
+
+### 3.2 异常处理
+{% for ex in exceptions %}
+- `{{ ex.name }}`: {{ ex.trigger_condition }}
+{% endfor %}
+
+---
+
+## 4. API 端点设计 (API Endpoints)
+
+### 4.1 `{{ api_route }}`
+- **方法**: `{{ api_method }}`
+- **鉴权**: `{{ api_auth }}`
+- **请求负载 (Request Body)**:
+```typescript
+{{ request_schema_ts }}
+```
+
+---
+
+## 5. 前端组件设计 (Frontend Components)
+
+### 5.1 组件树
+```
+{{ component_tree }}
+```
+
+### 5.2 复用组件清单
+使用了以下 `components/common` 中的组件:
+{% for comp in common_components %}
+- `{{ comp }}`
+{% endfor %}
+
+---
+
+## 6. 评审检查点 (Review Checkpoints)
+- [ ] 是否满足 4-Tier 架构模型？
+- [ ] 是否定义了专有异常？
+- [ ] 前端组件是否做到了逻辑与表现分离？
+- [ ] 数据库索引是否已经考虑到读写平衡？

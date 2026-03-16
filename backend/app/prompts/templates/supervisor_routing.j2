@@ -25,6 +25,7 @@
 {% for c in role.constraints %}
 - {{ c }}
 {% endfor %}
+- **LANGUAGE**: Respond in the following language: {{ language }}
 {% endif %}
 
 {# --- Layer 3: Task-Specific Instructions --- #}

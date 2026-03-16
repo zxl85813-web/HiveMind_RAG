@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, theme } from 'antd';
 import {
     ClusterOutlined,
@@ -16,65 +16,33 @@ import { useTranslation } from 'react-i18next';
 import { PageContainer, StatCard } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
 import { AgentDAGVisualizer } from '../components/agents/AgentDAGVisualizer';
-import type { DAGData } from '../components/agents/AgentDAGVisualizer';
-import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats, type TodoItem } from '../services/agentApi';
+import { 
+    useSwarmReflections, 
+    useSwarmAgents, 
+    useSwarmStats, 
+    useSwarmTodos, 
+    useSwarmTraces 
+} from '../hooks/queries/useSwarmQuery';
 
 const { Title, Text, Paragraph } = Typography;
 
+/**
+ * 🛰️ [FE-GOV-001]: Agent 蜂巢监控页面 (Refactored with React Query)
+ */
 export const AgentsPage: React.FC = () => {
     const { t } = useTranslation();
     const { token } = theme.useToken();
-    const [reflections, setReflections] = useState<ReflectionEntry[]>([]);
-    const [agents, setAgents] = useState<AgentInfo[]>([]);
-    const [stats, setStats] = useState<SwarmStats>({
-        active_agents: 0,
-        today_requests: 0,
-        shared_todos: 0,
-        reflection_logs: 0
-    });
-    const [todos, setTodos] = useState<TodoItem[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [dagData, setDagData] = useState<DAGData>({ nodes: [], links: [] });
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [reflRes, agentsRes, statsRes, todosRes, traceRes] = await Promise.all([
-                agentApi.getReflections(20),
-                agentApi.getAgents(),
-                agentApi.getStats(),
-                agentApi.getTodos(),
-                agentApi.getTraces()
-            ]);
-
-            setReflections(reflRes.data.data || []);
-            setAgents(agentsRes.data.data || []);
-            setStats(statsRes.data.data || { active_agents: 0, today_requests: 0, shared_todos: 0, reflection_logs: 0 });
-            setTodos(todosRes.data.data || []);
-
-            const liveTrace = traceRes.data.data;
-            if (liveTrace && liveTrace.nodes && liveTrace.nodes.length > 0) {
-                setDagData(liveTrace);
-            } else {
-                // Keep the state empty if no traces yet, but maybe show a placeholder text in the visualizer?
-                setDagData({ nodes: [], links: [] });
-            }
-        } catch (err) {
-            console.error('Failed to fetch swarm data:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-        const timer = setInterval(fetchData, 10000); // Refresh every 10s
-        return () => clearInterval(timer);
-    }, []);
+    
+    // Server State with Auto-refresh
+    const { data: reflections = [], isLoading: loadingRefl } = useSwarmReflections();
+    const { data: agents = [] } = useSwarmAgents();
+    const { data: stats } = useSwarmStats();
+    const { data: todos = [], isLoading: loadingTodos } = useSwarmTodos();
+    const { data: dagData = { nodes: [], links: [] }, isLoading: loadingTraces, refetch, isRefetching } = useSwarmTraces();
 
     const renderTodoTab = () => (
         <List
-            loading={loading}
+            loading={loadingTodos}
             dataSource={todos}
             locale={{ emptyText: <Empty description="任务队列已排空。Agent 集群正处于待命状态。" /> }}
             renderItem={(item) => (
@@ -171,24 +139,28 @@ export const AgentsPage: React.FC = () => {
             title={t('agents.title')}
             description={t('agents.description')}
             actions={
-                <Tooltip title="更新数据">
-                    <SyncOutlined spin={loading} onClick={fetchData} style={{ fontSize: 20, cursor: 'pointer', color: token.colorPrimary }} />
+                <Tooltip title="刷新数据">
+                    <SyncOutlined 
+                        spin={isRefetching} 
+                        onClick={() => refetch()} 
+                        style={{ fontSize: 20, cursor: 'pointer', color: token.colorPrimary }} 
+                    />
                 </Tooltip>
             }
         >
             {/* 统计概览 */}
             <Row gutter={[16, 16]}>
                 <Col xs={12} lg={6}>
-                    <StatCard title={t('agents.stats.active')} value={stats.active_agents} icon={<ClusterOutlined />} color="primary" />
+                    <StatCard title={t('agents.stats.active')} value={stats?.active_agents || 0} icon={<ClusterOutlined />} color="primary" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title={t('agents.stats.requests')} value={stats.today_requests} icon={<MessageOutlined />} color="info" />
+                    <StatCard title={t('agents.stats.requests')} value={stats?.today_requests || 0} icon={<MessageOutlined />} color="info" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title={t('agents.stats.todos')} value={stats.shared_todos} icon={<UnorderedListOutlined />} color="warning" />
+                    <StatCard title={t('agents.stats.todos')} value={stats?.shared_todos || 0} icon={<UnorderedListOutlined />} color="warning" />
                 </Col>
                 <Col xs={12} lg={6}>
-                    <StatCard title={t('agents.stats.reflections')} value={stats.reflection_logs} icon={<ExperimentOutlined />} color="success" />
+                    <StatCard title={t('agents.stats.reflections')} value={stats?.reflection_logs || 0} icon={<ExperimentOutlined />} color="success" />
                 </Col>
             </Row>
 
@@ -228,6 +200,7 @@ export const AgentsPage: React.FC = () => {
                                 </Text>
                             </Space>
                         }
+                        loading={loadingTraces && dagData.nodes.length === 0}
                         style={{ borderRadius: '12px', background: 'var(--hm-color-bg-elevated)', border: 'var(--hm-border-subtle)' }}
                         bodyStyle={{ padding: 0, height: '440px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                     >
@@ -245,6 +218,7 @@ export const AgentsPage: React.FC = () => {
                     <Card
                         title={<span style={{ color: token.colorPrimary }}><ExperimentOutlined /> 共享记忆板 (Reflections & Active Memory)</span>}
                         style={{ height: '100%', borderRadius: '12px' }}
+                        loading={loadingRefl && reflections.length === 0}
                     >
                         {renderReflectionBoard()}
                     </Card>
@@ -254,6 +228,7 @@ export const AgentsPage: React.FC = () => {
                         title={<><UnorderedListOutlined /> 协同任务队列 (Todos)</>}
                         style={{ height: '100%', borderRadius: '12px' }}
                         bodyStyle={{ paddingRight: 8 }}
+                        loading={loadingTodos && todos.length === 0}
                     >
                         <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
                             {renderTodoTab()}

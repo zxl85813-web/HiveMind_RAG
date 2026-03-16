@@ -6,19 +6,24 @@ import { PageContainer, EmptyState, PermissionButton } from '../components/commo
 import { KnowledgeList } from '../components/knowledge/KnowledgeList';
 import { CreateKBModal } from '../components/knowledge/CreateKBModal';
 import { KnowledgeDetail } from '../components/knowledge/KnowledgeDetail';
-import { knowledgeApi } from '../services/knowledgeApi';
 import type { CreateKnowledgeBaseParams } from '../services/knowledgeApi';
 import type { KnowledgeBase } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import { useKnowledgeBases, useCreateKBMutation } from '../hooks/queries/useKnowledgeQuery';
 
 import { useSearchParams } from 'react-router-dom';
 
+/**
+ * 🛰️ [FE-GOV-001]: 知识库管理页面 (Refactored with React Query)
+ */
 export const KnowledgePage: React.FC = () => {
     const { message } = App.useApp();
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
-    const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
-    const [loading, setLoading] = useState(false);
+    
+    // Server State
+    const { data: kbs = [], isLoading, refetch, isRefetching } = useKnowledgeBases();
+    const createMutation = useCreateKBMutation();
 
     // UI State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -26,32 +31,17 @@ export const KnowledgePage: React.FC = () => {
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const hasAccess = useAuthStore((state) => state.hasAccess);
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            const res = await knowledgeApi.listKBs();
-            const data = res.data.data;
-            setKbs(data);
-
-            // Handle deep link via query params
-            const kbId = searchParams.get('kbId');
-            if (kbId) {
-                const target = data.find(k => k.id === kbId);
-                if (target) {
-                    setSelectedKB(target);
-                    setIsDetailOpen(true);
-                }
-            }
-        } catch {
-            message.error(t('common.error'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Handle deep link via query params
     useEffect(() => {
-        loadData();
-    }, [searchParams]);
+        const kbId = searchParams.get('kbId');
+        if (kbId && kbs.length > 0) {
+            const target = kbs.find(k => k.id === kbId);
+            if (target) {
+                setSelectedKB(target);
+                setIsDetailOpen(true);
+            }
+        }
+    }, [searchParams, kbs]);
 
     const handleCreate = async (values: CreateKnowledgeBaseParams) => {
         if (!hasAccess({ anyPermissions: ['knowledge:manage'] })) {
@@ -60,10 +50,9 @@ export const KnowledgePage: React.FC = () => {
         }
 
         try {
-            await knowledgeApi.createKB(values);
+            await createMutation.mutateAsync(values);
             message.success(t('common.success'));
             setIsCreateModalOpen(false);
-            loadData();
         } catch {
             message.error(t('common.error'));
         }
@@ -80,7 +69,11 @@ export const KnowledgePage: React.FC = () => {
             description={t('nav.knowledge')}
             actions={
                 <Space>
-                    <Button icon={<SyncOutlined />} onClick={loadData} />
+                    <Button 
+                        icon={<SyncOutlined spin={isRefetching} />} 
+                        onClick={() => refetch()} 
+                        disabled={isLoading}
+                    />
                     <PermissionButton
                         type="primary"
                         icon={<PlusOutlined />}
@@ -92,7 +85,7 @@ export const KnowledgePage: React.FC = () => {
                 </Space>
             }
         >
-            {kbs.length === 0 && !loading ? (
+            {kbs.length === 0 && !isLoading ? (
                 <EmptyState
                     icon={<DatabaseOutlined />}
                     title={t('knowledge.emptyTitle')}
@@ -110,7 +103,7 @@ export const KnowledgePage: React.FC = () => {
             ) : (
                 <KnowledgeList
                     kbs={kbs}
-                    loading={loading}
+                    loading={isLoading}
                     onSelect={handleSelectKB}
                 />
             )}
@@ -119,6 +112,7 @@ export const KnowledgePage: React.FC = () => {
                 open={isCreateModalOpen}
                 onCancel={() => setIsCreateModalOpen(false)}
                 onSubmit={handleCreate}
+                confirmLoading={createMutation.isPending}
             />
 
             <KnowledgeDetail

@@ -1,5 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import api from './api';
+import i18n from '../i18n/config';
 
 export interface ChatMessage {
     id: string;
@@ -50,11 +51,13 @@ export const chatApi = {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
         try {
+            const token = localStorage.getItem('access_token');
             await fetchEventSource(`${baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // Note: Auth header might be needed here if your SSE is protected
+                    'Accept-Language': i18n.language || 'zh-CN',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                 },
                 body: JSON.stringify({
                     message,

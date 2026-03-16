@@ -51,6 +51,8 @@ export interface StatCardProps {
     suffix?: string;
     /** 说明文字 */
     description?: string;
+    /** 是否正在加载 */
+    loading?: boolean;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -60,9 +62,10 @@ export const StatCard: React.FC<StatCardProps> = ({
     color = 'primary',
     suffix,
     description,
+    loading = false,
 }) => {
     return (
-        <Card className={styles.card} hoverable>
+        <Card className={styles.card} hoverable loading={loading}>
             <Flex align="center" gap={16}>
                 {icon && (
                     <div

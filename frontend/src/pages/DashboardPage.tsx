@@ -1,19 +1,5 @@
-/**
- * DashboardPage — 概览首页。
- *
- * AI-First 架构中的默认落地页:
- *   - 欢迎区域 + 快速入口
- *   - 摘要统计
- *   - 近期活动
- *
- * 不再是空白 ChatPage — 对话功能在右侧 ChatPanel 中。
- *
- * @module pages
- * @see docs/design/ai-first-frontend.md
- */
-
 import React from 'react';
-import { Row, Col, Card, Typography, Flex } from 'antd';
+import { Row, Col, Card, Typography, Flex, Tag, List, Progress } from 'antd';
 import {
     DatabaseOutlined,
     ClusterOutlined,
@@ -26,15 +12,21 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { StatCard } from '../components/common';
-// Removed unused API imports
-import { Tag, List, Progress } from 'antd';
+import { useDashboardStats, useRecentReports } from '../hooks/queries/useDashboardQuery';
 import styles from './DashboardPage.module.css';
 
 const { Title, Text, Paragraph } = Typography;
 
+/**
+ * 🛰️ [FE-GOV-001]: Dashboard 概览页面 (Refactored with React Query)
+ */
 export const DashboardPage: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+
+    // Server State
+    const { data: stats, isLoading: loadingStats } = useDashboardStats();
+    const { data: reports = [], isLoading: loadingReports } = useRecentReports(3);
 
     /** 快捷入口 */
     const quickActions = [
@@ -63,15 +55,6 @@ export const DashboardPage: React.FC = () => {
             color: 'var(--hm-color-warning)',
         },
     ];
-    // Mock stats until hooks are implemented
-    const stats = { kbs: 12, agents: 5, requests: 1250, discoveries: 34 };
-    const reports: any[] | undefined = undefined;
-    const loadingReports = false;
-
-    const recentReports: any[] = reports || [
-        { id: '1', kb_name: 'Core Docs', total_score: 0.85, created_at: new Date().toISOString() },
-        { id: '2', kb_name: 'API Reference', total_score: 0.42, created_at: new Date().toISOString() }
-    ];
 
     return (
         <div className={styles.container}>
@@ -92,16 +75,40 @@ export const DashboardPage: React.FC = () => {
             {/* === 统计概览 === */}
             <Row gutter={[16, 16]}>
                 <Col xs={12} md={6}>
-                    <StatCard title={t('dashboard.stats.kbs')} value={stats.kbs} icon={<DatabaseOutlined />} color="primary" />
+                    <StatCard 
+                        title={t('dashboard.stats.kbs')} 
+                        value={stats?.total_kbs ?? 0} 
+                        icon={<DatabaseOutlined />} 
+                        color="primary" 
+                        loading={loadingStats}
+                    />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title={t('dashboard.stats.agents')} value={stats.agents} icon={<ClusterOutlined />} color="info" />
+                    <StatCard 
+                        title={t('dashboard.stats.agents')} 
+                        value={stats?.active_agents ?? 0} 
+                        icon={<ClusterOutlined />} 
+                        color="info" 
+                        loading={loadingStats}
+                    />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title={t('dashboard.stats.requests')} value={stats.requests} icon={<ThunderboltOutlined />} color="warning" />
+                    <StatCard 
+                        title={t('dashboard.stats.requests')} 
+                        value={stats?.today_requests ?? 0} 
+                        icon={<ThunderboltOutlined />} 
+                        color="warning" 
+                        loading={loadingStats}
+                    />
                 </Col>
                 <Col xs={12} md={6}>
-                    <StatCard title={t('dashboard.stats.discoveries')} value={stats.discoveries} icon={<BulbOutlined />} color="success" />
+                    <StatCard 
+                        title={t('dashboard.stats.discoveries')} 
+                        value={34} // TODO: Add discoveries to backend stats
+                        icon={<BulbOutlined />} 
+                        color="success" 
+                        loading={loadingStats}
+                    />
                 </Col>
             </Row>
 
@@ -137,14 +144,14 @@ export const DashboardPage: React.FC = () => {
                 </Row>
             </div>
 
-            {/* === 近期活动 (占位) === */}
+            {/* === 近期活动 === */}
             <div>
                 <Title level={5} className={styles.sectionTitle}>近期质量报告</Title>
                 <Card className={styles.activityCard} loading={loadingReports}>
-                    {recentReports.length > 0 ? (
+                    {reports.length > 0 ? (
                         <List
                             itemLayout="horizontal"
-                            dataSource={recentReports}
+                            dataSource={reports}
                             renderItem={(item) => (
                                 <List.Item
                                     style={{ cursor: 'pointer' }}

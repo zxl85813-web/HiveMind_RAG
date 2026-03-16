@@ -1,0 +1,37 @@
+import pytest
+from unittest.mock import MagicMock, patch
+from {{ module_path }} import {{ class_or_function_name }}
+
+{% if is_async %}
+@pytest.mark.asyncio
+async def test_{{ target_name }}_success():
+    # 1. Arrange
+    mock_dep = MagicMock()
+    # TODO: Setup mock behavior
+    
+    # 2. Act
+    result = await {{ target_name }}({{ sample_args }})
+    
+    # 3. Assert
+    assert result == {{ expected_result }}
+    {% if check_calls %}
+    mock_dep.assert_called_once()
+    {% endif %}
+
+@pytest.mark.asyncio
+async def test_{{ target_name }}_failure():
+    # 1. Arrange (Setup error condition)
+    
+    # 2. Act & Assert
+    with pytest.raises({{ expected_exception }}):
+        await {{ target_name }}({{ faulty_args }})
+{% else %}
+def test_{{ target_name }}_success():
+    # 1. Arrange
+    # 2. Act
+    result = {{ target_name }}({{ sample_args }})
+    # 3. Assert
+    assert result == {{ expected_result }}
+{% endif %}
+
+# --- End of generated tests ---

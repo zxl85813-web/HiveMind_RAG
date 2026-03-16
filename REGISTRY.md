@@ -3,359 +3,116 @@
 > **⚠️ 重要**: 每次开发新功能/组件前，必须先查阅此文件，确认是否已存在可复用的代码。
 > 每次新增功能后，必须在此文件中登记。
 
-> 🔗 **与 TODO 的关系（必须遵守）**
-> - `TODO.md` 是**任务态**：记录要做什么、优先级、阻塞、阶段进度。
-> - `REGISTRY.md` 是**资产态**：记录系统中已经存在的 API/模型/服务/组件与当前实现状态。
-> - 任务从 TODO 完成后，若涉及系统资产变更，必须同步更新 REGISTRY。
-> - 建议顺序：先改代码 → 更新 TODO 状态 → 更新 REGISTRY 资产登记。
-
-> 📅 最后更新: 2026-03-10
+> 📅 最后更新: 2026-03-16 (全量资产校准)
 
 ---
 
 ## 🐍 后端 (Backend)
 
-### API 端点
+### API 端点 (api/v1/)
 
-| 方法 | 路径 | 描述 | 文件 | 状态 |
-|------|------|------|------|------|
-| GET | `/api/v1/health/` | 健康检查 | `api/routes/health.py` | ✅ 已实现 |
-| GET | `/api/v1/health/ready` | 就绪检查 | `api/routes/health.py` | 🔲 占位 |
-| POST | `/api/v1/chat/completions` | 对话补全 (SSE) | `api/routes/chat.py` | ✅ |
-| GET | `/api/v1/chat/conversations` | 会话列表 | `api/routes/chat.py` | ✅ |
-| GET | `/api/v1/chat/conversations/{id}` | 会话详情 | `api/routes/chat.py` | ✅ |
-| DELETE | `/api/v1/chat/conversations/{id}` | 删除会话 | `api/routes/chat.py` | ✅ |
-| POST | `/api/v1/knowledge/` | 创建知识库 | `api/routes/knowledge.py` | 🔲 占位 |
-| GET | `/api/v1/knowledge/` | 知识库列表 | `api/routes/knowledge.py` | 🔲 占位 |
-| GET | `/api/v1/knowledge/{id}` | 知识库详情 | `api/routes/knowledge.py` | 🔲 占位 |
-| DELETE | `/api/v1/knowledge/{id}` | 删除知识库 | `api/routes/knowledge.py` | 🔲 占位 |
-| POST | `/api/v1/knowledge/{id}/documents` | 上传文档 | `api/routes/knowledge.py` | 🔲 占位 |
-| GET | `/api/v1/knowledge/{id}/documents` | 文档列表 | `api/routes/knowledge.py` | 🔲 占位 |
-| DELETE | `/api/v1/knowledge/{id}/documents/{doc_id}` | 删除文档 | `api/routes/knowledge.py` | 🔲 占位 |
-| GET | `/api/v1/agents/` | Agent 列表 | `api/routes/agents.py` | 🔲 占位 |
-| GET | `/api/v1/agents/{id}` | Agent 详情 | `api/routes/agents.py` | 🔲 占位 |
-| GET | `/api/v1/agents/{id}/memory` | Agent 共享记忆 | `api/routes/agents.py` | 🔲 占位 |
-| GET | `/api/v1/agents/swarm/todos` | 蜂巢 TODO 列表 | `api/routes/agents.py` | ✅ |
-| POST | `/api/v1/agents/swarm/todos` | 添加 TODO | `api/routes/agents.py` | 🔲 |
-| GET | `/api/v1/agents/swarm/reflections` | 自省日志 | `api/routes/agents.py` | ✅ |
-| WS | `/api/v1/ws/connect` | WebSocket 连接 | `api/routes/websocket.py` | ✅ |
-| GET | `/api/v1/learning/subscriptions` | 订阅列表 | `api/routes/learning.py` | ✅ |
-| POST | `/api/v1/learning/subscriptions` | 添加订阅 | `api/routes/learning.py` | ✅ |
-| DELETE | `/api/v1/learning/subscriptions/{id}` | 删除订阅 | `api/routes/learning.py` | ✅ |
-| GET | `/api/v1/learning/discoveries` | 发现列表 | `api/routes/learning.py` | ✅ |
-| GET | `/api/v1/learning/discoveries/{id}` | 发现详情 | `api/routes/learning.py` | 🔲 |
-| POST | `/api/v1/learning/discoveries/{id}/apply` | 应用发现 | `api/routes/learning.py` | 🔲 |
+| 模块 | 方法 | 路径 | 描述 | 文件 | 状态 |
+|------|------|------|------|------|------|
+| **基础** | GET | `/health/` | 健康检查 | `health.py` | ✅ |
+| **对话** | POST | `/chat/completions` | 对话补全 (SSE) | `chat.py` | ✅ |
+| **对话** | GET | `/chat/conversations` | 会话管理 (CRUD) | `chat.py` | ✅ |
+| **知识库** | ALL | `/knowledge/` | 库管理 (CRUD) / 搜索 / 链路 | `knowledge.py` | ✅ |
+| **知识库** | ALL | `/tags/` | 文档/库标签体系管理 | `tags.py` | ✅ |
+| **Agent** | GET | `/agents/swarm/todos` | 蜂巢任务监控 (TODO/Reflect) | `agents.py` | ✅ |
+| **Agent** | ALL | `/memory/` | 长期/短期记忆管理接口 | `memory.py` | ✅ |
+| **安全** | ALL | `/security/` | RBAC 权限 / 部门 / 密钥管理 | `security.py` | ✅ |
+| **可观测** | GET | `/observability/` | 检索质量 / 路由占比 / 成本监控 | `observability.py` | ✅ |
+| **治理** | ALL | `/service-governance/` | 限流 / 熔断器 / 智能路由配置 | `settings.py` | ✅ |
+| **评估** | ALL | `/evaluation/` | RAG 质量评估系统接口 | `evaluation.py` | ✅ |
+| **流水线** | ALL | `/pipelines/` | Ingestion Pipeline 配置与监控 | `pipelines.py` | ✅ |
+| **审计** | GET | `/audit/` | 系统操作审计日志检索 | `audit.py` | ✅ |
+| **学习** | ALL | `/learning/` | 外部订阅 / 发现列表 / 自动采集 | `learning.py` | ✅ |
+| **通信** | WS | `/ws/connect` | WebSocket 双工交互连接 | `websocket.py` | ✅ |
 
-### Schema (Pydantic 数据模型)
+### 核心解耦协议 (Schemas)
 
-| 名称 | 用途 | 文件 | 状态 |
+| 名称 | 职责 | 文件 |
+|------|------|------|
+| `KnowledgeProtocol` | 定义 KnowledgeResponse / Fragment 统一交换格式 | `knowledge_protocol.py` |
+| `ArtifactSchema` | Code / SQL / Doc 资产制品统一描述契约 | `artifact.py` |
+| `SwarmState` | 定义 Agent 编排过程中的状态转移上下文 | `chat.py` |
+| `SecurityClaims` | 定义 JWT 与 RBAC 权限点校验结构 | `auth.py` |
+
+### 数据库模型 (Models)
+
+| 分类 | 模型名称 | 文件 | 状态 |
 |------|------|------|------|
-| `ChatRequest` | 对话请求体 | `schemas/chat.py` | ✅ |
-| `ChatMessage` | 单条消息 | `schemas/chat.py` | ✅ |
-| `ConversationResponse` | 会话详情响应 | `schemas/chat.py` | ✅ |
-| `ConversationListItem` | 会话列表项 | `schemas/chat.py` | ✅ |
-| `ServerMessage` | WS 服务端消息 | `schemas/ws.py` | ✅ |
-| `ClientMessage` | WS 客户端消息 | `schemas/ws.py` | ✅ |
-| `ServerEventType` | WS 服务端事件枚举 | `schemas/ws.py` | ✅ |
-| `ClientEventType` | WS 客户端事件枚举 | `schemas/ws.py` | ✅ |
+| **用户/权限** | `User`, `Role`, `Permission`, `Department` | `security.py` | ✅ |
+| **对话驱动** | `Conversation`, `Message`, `AnswerFeedback` | `chat.py` | ✅ |
+| **知识资产** | `KnowledgeBase`, `Document`, `KbLink`, `Tag` | `knowledge.py` / `tags.py` | ✅ |
+| **治理/观测** | `Span`, `Trace`, `CircuitBreakerEvent` | `observability.py` | ✅ |
+| **质量中心** | `EvaluationItem`, `Report`, `Metrics` | `evaluation.py` | ✅ |
+| **后台任务** | `PipelineJob`, `PipelineStageLog`, `SyncLog` | `pipeline_config.py` | ✅ |
 
-### 数据库模型 (SQLModel)
+### 服务治理与业务逻辑 (Services)
 
-| 模型 | 表名 | 文件 | 状态 |
-|------|------|------|------|
-| `User` | users | `models/chat.py` | ✅ |
-| `Conversation` | conversations | `models/chat.py` | ✅ |
-| `Message` | messages | `models/chat.py` | ✅ |
-| `KnowledgeBase` | knowledge_bases | `models/knowledge.py` | ✅ |
-| `Document` | documents | `models/knowledge.py` | ✅ |
-
-### Service (业务逻辑)
-
-| 名称 | 职责 | 文件 | 状态 |
-|------|------|------|------|
-| `ConnectionManager` | WebSocket 连接管理 | `services/ws_manager.py` | ✅ |
-| `KnowledgeService` | 知识库与文档管理 | `services/knowledge_base.py` | ✅ |
-
-### Agent 模块
-
-| 名称 | 职责 | 文件 | 状态 |
-|------|------|------|------|
-| `SwarmOrchestrator` | Agent 蜂巢编排 (含持久化任务跟踪) | `agents/swarm.py` | ✅ Phase 5 MVP |
-| `AgentDefinition` | Agent 定义数据类 | `agents/swarm.py` | ✅ |
-| `SharedMemoryManager` | 共享记忆管理 (含 TODO/Trace 持久化) | `agents/memory.py` | ✅ |
-| `TodoItem` | 共享 TODO 数据模型 | `models/agents.py` | ✅ |
-| `ReflectionEntry` | 自省日志数据模型 | `models/agents.py` | ✅ |
-| `LLMRouter` | 多 LLM 路由 | `agents/llm_router.py` | 🔲 框架 |
-| `ModelConfig` | LLM 配置数据类 | `agents/llm_router.py` | ✅ |
-| `MCPManager` | MCP 服务管理 | `agents/mcp_manager.py` | 🔲 框架 |
-| `ExternalLearningEngine` | 外部学习引擎 | `agents/learning.py` | 🔲 框架 |
-| `TechDiscovery` | 技术发现数据模型 | `agents/learning.py` | ✅ |
-| `Subscription` | 订阅数据模型 | `agents/learning.py` | ✅ |
-
-### Batch Engine (批处理与技能)
-
-| 名称 | 职责 | 文件 | 状态 |
-|------|------|------|------|
-| `JobManager` | 任务编排与状态管理 | `batch/engine.py` | ✅ 核心 |
-| `SkillRegistry` | 动态技能注册中心 | `skills/registry.py` | ✅ 核心 |
-| `IngestionSkill` | 文件摄取技能 | `skills/ingestion/` | ✅ |
-
-### 核心配置
-
-| 名称 | 职责 | 文件 | 状态 |
-|------|------|------|------|
-| `Settings` | 全局配置 | `core/config.py` | ✅ |
-| `settings` | 配置单例 | `core/config.py` | ✅ |
-| `logger` | 统一日志 (loguru) | `core/logging.py` | ✅ |
-| `setup_logging` | 环境切换日志配置 | `core/logging.py` | ✅ |
-| `engine` / `async_session_factory` | 数据库引擎和会话工厂 | `core/database.py` | ✅ |
-| `init_db` / `close_db` | 数据库生命周期管理 | `core/database.py` | ✅ |
-| `get_db_session` | 数据库 Session 依赖注入 | `core/database.py` | ✅ |
-| `AppError` / `NotFoundError` / ... | 统一异常层级 (6 种) | `core/exceptions.py` | ✅ |
-| `register_exception_handlers` | 全局异常处理器注册 | `core/exceptions.py` | ✅ |
-| `StorageBackend` | 文件存储抽象接口 | `core/storage.py` | ✅ |
-| `VectorStore` | 向量存储抽象接口 | `core/vector_store.py` | ✅ |
-| `GraphStore` | 知识图谱接口 (Neo4j) | `core/graph_store.py` | ✅ |
-| `Reranker` | 重排序模型抽象接口 | `core/reranker.py` | ✅ |
-| `LocalStorage` | 本地存储实现 | `core/storage.py` | ✅ |
-| `MinIOStorage` | MinIO 存储 (框架) | `core/storage.py` | 🔲 |
-| `RetrievalService` | 检索与重排序服务 | `services/retrieval.py` | ✅ |
-| `get_storage` | 存储后端工厂 | `core/storage.py` | ✅ |
-| `hash_password` / `verify_password` | 密码哈希 | `core/security.py` | ✅ |
-| `create_access_token` / `decode_access_token` | JWT Token 管理 | `core/security.py` | ✅ |
-| `get_db` | 依赖注入别名集合 | `core/deps.py` | ✅ |
+| 名称 | 职责 | 实现状态 |
+|------|------|------|
+| `RAGGateway` | **单一知识入口**: 实现 KB 熔断、策略路由、结果聚合 | ✅ 已上线 |
+| `FallbackOrchestrator` | **降级编排器**: `Cache -> Local -> Backup` 自动回退机制 | ✅ 已上线 |
+| `ClawRouterGovernance` | **智能架构路由**: 按复杂度/成本动态分派 Eco/Premium 模型 | ✅ 已上线 |
+| `DependencyCircuitBreaker` | **依赖断路器**: 针对 ES/Neo4j/LLM 的滑动窗口错误隔离 | ✅ 已上线 |
+| `RateLimitGovernanceCenter` | **流量治理**: 令牌桶限流 (Route/User/Key 粒度) | ✅ 已上线 |
+| `CacheService` | **JIT 路由缓存**: 语义级别的路由匹配决策加速 | ✅ 已实现 |
+| `KnowledgeService` | 知识库全生命周期驱动逻辑 | ✅ |
+| `AuditService` | 系统敏感操作全量埋点与持久化 | ✅ |
+| `WriteEventBus` | 跨服务异步写通知 (Document -> Indexing) | ✅ |
 
 ---
 
 ## ⚛️ 前端 (Frontend)
 
-### 页面
+### 功能页面 (Pages)
 
-| 名称 | 路径 | 描述 | 文件 | 状态 |
-|------|------|------|------|------|
-| `DashboardPage` | `/` | 概览首页 (统计+快捷入口) | `pages/DashboardPage.tsx` | ✅ |
-| `KnowledgePage` | `/knowledge` | 知识库管理 | `pages/KnowledgePage.tsx` | ✅ 占位 |
-| `AgentsPage` | `/agents` | Agent 蜂巢监控面板 | `pages/AgentsPage.tsx` | ✅ |
-| `LearningPage` | `/learning` | 技术动态/外部学习 | `pages/LearningPage.tsx` | ✅ |
-| `SettingsPage` | `/settings` | 系统设置 (LLM/Agent/API Key) | `pages/SettingsPage.tsx` | ✅ 基础 |
-| `CanvasLabPage` | `/canvas-lab` | AntV 技术验证页 (X6 + G6 simple demos) | `pages/CanvasLabPage.tsx` | ✅ |
-| ~~`ChatPage`~~ | ~~`/chat`~~ | ~~已废弃 — Chat 现在是ChatPanel~~ | `pages/ChatPage.tsx` | 🚭 废弃 |
-
-### 通用组件 (components/common/)
-
-| 名称 | 基于 | 描述 | 状态 |
+| 名称 | 路径 | 职责 | 状态 |
 |------|------|------|------|
-| `AppLayout` | Layout + ChatPanel | AI-First 全局布局 (顶栏+内容+Chat面板) | ✅ |
-| `PageContainer` | Typography + Flex | 页面统一容器 (标题+描述+操作+内容) | ✅ |
-| `StatCard` | Card + Statistic | 统计数据卡片 (图标+颜色预设) | ✅ |
-| `EmptyState` | Card + Typography | 统一空状态展示 | ✅ |
-| `StatusTag` | Tag | 统一状态标签 (8 种状态) | ✅ |
+| `DashboardPage` | `/` | 统计看板与快捷入口 | ✅ |
+| `KnowledgePage` | `/knowledge` | 知识库管理与上传 | ✅ |
+| `AgentsPage` | `/agents` | Agent 蜂巢任务与自省流监控 | ✅ |
+| `AuditPage` | `/audit` | 系统安全审计日志列表 | ✅ |
+| `SecurityPage` | `/security` | RBAC 权限与部门拓扑配置 | ✅ |
+| `EvalPage` | `/evaluation` | RAG 质量比对与评估报告展示 | ✅ |
+| `PipelineBuilderPage`| `/pipelines` | Ingestion 流水线编排画布 | ✅ |
+| `LearningPage` | `/learning` | 外部订阅与资讯发现中心 | ✅ |
+| `SettingsPage` | `/settings` | LLM 参数、密钥与系统全局配置 | ✅ |
+| `BatchPage` | `/batch` | 批量数据处理与任务队列监控 | ✅ |
 
-### 领域组件 (⚠️ 注意: 涉及 AI 会话必须遵循 X-Skills 规范)
+### 逻辑组件 (Hooks & Providers)
 
-> **[UI 组件红线]**: 所有在聊天交互流中出现的生成卡片，禁止手写正则匹配(例如 `[ACTION: xxx]`)。必须将组件注册到 `@ant-design/x-skill` 标准协议中，同时强制应用 `frontend-design` Skill 赋予高级视觉质感。
-
-| 名称 | 领域 | 描述 | 目录 | 状态 |
-|------|------|------|------|------|
-| `ChatPanel` | chat | AI 对话面板 (永驻右侧, 上下文感知) | `components/chat/` | ✅ |
-| `ActionButton` | chat | AI 操作按钮 (导航/执行/弹窗) | `components/chat/` | ✅ |
-| `AgentCard` | agents | Agent 状态卡片 | `components/agents/` | ✅ |
-| `X6SimpleCanvas` | canvas | X6 流程画布示例组件（含缩放/归中/动态追加步骤/节点选择反馈） | `components/canvas/X6SimpleCanvas.tsx` | ✅ |
-| `G6SimpleGraph` | canvas | G6 关系图示例组件（含聚焦节点/缩放/状态图例与交互工具栏） | `components/canvas/G6SimpleGraph.tsx` | ✅ |
-
-### 前端可视化技术栈（AI 生成优先复用）
-
-| 技术 | 主要场景 | 当前接入 | 复用建议 |
-|------|---------|---------|---------|
-| `@antv/x6` | 流程编排、节点画布编辑 | ✅ `CanvasLabPage` simple demo | 新增编排能力时优先复用 `X6SimpleCanvas` 的初始化模式 |
-| `@antv/g6` | Agent 关系图、知识图谱、拓扑链路 | ✅ `CanvasLabPage` simple demo | 新增图谱能力时优先复用 `G6SimpleGraph` 的布局与状态映射模式 |
-| `@xyflow/react` | 现有 Pipeline Builder 页面 | ✅ 已在用 | 作为过渡方案，后续逐步迁移到 X6 |
-| `react-force-graph-2d` | 现有图谱/链路视图 | ✅ 已在用 | 作为过渡方案，后续逐步迁移到 G6 |
-
-### 样式系统 (styles/)
-
-| 文件 | 描述 | 状态 |
+| 名称 | 职责 | 文件 |
 |------|------|------|
-| `variables.css` | CSS 变量 (渐变/布局/间距/阴影/动画/层级) | ✅ |
-| `mixins.module.css` | 可复用 CSS Module 模式 (毛玻璃/渐变文字/布局工具) | ✅ |
-| `animations.css` | 共通动画关键帧 | ✅ |
+| `useSSE` | 支持 POST 的高级流式通信 Hook (含重连逻辑) | `useSSE.ts` |
+| `useWebSocket` | WebSocket 连接管理与消息队列缓存 | `useWebSocket.ts` |
+| `useChat` | 对话交互、消息渲染与上下文感知逻辑封装 | `useChat.ts` |
+| `XProvider` | AntD X 扩展组件全局注入器 | `App.tsx` |
 
-### Hooks
+### 状态中心 (Stores)
 
-| 名称 | 描述 | 文件 | 状态 |
-|------|------|------|------|
-| — | 待实现 (useSSE, useWebSocket, useChat) | — | 🔲 |
-
-### Stores (Zustand)
-
-| 名称 | 描述 | 文件 | 状态 |
-|------|------|------|------|
-| `useChatStore` | 对话状态 (消息、会话、生成状态) | `stores/chatStore.ts` | ✅ |
-| `useWSStore` | WebSocket 连接状态、通知 | `stores/wsStore.ts` | ✅ |
-
-### Services (API 调用)
-
-| 名称 | 描述 | 文件 | 状态 |
-|------|------|------|------|
-| `api` | Axios 实例 (拦截器/认证/错误处理) | `services/api.ts` | ✅ |
-| `chatApi` | 对话 API (CRUD + SSE 流式) | `services/chatApi.ts` | ✅ 框架 |
-
-### Types
-
-| 名称 | 描述 | 文件 | 状态 |
-|------|------|------|------|
-| 全类型定义 | Chat, Agent, KB, WS, Todo, Discovery | `types/index.ts` | ✅ |
-
-
-
----
-
-## 🧩 Skills
-
-### 核心 Agent Skills
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `rag_search` | 知识库检索与问答（语义搜索/混合检索/多库查询） | `skills/rag_search/` | ✅ 完善 |
-| `web_search` | 网络搜索增强（搜索策略/内容提取/多源验证） | `skills/web_search/` | ✅ 完善 |
-| `data_analysis` | SQL 查询与数据分析（安全查询/统计分析/可视化） | `skills/data_analysis/` | ✅ 完善 |
-
-### 文档处理 Skills
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `docx` | Word 文档创建/编辑/分析（含修订追踪和批注） | `skills/docx/` | ✅ 已集成 |
-| `pdf` | PDF 处理全套（合并/拆分/文字提取/OCR/水印） | `skills/pdf/` | ✅ 已集成 |
-| `pptx` | PowerPoint 演示文稿处理（读取/编辑/创建/QA） | `skills/pptx/` | ✅ 已集成 |
-| `xlsx` | Excel 电子表格处理（公式/格式/财务模型） | `skills/xlsx/` | ✅ 已集成 |
-
-### 设计与创意 Skills
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `frontend-design` | 高品质前端 UI 设计（美学指导/HiveMind 设计系统） | `skills/frontend-design/` | ✅ 已集成 |
-| `canvas-design` | 高品质视觉设计（PDF/PNG 艺术产出） | `skills/canvas-design/` | ✅ 已集成 |
-| `algorithmic-art` | p5.js 算法艺术生成（交互式生成艺术） | `skills/algorithmic-art/` | ✅ 已集成 |
-| `brand-guidelines` | HiveMind 品牌视觉规范（配色/字体/间距） | `skills/brand-guidelines/` | ✅ 已集成 |
-| `theme-factory` | 主题样式工厂（10+ 预设主题） | `skills/theme-factory/` | ✅ 已集成 |
-
-### 工程工具 Skills
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `mcp-builder` | MCP Server 构建指南 | `skills/mcp-builder/` | ✅ 已集成 |
-| `skill-creator` | Skill 元技能（创建其他 Skills 的指南） | `skills/skill-creator/` | ✅ 已集成 |
-| `webapp-testing` | Playwright Web 应用测试 | `skills/webapp-testing/` | ✅ 已集成 |
-| `web-artifacts-builder` | React/Tailwind 独立 HTML 制品构建 | `skills/web-artifacts-builder/` | ✅ 已集成 |
-| `slack-gif-creator` | Slack 优化 GIF 动图制作 | `skills/slack-gif-creator/` | ✅ 已集成 |
-
-### 🧠 智能工程 Skills (Engineering Intelligence)
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `backend-expert` | 后端五层架构生成专家（标准/安全/高性能） | `skills/backend-expert/` | ✅ 已验证 |
-| `code-intelligence` | 架构拓扑扫描与影响评估专家 | `skills/code-intelligence/` | ✅ 已验证 |
-| `project-steward` | 项目资产登记与合规性维护管家 | `skills/project-steward/` | ✅ 已验证 |
-| `generate-design-doc` | 严谨的 4 层架构设计说明书生成器 | `.agent/skills/generate-design-doc/` | ✅ 已验证 |
-| `generate-tests` | 基于 Mock 决策树的测试代码生成器 | `.agent/skills/generate-tests/` | ✅ 已抽检 |
-| `github-collaboration` | GitHub Discussions & Projects 协作集成 | `.agent/skills/github-collaboration/` | ✅ 已实装 |
-| `architectural-mapping` | 基于 Neo4j 的架构资产图谱映射 | `.agent/skills/architectural-mapping/` | ✅ 已入库 |
-
-### 写作协作 Skills
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| `doc-coauthoring` | 结构化文档协作撰写工作流 | `skills/doc-coauthoring/` | ✅ 已集成 |
-| `internal-comms` | 内部沟通文档撰写（状态报告/周报/ADR） | `skills/internal-comms/` | ✅ 已集成 |
-
-
----
-
-## 🔧 MCP Servers
-
-| 名称 | 描述 | 目录 | 状态 |
-|------|------|------|------|
-| — | 尚未实现 | — | 🔲 |
-
----
-
-## 📐 共通化记录
-
-> 记录已识别的共通化模式，避免重复造轮子。
-
-### 后端共通模式
-| 模式 | 说明 | 使用位置 |
-|------|------|---------|
-| CRUD Service 基类 | 通用增删改查 | 待实现 — 所有 Service 应继承 |
-| 分页响应 Schema | 统一分页格式 | 待实现 — 所有列表 API |
-| 异常处理 | 统一错误响应格式 | 待实现 — core/exceptions.py |
-| 事件发布 | 内部事件总线 | 待实现 — 用于 WS 推送触发 |
-
-### 前端共通模式
-| 模式 | 说明 | 使用位置 |
-|------|------|---------|
-| useSSE Hook | SSE 流式连接封装 | 待实现 — 对话页面 |
-| useWebSocket Hook | WS 持久连接封装 | 待实现 — 全局 |
-| ErrorDisplay 组件 | 统一错误展示 | 待实现 — 所有页面 |
-| LoadingState 组件 | 统一加载态 | 待实现 — 所有数据加载 |
-| ConfirmAction 组件 | 统一确认弹窗 | 待实现 — 所有危险操作 |
-
----
-
-> 💡 **状态图例**: ✅ 已实现 | 🔲 占位/框架 | 🚧 开发中 | ❌ 已废弃
-
----
-
-## 🔗 文档 ↔ 代码 追溯矩阵 (Traceability)
-
-> 每个需求都可以追溯到设计文档、代码实现和测试用例。
-
-| 需求 | 设计文档 | 核心代码 | 测试 | API 文档 | 状态 |
-|------|---------|---------|------|---------|------|
-| REQ-001 Agent 蜂巢 | DES-001 (待) | `agents/swarm.py` | ✅ 任务持久化 | `docs/api/agents.md` (待) | 🚧 |
-| REQ-002 共享记忆 | DES-002 (待) | `agents/memory.py` | ✅ TODO/自省持久化 | `docs/api/agents.md` (待) | 🚧 |
-| REQ-003 对外学习 | DES-003 (待) | `agents/learning.py` | 待编写 | `docs/api/learning.md` (待) | 🔲 |
-| REQ-004 多 LLM | — | `agents/llm_router.py` | 待编写 | — | 🔲 |
-| REQ-005 MCP+Skills | — | `agents/mcp_manager.py`, `agents/skills.py` | 待编写 | — | 🔲 |
-| REQ-006 通信 | ADR-001 ✅ | `routes/chat.py`, `routes/websocket.py`, `services/ws_manager.py` | 待编写 | `docs/api/chat.md` (待) | 🔲 |
-| REQ-007 开发治理 | — | `.agent/rules/*`, `.agent/workflows/*` | N/A | `docs/README.md` ✅ | 🟢 |
-| REQ-008 RAG Pipeline & 质量体系 | REQ-008 ✅ | `services/retrieval/`, `services/indexing.py` | 待编写 | — | 🔲 |
-| REQ-009 RAG 进阶能力 | REQ-009 ✅ | `services/retrieval/`, `core/graph_store.py`, `services/memory/` | 待编写 | — | 🔲 |
-| REQ-010 数据脱敏体系 | REQ-010 ✅ | 待实现 | 待编写 | — | 🔲 |
-| REQ-011 变更履历 RAG | — | `services/indexing.py` | 待编写 | — | 🟡 |
-| REQ-012 Code Vault | REQ-012 ✅ | 待实现 | 待编写 | — | 🟡 |
-
----
-
-## 📖 文档索引
-
-| 类型 | 文档 | 描述 |
+| 名称 | 职责 | 实现方式 |
 |------|------|------|
-| 📋 需求 | `docs/requirements/REQ-001-agent-swarm.md` | Agent 蜂巢架构 |
-| 📋 需求 | `docs/requirements/REQ-002-shared-memory.md` | 共享记忆与自省 |
-| 📋 需求 | `docs/requirements/REQ-003-external-learning.md` | 对外学习机制 |
-| 📋 需求 | `docs/requirements/REQ-004-multi-llm.md` | 多 LLM 路由 |
-| 📋 需求 | `docs/requirements/REQ-005-mcp-skills.md` | MCP 与 Skills |
-| 📋 需求 | `docs/requirements/REQ-006-communication.md` | 混合通信 |
-| 📋 需求 | `docs/requirements/REQ-007-dev-governance.md` | 开发治理 |
-| 🏗️ 架构 | `docs/design/architecture.md` | 整体架构设计 |
-| 📝 决策 | `docs/changelog/decisions/ADR-001-sse-ws-hybrid.md` | SSE+WS 方案 |
-| 📝 变更 | `docs/changelog/CHANGELOG.md` | 版本变更记录 |
-| 📏 规则 | `.agent/rules/project-structure.md` | 项目结构规范 |
-| 📏 规则 | `.agent/rules/coding-standards.md` | 编码规范 |
-| 📏 规则 | `.agent/rules/frontend-design-system.md` | 前端设计系统 |
-| 🔍 代码检查 | `.agent/checks/code_quality.py` | 类 SonarQube 质量检查系统 |
-| 🔍 代码检查 | `.agent/checks/run_checks.ps1` | PowerShell 快捷检查脚本 |
+| `useAuthStore` | 记录 Profile、角色权限及 Mock 角色切换 | Zustand |
+| `useChatStore` | 核心消息树、Panel 开合、Client Event 日志 | Zustand |
+| `useWSStore` | 实时系统消息、通知红点状态 | Zustand |
 
 ---
 
-## 🔄 工作流索引
+## 🏗️ 架构底座 (Core Architecture)
 
-| Slash Command | 描述 | 触发时机 |
-|--------------|------|---------|
-| `/develop-feature` | 开发新功能标准流程 | 每次开发新功能前 |
-| `/create-component` | 创建前端组件 | 需要新增前端组件时 |
-| `/create-api` | 创建后端 API | 需要新增 API 端点时 |
-| `/extract-requirement` | 从对话中提取需求 | 用户提出新需求时 |
-| `/decompose-feature` | 分解复杂功能 | 功能复杂度高时 |
-| `/code-review` | 代码自省与自查 | 达到版本里程碑时 |
+| 组件 | 对应设计/规则 | 描述 |
+|------|--------------|------|
+| **错误边界** | `ErrorBoundary.tsx` | 捕获组件渲染崩溃，提供自愈重置机制 |
+| **权限卫兵** | `AccessGuard.tsx` | 细粒度的页面/功能位级 RBAC 拦截 |
+| **统一响应** | `ApiResponse` (后端) | 遵循 `error_code / message / detail` 标准协议 |
+| **治理韧性** | `frontend_resilience_governance.md` | 前端容错与 APM 治理专项文档 |
+| **设计系统** | `frontend-design` Skill | Cyber-Refined 赛博精致视觉规范 |
+
+---
+
+> 🔗 **关联索引**:
+> - [TODO.md](TODO.md) — 任务优先级与进度
+> - [docs/architecture/](docs/architecture/) — 深度设计文档

@@ -58,8 +58,11 @@ async def chat_completions(
             headers={"Retry-After": str(retry_after)},
         )
 
+    # 🛰️ [FE-GOV-003]: 提取前端语言偏好
+    accept_language = request.headers.get("accept-language")
+
     # 获取生成器
-    generator = ChatService.chat_stream(body, user_id=CURRENT_USER_ID)
+    generator = ChatService.chat_stream(body, user_id=CURRENT_USER_ID, accept_language=accept_language)
 
     return StreamingResponse(
         generator,

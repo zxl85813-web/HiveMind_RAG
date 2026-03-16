@@ -300,6 +300,7 @@ export interface EvaluationReport {
     id: string;
     set_id: string;
     kb_id: string;
+    kb_name?: string; // Derived or included for UI convenience
 
     // M2.5 Multi-model metrics
     model_name: string;

@@ -1,0 +1,24 @@
+{# Template for generating Cypher queries based on the ontology #}
+/**
+ * Task: {{ task_description }}
+ * Goal: {{ goal }}
+ */
+
+{% if mode == 'impact_analysis' %}
+// Impact Analysis: Find all downstream dependencies for a given file
+MATCH (f:File {path: "{{ target_path }}"})<-[:DEPENDS_ON*1..3]-(downstream:File)
+RETURN DISTINCT downstream.path, downstream.extension
+{% elif mode == 'context_discovery' %}
+// Context Discovery: Find all designs and docs related to a requirement
+MATCH (req:Requirement)
+WHERE req.id CONTAINS "{{ req_id }}"
+OPTIONAL MATCH (req)-[:EVOLVES_TO]->(des:Design)
+OPTIONAL MATCH (des)-[:IMPLEMENTED_BY]->(file:File)
+RETURN req.id as req, des.id as design, collect(file.path) as files
+{% else %}
+// General Search
+MATCH (n)
+WHERE n.title CONTAINS "{{ query_text }}" OR n.id CONTAINS "{{ query_text }}"
+RETURN n
+LIMIT 10
+{% endif %}

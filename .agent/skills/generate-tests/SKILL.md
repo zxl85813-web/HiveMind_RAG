@@ -7,37 +7,34 @@ description: Generate comprehensive test cases (dual-view) for a given backend o
 
 > **When to use**: When the user asks you to "write tests for X" or during the implementation phase of a feature, to automatically generate rigorous dual-view tests based on `.agent/rules/testing_guidelines.md`.
 
-## 🛠 Prerequisites
+## 📚 Skill Assets (Three-Layer Model)
 
-1.  Read `.agent/rules/testing_guidelines.md` to understand the Testing Pyramid, Mock Decision Tree, and Dual-View approaches.
-2.  Understand the target file you are generating tests for. If the user just gave a path, `view_file` the target path first.
-3.  Look for equivalent fixture files in `backend/tests/conftest.py` if testing backend, or common rendering wrappers if testing frontend.
+### 1. Domain Library (`library/`)
+- **testing-standards.md**: 测试规范（Mocking 准则、覆盖率要求、命名建议）。
 
-## 📝 Execution Steps
+### 2. Templates (`prompts/`)
+- **test-template.j2**: Pytest 异步/同步测试模板。支持自动生成 Arrange-Act-Assert 结构。
 
-### Step 1: Analyze Target Context
+### 3. Scripts (`scripts/`)
+- **test-runner.py**: 自动化的单元测试运行器。生成测试代码后，务必运行此脚本进行闭环验证。
+
+## 📝 Execution Steps (Enhanced)
+
+### Step 1: Analyze & Context Ingestion
 - Identify if the file is a Python Backend Service, an API Route, or a React Frontend Component.
-- List out all public methods/endpoints exported by the file.
-- Identify the dependencies that are imported at the top of the file (database sessions, external APIs, etc.).
+- Read `library/testing-standards.md` to ensure mock strategy aligns with project rules.
 
 ### Step 2: Determine Mocking Strategy
-Apply the [Mock Decision Tree](../rules/testing_guidelines.md#04-mock-决策树-when-to-mock).
-- Native core logic? Do not mock.
-- LLM Call? Mock it.
-- Session in an API Test? Use the SQLite memory session, do not mock.
+- Apply the rules from the library to decide what dependencies to mock.
+- Identify LLM calls, DB sessions, and External APIs.
 
-### Step 3: Scaffold Test File
-Create the test file at the mirror location dictated by the guidelines:
-- `backend/app/services/xxx.py` -> `backend/tests/unit/services/test_xxx.py`
-- `frontend/src/components/xxx/Yyy.tsx` -> `frontend/src/components/xxx/__tests__/Yyy.test.tsx`
+### Step 3: Generation via Template
+- Fill the variables for `prompts/test-template.j2`.
+- Create the test file at the mirror location (e.g., `backend/tests/unit/...`).
 
-### Step 4: Write Dual-View Tests
-Generate tests that cover both viewpoints:
-1.  **Contract View**: e.g., `test_xxx_success_flow_returns_apiresponse`
-2.  **Logic/Resilience View**: e.g., `test_xxx_database_error_raises_500`
+### Step 4: Closed-loop Verification
+- Run `python .agent/skills/generate-tests/scripts/test-runner.py <path_to_test_file>`.
+- If tests fail, analyze output, fix the generated code, and re-run until passing.
 
-### Step 5: Implementation & Refinement
-Write the actual assertion code. Make sure that Pydantic V2 models are instantiated correctly as per the pitfall warnings in the guidelines.
-
-### Step 6: Inform the User
-Output a markdown summary showing where the new test file was created, which branches it covers, and a suggested terminal command (like `pytest backend/tests/...`) for the user to run the tests locally.
+### Step 5: Final Output
+- Provide the final test code along with a summary of covered cases.

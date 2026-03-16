@@ -1,39 +1,68 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
-import type { ConversationListItem } from '../../types';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { chatApi as _chatApi } from '../../services/chatApi'; // TODO: 用 chatApi 替换内联 mock
+import { chatApi, type ConversationItem, type ConversationDetail } from '../../services/chatApi';
 
-// Query Keys 常量化
-export const QUERY_KEYS = {
-    CONVERSATIONS: 'conversations',
-    CONVERSATION: (id: string) => ['conversation', id],
+/**
+ * 🛰️ [FE-GOV-001]: 对话与会话管理 Hook (Standardized)
+ */
+
+export const CHAT_QUERY_KEYS = {
+    CONVERSATIONS: ['conversations'] as const,
+    CONVERSATION: (id: string) => ['conversation', id] as const,
 };
 
-// 获取会话列表 Hook
-export function useConversationsQuery(options?: UseQueryOptions<ConversationListItem[], Error>) {
+/** 
+ * 获取所有历史会话列表
+ */
+export function useConversationsQuery(options?: Partial<UseQueryOptions<ConversationItem[], Error>>) {
     return useQuery({
-        queryKey: [QUERY_KEYS.CONVERSATIONS],
+        queryKey: CHAT_QUERY_KEYS.CONVERSATIONS,
         queryFn: async () => {
-            // 模拟 API 调用，实际替换为 chatApi.getConversations() 
-            return [];
+            const res = await chatApi.getConversations();
+            return res.data;
         },
-        ...options
+        staleTime: 1000 * 60 * 2, // 2分钟缓存
+        ...options as any
     });
 }
 
-// 创建会话 Mutation Hook
-export function useCreateConversationMutation() {
+/** 
+ * 获取单个会话详情 (消息流)
+ */
+export function useConversationDetailQuery(id: string | null, options?: Partial<UseQueryOptions<ConversationDetail | null, Error>>) {
+    return useQuery({
+        queryKey: CHAT_QUERY_KEYS.CONVERSATION(id || 'none'),
+        queryFn: async () => {
+            if (!id) return null;
+            const res = await chatApi.getConversation(id);
+            return res.data;
+        },
+        enabled: !!id,
+        ...options as any
+    });
+}
+
+/** 
+ * 删除会话 Mutation
+ */
+export function useDeleteConversationMutation() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (title: string) => {
-            // 模拟 API 调用，实际替换为 chatApi.createConversation(title)
-            return { id: Date.now().toString(), title };
-        },
+        mutationFn: (id: string) => chatApi.deleteConversation(id),
         onSuccess: () => {
-            // 创建成功后，刷新列表 Query
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            // 删除成功后使列表失效
+            queryClient.invalidateQueries({ queryKey: CHAT_QUERY_KEYS.CONVERSATIONS });
         }
+    });
+}
+
+/**
+ * 提交反馈 Mutation
+ */
+export function useSubmitFeedbackMutation() {
+    return useMutation({
+        mutationFn: ({ messageId, rating, comment }: { messageId: string; rating: number; comment?: string }) => 
+            chatApi.submitFeedback(messageId, rating, comment)
     });
 }

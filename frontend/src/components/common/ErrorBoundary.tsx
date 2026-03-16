@@ -31,6 +31,12 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        import('../../core/MonitorService').then(({ monitor }) => {
+            monitor.reportError(error, {
+                componentStack: errorInfo.componentStack,
+                type: 'REACT_BOUNDARY'
+            });
+        });
         console.error('🧩 [ErrorBoundary] Uncaught error:', error, errorInfo);
     }
 

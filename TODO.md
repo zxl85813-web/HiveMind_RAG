@@ -68,6 +68,7 @@
 | 评审层（Reflection） | Reflection Agent | ⬜ 将自动审核规则引擎接入统一评分卡 | ⬜ Multi-Grader 三评分器联调（Code/Model/Human） | ⬜ 失败样本自动回灌提示词优化 |
 | 治理层（Governance） | Governance Agent | ⬜ 修复 BUG-004（同步 Session → AsyncSession） | ⬜ 脱敏策略按知识库隔离配置 | ⬜ 安全等级 L1-L4 全链路联动 |
 | 可观测层（Observability） | Observability Agent | ⬜ 增加检索命中率/空结果率/延迟指标面板 | ⬜ V3 Trace 全链路收口（Redis Buffer + FileTrace/AgentSpan） | ⬜ 质量-成本联合优化看板 |
+| 前端治理层（FE Governance） | FE Architect | ✅ **FE-GOV-001**, **FE-GOV-003** | ✅ **FE-GOV-002** | ⬜ **FE-GOV-005**: PWA/离线资源缓存 |
 
 ### 0.2 本周执行序列（按依赖排序）
 
@@ -650,9 +651,16 @@
 - 🟡 Step-6: `TASK-SG-007`
 - ✅ Step-7: `GATE-SG-1~4` 联合验收
 
-#### Phase 6: 前端与交互韧性 (Frontend Resilience) ⬜
-- ⬜ **组件级容错与断路 (Error Boundaries)**: Agent 流式请求失败时，停止空窗阻塞，展示可读的降级页面（例如离线/维护状态UI）。
-- ⬜ **状态树切分 (State Segmentation)**: 剥离重度计算的渲染状态 (如 ForceGraph) 与高频交互状态 (Chat Stream)，避免连锁卡顿渲染。
+#### Phase 6: 前端治理与交互韧性 (Frontend Governance & Resilience) ⬜
+
+> 📑 参考文档: `docs/architecture/frontend_resilience_governance.md`
+
+- ✅ **FE-GOV-001 (P0)**: **数据流标准化** — 淘汰 `useEffect` 手写请求，全面迁移至 React Query。实现核心 Hook 集：`useKnowledgeBases`, `useAgents`, `useConversations`, `useDashboardStats`, `useSettings`。
+- ✅ **FE-GOV-002 (P1)**: **全链路 APM** — 集成 Sentry 捕获渲染/脚本异常；接入 Web Vitals 指标监控卡顿与 TTI。
+- ⬜ **FE-GOV-003 (P1)**: **i18n-Agent 桥接** — 将前端 UI 语言状态 (`lng`) 自动同步至 LLM 系统提示词上下文。
+- ⬜ **FE-GOV-004 (P2)**: **可视化分包优化** — 针对 X6/G6/ForceGraph 实施按需动态加载，消除非实验室页面的庞大库负担。
+- ⬜ **FE-GOV-005 (P2)**: **PWA 离线韧性** — 支持静态资产 Service Worker 缓存，并实现弱网下的无感状态恢复。
+- ⬜ **FE-GOV-006 (P2)**: **组件级错误边界覆盖** — 对图谱、编辑器、文件预览等重量级组件实现独立捕获与自愈。
 
 #### 架构底座 (Philosophy Implementation)
 - ⬜ **Skill 纯函数化审计**: 确保 `app/skills/` 下所有逻辑无状态、无副作用

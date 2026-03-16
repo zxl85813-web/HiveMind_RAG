@@ -78,6 +78,7 @@ class PromptEngine:
         self,
         agents: list[dict[str, str]],
         memory_context: str = "",
+        language: str = "zh-CN",
     ) -> str:
         """
         构建 Supervisor 路由 Prompt。
@@ -98,6 +99,7 @@ class PromptEngine:
             schemas=self._schemas,
             agents=agents,
             memory_context=memory_context,
+            language=language,
         )
 
         self._log_prompt("supervisor_routing", prompt)
@@ -111,6 +113,7 @@ class PromptEngine:
         memory_context: str = "",
         tools_available: list[str] | None = None,
         prompt_variant: str = "default",
+        language: str = "zh-CN",
     ) -> str:
         """
         构建 Agent 执行任务 Prompt。
@@ -143,6 +146,7 @@ class PromptEngine:
             memory_context=memory_context,
             tools_available=tools_available or [],
             prompt_variant=prompt_variant,
+            language=language,
         )
 
         self._log_prompt(f"agent_task:{agent_name}", prompt)
@@ -154,6 +158,7 @@ class PromptEngine:
         agent_name: str,
         agent_response: str,
         task_description: str,
+        language: str = "zh-CN",
     ) -> str:
         """构建 Reflection 质量评估 Prompt。"""
         prompt = self._render_template(
@@ -164,6 +169,7 @@ class PromptEngine:
             agent_name=agent_name,
             agent_response=agent_response,
             task_description=task_description,
+            language=language,
         )
 
         self._log_prompt("reflection", prompt)

@@ -20,12 +20,14 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@antv/g6": "^5.0.44",
-    "@antv/x6": "^2.18.1",
     "@ant-design/x": "^2.3.0",
     "@ant-design/x-sdk": "^2.3.0",
     "@ant-design/x-skill": "^2.3.0",
+    "@antv/g6": "^5.0.44",
+    "@antv/x6": "^2.18.1",
     "@microsoft/fetch-event-source": "^2.0.1",
+    "@sentry/browser": "^10.43.0",
+    "@sentry/react": "^10.43.0",
     "@tanstack/react-query": "^5.90.21",
     "@xyflow/react": "^12.10.1",
     "antd": "^6.3.0",
@@ -43,6 +45,7 @@
     "react-router-dom": "^7.13.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "zod": "^4.3.6",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
