@@ -40,6 +40,7 @@ export interface SwarmStats {
     today_requests: number;
     shared_todos: number;
     reflection_logs: number;
+    total_discoveries: number;
 }
 
 export interface McpServerStatus {

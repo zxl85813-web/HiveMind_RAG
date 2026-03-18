@@ -104,7 +104,7 @@ export const DashboardPage: React.FC = () => {
                 <Col xs={12} md={6}>
                     <StatCard 
                         title={t('dashboard.stats.discoveries')} 
-                        value={34} // TODO: Add discoveries to backend stats
+                        value={stats?.total_discoveries ?? 0} 
                         icon={<BulbOutlined />} 
                         color="success" 
                         loading={loadingStats}

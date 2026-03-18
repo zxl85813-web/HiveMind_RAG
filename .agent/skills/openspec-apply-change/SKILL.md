@@ -23,14 +23,16 @@ metadata:
 - Select the change to implement (or suggest available ones).
 - Read `library/implementation-guardrails.md` to establish the safety boundary.
 
-### Step 2: Incremental Implementation
-- Loop through pending tasks from the chosen change.
-- Perform minimal code changes for the current task.
-- Update the checkbox `- [ ]` to `- [x]` in the artifact file.
+### Step 2: Micro-Planning & Graph Context
+- BEFORE implementing, call `generate-micro-plan`.
+- **Constraint**: Use `architectural-mapping` via query scripts to resolve real file paths.
 
-### Step 3: Loopback Verification (Crucial)
-- Run `python .agent/skills/openspec-apply-change/scripts/task-verifier.py <name>`.
-- **Constraint**: If verification fails, stop and fix before proceeding to the next task.
+### Step 3: Subagent TDD Implementation (Loop)
+- Loop through micro-tasks via `subagent-tdd-loop`.
+- **Process**: Perform [Red] -> [Green] -> [Refactor/Check] cycle per 2-5 min task.
+- **Verification**: Run `./.agent/checks/run_checks.ps1` for every commit.
+- Mark task complete `- [x]` in tasks artifact after each TDD success.
+
 
 ### Step 4: Status Report
 - Summarize tasks completed and overall progress.

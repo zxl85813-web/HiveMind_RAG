@@ -49,28 +49,31 @@ Implement tasks from an OpenSpec change.
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output
 
-5. **Show current progress**
+5. **Generate Micro-Plan (Essential)**
 
-   Display:
-   - Schema being used
-   - Progress: "N/M tasks complete"
-   - Remaining tasks overview
-   - Dynamic instruction from CLI
+   Before any implementation, you **MUST** slice the current change's tasks into bite-sized TDD tasks.
+   - **Call Skill**: `generate-micro-plan`
+   - **Action**: Read the OpenSpec design/specs and convert them into 2-5 minute tasks.
+   - **Storage**: Save as a child artifact or update the `tasks.md` in the change directory.
 
-6. **Implement tasks (loop until done or blocked)**
+6. **Execute via Subagent TDD Loop**
 
-   For each pending task:
-   - Show which task is being worked on
-   - Make the code changes required
-   - Keep changes minimal and focused
-   - Mark task complete in the tasks file: `- [ ]` → `- [x]`
-   - Continue to next task
-
+   For each task in the micro-plan:
+   - **Call Skill**: `subagent-tdd-loop`
+   - **Process**:
+     1. Dispatch Implementer (RED test -> FAIL -> GREEN impl -> PASS).
+     2. Dispatch Spec Reviewer (Verify against OpenSpec).
+     3. Dispatch Code Quality Reviewer (Run `./.agent/checks/run_checks.ps1`).
+     4. Automated Git Commit per task.
+   
+   **Progress Tracking**:
+   - Update `tasks.md` checkbox `- [ ]` → `- [x]` after each micro-step completes.
+   
    **Pause if:**
-   - Task is unclear → ask for clarification
-   - Implementation reveals a design issue → suggest updating artifacts
-   - Error or blocker encountered → report and wait for guidance
-   - User interrupts
+   - Subagent gets stuck (3+ failed attempts).
+   - Implementation reveals a major design flaw not covered by the spec.
+   - User interrupts.
+
 
 7. **On completion or pause, show status**
 

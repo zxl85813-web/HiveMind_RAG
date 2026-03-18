@@ -34,7 +34,8 @@ export class ErrorBoundary extends Component<Props, State> {
         import('../../core/MonitorService').then(({ monitor }) => {
             monitor.reportError(error, {
                 componentStack: errorInfo.componentStack,
-                type: 'REACT_BOUNDARY'
+                type: 'REACT_BOUNDARY',
+                severity: 'critical'
             });
         });
         console.error('🧩 [ErrorBoundary] Uncaught error:', error, errorInfo);

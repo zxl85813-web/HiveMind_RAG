@@ -33,6 +33,8 @@ metadata:
 - Fix any missing linkages or structural errors.
 
 ### Step 4: Final Publish
-- Summary of created artifacts and the next command: `/opsx:apply`.
+- Summary of created artifacts.
+- **Announcement**: Next steps are `/opsx:apply` followed by `generate-micro-plan` to ensure TDD-level granularity.
+
 
 ---
