@@ -30,14 +30,19 @@ cat REGISTRY.md
 
 ## 创建步骤
 
-### 4. 创建组件文件
+### 5. 结构设计与规范校验 (Expert Skills)
+在编写代码前后，推荐调用以下顶级技能辅助：
+- 组件拆分与 API 设计：运用 `@vercel-composition-patterns` 优化逻辑结构。
+- 样式与交互审查：运用 `@web-design-guidelines` 确保 UI/UX 体验达到高标准。
+
+### 6. 创建组件文件
 ```
 components/{domain}/
   MyComponent.tsx          ← 组件代码
   MyComponent.module.css   ← 组件样式 (CSS Modules)
 ```
 
-### 5. 组件模板
+### 7. 组件模板
 ```typescript
 /**
  * {组件名} — {一句话描述}
@@ -65,7 +70,7 @@ export const MyComponent: React.FC<MyComponentProps> = ({ content }) => {
 };
 ```
 
-### 6. 样式模板
+### 8. 样式模板
 ```css
 /* MyComponent.module.css */
 /* 使用 Ant Design CSS 变量，禁止硬编码 */
@@ -77,6 +82,6 @@ export const MyComponent: React.FC<MyComponentProps> = ({ content }) => {
 }
 ```
 
-### 7. 更新 REGISTRY.md
+### 9. 更新 REGISTRY.md
 在注册表中登记新组件。
 

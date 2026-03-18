@@ -14,14 +14,16 @@ description: 为新功能或组件编写自动化测试的标准流程
 - 纯逻辑 / 工具库 -> 写 **Unit Test**。
 - API Endpoint -> 必须写 **Integration Test**。
 - UI 组件带复杂交互 -> 写 **Component Test**。
+- 关键用户路经 / 页面核心交互 -> 必须写 **E2E Test** (可调用 `@playwright-generate-test` 技能，根据用户场景直接生成高覆盖率的测试脚本)。
 
 确保你的测试涵盖了【设计契约视角】(正常走得通) 和【代码例外视角】(出错了也能防得住)。
 
 ### Step 2: 定位并创建测试文件
 - **后端**: 按源码路径在 `backend/tests/` 内创建对应的文件。
   例如：`backend/app/api/routes/knowledge.py` -> `backend/tests/integration/api/test_knowledge.py`。
-- **前端**: 在组件旁边创建。
+- **前端 (组件与Hooks)**: 在组件旁边创建。
   例如：`frontend/src/components/chat/ChatBubble.tsx` -> `frontend/src/components/chat/ChatBubble.test.tsx`。
+- **前端 (E2E测试)**: 将生成的 Playwright 测试放在项目对应的 `e2e/` 目录中。
 
 ### Step 3: 使用固件 (Fixtures) 与 Setup
 - 不要直接在测试函数里 hardcode 配置数据库！在后端的 `conftest.py` 寻找已有的 `db_session`, `test_client`, `mock_user` 固件。
@@ -44,6 +46,9 @@ pytest tests/ --cov=app --cov-fail-under=80
 cd frontend
 npm run test:unit
 ```
+
+### Step 5.5: 若为 E2E 场景
+如果使用了 `@playwright-generate-test` 生成代码，直接在控制台执行 `npx playwright test` 并根据回显结果修正测试逻辑。
 
 ### Step 6: 修复并上报
 如果你的测试没法跑（比如被框架版本限制、Mock 掉进了死胡同），不要搁置，一定要去项目的 `TODO.md` 写明：

@@ -17,6 +17,12 @@
   - `path`: 绝对或相对路径
   - `extension`: 文件扩展名
 - **`Component`**: 表示前端或后端的核心组件/服务。
+- **`Person`**: 表示项目成员（开发者、产品经理等）。
+  - `name`: 姓名
+- **`Todo`**: 表示系统中的待办事项或任务。
+  - `id`: 任务 ID
+  - `title`: 任务标题
+  - `status`: 状态 (Pending, In Progress, Completed)
 
 ## 2. 关系定义 (Relationships)
 
@@ -25,6 +31,10 @@
 - `(:Design)-[:REQUIRES_SKILL]->(:Skill)`: 完成该设计需要特定的 Agent 技能。
 - `(:File)-[:DEPENDS_ON]->(:File)`: 代码层面的文件依赖。
 - `(:Requirement)-[:TAGGED_WITH]->(:Concept)`: 需求涉及的关键技术概念。
+- `(:Person)-[:AUTHORED]->(:Requirement)`: 人员创建了需求。
+- `(:Person)-[:CONTRIBUTED_TO]->(:Design)`: 人员参与了设计。
+- `(:Person)-[:ASSIGNED_TO]->(:Todo)`: 任务分配给某人。
+- `(:Todo)-[:RELATES_TO]->(:Requirement|Design)`: 任务关联到需求或设计。
 
 ## 3. Cypher 常规查询模式
 

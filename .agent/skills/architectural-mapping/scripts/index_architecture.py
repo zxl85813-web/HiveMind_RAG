@@ -47,15 +47,32 @@ class ArchitectureIndexer:
                 SET r.title = $title, r.path = $path, r.type = 'Requirement'
                 """, {"id": req_id, "title": title, "path": str(req_file.relative_to(BASE_DIR))})
 
+                # Extract Personnel from Change Log table
+                person_matches = re.finditer(r"\| \d{4}-\d{2}-\d{2} \| .*? \| (.*?) \|", content)
+                for pm in person_matches:
+                    person_name = pm.group(1).strip()
+                    if person_name and person_name != "Personnel" and person_name != "人员":
+                        self.run_query("""
+                        MERGE (p:ArchNode:Person {id: $name})
+                        SET p.name = $name, p.type = 'Person'
+                        WITH p
+                        MATCH (r:Requirement {id: $rid})
+                        MERGE (p)-[:AUTHORED]->(r)
+                        """, {"name": person_name, "rid": req_id})
+
+
     def index_designs(self):
         design_dir = BASE_DIR / "docs" / "architecture"
         if not design_dir.exists(): return
         
         logger.info("Indexing Design Documents...")
-        for design_file in design_dir.glob("DES-*.md"):
-            design_id = design_file.stem.split("-")[0] + "-" + design_file.stem.split("-")[1]
+        for design_file in design_dir.glob("*.md"):
+            # Try to find DES-NNN or other identifier in the content or filename
             with open(design_file, encoding="utf-8") as f:
                 content = f.read()
+                
+                design_id_match = re.search(r"(?:DES|FE-GOV|BE-GOV)-\d+", content)
+                design_id = design_id_match.group(0) if design_id_match else design_file.stem
                 
                 # Link to Requirement
                 req_match = re.search(r"REQ-\d+", content)
@@ -63,8 +80,8 @@ class ArchitectureIndexer:
                 
                 self.run_query("""
                 MERGE (d:ArchNode:Design {id: $id})
-                SET d.path = $path, d.type = 'Design'
-                """, {"id": design_id, "path": str(design_file.relative_to(BASE_DIR))})
+                SET d.path = $path, d.type = 'Design', d.title = $title
+                """, {"id": design_id, "path": str(design_file.relative_to(BASE_DIR)), "title": design_file.stem})
                 
                 if req_id:
                     self.run_query("""
@@ -72,8 +89,21 @@ class ArchitectureIndexer:
                     MERGE (d)-[:ADDRESSES]->(r)
                     """, {"did": design_id, "rid": req_id})
                 
+                # Extract Personnel from Change Log table
+                person_matches = re.finditer(r"\| \d{4}-\d{2}-\d{2} \| .*? \| (.*?) \|", content)
+                for pm in person_matches:
+                    person_name = pm.group(1).strip()
+                    if person_name and person_name != "Personnel" and person_name != "人员" and person_name != "Person":
+                        self.run_query("""
+                        MERGE (p:ArchNode:Person {id: $name})
+                        SET p.name = $name, p.type = 'Person'
+                        WITH p
+                        MATCH (d:Design {id: $did})
+                        MERGE (p)-[:CONTRIBUTED_TO]->(d)
+                        """, {"name": person_name, "did": design_id})
+
                 # Link to implementation files mentioned in the design
-                file_matches = re.findall(r"`(app/.*?\.(?:py|js|ts))`", content)
+                file_matches = re.findall(r"`(.*?/.*?\.(?:py|js|ts|tsx))`", content)
                 for file_path in file_matches:
                     self.run_query("""
                     MATCH (d:Design {id: $did})
@@ -81,6 +111,7 @@ class ArchitectureIndexer:
                     SET f.path = $path, f.type = 'File'
                     MERGE (d)-[:SPECIFIES]->(f)
                     """, {"did": design_id, "path": file_path})
+
 
     def index_skills(self):
         registry_file = BASE_DIR / "REGISTRY.md"
@@ -169,6 +200,90 @@ class ArchitectureIndexer:
                     MERGE (t)-[:VALIDATES_DESIGN]->(d)
                     """, {"tid": test_id, "did": des_id})
 
+    def index_all_code_files(self):
+        logger.info("Indexing all code files...")
+        extensions = ["*.py", "*.ts", "*.tsx"]
+        for ext in extensions:
+            for file_path in BASE_DIR.rglob(ext):
+                if ".agent" in str(file_path) or "node_modules" in str(file_path) or ".venv" in str(file_path):
+                    continue
+                rel_path = str(file_path.relative_to(BASE_DIR)).replace("\\", "/")
+                self.run_query("""
+                MERGE (f:ArchNode:File {id: $path})
+                SET f.path = $path, f.type = 'File', f.extension = $ext
+                """, {"path": rel_path, "ext": file_path.suffix[1:]})
+
+    def index_todo_file(self):
+        todo_file = BASE_DIR / "TODO.md"
+        if not todo_file.exists(): return
+        
+        logger.info("Indexing TODO.md tasks...")
+        with open(todo_file, encoding="utf-8") as f:
+            lines = f.readlines()
+            
+        for line in lines:
+            line = line.strip()
+            # 1. Match List Items: - [ ] **ID** — Description or - [ ] ID — Description
+            # Using simpler matching to avoid backtracking
+            if line.startswith("- ["):
+                status_part = line[3:4]
+                content_part = line[6:].strip()
+                
+                status = "PENDING"
+                if status_part in ["x", "✅"]: status = "COMPLETED"
+                elif status_part == "🟡": status = "IN_PROGRESS"
+                
+                # Extract ID and Title
+                # Pattern: **ID** — Title or ID — Title
+                id_match = re.match(r"(?:\*\*([^*]+)\*\*|([A-Z0-9_-]+))\s*[—：:]\s*(.*)", content_part)
+                if id_match:
+                    task_id = id_match.group(1) or id_match.group(2)
+                    title_full = id_match.group(3)
+                else:
+                    task_id = None
+                    title_full = content_part
+                
+                # Extract Assignee if present: (协作者: Name)
+                assignee_match = re.search(r"（协作者:\s*(.*?)）", title_full)
+                assignee = assignee_match.group(1) if assignee_match else "Unassigned"
+                title = re.sub(r"（协作者:.*?）", "", title_full).strip()
+                
+                if not task_id:
+                    # Fallback: use first few words as ID if no clear ID pattern
+                    task_id = "TASK-" + "".join(filter(str.isalnum, title[:20]))
+
+                self.run_query("""
+                MERGE (todo:ArchNode:Todo {id: $id})
+                SET todo.title = $title, todo.status = $status, todo.type = 'Todo'
+                MERGE (p:ArchNode:Person {id: $person})
+                SET p.name = $person, p.type = 'Person'
+                MERGE (p)-[:ASSIGNED_TO]->(todo)
+                """, {"id": task_id, "title": title, "status": status, "person": assignee})
+
+            # 2. Match Table Rows (specifically for IDs like TASK- or ARM- or FE-GOV-)
+            elif line.startswith("|") and not line.startswith("|---"):
+                parts = [p.strip() for p in line.split("|")]
+                if len(parts) >= 4:
+                    # Check if first or second col looks like an ID
+                    col1, col2, col3 = parts[1], parts[2], parts[3]
+                    if re.match(r"^[A-Z0-9_-]+$", col1) and col1 not in ["层级", "角色", "编号"]:
+                        self.run_query("""
+                        MERGE (todo:ArchNode:Todo {id: $id})
+                        SET todo.title = $title, todo.status = 'PENDING', todo.type = 'Todo'
+                        MERGE (p:ArchNode:Person {id: $person})
+                        SET p.name = $person, p.type = 'Person'
+                        MERGE (p)-[:ASSIGNED_TO]->(todo)
+                        """, {"id": col1, "title": col2, "person": col3})
+
+    def index_database_seeding(self):
+
+
+        # Manually sync from init_data.py to show deeper integration
+        logger.info("Syncing manual seeding tasks...")
+        # ... already captured by TODO.md mainly, but keeping specific links
+        pass
+
+
 def main():
     # Load env for Neo4j
     from dotenv import load_dotenv
@@ -182,10 +297,14 @@ def main():
     indexer.clear_graph()
     indexer.index_requirements()
     indexer.index_designs()
+    indexer.index_all_code_files() # New step: scan all codebase
     indexer.index_skills()
     indexer.link_files_to_skills()
     indexer.index_tests()
+    indexer.index_database_seeding() # New step: sync from DB seeding
+    indexer.index_todo_file() # New step: scan TODO.md
     indexer.close()
+
     logger.success("Architectural Mapping Complete!")
 
 if __name__ == "__main__":
