@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import ast
+import subprocess
 from pathlib import Path
 from loguru import logger
 from neo4j import GraphDatabase
@@ -201,17 +203,52 @@ class ArchitectureIndexer:
                     """, {"tid": test_id, "did": des_id})
 
     def index_all_code_files(self):
-        logger.info("Indexing all code files...")
+        logger.info("Indexing all code files and Git history (Batched)...")
         extensions = ["*.py", "*.ts", "*.tsx"]
+        files_data = []
+        
         for ext in extensions:
             for file_path in BASE_DIR.rglob(ext):
                 if ".agent" in str(file_path) or "node_modules" in str(file_path) or ".venv" in str(file_path):
                     continue
                 rel_path = str(file_path.relative_to(BASE_DIR)).replace("\\", "/")
-                self.run_query("""
-                MERGE (f:ArchNode:File {id: $path})
-                SET f.path = $path, f.type = 'File', f.extension = $ext
-                """, {"path": rel_path, "ext": file_path.suffix[1:]})
+                
+                commit_msg = ""
+                last_author = ""
+                commit_date = ""
+                commit_count = 0
+                try:
+                    res = subprocess.run(["git", "log", "-1", "--format=%an|%cd|%s", "--date=short", "--", str(file_path)], capture_output=True, text=True, encoding="utf-8", errors="ignore", cwd=str(BASE_DIR))
+                    if res.stdout.strip():
+                        parts = res.stdout.strip().split("|", 2)
+                        if len(parts) == 3:
+                            last_author, commit_date, commit_msg = parts
+                    
+                    count_res = subprocess.run(["git", "rev-list", "--count", "HEAD", "--", str(file_path)], capture_output=True, text=True, encoding="utf-8", errors="ignore", cwd=str(BASE_DIR))
+                    if count_res.stdout.strip():
+                        commit_count = int(count_res.stdout.strip())
+                except Exception as e:
+                    logger.debug(f"Git log failed for {file_path}: {e}")
+
+                files_data.append({
+                    "path": rel_path,
+                    "ext": file_path.suffix[1:],
+                    "commit_msg": commit_msg,
+                    "author": last_author,
+                    "date": commit_date,
+                    "count": commit_count
+                })
+
+        # Batch Merge Files
+        if files_data:
+            self.run_query("""
+            UNWIND $batch AS f_info
+            MERGE (f:ArchNode:File {id: f_info.path})
+            SET f.path = f_info.path, f.type = 'File', f.extension = f_info.ext,
+                f.last_commit_msg = f_info.commit_msg, f.last_author = f_info.author,
+                f.last_commit_date = f_info.date, f.commit_count = f_info.count
+            """, {"batch": files_data})
+            logger.info(f"Batched {len(files_data)} files into Neo4j.")
 
     def index_todo_file(self):
         todo_file = BASE_DIR / "TODO.md"
@@ -284,6 +321,156 @@ class ArchitectureIndexer:
         pass
 
 
+    def index_python_ast(self):
+        logger.info("Indexing Python AST for fine-grained call graphs (Batched)...")
+        codebase_dir = BASE_DIR / "backend"
+        all_definitions = []
+        all_calls = []
+        
+        for py_file in codebase_dir.rglob("*.py"):
+            if ".agent" in str(py_file) or ".venv" in str(py_file) or "site-packages" in str(py_file):
+                continue
+            try:
+                with open(py_file, "r", encoding="utf-8") as f:
+                    file_content = f.read()
+                    if not file_content.strip(): continue
+                    tree = ast.parse(file_content, filename=str(py_file))
+                    
+                file_id = str(py_file.relative_to(BASE_DIR)).replace("\\", "/")
+                
+                class ASTExtractor(ast.NodeVisitor):
+                    def __init__(self):
+                        self.current_class = None
+                        self.current_function = None
+                        self.definitions = [] # (type, name, docstring)
+                        self.calls = [] # (caller_id, callee_name)
+                        
+                    def visit_ClassDef(self, node):
+                        old_class = self.current_class
+                        self.current_class = node.name
+                        docstring = ast.get_docstring(node)
+                        self.definitions.append(("Class", node.name, docstring or ""))
+                        self.generic_visit(node)
+                        self.current_class = old_class
+                        
+                    def visit_FunctionDef(self, node):
+                        old_func = self.current_function
+                        name = f"{self.current_class}.{node.name}" if self.current_class else node.name
+                        self.current_function = name
+                        docstring = ast.get_docstring(node)
+                        self.definitions.append(("Function", name, docstring or ""))
+                        self.generic_visit(node)
+                        self.current_function = old_func
+                        
+                    def visit_Call(self, node):
+                        if self.current_function:
+                            caller_id = f"{file_id}::{self.current_function}"
+                            if isinstance(node.func, ast.Name):
+                                callee = node.func.id
+                                self.calls.append((caller_id, callee))
+                            elif isinstance(node.func, ast.Attribute):
+                                callee = node.func.attr
+                                self.calls.append((caller_id, callee))
+                        self.generic_visit(node)
+
+                extractor = ASTExtractor()
+                extractor.visit(tree)
+                
+                for def_type, name, docstring in extractor.definitions:
+                    all_definitions.append({
+                        "id": f"{file_id}::{name}",
+                        "name": name,
+                        "def_type": def_type,
+                        "file": file_id,
+                        "docstring": docstring
+                    })
+                    
+                for caller_id, callee_name in extractor.calls:
+                    all_calls.append({
+                        "caller_id": caller_id,
+                        "callee_name": callee_name
+                    })
+                    
+            except Exception as e:
+                logger.warning(f"Failed to parse AST for {py_file}: {e}")
+
+        # Batch 1: Create all Code Entities
+        if all_definitions:
+            logger.info(f"Batched merge for {len(all_definitions)} code entities...")
+            self.run_query("""
+            UNWIND $batch AS item
+            MERGE (n:ArchNode:CodeEntity {id: item.id})
+            SET n.name = item.name, n.type = item.def_type, n.file = item.file, n.docstring = item.docstring
+            WITH n, item
+            MATCH (f:File {id: item.file})
+            MERGE (f)-[:CONTAINS]->(n)
+            """, {"batch": all_definitions})
+
+        # Batch 2: Create Calls (limit scope for performance)
+        if all_calls:
+            logger.info(f"Batched merge for {len(all_calls)} calls...")
+            # Limit to 1000 at a time if too large
+            for i in range(0, len(all_calls), 1000):
+                self.run_query("""
+                UNWIND $batch AS item
+                MATCH (caller:CodeEntity {id: item.caller_id})
+                MATCH (callee:CodeEntity {name: item.callee_name})
+                MERGE (caller)-[:CALLS]->(callee)
+                """, {"batch": all_calls[i:i+1000]})
+
+    def index_database_models(self):
+        logger.info("Indexing Database Models (Batched)...")
+        models_dir = BASE_DIR / "backend" / "app" / "models"
+        if not models_dir.exists(): return
+        
+        all_models = []
+        all_columns = []
+            
+        for py_file in models_dir.glob("*.py"):
+            if py_file.name == "__init__.py": continue
+            try:
+                with open(py_file, "r", encoding="utf-8") as f:
+                    tree = ast.parse(f.read(), filename=str(py_file))
+                    
+                file_id = str(py_file.relative_to(BASE_DIR)).replace("\\", "/")
+                
+                for node in tree.body:
+                    if isinstance(node, ast.ClassDef):
+                        model_name = node.name
+                        all_models.append({"id": model_name, "name": model_name, "file": file_id})
+                        
+                        for stmt in node.body:
+                            field_name = None
+                            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                                field_name = stmt.target.id
+                            elif isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+                                field_name = stmt.targets[0].id
+                                
+                            if field_name and field_name != "__tablename__":
+                                all_columns.append({"mid": model_name, "cid": f"{model_name}.{field_name}", "name": field_name})
+                                
+            except Exception as e:
+                logger.warning(f"Failed to parse DB model in {py_file}: {e}")
+
+        if all_models:
+            self.run_query("""
+            UNWIND $batch AS item
+            MERGE (m:ArchNode:DatabaseModel {id: item.id})
+            SET m.name = item.name, m.type = 'DatabaseModel'
+            WITH m, item
+            MATCH (f:File {id: item.file})
+            MERGE (f)-[:DEFINES_MODEL]->(m)
+            """, {"batch": all_models})
+
+        if all_columns:
+            self.run_query("""
+            UNWIND $batch AS item
+            MATCH (m:DatabaseModel {id: item.mid})
+            MERGE (col:ArchNode:DatabaseColumn {id: item.cid})
+            SET col.name = item.name, col.type = 'DatabaseColumn'
+            MERGE (m)-[:HAS_COLUMN]->(col)
+            """, {"batch": all_columns})
+
 def main():
     # Load env for Neo4j
     from dotenv import load_dotenv
@@ -303,6 +490,11 @@ def main():
     indexer.index_tests()
     indexer.index_database_seeding() # New step: sync from DB seeding
     indexer.index_todo_file() # New step: scan TODO.md
+    
+    # Advanced Code Introspection
+    indexer.index_database_models()
+    indexer.index_python_ast()
+
     indexer.close()
 
     logger.success("Architectural Mapping Complete!")
