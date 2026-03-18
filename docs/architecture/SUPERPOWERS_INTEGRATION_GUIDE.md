@@ -28,6 +28,32 @@
 
 ---
 
+## 🎨 前端工程化与生态扩展 (Frontend & Ecosystem Extensions)
+
+随着技能生态的丰富，我们在基础 TDD 循环的上方，增加了垂直领域（主要是前端、UI、测试）的治理能力：
+
+### 1. 🔍 [find-skills](.agents/skills/find-skills/SKILL.md) (生态技能检索)
+- **触发时机**: 面临新的技术需求，或在规划新功能时寻找大厂打磨好的最佳实践。
+- **职责**: 使用 `npx skills find` 从开源市场检索相关的现成技能包。
+
+### 2. ⚛️ [vercel-react-best-practices](.agents/skills/vercel-react-best-practices/SKILL.md) (React 性能规范)
+- **触发时机**: 修改 React 组件、Next.js 路由或涉及状态请求时。
+- **职责**: 强制进行性能规则审计，避免异步瀑布流（Waterfalls）、消除不必要的 Re-render。
+
+### 3. 🧩 [vercel-composition-patterns](.agents/skills/vercel-composition-patterns/SKILL.md) (React 复合模式)
+- **触发时机**: 当面临“组件通过增加 `boolean` 属性导致属性爆炸”的重构诉求时。
+- **职责**: 指导 Agent 使用组合（Composition）、Context 提升等模式写出可维护的 React 代码。
+
+### 4. 💅 [web-design-guidelines](.agents/skills/web-design-guidelines/SKILL.md) (Web 设计/无障碍准则)
+- **触发时机**: UI 组件完工前的最后审查 (`/develop-feature` 流程的第 7 步)。
+- **职责**: 通过 Vercel Labs 提供的远程设计规范，对颜色对比度、间距、交互提示等进行检查。
+
+### 5. 🧪 [playwright-generate-test](.agents/skills/playwright-generate-test/SKILL.md) (E2E 测试生成)
+- **触发时机**: 涉及完整业务链路的用户故事开发完毕后。
+- **职责**: 指导 Playwright MCP 结合上下文自动构建并执行端到端自动化测试脚本。
+
+---
+
 ## 🌊 核心工作流变更 (Modified Workflows)
 
 ### `/develop-feature` (开发新功能)

@@ -12,6 +12,7 @@
    - 我是否漏掉了任何验收标准？
    - 变量命名是否清晰？
    - 我是否引入了不必要的依赖？
+   - **(前端特定)** 我的 React 代码是否遵循了 `.agents/skills/vercel-react-best-practices` 与 `.agents/skills/vercel-composition-patterns`？
 
 ---
 
@@ -35,3 +36,6 @@
 2. **类型检查**：确认 TypeScript `tsc` 没有报错。
 3. **路径安全**：确认代码没有硬编码绝对路径。
 4. **韧性检查**：确认是否按要求使用了 `ErrorBoundary` 或统一的异常包装类。
+5. **UI/UX 与性能门禁 (前端特定)**：
+   - 必须运行 `web-design-guidelines` 以确保页面改动符合 Web 界面规范。
+   - 验证没有引入 `vercel-react-best-practices` 中被禁止的反模式（如破坏并发渲染的副作用）。
