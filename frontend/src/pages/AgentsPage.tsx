@@ -15,7 +15,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { PageContainer, StatCard } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
-import { AgentDAGVisualizer } from '../components/agents/AgentDAGVisualizer';
 import { 
     useSwarmReflections, 
     useSwarmAgents, 
@@ -25,6 +24,8 @@ import {
 } from '../hooks/queries/useSwarmQuery';
 
 const { Title, Text, Paragraph } = Typography;
+
+const AgentDAGVisualizer = React.lazy(() => import('../components/agents/AgentDAGVisualizer'));
 
 /**
  * 🛰️ [FE-GOV-001]: Agent 蜂巢监控页面 (Refactored with React Query)
@@ -205,7 +206,9 @@ export const AgentsPage: React.FC = () => {
                         bodyStyle={{ padding: 0, height: '440px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                     >
                         {dagData.nodes && dagData.nodes.length > 0 ? (
-                            <AgentDAGVisualizer data={dagData} height={440} />
+                            <React.Suspense fallback={<Flex align="center" justify="center" style={{ height: '100%', width: '100' }}><SyncOutlined spin /> &nbsp; Loading Chart...</Flex>}>
+                                <AgentDAGVisualizer data={dagData} height={440} />
+                            </React.Suspense>
                         ) : (
                             <Empty description="等待 Agent 集群产生执行链路 (在侧边栏对话以生成 Trace)" />
                         )}

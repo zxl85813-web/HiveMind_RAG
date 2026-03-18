@@ -12,6 +12,19 @@ import App from './App';
 import './index.css';
 import './i18n/config';
 import { monitor } from './core/MonitorService';
+import { registerSW } from 'virtual:pwa-register';
+
+// 🚀 [FE-GOV-005]: PWA Service Worker 注册
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('🎉 新版本已准备好，是否立即更新？')) {
+      updateSW(true);
+    }
+  },
+  onOfflineReady() {
+    console.log('📶 HiveMind RAG 已准备就绪，支持离线访问。');
+  },
+});
 
 // 🛰️ [FE-GOV-002]: 应用启动上报
 monitor.log({

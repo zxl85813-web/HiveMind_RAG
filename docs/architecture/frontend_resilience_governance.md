@@ -80,6 +80,18 @@
 
 ---
 
+### 4.4 PWA / 离线协同 (Offline Strategy)
+*   **状态**: ✅ 已实现
+*   **机制**:
+    *   **Service Worker**: 使用 `vite-plugin-pwa` 自动生成。采用 `autoUpdate` 策略，支持新版本提示。
+    *   **缓存策略**: 
+        *   静态资源 (JS/CSS/HTML): 自动预缓存。
+        *   外部资源 (Google Fonts): 采用 `CacheFirst` 策略。
+    *   **清单文件**: 部署 `manifest.webmanifest`，支持 Web App 安装 (A2HS)。
+    *   **UI 反馈**: `main.tsx` 中集成升级提示逻辑与离线就绪通知。
+
+---
+
 ## 5. 待建设路线图 (Roadmap)
 
 | 任务 ID | 描述 | 优先级 | 备注 |
@@ -87,8 +99,8 @@
 | **FE-GOV-001** | **全量接入 React Query** | P0 | 解决重复请求与状态不一致问题 |
 | **FE-GOV-002** | **Sentry / APM 部署** | ✅ | 已通过 MonitorService 完成生产级接入 |
 | **FE-GOV-003** | **i18n-Agent 桥接协议** | ✅ | 已通过 Accept-Language Header 透传并注入 Prompt |
-| **FE-GOV-004** | **可视化库代码分割优化** | P2 | 针对 G6/X6 进行按需导入，优化 TTI |
-| **FE-GOV-005** | **PWA/离线资源缓存** | P2 | 提升弱网环境下的首屏访问稳定性 |
+| **FE-GOV-004** | **可视化库代码分割优化** | ✅ | 针对 G6/X6/ForceGraph 进行组件级 React.lazy 载入，优化 TTI |
+| **FE-GOV-005** | **PWA/离线资源缓存** | ✅ | 部署 Service Worker 与 Manifest，支持 Google Fonts 离线缓存与应用安装 |
 
 ---
 

@@ -42,7 +42,7 @@ if ($Quick) {
     
     Set-Location $ProjectRoot
     Write-Host ""
-    exit
+    return
 }
 
 # 完整检查

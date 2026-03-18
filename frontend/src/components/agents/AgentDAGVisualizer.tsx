@@ -197,3 +197,5 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
         </div>
     );
 };
+
+export default AgentDAGVisualizer;

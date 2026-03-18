@@ -147,3 +147,5 @@ export const G6SimpleGraph: React.FC<G6SimpleGraphProps> = ({ height = 420 }) =>
         </Flex>
     );
 };
+
+export default G6SimpleGraph;

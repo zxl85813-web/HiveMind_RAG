@@ -542,3 +542,5 @@ export const X6SimpleCanvas: React.FC<X6SimpleCanvasProps> = ({ height = 420 }) 
         </Flex>
     );
 };
+
+export default X6SimpleCanvas;

@@ -1,11 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KnowledgePage } from './KnowledgePage';
 import { useAuthStore } from '../stores/authStore';
 import { knowledgeApi } from '../services/knowledgeApi';
 
 let allowButtonAccess = false;
+let queryClient: QueryClient;
 
 vi.mock('antd', async () => {
     const actual = await vi.importActual('antd');
@@ -67,6 +69,18 @@ vi.mock('react-i18next', () => ({
 describe('KnowledgePage Permission', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        queryClient = new QueryClient({
+            defaultOptions: {
+                queries: {
+                    retry: false,
+                    gcTime: 0,
+                },
+            },
+        });
+        vi.mocked(useAuthStore).mockReturnValue({
+            hasAccess: vi.fn(),
+            profile: { roles: [] },
+        } as any);
         vi.mocked(knowledgeApi.listKBs).mockResolvedValue({ data: { data: [] } } as any);
     });
 
@@ -77,9 +91,11 @@ describe('KnowledgePage Permission', () => {
         }));
 
         render(
-            <MemoryRouter>
-                <KnowledgePage />
-            </MemoryRouter>,
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <KnowledgePage />
+                </MemoryRouter>
+            </QueryClientProvider>,
         );
 
         await waitFor(() => {
@@ -96,9 +112,11 @@ describe('KnowledgePage Permission', () => {
         }));
 
         render(
-            <MemoryRouter>
-                <KnowledgePage />
-            </MemoryRouter>,
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <KnowledgePage />
+                </MemoryRouter>
+            </QueryClientProvider>,
         );
 
         await waitFor(() => {

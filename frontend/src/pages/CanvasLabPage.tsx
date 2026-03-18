@@ -57,12 +57,20 @@ export const CanvasLabPage: React.FC = () => {
                             {
                                 key: 'x6',
                                 label: 'X6 Flow Demo',
-                                children: <X6SimpleCanvas />,
+                                children: (
+                                    <React.Suspense fallback={<Card loading style={{ height: 420 }} />}>
+                                        <X6SimpleCanvas />
+                                    </React.Suspense>
+                                ),
                             },
                             {
                                 key: 'g6',
                                 label: 'G6 Graph Demo',
-                                children: <G6SimpleGraph />,
+                                children: (
+                                    <React.Suspense fallback={<Card loading style={{ height: 420 }} />}>
+                                        <G6SimpleGraph />
+                                    </React.Suspense>
+                                ),
                             },
                         ]}
                     />

@@ -1,2 +1,4 @@
-export { X6SimpleCanvas } from './X6SimpleCanvas';
-export { G6SimpleGraph } from './G6SimpleGraph';
+import { lazy } from 'react';
+
+export const X6SimpleCanvas = lazy(() => import('./X6SimpleCanvas'));
+export const G6SimpleGraph = lazy(() => import('./G6SimpleGraph'));
