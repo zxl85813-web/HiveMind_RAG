@@ -504,3 +504,26 @@ class ChatService:
 
         # 10. 结束信号
         yield f"data: {json.dumps({'type': 'done', 'latency_ms': latency_ms, 'is_cached': is_cached})}\n\n"
+
+        # 11. 跨会话情节记忆蒸馏 (EP-006)
+        if conversation_id and not is_cached:
+            try:
+                from app.services.memory.episodic_service import episodic_memory_service
+
+                # 记录参与本轮会话的消息链
+                current_session_msgs = []
+                for m in history:
+                    msg_role = "user" if m.type == "human" else "assistant"
+                    current_session_msgs.append({"role": msg_role, "content": str(m.content)})
+
+                current_session_msgs.append({"role": "user", "content": request.message})
+                current_session_msgs.append({"role": "assistant", "content": response_content})
+
+                # 触发后台异步蒸馏（不阻塞响应完成）
+                asyncio.create_task(
+                    episodic_memory_service.store_episode(
+                        user_id=user_id, conversation_id=conversation_id, messages=current_session_msgs
+                    )
+                )
+            except Exception as dist_err:
+                logger.warning(f"Failed to trigger episodic distillation: {dist_err}")

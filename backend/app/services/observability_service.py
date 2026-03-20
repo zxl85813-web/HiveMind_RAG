@@ -185,3 +185,34 @@ async def get_cold_documents(
         {"doc_id": doc_id, "retrieval_count": count, "rank": rank + 1}
         for rank, (doc_id, count) in enumerate(reversed(least_common))
     ]
+
+
+async def get_memory_lifecycle_stats(db: AsyncSession) -> dict[str, Any]:
+    """获取情节记忆的生命周期统计数据 (EP-010)."""
+    from sqlalchemy import func
+
+    from app.models.episodic import EpisodicMemory
+
+    # 1. 总量统计
+    total_count_stmt = select(func.count(EpisodicMemory.id))
+    total_count = (await db.execute(total_count_stmt)).scalar() or 0
+
+    # 2. 活跃度统计 (Temperature > 0.5)
+    active_count_stmt = select(func.count(EpisodicMemory.id)).where(EpisodicMemory.temperature > 0.5)
+    active_count = (await db.execute(active_count_stmt)).scalar() or 0
+
+    # 3. 召回率统计 (Recall count > 0)
+    recalled_count_stmt = select(func.count(EpisodicMemory.id)).where(EpisodicMemory.recall_count > 0)
+    recalled_count = (await db.execute(recalled_count_stmt)).scalar() or 0
+
+    # 4. 平均热度
+    avg_temp_stmt = select(func.avg(EpisodicMemory.temperature))
+    avg_temp = (await db.execute(avg_temp_stmt)).scalar() or 0
+
+    return {
+        "total_episodes": total_count,
+        "active_episodes": active_count,
+        "recalled_episodes": recalled_count,
+        "utilization_rate": round(recalled_count / total_count, 2) if total_count > 0 else 0.0,
+        "avg_temperature": round(float(avg_temp), 2),
+    }

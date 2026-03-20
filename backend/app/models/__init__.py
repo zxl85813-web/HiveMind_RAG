@@ -2,6 +2,7 @@
 from .agents import ReflectionEntry, TodoItem
 from .chat import Conversation, Message, User
 from .evaluation import EvaluationItem, EvaluationReport, EvaluationSet
+from .episodic import EpisodicMemory
 from .finetuning import FineTuningItem
 from .knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
 from .observability import AgentSpan, FileTrace, IngestionBatch
@@ -29,6 +30,7 @@ __all__ = [
     "EvaluationItem",
     "EvaluationReport",
     "EvaluationSet",
+    "EpisodicMemory",
     "FileTrace",
     "FineTuningItem",
     "IngestionBatch",

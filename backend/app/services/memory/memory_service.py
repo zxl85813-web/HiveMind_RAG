@@ -298,10 +298,21 @@ class MemoryService:
         Returns:
             str: 组合后的上下文字符串
         """
+        from app.services.memory.episodic_service import episodic_memory_service
         from app.services.memory.tier.abstract_index import abstract_index
         from app.services.memory.tier.graph_index import graph_index
 
         context_blocks = []
+
+        # ── Block E: Episodic Memory — 跨会话情节召回
+        if query:
+            episodes = await episodic_memory_service.recall_episodes(
+                user_id=self.user_id, query=query, limit=3
+            )
+            if episodes:
+                episodic_ctx = await episodic_memory_service.format_for_context(episodes)
+                if episodic_ctx:
+                    context_blocks.append(episodic_ctx)
 
         # ── Block 0: Role & Personal Memory (ARM-P1-3)
         if role_id:
@@ -328,8 +339,10 @@ class MemoryService:
                 context_blocks.append(f"--- USER PROFILE ---\n{profile}")
 
         if query:
+            from app.services.memory.smart_grep_service import get_smart_grep_service
+            
             # ── Block 2: Tier-1 Radar — 摘要级路由
-            # 用 LLM 从问题里快速提取关键词，走毫秒级集合碰撞
+            # ... (Block 2 & 3 implementation remains)
             radar_tags = await self._extract_query_tags(query)
             if radar_tags:
                 hits = abstract_index.route_query(tags=radar_tags, limit=5)
@@ -338,8 +351,6 @@ class MemoryService:
                         f"- [{h['type']}] {h['title']} (tags: {', '.join(h['tags'])})" for h in hits
                     )
                     context_blocks.append(f"--- HOT MEMORY (Tier-1 Radar) ---\n{radar_lines}")
-
-                    # P2: 记录命中热度，防止热记忆被衰减驱逐
                     for h in hits:
                         abstract_index.increment_hit(h["id"])
 
@@ -362,12 +373,26 @@ class MemoryService:
             except Exception as e:
                 logger.warning(f"Tier-3 vector search failed: {e}")
 
+            # ── Block 4.5: SmartGrep — 传统高召回检索 (BM25 + Fuzzy)
+            try:
+                grep_svc = get_smart_grep_service()
+                grep_results = await grep_svc.search(query, user_id=self.user_id, limit=3, mode="auto")
+                if grep_results:
+                    grep_lines = []
+                    for r in grep_results:
+                        snippet = r.content.replace("\n", " ")[:150]
+                        grep_lines.append(f"- [{r.method}] {r.filename}: ...{snippet}...")
+                    context_blocks.append(f"--- LOG EVIDENCE (SmartGrep) ---\n" + "\n".join(grep_lines))
+            except Exception as e:
+                logger.warning(f"SmartGrep integration failed: {e}")
+
         # ── Block 5: 今日日志 — Ephemeral / 最近上下文
         daily_log = self._get_daily_log_path()
         if daily_log.exists():
             logs = daily_log.read_text(encoding="utf-8")[-2000:]
             if logs.strip():
                 context_blocks.append(f"--- TODAY'S LOG (Ephemeral) ---\n...{logs}")
+
 
         return "\n\n".join(context_blocks)
 

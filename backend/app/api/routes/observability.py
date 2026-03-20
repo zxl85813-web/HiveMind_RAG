@@ -26,6 +26,7 @@ from app.services.fallback_orchestrator import fallback_orchestrator
 from app.services.observability_service import (
     get_cold_documents,
     get_hot_queries,
+    get_memory_lifecycle_stats,
     get_retrieval_quality,
 )
 from app.services.rate_limit_governance import rate_limit_governance_center
@@ -66,15 +67,32 @@ class ClawRouterConfigUpdatePayload(BaseModel):
 
 
 @router.get(
+    "/memory-lifecycle",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+    summary="情节记忆生命周期统计 (EP-010)",
+)
+async def get_memory_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """返回情节记忆的总量、活跃度、召回率与平均热度。"""
+    stats = await get_memory_lifecycle_stats(db)
+    return ApiResponse.ok(data=stats)
+
+
+@router.get(
     "/service-governance",
     response_model=ApiResponse[dict[str, Any]],
     dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
     summary="服务治理拓扑状态（Phase 5）",
 )
 async def get_service_governance_snapshot(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Expose current topology mode and gray rollout settings for operations visibility."""
+    memory_stats = await get_memory_lifecycle_stats(db)
     return ApiResponse.ok(
         data={
             **get_topology_snapshot(),
@@ -82,6 +100,7 @@ async def get_service_governance_snapshot(
             "fallback_orchestrator": fallback_orchestrator.snapshot(),
             "rate_limit_governance": rate_limit_governance_center.snapshot(),
             "claw_router_governance": claw_router_governance.snapshot(),
+            "memory_lifecycle": memory_stats,
         }
     )
 

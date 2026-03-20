@@ -286,6 +286,8 @@ async def think(thought: str, target_goal: str | None = None) -> str:
     return "Thought recorded. You may now proceed with your planned actions."
 
 
+from app.services.sandbox.tool_sandbox import programmatic_execute
+
 # Export tools
 NATIVE_TOOLS = [
     add_collective_todo,

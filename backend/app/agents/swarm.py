@@ -437,7 +437,11 @@ class SwarmOrchestrator:
         绝对不要把这里的 Fast Path 逻辑给删掉，也不要强行用 LLM覆盖这个兜底逻辑。如果需要新增快速匹配命令，请在 `PLATFORM_INTENTS` 数组中追加。
         """
         # --- Context Compaction (P2: LLM Summarization) ---
-        state["messages"] = await self._compact_messages(state["messages"])
+        state["messages"] = await self._compact_messages(
+            state["messages"], 
+            user_id=state.get("user_id"), 
+            conversation_id=state.get("conversation_id")
+        )
 
         messages = state["messages"]
         user_query = str(state.get("original_query", "") or (messages[-1].content if messages else ""))
@@ -712,7 +716,11 @@ class SwarmOrchestrator:
                 llm = llm.bind_tools(available_tools)
 
             # --- Context Compaction (P2: LLM Summarization) ---
-            state["messages"] = await self._compact_messages(state["messages"])
+            state["messages"] = await self._compact_messages(
+                state["messages"], 
+                user_id=state.get("user_id"), 
+                conversation_id=state.get("conversation_id")
+            )
 
             # 4. Invoke LLM (with tool-calling loop)
             # We perform a simple ReAct loop inside the node for native tools
@@ -1174,7 +1182,12 @@ class SwarmOrchestrator:
 
         return current_messages
 
-    async def _compact_messages(self, messages: list[BaseMessage]) -> list[BaseMessage]:
+    async def _compact_messages(
+        self, 
+        messages: list[BaseMessage], 
+        user_id: str | None = None, 
+        conversation_id: str | None = None
+    ) -> list[BaseMessage]:
         """
         P2 — 对话短期记忆流压缩 (Chat History Compaction with LLM Summarization).
 
@@ -1182,11 +1195,7 @@ class SwarmOrchestrator:
         对旧历史进行提炼，生成 SummaryMessage（SystemMessage 格式）替换老历史，
         仅保留最近 _KEEP_INTACT_TURNS 轮完整对话。
 
-        流程：
-          1. Count tokens → if within budget, skip.
-          2. Split into [head (to summarize)] + [tail (to keep)].
-          3. Call cheap LLM to distill head into a concise summary.
-          4. Replace head with a single SummaryMessage.
+        并在压缩发生时，将其作为「情节记忆 (Episodic Memory)」持久化。
         """
         if not messages:
             return messages
@@ -1238,6 +1247,27 @@ class SwarmOrchestrator:
                 f"📝 [Compaction] Summarized {len(head)} messages ({total_tokens} tokens) "
                 f"into {token_service.count_tokens(summary_content)} tokens."
             )
+
+            # --- ARM-P2: Episodic Memory Integration ---
+            # When compaction happens, we trigger a background task to store this episode.
+            if user_id and conversation_id and summary_content:
+                from app.services.memory.episodic_service import episodic_memory_service
+
+                # Convert messages to serializable dicts for the service
+                serializable_msgs = []
+                for m in head:
+                    role = "user" if isinstance(m, HumanMessage) else "assistant"
+                    serializable_msgs.append({"role": role, "content": str(m.content)})
+
+                self._track_task(
+                    episodic_memory_service.store_episode(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        messages=serializable_msgs,
+                        pre_computed_summary=summary_content,
+                    )
+                )
+
         except Exception as e:
             logger.warning(f"⚠️ [Compaction] LLM summarization failed, falling back to truncation: {e}")
             # Fallback: Use a static placeholder rather than leaving oversized context

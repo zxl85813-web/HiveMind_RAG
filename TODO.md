@@ -305,6 +305,69 @@
 - ✅ **AntV G6 Simple Demo** — 新增 `CanvasLabPage` 中的最小 Agent 关系图示例，作为替换 AgentDAG/GraphVisualizer 的前置验证
 - ✅ **AntV G6 Demo 增强** — 已补充聚焦操作、缩放控制与状态图例，提升关系画布交互验证质量
 
+#### GraphRAG 进化方向 (P2) — 借鉴 AutoSchemaKG
+
+> 📖 **背景**: AutoSchemaKG 的核心理念是从非结构化文本中同时提取知识三元组并动态归纳 Schema。经过评估，**全自动归纳在研发场景下性价比偏低**，但以下三个设计理念值得在现有体系上渐进式落地。
+
+##### GRAPH-EVO-001: 双轨 Schema 策略 (P2，可独立推进)
+
+> **问题**: 目前 `graph_extractor.py` 对所有节点统一使用半预定义的 `label`（如 `Concept|Person`），导致代码实体和业务知识语义模糊混用。
+> **方案**: 采用「双轨」分离：架构/代码实体（`Service、File、API、Function、Requirement`）使用强类型预定义 Label；业务知识 KB 文档中的实体允许 LLM 自由归纳 label。
+
+- ⬜ **GRAPH-EVO-001A**: 在 `EntityExtractionStep` 中增加 `extraction_mode` 参数
+  - `mode=strict`（默认）：只允许从预定义白名单（`Service/File/API/Function/Req`）中选 label，用于体系内结构化实体
+  - `mode=dynamic`：允许 LLM 自由输出 label，用于用户上传的业务 KB（如行业报告、会议记录）
+  - 交付物：更新 `GraphExtractor.extract_knowledge_graph()` 增加 mode 参数；更新 `EntityExtractionStep` 注入 KB 类型上下文
+  - 验收：代码相关 KB 入图节点 label 仅含白名单类型；业务 KB 入图节点可出现领域自定义类型（如 `FinancialInstrument`）
+  - (协作者: zxl85813-web)
+
+- ⬜ **GRAPH-EVO-001B**: 代码资产实体白名单文档化
+  - 交付物：在 `docs/architecture/ARCH-GRAPH.md` 中补充「图谱实体分类标准」章节
+  - 标准化 Node Label 枚举：`CodeFile / Service / APIRoute / DBModel / Requirement / Task / Agent / Community`
+  - 验收：Cypher 查询 `MATCH (n:Service)` 可精确命中服务节点，无语义漂移
+  - (协作者: zxl85813-web)
+
+##### GRAPH-EVO-002: 事件链建模 (Event Chain) (P2，依赖 GRAPH-EVO-001A 完成)
+
+> **问题**: 当前图谱只建模「名词」实体（Entity-Entity），缺乏对研发过程中动态事件（如代码提交、Bug 修复、部署）的建模，Agent 无法回溯「系统是如何一步步演化到当前状态的」。
+> **价值**: 引入 AutoSchemaKG 对「事件作为一等公民」的理念，为 Agent 提供因果链与时序追溯能力。
+
+- ⬜ **GRAPH-EVO-002A**: 定义事件节点 Schema
+  - 引入 `Event` 节点类型，核心字段：`id / event_type / timestamp / actor / description / outcome`
+  - 事件类型枚举：`BugReported / BugFixed / FeatureCommitted / DeploymentTriggered / TestFailed / ReviewCompleted`
+  - 关系类型扩展：`TRIGGERED_BY / LED_TO / PART_OF / RESOLVED_BY`
+  - 交付物：在 Neo4j `graph_store.py` 的 `import_subgraph()` 中增加对 `Event` 节点的写入支持
+  - (协作者: zxl85813-web)
+
+- ⬜ **GRAPH-EVO-002B**: 研发事件自动接入
+  - 将 Git Commit、GitHub Issue 关闭、CI Pipeline 结果等写入 `Event` 节点（接入已有的 `architectural-mapping` Skill 的摄取脚本）
+  - 交付物：在 `indexing_scripts/` 下新增 `index_git_events.py`，定期将 Git 日志转换为 Event 节点链
+  - 验收：Agent 能通过 `get_neighborhood("BUG-004")` 查到：报告 → 修复提交 → 测试通过 的完整事件链
+  - (协作者: zxl85813-web)
+
+- ⬜ **GRAPH-EVO-002C**: 事件链检索接入 `get_neighborhood()`
+  - 在 `GraphIndex.get_neighborhood()` 中增加对 `Event` 节点的展开逻辑，支持时序排序输出
+  - 交付物：Agent 上下文中增加 `--- TIMELINE (Graph) ---` 段落，展示与当前实体相关的近期事件
+  - 验收：对话中提及报错时，Agent 能自动关联到同类历史故障的处理链条
+  - (协作者: zxl85813-web)
+
+##### GRAPH-EVO-003: 实体消歧与语义合并 (P2，偏长期)
+
+> **问题**: 多文档入库后同一实体（如 `DB`、`数据库`、`Database`）会产生多个孤立节点，导致 Cypher 查询召回不完整，社区检测结果质量下降。
+> **价值**: 借鉴 AutoSchemaKG 的「语义对齐」机制，维护一个干净的、全局唯一的知识节点集合。
+
+- ⬜ **GRAPH-EVO-003A**: 实体去重预处理
+  - 在 `EntityExtractionStep` 提取结束后，增加「候选实体归一化」阶段：用 MERGE 语义（而非 CREATE）写入 Neo4j
+  - 提取时对 `name` 字段进行 lowercase + 移除特殊字符的标准化（避免 `PostgreSQL` 与 `postgresql` 生成双节点）
+  - 交付物：更新 `graph_store.py` 的 `import_subgraph()` 的 Cypher 语句，统一改为 `MERGE (n {normalized_name: ...})`
+  - (协作者: Uchihacc)
+
+- ⬜ **GRAPH-EVO-003B**: 近义实体批量合并工具（可选，长期）
+  - 编写定期运行的 `scripts/graph_entity_dedup.py`
+  - 策略：查询出所有实体 → 对 name embedding 做聚类（cosine > 0.92） → 对候选合并对用 LLM 做最终裁决 → MERGE 节点并重连 edges
+  - 交付物：可手动触发或 CI 每周运行一次的合并报告 + 审计日志
+  - (协作者: Uchihacc)
+
 #### 查询理解 (P1)
 - ✅ **QueryPreProcessingStep 已完善** — 实现了针对查询的重写和意图处理
 - ✅ **意图分类** — 事实查询 / 比较分析 / 总结概览 / 操作指令
@@ -386,6 +449,24 @@
 - ⬜ **查询路由规则**：问业务口径先查定义文档；问实现细节再查 SQL 摘要与代码符号
 - ⬜ **证据完整性校验器**：无本体证据时降级为“待确认”，防止摘要幻觉
 - ⬜ **评估指标落库**：Recall@K、Evidence Precision、Impact Accuracy、Hallucination Rate
+
+#### G-IMP 影响分析能力强化 — 变更调查模板落地 (P2) ⬜
+
+> 目标：将《常见代码变更影响调查模板》固化为系统原生能力，支持从「原子修改」到「业务入口」的全链路追溯。
+
+- ⬜ **TASK-IMP-001：全链接深度影响递归算法** (协作者: zxl85813-web)
+  - 任务：实现 Cypher 递归查询模板，支持从任一 Method/Field 节点向上追溯至所有 `Entry Point` (API / Job / Action)。
+  - 验收：给定一个私有方法名，系统能输出受影响的 API 列表及受影响的 UI 页面清单。
+- ⬜ **TASK-IMP-002：跨语言静态资产依赖索引** (协作者: Uchihacc)
+  - 任务：扩展 `Parser` 对 JSP `include`、JS `import/call` 及 CSS `reference` 的识别能力。
+  - 验收：图谱中出现 `(JSP)-[:INCLUDES]->(SubJSP)` 关系，且修改 JS 后能反向定位到引用的 JSP/HTML 页面。
+- ⬜ **TASK-IMP-003：SQL-Table 原子级影响溯源** (协作者: zxl85813-web)
+  - 任务：将 `Table/Column` 变更的影响通过 `SQLStatement` 传播至后端 `Service` 代码。
+  - 验收：删除某数据库字段后，系统能自动列出关联的所有 SQL 语句及其在代码中的具体位置（File + Line）。
+- ⬜ **TASK-IMP-004：变更调查报告生成器** (协作者: Uchihacc)
+  - 任务：模仿《变更调查模板》输出格式化的 Markdown 报告，包含分类、影响路径及建议测试点。
+  - 验收：Agent 在执行影响分析后，主动输出结构化的调查表格。
+
 
 #### G5 执行顺序（按依赖）
 

@@ -70,6 +70,7 @@ frontend/test-results/
 hivemind.db
 backend/data/chroma/
 backend/data/
+backend/data/memories/
 start_data/
 
 # ==========================================

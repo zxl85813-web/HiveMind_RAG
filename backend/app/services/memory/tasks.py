@@ -28,18 +28,43 @@ def decay_memory(self, decay_rate: float = 0.95, eviction_threshold: float = 0.0
     try:
         from app.services.memory.tier.abstract_index import abstract_index
 
+        # 1. Decay Tier-1 Radar (In-Memory)
         stats_before = abstract_index.get_stats()
         below = abstract_index.apply_decay(decay_rate=decay_rate)
         evicted = abstract_index.evict_cold(threshold=eviction_threshold)
         stats_after = abstract_index.get_stats()
 
+        # 2. Decay Episodic Memory (Database) - EP-008
+        import asyncio
+        from app.core.database import async_session_factory
+        from app.models.episodic import EpisodicMemory
+        from sqlmodel import select
+
+        async def _decay_episodic():
+            async with async_session_factory() as session:
+                stmt = select(EpisodicMemory).where(EpisodicMemory.temperature > 0.01)
+                results = await session.execute(stmt)
+                episodes = results.scalars().all()
+                
+                update_count = 0
+                for ep in episodes:
+                    # Apply specific episodic decay (slightly slower than Radar for persistence)
+                    ep.temperature = round(ep.temperature * (decay_rate + 0.02), 4)
+                    if ep.temperature < eviction_threshold:
+                        ep.temperature = 0.0
+                    session.add(ep)
+                    update_count += 1
+                
+                await session.commit()
+                return update_count
+
+        episodic_updated = asyncio.run(_decay_episodic())
+
         result = {
             "status": "success",
             "decay_rate": decay_rate,
-            "entries_before": stats_before["total_entries"],
-            "entries_after": stats_after["total_entries"],
-            "evicted": evicted,
-            "below_threshold_before_eviction": below,
+            "radar_evicted": evicted,
+            "episodic_updated": episodic_updated,
             "avg_temperature_after": stats_after["avg_temperature"],
         }
         logger.info(f"✅ [MemoryDecay] Task completed: {result}")
