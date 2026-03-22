@@ -1,6 +1,7 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import api from './api';
 import i18n from '../i18n/config';
+import { StreamManager } from '../core/stream/StreamManager';
 
 export interface ChatMessage {
     id: string;
@@ -101,6 +102,34 @@ export const chatApi = {
         } catch (err) {
             if (onError) onError(err);
         }
+    },
+
+    /**
+     * 🛰️ [HMER Phase 3]: 获取弹性流管理器
+     * 用于替代普通的 streamChat，支持重连与多轨解析。
+     */
+    getResilientStream(params: {
+        message: string;
+        conversationId?: string | null;
+        knowledgeBaseIds?: string[];
+        clientEvents?: Record<string, unknown>[];
+    }): StreamManager {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        const token = localStorage.getItem('access_token');
+        
+        return new StreamManager({
+            url: `${baseUrl}/chat/completions`,
+            headers: {
+                'Accept-Language': i18n.language || 'zh-CN',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: {
+                message: params.message,
+                conversation_id: params.conversationId,
+                knowledge_base_ids: params.knowledgeBaseIds,
+                client_events: params.clientEvents
+            }
+        });
     },
 
     /**

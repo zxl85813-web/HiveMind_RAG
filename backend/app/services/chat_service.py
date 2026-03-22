@@ -227,8 +227,12 @@ class ChatService:
         """
         核心流式对话生成器 — 使用 SwarmOrchestrator 进行智能编排与多级存储检索。
         P2: 集成语义缓存 (Semantic Cache) 与 Token 追踪。
+        P3: 卫星级弹性流层 — 支持断点续传、多轨解析与服务降级。
         """
         import time
+        import json
+        import asyncio
+        import re
 
         from app.api.routes.agents import _swarm
         from app.core.tracing import ChatTracer
@@ -250,11 +254,27 @@ class ChatService:
             metadata=variant_meta,
         )
 
+        # --- 🛰️ [HMER Phase 3]: Chunk Counter for Resumption ---
+        chunk_counter = 0
+
+        async def _yield_payload(track_name: str, payload_data: dict):
+            nonlocal chunk_counter
+            chunk_counter += 1
+            # 如果提供了 resume_index，则跳过之前的分块 (极简逻辑: 物理跳过)
+            if request.resume_index is not None and chunk_counter <= request.resume_index:
+                return
+
+            payload_data["_index"] = chunk_counter
+            payload_data["track"] = track_name
+            payload_data["type"] = track_name 
+            yield f"data: {json.dumps(payload_data)}\n\n"
+
         # 1. 如果没有会话ID，创建新会话
         if not conversation_id:
             conv = await ChatService.create_conversation(user_id, title=request.message[:20])
             conversation_id = conv.id
-            yield f"data: {json.dumps({'type': 'session_created', 'id': conversation_id, 'title': conv.title})}\n\n"
+            async for p in _yield_payload("session_created", {"id": conversation_id, "title": conv.title}):
+                yield p
 
         # 1.5 Record Client Events (Frontend Operation Logs)
         if request.client_events:
@@ -283,11 +303,9 @@ class ChatService:
                     continue
                 if m.role == "user":
                     from langchain_core.messages import HumanMessage
-
                     history.append(HumanMessage(content=m.content))
                 elif m.role == "assistant":
                     from langchain_core.messages import AIMessage
-
                     history.append(AIMessage(content=m.content))
             break
 
@@ -298,21 +316,20 @@ class ChatService:
             is_cached = True
             cache_step.complete(output="Cache Hit", status="success")
             logger.info("🚀 Semantic Cache Hit! Skipping LLM Swarm.")
-            yield f"data: {json.dumps({'type': 'status', 'content': '⚡ 语义缓存命中: 正在极速回复...'})}\n\n"
+            async for p in _yield_payload("status", {"content": "⚡ 语义缓存命中: 正在极速回复..."}):
+                yield p
+
             response_content = cached["content"]
-            # Stream the cached content to keep UI experience consistent
-            # --- Phase 6: Batch Yielding (M6.3) ---
             batch_size = 30
             for i in range(0, len(response_content), batch_size):
                 chunk = response_content[i : i + batch_size]
-                cache_chunk_payload = {
-                    "type": "content",
-                    "delta": chunk,
+                async for p in _yield_payload("content", {
+                    "delta": chunk, 
                     "conversation_id": conversation_id,
-                    "is_cached": True,
-                }
-                yield f"data: {json.dumps(cache_chunk_payload)}\n\n"
-                await asyncio.sleep(0.01)  # Faster than per-char but still has progress feel
+                    "is_cached": True
+                }):
+                    yield p
+                await asyncio.sleep(0.01)
         else:
             cache_step.complete(output="Cache Miss", status="info")
             # 5. Prepare Context (ARM-P0-4)
@@ -320,7 +337,6 @@ class ChatService:
             from app.models.chat import User
             from app.services.knowledge.kb_service import KnowledgeService
 
-            # Fetch user info and authorized KBs for auth context
             user_role = "user"
             user_dept = None
             auth_kb_ids = []
@@ -330,7 +346,6 @@ class ChatService:
                 if user_obj:
                     user_role = user_obj.role
                     user_dept = user_obj.department_id
-                    # Standardized authorized_kb_ids (ARM-P0-4)
                     kb_service = KnowledgeService(session)
                     auth_kb_ids = await kb_service.get_user_accessible_kbs(user_obj)
                 break
@@ -348,7 +363,7 @@ class ChatService:
                 "prompt_variant": request.prompt_variant,
                 "retrieval_variant": request.retrieval_variant,
                 "language": accept_language or "zh-CN",
-            }  # Inject user identity and experiment variants
+            }
             if request.knowledge_base_ids:
                 context["knowledge_base_ids"] = request.knowledge_base_ids
 
@@ -356,7 +371,6 @@ class ChatService:
             policy_rules = None
             async for session in get_db_session():
                 from app.services.security_service import SecurityService
-
                 policy = await SecurityService.get_active_policy(session)
                 if policy and policy.rules_json:
                     policy_rules = json.loads(policy.rules_json)
@@ -366,121 +380,99 @@ class ChatService:
             response_content = ""
             swarm_step = tracer.start_step("Swarm Orchestration", "agent", input_data=request.message)
             try:
-                current_sub_step = None
                 async for output in _swarm.invoke_stream(
                     request.message, context=context, history=history, conversation_id=conversation_id
                 ):
                     # --- Thought Chain & Status Mapping ---
                     for node_name, updates in output.items():
-                        if not isinstance(updates, dict):
-                            continue
+                        if not isinstance(updates, dict): continue
 
-                        # 1. Primary Thought Log (Architecture Internal)
                         if updates.get("thought_log"):
-                            yield f"data: {json.dumps({'type': 'status', 'content': updates['thought_log']})}\n\n"
+                            async for p in _yield_payload("status", {"content": updates["thought_log"]}):
+                                yield p
 
-                        # 2. Legacy Status Updates
                         if updates.get("status_update"):
-                            yield f"data: {json.dumps({'type': 'status', 'content': updates['status_update']})}\n\n"
+                            async for p in _yield_payload("status", {"content": updates["status_update"]}):
+                                yield p
 
-                        # 3. Node Specific Mapping
                         if node_name == "retrieval":
                             ret_logs = updates.get("retrieval_trace", [])
                             ret_docs = updates.get("retrieved_docs", [])
                             tracer.add_quick_step(
                                 "Memory Retrieval",
-                                "Searching Radar/Graph/Vector Store",
+                                "Searching Radar/Vector Store",
                                 "retrieval",
                                 metadata={"logs": ret_logs, "docs": ret_docs} if (ret_logs or ret_docs) else None,
                             )
-                            if not ret_docs:
-                                status_content = "🔍 检索核心资产库中..."
-                            else:
-                                status_content = f"📚 找到 {len(ret_docs)} 相关条目"
-                            yield f"data: {json.dumps({'type': 'status', 'content': status_content})}\n\n"
-
-                        if node_name == "supervisor":
-                            next_agent = updates.get("next_step")
-                            if next_agent and next_agent != "FINISH":
-                                tracer.add_quick_step("Supervisor Decision", f"Handing over to {next_agent}", "agent")
+                            status_msg = f"📚 找到 {len(ret_docs)} 相关条目" if ret_docs else "🔍 检索核心资产库中..."
+                            async for p in _yield_payload("status", {"content": status_msg}):
+                                yield p
 
                     # --- Content Stream Handling ---
-                    non_content_nodes = {"retrieval", "supervisor", "reflection", "pre_processor"}
                     for node_name, updates in output.items():
+                        non_content_nodes = {"retrieval", "supervisor", "reflection", "pre_processor"}
                         if node_name not in non_content_nodes and "messages" in updates:
                             raw_content = updates["messages"][-1].content
                             if policy_rules:
                                 from app.audit.security.engine import DesensitizationEngine
+                                raw_content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
 
-                                content, _ = DesensitizationEngine.process_text(raw_content, policy_rules)
-                            else:
-                                content = raw_content
-
-                            # --- AI-First Refinement: Clean up internal model tags (M2.1H) ---
-                            import re
-
-                            thinking_match = re.search(r"<(think|thought)>(.*?)</\1>", content, re.DOTALL)
+                            # --- 🛰️ [HMER Phase 3]: 精细化多轨提取 ---
+                            thinking_match = re.search(r"<(think|thought)>(.*?)</\1>", raw_content, re.DOTALL)
                             if thinking_match:
-                                think_content = thinking_match.group(2).strip()
-                                if think_content:
-                                    think_payload = {"type": "status", "content": f"🤔 思考: {think_content[:150]}..."}
-                                    yield f"data: {json.dumps(think_payload)}\n\n"
+                                async for p in _yield_payload("thinking", {"delta": thinking_match.group(2).strip()}):
+                                    yield p
 
+                            content = re.sub(r"<(think|thought)>.*?</\1>", "", raw_content, flags=re.DOTALL)
                             content = re.sub(r"<[\|｜].*?[\|｜]>", "", content)
-                            content = content.replace("< | tool_calls_begin | >", "")
-                            content = content.replace("< | tool_calls_end | >", "")
-                            content = re.sub(r"<(think|thought)>.*?</\1>", "", content, flags=re.DOTALL)
-
-                            if not content.strip():
-                                continue
+                            content = content.replace("< | tool_calls_begin | >", "").replace("< | tool_calls_end | >", "")
+                            
+                            if not content.strip(): continue
 
                             batch_size = 15
                             for i in range(0, len(content), batch_size):
                                 chunk = content[i : i + batch_size]
                                 response_content += chunk
-                                content_payload = {
-                                    "type": "content",
+                                async for p in _yield_payload("content", {
                                     "delta": chunk,
-                                    "conversation_id": conversation_id,
-                                }
-                                yield f"data: {json.dumps(content_payload)}\n\n"
+                                    "conversation_id": conversation_id
+                                }):
+                                    yield p
                                 await asyncio.sleep(0.005)
 
                 swarm_step.complete(output="Generation Completed")
-                # 6.5 Set Cache for future similar questions (only if it's a REAL answer, not a tool leak)
                 if response_content and not any(tag in response_content for tag in ["tool_calls_begin", "tool_sep"]):
                     await CacheService.set_cached_response(request.message, response_content)
 
             except Exception as e:
                 swarm_step.complete(output=str(e), status="error")
                 logger.error(f"Swarm invocation failed: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'content': f'Swarm Error: {e!s}'})}\n\n"
+                async for p in _yield_payload("error", {"content": f"Swarm Error: {e!s}"}):
+                    yield p
 
         # 7. Generate Proactive Insight (AI-First)
         insight_step = tracer.start_step("Proactive Insight", "agent")
         try:
             from app.services.insight_service import InsightService
-
-            # Ensure history is always included for context-aware insights
             full_history = "\n".join([m.content for m in history] + [request.message])
             insight = await InsightService.generate_session_insight(full_history, response_content)
             if insight:
                 insight_step.complete(output=f"Generated {len(insight.actions)} actions")
-                yield f"data: {json.dumps({'type': 'insight', 'data': insight.dict()})}\n\n"
+                async for p in _yield_payload("insight", {"data": insight.dict()}):
+                    yield p
             else:
                 insight_step.complete(output="No insight generated")
         except Exception as e:
             insight_step.complete(output=str(e), status="error")
             logger.warning(f"Failed to generate session insight: {e}")
 
-        # 8. Performance Metrics Calculation
+        # 8 & 9. Performance & Save
         end_time = time.time()
         latency_ms = (end_time - start_time) * 1000
         p_tokens = TokenService.count_tokens(request.message)
         c_tokens = TokenService.count_tokens(response_content)
         total_tokens = p_tokens + c_tokens
 
-        # 9. 保存 AI 最终回复与指标
         async for session in get_db_session():
             actions_json = None
             if "insight" in locals() and insight:
@@ -490,36 +482,32 @@ class ChatService:
                 conversation_id=conversation_id,
                 role="assistant",
                 content=response_content,
-                # P2 Metrics
                 prompt_tokens=p_tokens if not is_cached else 0,
                 completion_tokens=c_tokens if not is_cached else 0,
                 total_tokens=total_tokens if not is_cached else 0,
                 latency_ms=latency_ms,
                 is_cached=is_cached,
                 metadata_json=json.dumps({"actions": actions_json}) if actions_json else None,
-                trace_data=tracer.get_trace_json(),  # Save custom trace!
+                trace_data=tracer.get_trace_json(),
             )
             session.add(ai_msg)
             await session.commit()
 
         # 10. 结束信号
-        yield f"data: {json.dumps({'type': 'done', 'latency_ms': latency_ms, 'is_cached': is_cached})}\n\n"
+        async for p in _yield_payload("done", {"latency_ms": latency_ms, "is_cached": is_cached}):
+            yield p
 
         # 11. 跨会话情节记忆蒸馏 (EP-006)
         if conversation_id and not is_cached:
             try:
                 from app.services.memory.episodic_service import episodic_memory_service
-
-                # 记录参与本轮会话的消息链
                 current_session_msgs = []
                 for m in history:
                     msg_role = "user" if m.type == "human" else "assistant"
                     current_session_msgs.append({"role": msg_role, "content": str(m.content)})
-
                 current_session_msgs.append({"role": "user", "content": request.message})
                 current_session_msgs.append({"role": "assistant", "content": response_content})
 
-                # 触发后台异步蒸馏（不阻塞响应完成）
                 asyncio.create_task(
                     episodic_memory_service.store_episode(
                         user_id=user_id, conversation_id=conversation_id, messages=current_session_msgs

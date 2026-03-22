@@ -1,0 +1,5 @@
+﻿Testing with session_id: 08cf4c4e-cb7c-4026-b331-7b31331b7e21
+2026-03-22 13:34:10,642 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-22 13:34:10,645 INFO sqlalchemy.engine.Engine INSERT INTO obs_baseline_metrics (id, metric_name, value, session_id, user_id, context, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-03-22 13:34:10,645 INFO sqlalchemy.engine.Engine [generated in 0.00051s] [('bab3f544-6d70-44dd-8528-7ec2586e8067', 'TTFT (Baseline)', 500.0, '08cf4c4e-cb7c-4026-b331-7b31331b7e21', None, '{"grp": "control"}', '2026-03-22 13:34:10.632047'), ('50b28fda-6629-46fb-8cb4-ab4b955e5011', 'TTFT (Baseline)', 600.0, '08cf4c4e-cb7c-4026-b331-7b31331b7e21', None, '{"grp": "control"}', '2026-03-22 13:34:10.632047'), ('7104a381-430e-4504-b130-377c89c97289', 'TTFT (Baseline)', 300.0, '08cf4c4e-cb7c-4026-b331-7b31331b7e21', None, '{"grp": "experiment"}', '2026-03-22 13:34:10.633047'), ('bc97c081-fb90-4cb3-84d5-f917360eabc1', 'TTFT (Baseline)', 400.0, '08cf4c4e-cb7c-4026-b331-7b31331b7e21', None, '{"grp": "experiment"}', '2026-03-22 13:34:10.633047')]
+2026-03-22 13:34:10,648 INFO sqlalchemy.engine.Engine ROLLBACK

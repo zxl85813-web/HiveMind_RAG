@@ -76,6 +76,10 @@ start_data/
 # ==========================================
 # Temporary Test Scripts & Sandbox
 # ==========================================
+backend/test_*.py
+backend/check_*.py
+backend/eval_*.py
+backend/benchmarks/
 dummy_mcp_server.py
 mcp_swarm_test.py
 mcp_test.py

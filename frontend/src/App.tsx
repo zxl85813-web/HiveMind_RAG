@@ -40,6 +40,7 @@ const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ default: m.CanvasLabPage })));
+const ArchitectureLabPage = lazy(() => import('./pages/ArchitectureLabPage'));
 const ForbiddenPage = lazy(() => import('./pages/ForbiddenPage').then(m => ({ default: m.ForbiddenPage })));
 
 const pageComponentMap = {
@@ -56,6 +57,7 @@ const pageComponentMap = {
   batch: BatchPage,
   learning: LearningPage,
   settings: SettingsPage,
+  architectureLab: ArchitectureLabPage,
 } as const;
 
 /**

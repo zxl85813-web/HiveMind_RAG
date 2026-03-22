@@ -374,10 +374,12 @@ class MemoryService:
                 logger.warning(f"Tier-3 vector search failed: {e}")
 
             # ── Block 4.5: SmartGrep — 传统高召回检索 (BM25 + Fuzzy)
+            hot_hits = 0
             try:
                 grep_svc = get_smart_grep_service()
                 grep_results = await grep_svc.search(query, user_id=self.user_id, limit=3, mode="auto")
                 if grep_results:
+                    hot_hits = len(grep_results)
                     grep_lines = []
                     for r in grep_results:
                         snippet = r.content.replace("\n", " ")[:150]
@@ -386,8 +388,28 @@ class MemoryService:
             except Exception as e:
                 logger.warning(f"SmartGrep integration failed: {e}")
 
+            # ── Block 4.6: Tier-5 Global Knowledge — 全局 ES 冷检索 (非必要不启动)
+            # 判定策略：如果个人热记忆 (Vector + Grep) 命中极少，或者查询涉及全局/手册类词汇
+            global_triggers = ["standard", "spec", "manual", "guide", "policy", "api reference", "规范", "手册"]
+            should_query_global = (hot_hits < 2) or any(k in query.lower() for k in global_triggers)
+
+            if should_query_global:
+                try:
+                    from app.services.retrieval.es_service import get_global_knowledge_service
+                    es_svc = get_global_knowledge_service()
+                    # 仅在 ES 实际可用时建立连接
+                    global_results = await es_svc.global_search(query, limit=2)
+                    if global_results:
+                        global_lines = []
+                        for gr in global_results:
+                            global_lines.append(f"- [{gr.index}] {gr.title or gr.id}: {gr.content}")
+                        context_blocks.append(f"--- GLOBAL KNOWLEDGE (Tier-5 ES) ---\n" + "\n".join(global_lines))
+                except Exception as e:
+                    logger.warning(f"Tier-5 global search failed: {e}")
+
         # ── Block 5: 今日日志 — Ephemeral / 最近上下文
         daily_log = self._get_daily_log_path()
+
         if daily_log.exists():
             logs = daily_log.read_text(encoding="utf-8")[-2000:]
             if logs.strip():

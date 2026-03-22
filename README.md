@@ -53,7 +53,12 @@ Supervisor Agent 是整个系统的大脑。它解析用户意图、分配任务
 
 ### 🛡️ 架构治理 — 软件大脑与资产防腐
 
-真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **Agent-Native LLM 智能路由 (ClawRouter 模式)**，多维度动态分流与熔断降级。同时，系统内置了基于 Neo4j 的 **软件大脑 (Arch-Graph)**，将需求、设计、代码和测试深度关联。通过“上帝视角”的图谱导航，AI 能在毫秒级内完成影响力分析和精准路由。
+真正的智能不只在于模型够大，更在于**生态的韧性**。HiveMind 实现了 **HiveDispatcher (蜂群调度器)**，通过 15 维度意图判定，在 Eco 与 Premium 模型间动态切分。同时，系统建立了 **分层检索矩阵 (Tiered Retrieval Matrix)**：
+
+- **🔥 热路 (Hot Path)**：利用 `SmartGrep` + `ChromaDB` 实现本地用户会话的秒级精准召回（个人隐私安全）。
+- **❄️ 冷路 (Cold Path)**：集成 `Elasticsearch (ES)` 实现对全局技术文档、百万级历史数据的惰性按需检索。
+- **🧠 记忆图谱**：内置基于 Neo4j 的 **软件大脑 (Arch-Graph)**，提供上帝视角的图谱导航。
+
 
 → 详见 [架构图谱文档](docs/architecture/ARCH-GRAPH.md)
 

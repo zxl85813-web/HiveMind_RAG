@@ -152,3 +152,20 @@ class HITLTask(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     reviewed_at: datetime | None = None
+
+
+class BaselineMetric(SQLModel, table=True):
+    """
+    Phase 0: Baseline Performance Metrics Repository.
+    Captured from the frontend to measure pre-architecture-redesign performance.
+    """
+
+    __tablename__ = "obs_baseline_metrics"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    metric_name: str = Field(index=True)
+    value: float
+    session_id: str | None = Field(default=None, index=True)
+    user_id: str | None = Field(default=None, index=True)
+    context: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

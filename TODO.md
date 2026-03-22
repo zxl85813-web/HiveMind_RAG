@@ -67,7 +67,7 @@
 | 记忆层（Memory） | Memory Agent | ⬜ 明确会话短记忆与评估长记忆写入边界 | ⬜ 正向反馈自动沉淀到评估集（M2.1F） | ⬜ 跨会话用户画像记忆治理 |
 | 评审层（Reflection） | Reflection Agent | ⬜ 将自动审核规则引擎接入统一评分卡 | ⬜ Multi-Grader 三评分器联调（Code/Model/Human） | ⬜ 失败样本自动回灌提示词优化 |
 | 治理层（Governance） | Governance Agent | ⬜ 修复 BUG-004（同步 Session → AsyncSession） | ⬜ 脱敏策略按知识库隔离配置 | ⬜ 安全等级 L1-L4 全链路联动 |
-| 可观测层（Observability） | Observability Agent | ⬜ 增加检索命中率/空结果率/延迟指标面板 | ⬜ V3 Trace 全链路收口（Redis Buffer + FileTrace/AgentSpan） | ⬜ 质量-成本联合优化看板 |
+| 可观测层（Observability） | Observability Agent | ✅ 增加检索命中率/空结果率/延迟指标面板 | ✅ V3 Trace 全链路收口（Redis Buffer + FileTrace/AgentSpan） | ⬜ 质量-成本联合优化看板 |
 | 前端治理层（FE Governance） | FE Architect | ✅ **FE-GOV-001**, **FE-GOV-003**, **FE-GOV-004** | ✅ **FE-GOV-002**, **FE-GOV-005** |
 
 ### 0.2 本周执行序列（按依赖排序）
@@ -583,6 +583,7 @@
 - ✅ **Adaptive RAG (Self-RAG)**: Supervisor dynamically decides whether to retrieve context or answer directly.
 - ✅ **Graph Refactor**: Entry point moved to Supervisor; Retrieval is now a routeable strategy node.
 - ✅ **Self-Refinement Loop**: Agents can report context quality issues, triggering re-retrieval via Supervisor.
+- ✅ **A/B Testing Infrastructure**: Implemented comparative metrics, group switching, and result visualization.
 
 #### 变更履历 RAG (P1) — REQ-011 ⬜
 - ⬜ **ChangelogAwareParser**: 实现 Excel/Word 变更履历自动提取逻辑

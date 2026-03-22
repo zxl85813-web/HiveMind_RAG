@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     client_events: list[dict] = []  # UI interaction logs (button clicks, navigation, etc.)
     prompt_variant: str = "default"  # Prompt A/B selector
     retrieval_variant: str = "default"  # Retrieval chain A/B selector
+    resume_index: int | None = None  # 🛰️ [HMER Phase 3]: Resume from specific chunk index
 
 
 class AIAction(BaseModel):

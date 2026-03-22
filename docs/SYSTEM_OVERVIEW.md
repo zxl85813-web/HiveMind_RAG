@@ -11,6 +11,12 @@ HiveMind RAG 的开发不是"想到哪里写到哪里"，而是完全拥抱 **Do
 
 核心理念：**"所有意图必须显式记录，所有代码必须有依据，所有问题必须有闭环。"**
 
+在这之上，我们信奉 **HMER 验证哲学 (大胆设想，小心求真)**：
+- **H**ypothesis (假设) — 每次变更前，明确可证伪的业务或技术假设。
+- **M**easure (度量) — 建立基线数据，确定改造前后的量化指标。
+- **E**xperiment (实验) — 在最小范围（Feature Flag/影子写入/A-B 测试）进行验证。
+- **R**eflect (反思) — 用数据说话，做出投产、迭代或回滚的决策。
+
 ```
 你的想法 / Bug / 需求
      │
@@ -97,8 +103,9 @@ AI 阻塞 → 新建 [BLOCKED] Issue → 打 ai-generated 标签
 ```
 Issue 建立
   → 讨论技术方案 (Architect + PO)
+  → 制定 HMER 验证方案 (收集基线, 设定指标)
   → 创建 ADR 文档 (docs/architecture/decisions/NNNN-xxx.md)
-  → 方案批准 → 开始实现
+  → 方案批准 → 开始实现 → 灰度验证 → 数据反思决策
 ```
 
 ---
@@ -232,6 +239,11 @@ Issue 建立
 *   **KB = Service**: 每个知识库是一个独立治理的微服务单元。
 *   **契约驱动**: RAG 输出必须遵守强 Schema 契约 (`KnowledgeResponse`)，严禁向 Agent 返回裸字符串。
 *   **治理同步**: RAG 的治理遵循微服务治理逻辑：路由、发现、限流与熔断。
+
+### 4. RAG 的 HMER 验证循环 (RAG Evaluation)
+*   **RAG 同样也是实验**: 调整 Prompt、更换 Embedding 模型或改变 Chunk 策略，本质上都是"架构变更"。
+*   **无度量不优化**: 所有的 RAG 优化必须建立在评估数据集 (Eval Dataset) 和基准测试 (Baseline) 之上。
+*   **验证标准**: 每次 RAG 链路更新必须通过精确度 (Precision)、召回率 (Recall) 和响应延迟 (Latency) 的数据反思，证明其优于现网版本才能全量。
 
 ---
 

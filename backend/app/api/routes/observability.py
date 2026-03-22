@@ -279,3 +279,102 @@ async def get_cold_documents_stats(
     """
     result = await get_cold_documents(db, kb_id=kb_id, limit=limit, days=days)
     return ApiResponse.ok(data=result)
+
+
+# ---------------------------------------------------------------------------
+# Phase 0 Baseline Tracking (H.M.E.R)
+# ---------------------------------------------------------------------------
+
+
+class BaselineMetricItem(BaseModel):
+    name: str = Field(..., description="指标名称")
+    value: float = Field(..., description="毫秒值或数值")
+    context: dict[str, Any] = Field(default_factory=dict, description="上下文环境")
+
+
+class BaselinePayload(BaseModel):
+    metrics: list[BaselineMetricItem]
+    session_id: str | None = None
+
+
+@router.post(
+    "/baseline",
+    response_model=ApiResponse[dict[str, str]],
+    summary="[HMER Phase 0] 上报前端基线指标",
+)
+async def post_baseline_metrics(
+    payload: BaselinePayload,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    接收并存储前端采集的基线指标。
+    HMER: M (Measure) - 建立基线。
+    """
+    from app.services.observability_service import record_baseline_metrics
+
+    await record_baseline_metrics(
+        metrics=[m.model_dump() for m in payload.metrics],
+        user_id=current_user.id,
+        session_id=payload.session_id,
+    )
+    return ApiResponse.ok(data={"status": "recorded"})
+
+
+@router.get(
+    "/baseline-report",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[HMER Phase 0] 获取全量基线统计报告",
+)
+async def get_overall_baseline_report(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    汇总全量用户的基线数据，生成 HMER 决策依据。
+    HMER: R (Reflect) - 基于数据的反思。
+    """
+    from app.services.observability_service import get_baseline_summary
+
+    report = await get_baseline_summary(db)
+    return ApiResponse.ok(data=report)
+
+
+@router.get(
+    "/baseline/ai-diagnosis",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[HMER Phase 0] 获取 AI 驱动的架构诊断报告",
+)
+async def get_baseline_ai_diagnosis(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    结合基线数据与 LLM，生成架构诊断报告。
+    HMER: R (Reflect) - 基于数据的 AI 反思。
+    """
+    from app.services.observability_service import get_ai_diagnostics
+
+    result = await get_ai_diagnostics(db)
+    return ApiResponse.ok(data=result)
+
+
+@router.get(
+    "/baseline/phase-gate/{phase}",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[HMER Reflect] 获取阶段性准出审计报告",
+)
+async def get_baseline_phase_gate(
+    phase: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HMER: R (Reflect) - 基于数据的阶段性反思报告。
+    """
+    from app.services.observability_service import get_hmer_phase_gate
+
+    result = await get_hmer_phase_gate(phase, db)
+    return ApiResponse.ok(data=result)

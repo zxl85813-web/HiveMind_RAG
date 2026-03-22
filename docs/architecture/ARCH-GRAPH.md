@@ -53,6 +53,20 @@ graph TD
 *   **代码级别实现**：通过 `programmatic_execute` 工具在沙箱中一次性调用多个 MCP/Skill。
 *   **价值**：将 10 次 LLM 网络往返压缩为 1 次，实现工业级的低延迟响应。
 
+### 🐝 HiveDispatcher: 系统调度中枢
+`HiveDispatcher` (原 ClawRouter) 实时分析任务复杂度：
+- **Eco 路径**：低复杂度、单轮对话。
+- **Premium 路径**：高复杂度、代码生成、多步推理。
+
+### 🧊 Tiered Retrieval Matrix: 冷热分层检索
+为了平衡性能、成本与隐私，检索系统被划分为五个象限：
+
+1. **Tier-1 Radar** (Hot): 极速标签路由。
+2. **Tier-2 Graph** (Relation): Neo4j 的影响力分析。
+3. **Tier-3 Scalar** (Warm): SmartGrep (BM25) 提供的本地会话事实特征。
+4. **Tier-4 Vector** (Semantic): ChromaDB 进行语义内容匹配。
+5. **Tier-5 Heavy** (Cold): **Elasticsearch (ES)**。全局技术共享库的终极召回。
+
 ### 🔍 Adaptive Tool Discovery (自适应工具发现)
 拒绝“全量工具挂载”导致的 Token 爆炸。
 *   **技术**：基于任务语义的 **Top-K 工具向量筛选**。模型只会看到与当前任务最相关的工具 Schema，确保注意力高度集中。

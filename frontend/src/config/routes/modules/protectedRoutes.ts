@@ -9,4 +9,5 @@ export const protectedRoutes: AppRouteMeta[] = [
     { key: 'canvasLab', path: '/canvas-lab', labelKey: 'nav.canvasLab', icon: 'DeploymentUnitOutlined', showInMenu: true, access: { anyPermissions: ['pipeline:edit'] } },
     { key: 'batch', path: '/batch', labelKey: 'nav.batch', icon: 'ClusterOutlined', showInMenu: true, access: { anyPermissions: ['batch:operate'] } },
     { key: 'settings', path: '/settings', labelKey: 'nav.settings', icon: 'SettingOutlined', showInMenu: true, access: { anyPermissions: ['settings:manage'] } },
+    { key: 'architectureLab', path: '/architecture-lab', labelKey: 'Architect Lab', icon: 'ExperimentOutlined', showInMenu: true, access: { anyPermissions: ['settings:manage'] } },
 ];
