@@ -22,6 +22,7 @@
 | **Agent** | ALL | `/memory/` | 长期/短期记忆管理接口 | `memory.py` | ✅ |
 | **安全** | ALL | `/security/` | RBAC 权限 / 部门 / 密钥管理 | `security.py` | ✅ |
 | **可观测** | GET | `/observability/` | 检索质量 / 路由占比 / 成本监控 | `observability.py` | ✅ |
+| **可观测** | GET | `/observability/phase-gate/{phase}` | HMER 阶段准出审计报告 (Phase 0->1) | `observability.py` | ✅ |
 | **治理** | ALL | `/service-governance/` | 限流 / 熔断器 / 智能路由配置 | `settings.py` | ✅ |
 | **评估** | ALL | `/evaluation/` | RAG 质量评估系统接口 | `evaluation.py` | ✅ |
 | **流水线** | ALL | `/pipelines/` | Ingestion Pipeline 配置与监控 | `pipelines.py` | ✅ |
@@ -45,7 +46,8 @@
 | **用户/权限** | `User`, `Role`, `Permission`, `Department` | `security.py` | ✅ |
 | **对话驱动** | `Conversation`, `Message`, `AnswerFeedback` | `chat.py` | ✅ |
 | **知识资产** | `KnowledgeBase`, `Document`, `KbLink`, `Tag` | `knowledge.py` / `tags.py` | ✅ |
-| **治理/观测** | `Span`, `Trace`, `CircuitBreakerEvent` | `observability.py` | ✅ |
+| **治理/观测** | `Span`, `Trace`, `CircuitBreakerEvent`, `BaselineMetric` | `observability.py` | ✅ |
+| **意图/缓存** | `IntentCache` | `intent.py` | 🧪 |
 | **质量中心** | `EvaluationItem`, `Report`, `Metrics` | `evaluation.py` | ✅ |
 | **后台任务** | `PipelineJob`, `PipelineStageLog`, `SyncLog` | `pipeline_config.py` | ✅ |
 
@@ -58,6 +60,8 @@
 | `ClawRouterGovernance` | **智能架构路由**: 按复杂度/成本动态分派 Eco/Premium 模型 | ✅ 已上线 |
 | `DependencyCircuitBreaker` | **依赖断路器**: 针对 ES/Neo4j/LLM 的滑动窗口错误隔离 | ✅ 已上线 |
 | `RateLimitGovernanceCenter` | **流量治理**: 令牌桶限流 (Route/User/Key 粒度) | ✅ 已上线 |
+| `IntentScaffoldingService` | **意图脚手架**: 流式预测预取架构 | 🧪 设计完成 |
+| `TieredParallelOrchestrator` | **并行检索编排**: Vector/Graph/Grep 并发赛马 | 🧪 设计完成 |
 | `CacheService` | **JIT 路由缓存**: 语义级别的路由匹配决策加速 | ✅ 已实现 |
 | `KnowledgeService` | 知识库全生命周期驱动逻辑 | ✅ |
 | `AuditService` | 系统敏感操作全量埋点与持久化 | ✅ |

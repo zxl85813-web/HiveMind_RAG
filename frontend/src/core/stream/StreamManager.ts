@@ -72,6 +72,8 @@ export class StreamManager {
                     } else {
                         // 服务端错误或 429，尝试重试逻辑
                         llmMonitor.recordError(response.status);
+                        // 🛰️ [Fix]: 必须抛出错误，否则 fetchEventSource 会认为连接成功而不会触发 onerror
+                        throw new Error(`SSE Server Error: ${response.status}`);
                     }
                 },
 
@@ -111,12 +113,17 @@ export class StreamManager {
                     console.log('[StreamManager] SSE closed.');
                 }
             });
-        } catch (e) {
+        } catch (e: any) {
             this.isConnected = false;
             if (this.abortController?.signal.aborted) {
                 console.log('[StreamManager] SSE Swarm: Aborted by user.');
             } else {
                 console.error('[StreamManager] SSE Swarm: Critical Error', e);
+                // 🛰️ [Fix]: 触发错误轨道，避免 UI 永远卡在 loading 态。
+                this.parser.parse(JSON.stringify({
+                    track: 'error',
+                    payload: e.message || 'Fatal Connection Error'
+                }));
             }
         }
     }

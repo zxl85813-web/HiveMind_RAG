@@ -20,6 +20,14 @@ M6  自适应 & 生态         ██████████████░░ 
 M7  架构治理与高可用     ████████████████  韧性底座
 ```
 
+### 🧬 HMER 演化周期 (Evolutionary Lifecycle)
+| 阶段 | 状态 | 目标 | 关联工件 |
+| :--- | :--- | :--- | :--- |
+| **Phase 0: Measure** | ✅ | 基线性能量化 (745ms TTFT) | `BaselineMetric`, `ArchitectureLabPage` |
+| **Phase 1: Reflect** | 🟡 | **架构重构设计 (Reconstruction)** | `REQ-013`, `DES-013` |
+| **Phase 2: Experiment** | ⬜ | 预取与并行检索原型实现 | `IntentScaffoldingService` |
+| **Phase 3: Reflect** | ⬜ | 效果回归与生产级方案固化 | `PhaseGate-Audit-P1` |
+
 ---
 
 ## M0: 🔧 修复 & 稳固 (Bug Fix & Stabilization)
