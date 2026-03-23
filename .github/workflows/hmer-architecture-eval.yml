@@ -61,14 +61,14 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Build and Start Frontend (Preview Mode)
-        env:
-          VITE_API_BASE_URL: http://localhost:8000
+          # 使用 127.0.0.1 避免 IPv6 导致的连接问题，并补全 /api/v1 路径
+          VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
         run: |
           cd frontend
           npm run build
           # 使用 preview 模式启动并置于后台
           nohup npx vite preview --port 5173 > frontend.log 2>&1 &
-          sleep 5
+          sleep 15 # CI 机器较慢，给予充足启动时间
 
       # --- 3. 执行 HMER 架构评测四部曲 ---
       - name: Run HMER Capacity Stress (Phase 1)

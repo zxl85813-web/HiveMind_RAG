@@ -49,7 +49,8 @@ export const chatApi = {
         const { message, conversationId, knowledgeBaseIds, clientEvents, onDelta, onStatus, onInsight, onSessionCreated, onFinish, onError, controller } = params;
 
         // Use the baseURL from import.meta.env via a clean string construction
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        const rawBase = import.meta.env.VITE_API_BASE_URL || '';
+        const baseUrl = rawBase ? (rawBase.endsWith('/api/v1') ? rawBase : `${rawBase.replace(/\/$/, '')}/api/v1`) : '/api/v1';
 
         try {
             const token = localStorage.getItem('access_token');
@@ -114,7 +115,8 @@ export const chatApi = {
         knowledgeBaseIds?: string[];
         clientEvents?: Record<string, unknown>[];
     }): StreamManager {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        const rawBase = import.meta.env.VITE_API_BASE_URL || '';
+        const baseUrl = rawBase ? (rawBase.endsWith('/api/v1') ? rawBase : `${rawBase.replace(/\/$/, '')}/api/v1`) : '/api/v1';
         const token = localStorage.getItem('access_token');
         
         return new StreamManager({

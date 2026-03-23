@@ -7,16 +7,22 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Architecture Eval - Stream Chaos Engineering', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('http://localhost:5173/');
-        // 等待基础应用或缓存启动完成
-        await page.waitForLoadState('networkidle');
+        // [Browser-Debug]: 将浏览器内部日志重定向到 CI 终端
+        page.on('console', msg => {
+            if (msg.type() === 'error' || msg.text().includes('[StreamManager]')) {
+                console.log(`[Browser ${msg.type().toUpperCase()}] ${msg.text()}`);
+            }
+        });
+
+        await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
     });
 
     test('Scenario 1: Payload Fuzzing - 畸形 JSON 注入不应导致页面白屏', async ({ page }) => {
         console.log('[Chaos] Intercepting SSE stream to inject malformed JSON payloads...');
 
-        // 拦截底层的问答 API 并塞入“有毒”数据
-        await page.route('**/api/v1/chat/completions', async (route) => {
+        // 拦截底线的问答 API (使用通配符匹配各种 BaseURL 格式)
+        await page.route('**/*chat/completions', async (route) => {
             const headers = {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
@@ -43,13 +49,9 @@ test.describe('Architecture Eval - Stream Chaos Engineering', () => {
         // 验证前端不会因为 JSON.parse() 在中间块抛出错误而导致整个大组件树崩溃甚至白屏
         // 我们期望看到正常的 "This is a " 和 "resilient test." 被正确拼接，残缺的那一块被 try-catch 静默吞掉并打入控制台警告
         
-        const aiResponse = page.locator('.chat-message.assistant').last();
-        // 确保虽然接到了有毒数据，流依旧能够活到结束（能被渲染出来而不是白屏卡死）
-        await aiResponse.waitFor({ state: 'visible', timeout: 15000 });
-        
-        const finalContent = await aiResponse.textContent();
-        expect(finalContent).toContain('This is a ');
-        expect(finalContent).toContain('resilient test.');
+        // 确保虽然接到了有毒数据，流依旧能够活到结束（内容能被正确渲染）
+        await expect(aiResponse).toContainText('This is a', { timeout: 30000 });
+        await expect(aiResponse).toContainText('resilient test.', { timeout: 30000 });
         
         console.log('[Metrics] Malformed JSON successfully isolated. Component survived the crash!');
     });
@@ -60,8 +62,8 @@ test.describe('Architecture Eval - Stream Chaos Engineering', () => {
         let requestCount = 0;
         const requestTimestamps: number[] = [];
 
-        // 屏蔽前三次请求，故意给一个 429，并且看 StreamManager 有没有指数退避重试
-        await page.route('**/api/v1/chat/completions', async (route) => {
+        // 屏蔽前三次请求，故意给一个 429
+        await page.route('**/*chat/completions', async (route) => {
             requestCount++;
             requestTimestamps.push(Date.now());
             

@@ -59,7 +59,8 @@ export const ChatPanel: React.FC = () => {
     const feedbackMutation = useSubmitFeedback();
 
     // === X-Chat Hook ===
-    const { messages, setMessages, setMessage } = useXChat({} as any);
+    // v2.x useXChat hook usage
+    const { messages, setMessages } = useXChat({} as any);
 
     // 当 historyMessages 加载完成后，同步到 x-chat
     useEffect(() => {
@@ -100,7 +101,7 @@ export const ChatPanel: React.FC = () => {
     // 用于流式状态同步的 Refs (避免闭包旧值问题)
     const fullContentRef = useRef('');
     const statusesRef = useRef<string[]>([]);
-    const assistantMsgIdRef = useRef<string>('');
+    const currentAssistantMsgIdRef = useRef<string>('');
 
     const citationRegex = /\[(\d+)\]/g;
     const extractCitationIndexes = (content: string) => {
@@ -120,7 +121,7 @@ export const ChatPanel: React.FC = () => {
     /** 处理反馈 */
     const handleFeedback = (msgId: string, rating: number) => {
         feedbackMutation.mutate({ messageId: msgId, rating });
-        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, rating } : m));
+        setMessages(prev => prev.map((m: any) => m.id === msgId ? { ...m, rating } : m));
     };
 
     /** 快速命令匹配 */
@@ -147,17 +148,22 @@ export const ChatPanel: React.FC = () => {
         const userMsgId = `usr-${Date.now()}`;
         setMessages(prev => [...prev, { id: userMsgId, role: 'user', message: value, status: 'success' }]);
 
-        // 2. 准备 AI 消息占位
-        const assistantMsgId = `ast-${Date.now()}`;
-        assistantMsgIdRef.current = assistantMsgId;
-        setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', message: '', status: 'loading' }]);
+        // 2. 准备 AI 消息占位 (使用毫秒戳保证 ID 稳定性)
+        const currentId = `ast-${Date.now()}`;
+        currentAssistantMsgIdRef.current = currentId;
+        
+        setMessages(prev => [...prev, { 
+            id: currentId, 
+            role: 'assistant', 
+            message: '', 
+            status: 'loading' 
+        }]);
 
         setIsGenerating(true);
         fullContentRef.current = '';
         statusesRef.current = [];
 
         try {
-            // 🛰️ [HMER Phase 3]: 使用弹性流管理器 (StreamManager)
             const stream = chatApi.getResilientStream({
                 message: value,
                 conversationId: currentConversationId,
@@ -168,23 +174,27 @@ export const ChatPanel: React.FC = () => {
             stream
                 .on('content', (delta: string) => {
                     fullContentRef.current += delta;
+                    
+                    // 🛰️ [Architecture-Check]: 提取 Action
+                    const raw = fullContentRef.current;
                     const actionRegex = /\[ACTION:\s*({.*?})\]/g;
-                    let match;
+                    let displayContent = raw;
                     const foundActions: any[] = [];
-                    let displayContent = fullContentRef.current;
-
-                    while ((match = actionRegex.exec(fullContentRef.current)) !== null) {
+                    let match;
+                    
+                    while ((match = actionRegex.exec(raw)) !== null) {
                         try {
-                            const actionData = JSON.parse(match[1]);
-                            foundActions.push(actionData);
+                            foundActions.push(JSON.parse(match[1]));
                             displayContent = displayContent.replace(match[0], '');
                         } catch { /* partial JSON */ }
                     }
 
-                    const finalDisplay = displayContent.trim();
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
-                        ...m, 
-                        message: finalDisplay,
+                    const finalMessage = displayContent.trim();
+                    
+                    // 使用最新的 currentId 确保更新正确的 Bubble
+                    setMessages(prev => prev.map((m: any) => m.id === currentId ? {
+                        ...m,
+                        message: finalMessage,
                         extraInfo: foundActions.length > 0 ? { actions: foundActions } : m.extraInfo
                     } : m));
                 })
@@ -193,26 +203,18 @@ export const ChatPanel: React.FC = () => {
                     const thoughtChainItems = statusesRef.current.map((s, index) => {
                         let title = s;
                         let content = undefined;
-
-                        if (s.includes('🤔') || s.includes('💡') || s.includes('💭') || s.includes('⚡')) {
-                            title = s;
-                        } else if (s.startsWith('<think>')) {
+                        if (s.startsWith('<think>')) {
                             title = '🤔 内部思考';
                             content = s.replace(/<\/?think>/g, '').trim();
-                        } else {
+                        } else if (!s.includes('🤔') && !s.includes('💡')) {
                             title = `⚡ ${s}`;
                         }
-                        return {
-                            key: `thought-${index}`,
-                            title,
-                            content,
-                            status: 'success'
-                        };
+                        return { key: `tc-${index}`, title, content, status: 'success' };
                     });
 
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
-                        ...m, 
-                        metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } 
+                    setMessages(prev => prev.map((m: any) => m.id === currentId ? {
+                        ...m,
+                        metadata: { ...((m as any).metadata || {}), thoughtChain: thoughtChainItems }
                     } : m));
                 })
                 .on('session_created', (data: any) => {
@@ -221,41 +223,40 @@ export const ChatPanel: React.FC = () => {
                     refetchConversations();
                 })
                 .on('metrics', (metrics: any) => {
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                    setMessages(prev => prev.map((m: any) => m.id === currentId ? { 
                         ...m, 
                         extraInfo: { ...(m.extraInfo || {}), ...metrics } 
                     } : m));
                 })
                 .on('done', () => {
-                    // 🛰️ [Fix]: 最后一次强刷内容并设置成功状态
-                    const finalDisplay = fullContentRef.current.replace(/\[ACTION:\s*({.*?})\]/g, '').trim();
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
-                        ...m, 
-                        message: finalDisplay,
-                        status: 'success' 
+                    const finalMsg = fullContentRef.current.replace(/\[ACTION:\s*({.*?})\]/g, '').trim();
+                    setMessages(prev => prev.map((m: any) => m.id === currentId ? {
+                        ...m,
+                        message: finalMsg,
+                        status: 'success'
                     } : m));
-                    
                     setIsGenerating(false);
                     refetchConversations();
                 })
                 .on('error', (err: any) => {
-                    console.error('Chat error:', err);
-                    setIsGenerating(false);
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
-                        ...m, 
+                    console.error('[Chat] Stream Error:', err);
+                    setMessages(prev => prev.map((m: any) => m.id === currentId ? {
+                        ...m,
                         message: '无法连接到 AI 服务，请检查网络。',
                         status: 'error'
                     } : m));
+                    setIsGenerating(false);
                 });
 
             await stream.connect();
         } catch (error) {
-            console.error('Stream initialization error:', error);
+            console.error('[Chat] Initialization Error:', error);
             setIsGenerating(false);
-            setMessage(assistantMsgId, {
-                message: '无法初始化弹性流连接，请刷新页面。',
+            setMessages(prev => prev.map((m: any) => m.id === currentId ? {
+                ...m,
+                message: '无法初始化流连接。',
                 status: 'error'
-            });
+            } : m));
         }
     };
 
@@ -340,7 +341,7 @@ export const ChatPanel: React.FC = () => {
                     </div>
                 ) : (
                     <Bubble.List
-                        items={messages.map((msg: any, idx) => {
+                        items={messages.map((msg: any, idx: number) => {
                             const isUser = msg.role === 'user';
                             const loading = msg.status === 'loading';
                             return {
@@ -351,8 +352,8 @@ export const ChatPanel: React.FC = () => {
                                 loading: loading && !msg.message,
                                 content: (
                                     <Flex vertical gap={8}>
-                                        {msg.metadata?.thoughtChain && msg.metadata.thoughtChain.length > 0 && (
-                                            <ThoughtChain items={msg.metadata.thoughtChain} />
+                                        {(msg as any).metadata?.thoughtChain && (msg as any).metadata.thoughtChain.length > 0 && (
+                                            <ThoughtChain items={(msg as any).metadata.thoughtChain} />
                                         )}
                                         <div className={styles.markdownBody}>
                                             <ReactMarkdown
@@ -379,7 +380,7 @@ export const ChatPanel: React.FC = () => {
                                         {msg.role === 'assistant' && msg.message && (
                                             <Flex gap={6} wrap>
                                                 {extractCitationIndexes(String(msg.message)).map((idx) => {
-                                                    const source = msg.metadata?.sources?.[idx - 1];
+                                                    const source = (msg as any).metadata?.sources?.[idx - 1];
                                                     return (
                                                         <Tag
                                                             key={`cite-tag-${msg.id}-${idx}`}
