@@ -105,38 +105,17 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // React Core & Router
-            if (
-              id.includes('react') ||
-              id.includes('react-dom') ||
-              id.includes('react-router-dom') ||
-              id.includes('zustand') ||
-              id.includes('@tanstack/react-query')
-            ) {
-              return 'react-vendor';
-            }
-            
-            // UI Component Libraries (Ant Design)
-            if (id.includes('antd') || id.includes('@ant-design')) {
-              return 'antd-vendor';
-            }
-            
-            // Visualization & Graph Libraries
+            // Only split heavy, specialized libraries that are not part of the core flow
+            // Merge all visualization libraries into one chunk to avoid internal cycles (e.g. between Recharts and D3)
             if (
               id.includes('@antv') ||
               id.includes('@xyflow') ||
               id.includes('force-graph') ||
-              id.includes('d3-force')
+              id.includes('d3-force') ||
+              id.includes('recharts')
             ) {
-              return 'graph-vendor';
+              return 'viz-vendor';
             }
-            
-            // Dashboard & Charting (Recharts)
-            if (id.includes('recharts')) {
-              return 'charts-vendor';
-            }
-            
-            // Markdown & Syntax Highlighting
             if (
               id.includes('react-markdown') ||
               id.includes('highlight.js') ||
@@ -145,24 +124,9 @@ export default defineConfig({
             ) {
               return 'markdown-vendor';
             }
-            
-            // Backend Integration & Utilities
-            if (
-              id.includes('axios') ||
-              id.includes('zod') ||
-              id.includes('i18next') ||
-              id.includes('lucide-react')
-            ) {
-              return 'utils-vendor';
-            }
-
-            // Sentry & Observability
             if (id.includes('@sentry')) {
               return 'sentry-vendor';
             }
-            
-            // Everything else from node_modules goes to general vendor
-            return 'vendor';
           }
         },
       },
