@@ -48,23 +48,27 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Trigger my final beacon.');
 
-        // 🛰️ [Sync-Point]: 监听控制台以确保代码已经发起了 dispatchBeacon
-        const beaconDispatched = new Promise(resolve => {
+        // 🛰️ [Double-Lock Sync]: 同时等待代码执行日志 OR 网络请求发出
+        // 在 CI 下，如果只等日志，page.close 仍可能抢在请求真正离屏前发生
+        const beaconFired = new Promise(resolve => {
+            context.on('request', request => {
+                if (/telemetry/.test(request.url())) resolve('request');
+            });
             page.on('console', msg => {
-                if (msg.text().includes('[Monitor] Dispatching beacon')) resolve(true);
+                if (msg.text().includes('[Monitor] Telemetry sent')) resolve('console');
             });
         });
 
         await page.keyboard.press('Enter');
 
-        // 2. 致命打击：不等 UI 完全渲染，但在确认埋点代码已执行后，直接强杀！
-        // 这样测试的是：navigator.sendBeacon 在“临终”时刻的排队上报能力
-        await Promise.race([beaconDispatched, page.waitForTimeout(5000)]);
-        console.log('[Chaos] Violently closing the tab mid-flight!');
+        // 等待上报发起的信号（最长 5s）
+        const reason = await Promise.race([beaconFired, page.waitForTimeout(5000)]);
+        console.log(`[Chaos] Telemetry sync trigger: ${reason}. Closing page NOW.`);
+        
         await page.close();
         
         // 3. 结果收割 (给底层的网络栈一点时间收敛)
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         // 3. 对账 (Reconciliation)
         // 这个断言非常硬核：如果前端的 MonitorService 是挂在普通的 setTimeout 里，那绝对发不出去

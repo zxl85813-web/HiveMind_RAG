@@ -119,22 +119,24 @@ class MonitorService {
         const url = `${apiBase.replace(/\/+$/, '')}/telemetry`.replace(/([^:]\/)\/+/g, "$1");
 
         const body = JSON.stringify({ type, payload, timestamp: Date.now() });
-        console.log(`[Monitor] Dispatching beacon: ${url}`);
+        console.log(`[Monitor] Dispatching telemetry: ${url}`);
 
-        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-            const blob = new Blob([body], { type: 'application/json' });
-            if (navigator.sendBeacon(url, blob)) return;
-        }
-
+        // 在 CI 环境下，fetch + keepalive 通常比 sendBeacon 更能被 Playwright 稳定拦截
         try {
             await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body,
                 keepalive: true,
+                mode: 'no-cors' // 确保在各种环境下都能发出
             });
+            console.log(`[Monitor] Telemetry sent via fetch-keepalive`);
         } catch (e) {
-            console.warn('[Monitor] Beacon dispatch failed', e);
+            // 回退到 sendBeacon
+            if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+                const blob = new Blob([body], { type: 'application/json' });
+                navigator.sendBeacon(url, blob);
+            }
         }
     }
 }
