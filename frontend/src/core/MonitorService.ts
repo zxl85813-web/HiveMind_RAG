@@ -1,34 +1,50 @@
-import * as Sentry from "@sentry/react";
 import { MonitorEventSchema, type MonitorEvent } from './schema/monitoring';
 import type { AppError } from './AppError';
 
+// 🚀 [Architecture-Optimization]: Sentry Lazy Loading
+// Use dynamic imports to keep Sentry out of the main bundle.
+let sentryInstance: typeof import("@sentry/react") | null = null;
+
 /**
- * 🛰️ [FE-GOV-002]: 全局监控与日志收口服务 (Sentry Integrated)
+ * 🛰️ [FE-GOV-002]: 全局监控与日志收口服务 (Sentry Lazy Integrated)
  */
 class MonitorService {
     private isProd = import.meta.env.PROD;
     private dsn = import.meta.env.VITE_SENTRY_DSN;
+    private initPromise: Promise<void> | null = null;
 
     constructor() {
         if (this.dsn && this.dsn !== 'https://placeholder@sentry.io/4500000000000000') {
-            this.initSentry();
+            void this.ensureSentry();
         }
     }
 
-    private initSentry() {
-        Sentry.init({
-            dsn: this.dsn,
-            integrations: [
-                Sentry.browserTracingIntegration(),
-                Sentry.replayIntegration(),
-            ],
-            // Performance Monitoring
-            tracesSampleRate: 1.0, 
-            // Session Replay
-            replaysSessionSampleRate: 0.1,
-            replaysOnErrorSampleRate: 1.0,
-            environment: import.meta.env.MODE,
-        });
+    private async ensureSentry() {
+        if (sentryInstance) return;
+        if (this.initPromise) return this.initPromise;
+
+        this.initPromise = (async () => {
+            try {
+                const Sentry = await import("@sentry/react");
+                sentryInstance = Sentry;
+                
+                Sentry.init({
+                    dsn: this.dsn,
+                    integrations: [
+                        Sentry.browserTracingIntegration(),
+                        Sentry.replayIntegration(),
+                    ],
+                    tracesSampleRate: 1.0, 
+                    replaysSessionSampleRate: 0.1,
+                    replaysOnErrorSampleRate: 1.0,
+                    environment: import.meta.env.MODE,
+                });
+            } catch (err) {
+                console.error('[Monitor] Failed to load Sentry', err);
+            }
+        })();
+        
+        return this.initPromise;
     }
 
     /** 记录标准事件 */
@@ -44,13 +60,15 @@ class MonitorService {
                 console.log(`[Monitor][${validatedEvent.category}] ${validatedEvent.action}`, validatedEvent);
             }
 
-            // 2. Sentry 面包屑记录
-            Sentry.addBreadcrumb({
-                category: validatedEvent.category,
-                message: validatedEvent.action,
-                data: validatedEvent.metadata,
-                level: "info",
-            });
+            // 2. Sentry 面包屑记录 (如果已加载)
+            if (sentryInstance) {
+                sentryInstance.addBreadcrumb({
+                    category: validatedEvent.category,
+                    message: validatedEvent.action,
+                    data: validatedEvent.metadata,
+                    level: "info",
+                });
+            }
 
             // 3. TODO: 批量上报逻辑
         } catch (e) {
@@ -59,7 +77,7 @@ class MonitorService {
     }
 
     /** 记录错误 */
-    public reportError(error: Error | AppError, metadata?: Record<string, unknown>) {
+    public async reportError(error: Error | AppError, metadata?: Record<string, unknown>) {
         const errorData = (error as any).payload || {
             code: 'UNKNOWN_ERROR',
             message: error.message,
@@ -77,14 +95,17 @@ class MonitorService {
             }
         });
 
-        // 生产环境或配置了 DSN 时上报 Sentry
+        // 确保 Sentry 已加载 (如果是错误上报，值得等待)
         if (this.dsn) {
-            Sentry.withScope((scope) => {
-                scope.setTag("error_code", errorData.code);
-                scope.setTag("layer", errorData.layer);
-                scope.setExtra("metadata", { ...errorData.metadata, ...metadata });
-                Sentry.captureException(error);
-            });
+            await this.ensureSentry();
+            if (sentryInstance) {
+                sentryInstance.withScope((scope) => {
+                    scope.setTag("error_code", errorData.code);
+                    scope.setTag("layer", errorData.layer);
+                    scope.setExtra("metadata", { ...errorData.metadata, ...metadata });
+                    sentryInstance!.captureException(error);
+                });
+            }
         }
     }
 

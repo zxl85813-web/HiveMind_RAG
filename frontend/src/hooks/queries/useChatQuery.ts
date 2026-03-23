@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { chatApi, type ConversationItem, type ConversationDetail } from '../../services/chatApi';
 import { baseline } from '../../core/BaselineProbe';
@@ -83,7 +83,7 @@ export function useConversationDetailQuery(id: string | null, options?: Partial<
  * 🛠️ [Phase 4] Prefetching Logic
  * 手动预热特定会话
  */
-export async function prefetchConversation(queryClient: useQueryClient, id: string) {
+export async function prefetchConversation(queryClient: QueryClient, id: string) {
     await queryClient.prefetchQuery({
         queryKey: CHAT_QUERY_KEYS.CONVERSATION(id),
         queryFn: conversationDetailFetcher(id),
