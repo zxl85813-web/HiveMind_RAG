@@ -2,6 +2,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import type { FetchEventSourceInit } from '@microsoft/fetch-event-source';
 import { MultiTrackParser, type StreamTrack, type TrackHandler } from './MultiTrackParser';
 import { llmMonitor } from './LLMHealthMonitor';
+import { monitor } from '../MonitorService';
 
 /**
  * 🛰️ [HMER Phase 3] Stream Manager
@@ -22,6 +23,8 @@ export class StreamManager {
     private retryCount = 0;
     private lastChunkIndex = -1;  // 当前接收到的最后一个分块 Index
     private isConnected = false;
+    private startTime = 0;
+    private hasSentTTFT = false;
 
     private options: StreamOptions;
 
@@ -40,6 +43,8 @@ export class StreamManager {
     async connect() {
         if (this.isConnected) this.disconnect();
 
+        this.startTime = performance.now();
+        this.hasSentTTFT = false;
         this.abortController = new AbortController();
         const { url, body, maxRetries = 5, ...fetchOptions } = this.options;
 
@@ -90,6 +95,17 @@ export class StreamManager {
 
                     // 2. 多轨分流解析
                     this.parser.parse(event.data);
+
+                    // 🛰️ [Architecture-Check]: 遥测对账 - TTFT (Time To First Token)
+                    if (!this.hasSentTTFT && event.data.includes('"track":"content"')) {
+                        this.hasSentTTFT = true;
+                        const ttft = Math.round(performance.now() - this.startTime);
+                        monitor.dispatchBeacon('streaming_performance', { 
+                            ttft_ms: ttft,
+                            url: this.options.url,
+                            resume_index: this.lastChunkIndex
+                        });
+                    }
                 },
 
                 onerror: (err) => {

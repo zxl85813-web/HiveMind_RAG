@@ -109,11 +109,30 @@ class MonitorService {
         }
     }
 
-    /** 记录性能指标 */
-    public trackPerformance(metric: string, value: number, tags?: Record<string, string>) {
-        if (this.isProd) {
-            // Sentry 性能监控逻辑
-            console.log(`[Performance] ${metric}: ${value}ms`, tags);
+    /** 
+     * 🛰️ [Architecture-Gate]: 鲁棒性的遥测上报
+     * 用于页面即将关闭、崩溃或流式任务突然终止时，确保指标能送达后端
+     */
+    public async dispatchBeacon(type: string, payload: any) {
+        const url = `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/telemetry`;
+        const body = JSON.stringify({ type, payload, timestamp: Date.now() });
+
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            const blob = new Blob([body], { type: 'application/json' });
+            const success = navigator.sendBeacon(url, blob);
+            if (success) return;
+        }
+
+        // 备用方案：带 keepalive 的 fetch (即使页面关闭也能继续执行一段时间)
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                keepalive: true,
+            });
+        } catch (e) {
+            console.warn('[Monitor] Beacon dispatch failed', e);
         }
     }
 }
