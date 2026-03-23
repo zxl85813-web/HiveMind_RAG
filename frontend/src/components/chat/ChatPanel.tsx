@@ -323,6 +323,7 @@ export const ChatPanel: React.FC = () => {
                             return {
                                 key: msg.id || String(idx),
                                 role: isUser ? 'end' : 'start',
+                                className: isUser ? 'chat-message user' : 'chat-message assistant',
                                 avatar: isUser ? <Avatar icon={<UserOutlined />} style={{ background: token.colorPrimary }} /> : <Avatar icon={<RobotOutlined />} style={{ background: token.colorBgElevated }} />,
                                 loading: loading && !msg.message,
                                 content: (
