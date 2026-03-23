@@ -1,4 +1,4 @@
-import { openDB, IDBPDatabase } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
 
 /**
  * 🛰️ [HMER Phase 2] Local Edge Engine

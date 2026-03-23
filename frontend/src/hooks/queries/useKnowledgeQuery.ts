@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { knowledgeApi, type CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
-import type { KnowledgeBase } from '../../types';
 
 /**
  * 🛰️ [FE-GOV-001]: Knowledge Base 数据流管理 Hook

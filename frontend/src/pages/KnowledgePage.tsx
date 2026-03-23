@@ -112,7 +112,7 @@ export const KnowledgePage: React.FC = () => {
                 open={isCreateModalOpen}
                 onCancel={() => setIsCreateModalOpen(false)}
                 onSubmit={handleCreate}
-                confirmLoading={createMutation.isPending}
+                loading={createMutation.isPending}
             />
 
             <KnowledgeDetail

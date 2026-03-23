@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 // Polyfill ResizeObserver for antd Table/Tabs/etc. in jsdom
-global.ResizeObserver = class ResizeObserver {
+(window as any).ResizeObserver = class ResizeObserver {
     observe() {}
     unobserve() {}
     disconnect() {}
