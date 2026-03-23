@@ -64,6 +64,7 @@ export class StreamManager {
                 onopen: async (response) => {
                     if (response.ok) {
                         llmMonitor.recordSuccess();
+                        this.retryCount = 0; // 🛰️ [Fix]: 连接成功后重置重试计数器
                         console.log(`[StreamManager] SSE Connected (Resume Index: ${this.lastChunkIndex})`);
                     } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
                         // 客户端错误或鉴权失败，不重试

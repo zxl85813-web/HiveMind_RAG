@@ -41,7 +41,6 @@ const { Text } = Typography;
 
 export const ChatPanel: React.FC = () => {
     const { t } = useTranslation();
-    // const { message } = App.useApp(); // Removed as it was unused after migration
     const { token } = theme.useToken();
     const {
         viewMode,
@@ -60,7 +59,6 @@ export const ChatPanel: React.FC = () => {
     const feedbackMutation = useSubmitFeedback();
 
     // === X-Chat Hook ===
-    // v2.x useXChat hook usage
     const { messages, setMessages, setMessage } = useXChat({} as any);
 
     // 当 historyMessages 加载完成后，同步到 x-chat
@@ -88,7 +86,7 @@ export const ChatPanel: React.FC = () => {
         }
     }, [historyMessages, currentConversationId, setMessages]);
 
-    // === 内部状态 ===
+    // === 内部状态与持久化引用 ===
     const [inputValue, setInputValue] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
@@ -98,6 +96,11 @@ export const ChatPanel: React.FC = () => {
     const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
     const [citationModalText, setCitationModalText] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // 用于流式状态同步的 Refs (避免闭包旧值问题)
+    const fullContentRef = useRef('');
+    const statusesRef = useRef<string[]>([]);
+    const assistantMsgIdRef = useRef<string>('');
 
     const citationRegex = /\[(\d+)\]/g;
     const extractCitationIndexes = (content: string) => {
@@ -146,30 +149,31 @@ export const ChatPanel: React.FC = () => {
 
         // 2. 准备 AI 消息占位
         const assistantMsgId = `ast-${Date.now()}`;
+        assistantMsgIdRef.current = assistantMsgId;
         setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', message: '', status: 'loading' }]);
 
         setIsGenerating(true);
-        let fullContent = '';
-        const statuses: string[] = [];
+        fullContentRef.current = '';
+        statusesRef.current = [];
 
         try {
-            // 🛰️ [HMER Phase 3]: 切换到弹性流管理器 (StreamManager)
+            // 🛰️ [HMER Phase 3]: 使用弹性流管理器 (StreamManager)
             const stream = chatApi.getResilientStream({
                 message: value,
                 conversationId: currentConversationId,
                 knowledgeBaseIds: selectedKnowledgeBases,
-                clientEvents: useChatStore.getState().clientEvents as any // 传回客户端打点用于意图校准
+                clientEvents: useChatStore.getState().clientEvents as any
             });
 
             stream
                 .on('content', (delta: string) => {
-                    fullContent += delta;
+                    fullContentRef.current += delta;
                     const actionRegex = /\[ACTION:\s*({.*?})\]/g;
                     let match;
                     const foundActions: any[] = [];
-                    let displayContent = fullContent;
+                    let displayContent = fullContentRef.current;
 
-                    while ((match = actionRegex.exec(fullContent)) !== null) {
+                    while ((match = actionRegex.exec(fullContentRef.current)) !== null) {
                         try {
                             const actionData = JSON.parse(match[1]);
                             foundActions.push(actionData);
@@ -177,15 +181,16 @@ export const ChatPanel: React.FC = () => {
                         } catch { /* partial JSON */ }
                     }
 
+                    const finalDisplay = displayContent.trim();
                     setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
                         ...m, 
-                        message: displayContent.trim(),
+                        message: finalDisplay,
                         extraInfo: foundActions.length > 0 ? { actions: foundActions } : m.extraInfo
                     } : m));
                 })
                 .on('status', (status: string) => {
-                    statuses.push(status);
-                    const thoughtChainItems = statuses.map((s, index) => {
+                    statusesRef.current.push(status);
+                    const thoughtChainItems = statusesRef.current.map((s, index) => {
                         let title = s;
                         let content = undefined;
 
@@ -222,8 +227,15 @@ export const ChatPanel: React.FC = () => {
                     } : m));
                 })
                 .on('done', () => {
+                    // 🛰️ [Fix]: 最后一次强刷内容并设置成功状态
+                    const finalDisplay = fullContentRef.current.replace(/\[ACTION:\s*({.*?})\]/g, '').trim();
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                        ...m, 
+                        message: finalDisplay,
+                        status: 'success' 
+                    } : m));
+                    
                     setIsGenerating(false);
-                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { ...m, status: 'success' } : m));
                     refetchConversations();
                 })
                 .on('error', (err: any) => {
@@ -246,7 +258,6 @@ export const ChatPanel: React.FC = () => {
             });
         }
     };
-
 
     const safeConversations = useMemo(() => {
         if (Array.isArray(conversations)) return conversations;
