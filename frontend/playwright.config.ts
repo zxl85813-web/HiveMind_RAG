@@ -6,7 +6,8 @@ import { defineConfig, devices } from '@playwright/test';
  * We primarily test against the MOCK environment for speed and reliability.
  */
 export default defineConfig({
-    testDir: './e2e',
+    testDir: './',
+    testMatch: '**/*.spec.ts',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
