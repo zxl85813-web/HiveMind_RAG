@@ -23,9 +23,9 @@ export class LLMHealthMonitor {
 
     /** 配置阈值 */
     private readonly THRESHOLDS = {
-        DEGRADE_THRESHOLD: 3,     // 连续 3 次失败进入 DEGRADED
+        DEGRADE_THRESHOLD: 5,     // 连续 5 次失败进入 DEGRADED
         CRITICAL_THRESHOLD: 10,    // 连续 10 次失败进入 CRITICAL (熔断)
-        RATE_LIMIT_CRITICAL: 2,   // 连续 2 次 429 进入 CRITICAL
+        RATE_LIMIT_CRITICAL: 5,   // 连续 5 次 429 进入 CRITICAL (为 Chaos Test 留出空间)
     };
 
     /** 记录单次成功 */

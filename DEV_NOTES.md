@@ -5,7 +5,33 @@
 
 ---
 
-## 📅 2026-02-23 (最新)
+## 📅 2026-03-23 (最新)
+
+### 🌟 💡 想到的好方法 (Good Ideas)
+1. **弹性流管理器 (StreamManager) 与指数退避 (Exponential Backoff)**
+   - **思路**：基于 `@microsoft/fetch-event-source` 构建了 `StreamManager`。关键发现在于：必须在 `onopen` 阶段对非 200/429 以外的错误主动 `throw error`，底层库才会将其判定为连接失败并触发 `onerror` 中的指数退避逻辑。
+   - **价值**：显著提升了系统在极端网络抖动（如 API 限流、网关熔断）下的自我修复能力，使前端具备了“打不死”的韧性。
+
+2. **React 状态函数式更新 (Functional State Updates) 在高频流式场景的应用**
+   - **思路**：在 SSE 每秒处理数十个数据块时，传统的 `setMessages([...messages, newMsg])` 极易因为闭包捕获旧状态（Stale Closure）导致内容丢失。改为 `setMessages(prev => prev.map(...))` 后，确保了每一次追加内容都基于最实时的数据快照。
+   - **价值**：彻底解决了 Playwright 自动化测试在压力测试下偶尔读到空值的随机失败问题，极大地增强了渲染的一致性。
+
+3. **多轨流解析器的“兼容性门控” (Multi-Track Compatibility Gate)**
+   - **思路**：在 `MultiTrackParser` 中通过 `(data.content ?? data.delta ?? data.message)` 这种级联回退逻辑，兼容了不同后端版本和 Mock 环境的字段差异。
+   - **价值**：解耦了前后端协议的强绑定，使得前端架构在面对后端 Response Schema 微调时具备更强的鲁棒性。
+
+### 🐞 遇到并解决的问题 (Issues Encountered)
+1. **Playwright 定位符与 i18n 冲突**
+   - **问题**：硬编码的 `[placeholder="输入消息"]` 在切换语言或占位符文案微调后会导致 E2E 测试全线超时失败。
+   - **对策**：全面转向正则定位 `getByPlaceholder(/在这里问我|Ask me anything/i)`，不仅支持国际化，还增强了测试脚本对 UI 描述变动的容忍度。
+
+2. **SSE 断连后的“僵尸” Loading 态**
+   - **问题**：当 `fetch` 遇到严重网络错误抛出异常时，如果没有在 `catch` 块中手动派发 `error` 轨道信号，UI 组件会永远卡在 `loading` 骨架屏状态。
+   - **对策**：在 `StreamManager` 的全局 `catch` 中补全了错误轨道的事件分发，确保组件能在任何灾难性连接失败后优雅停止 Loading 并展示错误提示。
+
+---
+
+## 📅 2026-02-23
 
 ### 🌟 💡 想到的好方法 (Good Ideas)
 1. **评估与微调的数据闭环 (RAGas + SFT Data Loop)**

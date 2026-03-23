@@ -41,7 +41,7 @@ export class StreamManager {
         if (this.isConnected) this.disconnect();
 
         this.abortController = new AbortController();
-        const { url, body, maxRetries = 3, ...fetchOptions } = this.options;
+        const { url, body, maxRetries = 5, ...fetchOptions } = this.options;
 
         // 🛰️ [断点续传协议]: 携带 last_chunk_index 告诉后端从哪继续
         const enhancedBody = {
@@ -94,10 +94,10 @@ export class StreamManager {
                 onerror: (err) => {
                     this.isConnected = false;
                     this.retryCount++;
-                    llmMonitor.recordError();
-
-                    if (this.retryCount > maxRetries || llmMonitor.shouldFallback()) {
-                        console.error('[StreamManager] Max retries reached or provider critical failure.');
+                    
+                    // 🛰️ [Fix]: 在内部重试环路中，优先保证当前 Session 的重试尝试，直到耗尽 maxRetries
+                    if (this.retryCount > maxRetries) {
+                        console.error('[StreamManager] Max retries reached.');
                         throw err; // 到达极限，抛出给上层
                     }
 
