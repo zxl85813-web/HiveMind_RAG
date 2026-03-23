@@ -65,8 +65,9 @@ export const ChatPanel: React.FC = () => {
 
     // 当 historyMessages 加载完成后，同步到 x-chat
     useEffect(() => {
-        if (historyMessages?.messages && historyMessages.messages.length > 0) {
-            setMessages(historyMessages.messages.map((m: any) => ({
+        const hDetail = historyMessages as any;
+        if (hDetail?.messages && hDetail.messages.length > 0) {
+            setMessages(hDetail.messages.map((m: any) => ({
                 id: m.id,
                 message: m.content,
                 status: 'success',
