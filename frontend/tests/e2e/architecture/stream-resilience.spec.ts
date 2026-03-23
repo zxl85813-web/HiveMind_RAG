@@ -13,13 +13,18 @@ test.describe('Phase 3: Resilient Streaming & Multi-Track Parsing', () => {
 
     test('should survive a 3-second network loss and complete generation with no data loss', async ({ context, page }) => {
         // 1. 发起一个长文本请求 (容易在中途打断)
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
-        await chatInput.fill('Please write a detailed 3-paragraph essay about the history of artificial intelligence.');
+        const chatInput = page.getByRole('textbox', { name: /输入|Message/i }).first();
+        if ((await chatInput.count()) === 0) {
+            // fallback for missing aria-labels
+            await page.locator('textarea').first().fill('Please write a detailed 3-paragraph essay about the history of artificial intelligence.');
+        } else {
+            await chatInput.fill('Please write a detailed 3-paragraph essay about the history of artificial intelligence.');
+        }
         await page.keyboard.press('Enter');
 
         // 2. 等待 TTFT (Time To First Token)
-        // 寻找包含 AI 回复的容器
-        const lastMessage = page.locator('.chat-message.assistant').last();
+        // 查找 Antd X 的气泡
+        const lastMessage = page.locator('.ant-bubble').last();
         await lastMessage.waitFor({ state: 'visible', timeout: 30000 });
         
         // 当看到第一段内容生成时
@@ -35,9 +40,9 @@ test.describe('Phase 3: Resilient Streaming & Multi-Track Parsing', () => {
         console.log('[Chaos] Network Restored!');
         await context.setOffline(false);
         
-        // 5. 等待生成事件结束 (done事件)
-        // 这个 locator 的选择取决于 UI 如何表示流状态
-        await page.waitForSelector('.ai-message-complete', { timeout: 60000 }); 
+        // 5. 等待生成事件结束
+        // 我们通过检查是否可以再次发送消息（或者loading状态消失）来判断
+        await expect(page.locator('textarea').first()).not.toBeDisabled({ timeout: 60000 }); 
         
         const contentAfterCompletion = await lastMessage.textContent();
 
@@ -53,13 +58,11 @@ test.describe('Phase 3: Resilient Streaming & Multi-Track Parsing', () => {
 
     test('should correctly parse the "thinking" track and display as metadata', async ({ page }) => {
         // 验证多轨解析：请求一个会调用 <think> 分析的问题
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
-        await chatInput.fill('Please think step by step: what is 123 * 456?');
+        await page.locator('textarea').first().fill('Please think step by step: what is 123 * 456?');
         await page.keyboard.press('Enter');
 
-        // 等待带有思考块的 UI 渲染 (比如一个 collapse 容器)
-        // 具体选择器需要根据 UI 实际实现进行调整
-        const thinkingContainer = page.locator('.ai-thinking-log').last();
+        // 等待带有思考块的 UI 渲染 (Ant Design X ThoughtChain)
+        const thinkingContainer = page.getByText(/🤔 内部思考|⚡/).last();
         await thinkingContainer.waitFor({ state: 'visible', timeout: 30000 });
 
         const thinkText = await thinkingContainer.textContent();

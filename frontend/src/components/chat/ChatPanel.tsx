@@ -25,6 +25,7 @@ import {
 
 import { useChatStore } from '../../stores/chatStore';
 import { ActionButton } from './ActionButton';
+import { intentManager } from '../../core/IntentManager';
 import { chatApi } from '../../services/chatApi';
 import { GraphVisualizer } from '../knowledge/GraphVisualizer';
 import { matchQuickCommand } from '../../config/quickCommands';
@@ -236,7 +237,15 @@ export const ChatPanel: React.FC = () => {
             <Conversations
                 items={safeConversations.map((item: any) => ({
                     key: item.id,
-                    label: item.title,
+                    label: (
+                        <div 
+                            onMouseEnter={() => intentManager.predict('chat', { id: item.id })}
+                            onMouseLeave={() => intentManager.cancel('chat', { id: item.id })}
+                            style={{ width: '100%' }}
+                        >
+                            {item.title}
+                        </div>
+                    ),
                     description: item.last_message_preview,
                 }))}
                 activeKey={currentConversationId || undefined}
