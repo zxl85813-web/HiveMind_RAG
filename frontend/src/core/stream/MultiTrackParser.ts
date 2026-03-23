@@ -50,7 +50,8 @@ export class MultiTrackParser {
             
             // 2. 识别轨道 (兼容旧版 type 字段)
             const track: StreamTrack = (data.track || data.type) as StreamTrack;
-            const payload = data.payload !== undefined ? data.payload : data.content; // 兼容逻辑
+            // 🛰️ [Compatibility-Gate]: 兼容 delta, content, payload, message 多种字段
+            const payload = data.payload !== undefined ? data.payload : (data.content ?? data.delta ?? data.message); 
 
             if (!track) {
                 // 默认路由到 content
