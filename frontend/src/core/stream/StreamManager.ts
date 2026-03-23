@@ -100,6 +100,7 @@ export class StreamManager {
                     if (!this.hasSentTTFT && event.data.includes('"track":"content"')) {
                         this.hasSentTTFT = true;
                         const ttft = Math.round(performance.now() - this.startTime);
+                        console.log(`[Telemetry] Dispatching TTFT beacon: ${ttft}ms`);
                         monitor.dispatchBeacon('streaming_performance', { 
                             ttft_ms: ttft,
                             url: this.options.url,

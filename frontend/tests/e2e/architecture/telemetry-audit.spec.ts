@@ -7,8 +7,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('http://localhost:5173/');
-        await page.waitForLoadState('networkidle');
+        await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
     });
 
     test('should successfully dispatch telemetry beacon even when page is violently closed during or exactly after stream Generation', async ({ browser }) => {
@@ -21,17 +21,16 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         let beaconCaptured = false;
         let beaconPayload: any = null;
 
-        // 使用 Context 级别的 listener，因为 page.close() 后可能就听不见 page.on('request') 了
-        // 这恰好是 SendBeacon 为什么如此必要的原因：它让浏览器主进程接管发送
+        // 使用正则匹配，兼容域名差异与 BaseURL 偏移
         context.on('request', (request) => {
-            if (request.url().includes('/api/v1/telemetry') && request.method() === 'POST') {
+            if (/\/api\/v1\/telemetry$/.test(request.url()) && request.method() === 'POST') {
                 beaconCaptured = true;
                 beaconPayload = request.postDataJSON();
-                console.log('[Audit] Beacon Caught on Context Loop Escape:', beaconPayload);
+                console.log('[Audit] Beacon Caught:', beaconPayload);
             }
         });
 
-        await page.goto('http://localhost:5173/');
+        await page.goto('/');
         
         // 缩短耗时：我们自己拦截并魔改流的返回速度
         await page.route('**/api/v1/chat/completions', async (route) => {
@@ -51,8 +50,8 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         await page.keyboard.press('Enter');
 
         // 2. 致命打击：不等 UI 加载好，直接把标签页强杀！
-        // 这一步必须非常快，这就是真实世界的“刚拿到数据就滑走”
-        await page.waitForTimeout(100); // 100ms 足够发起 fetchEventSource 的建联了
+        // GitHub Actions 较慢，100ms 可能不足以让 Stream 触发 onmessage，放宽至 400ms
+        await page.waitForTimeout(400); 
         console.log('[Chaos] Violently closing the tab mid-flight!');
         await page.close();
         

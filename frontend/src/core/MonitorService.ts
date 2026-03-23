@@ -114,16 +114,20 @@ class MonitorService {
      * 用于页面即将关闭、崩溃或流式任务突然终止时，确保指标能送达后端
      */
     public async dispatchBeacon(type: string, payload: any) {
-        const url = `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/telemetry`;
+        let envBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        // 确保以 v1 结尾
+        const normalizedBase = envBase.replace(/\/+$/, '');
+        const apiPath = normalizedBase.endsWith('/api/v1') ? normalizedBase : `${normalizedBase}/api/v1`;
+        const url = `${apiPath}/telemetry`;
+
         const body = JSON.stringify({ type, payload, timestamp: Date.now() });
+        console.log(`[Monitor] Dispatching beacon to ${url} (Type: ${type})`);
 
         if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
             const blob = new Blob([body], { type: 'application/json' });
-            const success = navigator.sendBeacon(url, blob);
-            if (success) return;
+            if (navigator.sendBeacon(url, blob)) return;
         }
 
-        // 备用方案：带 keepalive 的 fetch (即使页面关闭也能继续执行一段时间)
         try {
             await fetch(url, {
                 method: 'POST',
