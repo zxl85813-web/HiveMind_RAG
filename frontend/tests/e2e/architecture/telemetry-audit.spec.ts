@@ -49,22 +49,35 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         await chatInput.fill('Trigger my final beacon.');
 
         // 🛰️ [Double-Lock Sync]: 同时等待代码执行日志 OR 网络请求发出
-        // 在 CI 下，如果只等日志，page.close 仍可能抢在请求真正离屏前发生
+        // 允许长达 15s 的超时，以应对 CI 环境的极端冷启动延迟
         const beaconFired = new Promise(resolve => {
             context.on('request', request => {
-                if (/telemetry/.test(request.url())) resolve('request');
+                const url = request.url();
+                if (/telemetry/.test(url)) {
+                    console.log(`[Audit] Intercepted telemetry request: ${url}`);
+                    resolve('network');
+                }
             });
             page.on('console', msg => {
-                if (msg.text().includes('[Monitor] Telemetry sent')) resolve('console');
+                const text = msg.text();
+                if (text.includes('[Monitor] Telemetry sent')) {
+                    resolve('console');
+                }
             });
         });
 
-        await page.keyboard.press('Enter');
+        // 模拟用户输入并按下 Enter
+        await chatInput.press('Enter');
 
-        // 等待上报发起的信号（最长 5s）
-        const reason = await Promise.race([beaconFired, page.waitForTimeout(5000)]);
+        // 等待同步信号产生
+        const reason = await Promise.race([
+            beaconFired,
+            page.waitForTimeout(15000).then(() => 'timeout') // 增加到 15s
+        ]);
+
         console.log(`[Chaos] Telemetry sync trigger: ${reason}. Closing page NOW.`);
         
+        // 极速强杀，模拟暴力关闭
         await page.close();
         
         // 3. 结果收割 (给底层的网络栈一点时间收敛)

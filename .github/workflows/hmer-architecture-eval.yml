@@ -73,30 +73,49 @@ jobs:
 
       # --- 3. 执行 HMER 架构评测四部曲 ---
       - name: Run HMER Capacity Stress (Phase 1)
+        id: phase1
         continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/capacity-indexeddb.spec.ts
 
       - name: Run HMER Chaos Engineering (Phase 2)
+        id: phase2
         continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/chaos-network-interceptor.spec.ts
 
       - name: Run HMER Endurance & Memory (Phase 3)
+        id: phase3
         continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/endurance-memory-leak.spec.ts
 
       - name: Run HMER Telemetry Audit (Phase 4)
+        id: phase4
         continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/telemetry-audit.spec.ts
 
-      # --- 4. 生成与上传报告 ---
+      # --- 4. 架构师 LLM 自动汇总报告 ---
+      - name: Generate Architecture Health Report
+        if: always()
+        env:
+          PHASE1_RESULT: ${{ steps.phase1.outcome }}
+          PHASE2_RESULT: ${{ steps.phase2.outcome }}
+          PHASE3_RESULT: ${{ steps.phase3.outcome }}
+          PHASE4_RESULT: ${{ steps.phase4.outcome }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+        run: |
+          pip install requests
+          python scripts/generate_architecture_report.py
+          cat architecture_report.md >> $GITHUB_STEP_SUMMARY
+
+      # --- 5. 上传报告 ---
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4

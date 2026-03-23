@@ -8,6 +8,27 @@
 ## 📅 2026-03-23 (最新)
 
 ### 🌟 💡 想到的好方法 (Good Ideas)
+
+#### 🛠 CI/E2E 架构评测常见失败与解决方案总结
+
+在针对远程 GitHub Actions (Windows/Linux) 环境中的多种复杂失败进行深度治理后，核心经验总结如下：
+
+1.  **性能断言与 CI 算力鸿沟 (Phase 1 Capacity)**:
+    *   **问题**: 1000 条会话加载在 CI 下波动剧烈，冷启动时长飙升。
+    *   **方案**: 针对 CI 环境放宽性能阈值（如从 3.5s 调整为 8.5s）。重点是检测“退化”而非绝对值，避免强制拦截。
+
+2.  **混沌工程中的“隐形白屏” (Phase 2/3 Chaos)**:
+    *   **问题**: 畸形 JSON 片段解析抛错导致组件崩溃。
+    *   **方案**: 在流管理器解析器中强制 `try-catch` 隔离错误并静默处理，保证 UI 渲染韧性。并通过控制台日志同步感知 CI 崩溃点。
+
+3.  **页面临终遥测上报 (Phase 4 Telemetry Resilience)**:
+    *   **核心方案 (Double-Lock Sync)**:
+        *   **同步锁**: 测试脚本显式等待 `context.waitForEvent('request')` 或 `console.log` 后再 `page.close()`，模拟“发送瞬间关闭”的极速工况。
+        *   **Fetch Keepalive**: 优先使用 `fetch(..., { keepalive: true })` 上报，其在 Playwright 下的拦截稳定性优于 `navigator.sendBeacon`。
+        *   **URL 归一化**: 规范 API BaseURL 处理，使用正则 `.*\/api\/v1\/...` 匹配，消除 IP/域名环境差异导致的匹配失效。
+
+4.  **跨平台 URL 规范化**:
+    *   严禁在测试拦截器中使用全路径（如 `localhost:5173`），一律改用全环境通配正则，防止 CI 环境匹配失败。
 1. **弹性流管理器 (StreamManager) 与指数退避 (Exponential Backoff)**
    - **思路**：基于 `@microsoft/fetch-event-source` 构建了 `StreamManager`。关键发现在于：必须在 `onopen` 阶段对非 200/429 以外的错误主动 `throw error`，底层库才会将其判定为连接失败并触发 `onerror` 中的指数退避逻辑。
    - **价值**：显著提升了系统在极端网络抖动（如 API 限流、网关熔断）下的自我修复能力，使前端具备了“打不死”的韧性。
