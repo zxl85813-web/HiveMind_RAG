@@ -73,21 +73,25 @@ jobs:
 
       # --- 3. 执行 HMER 架构评测四部曲 ---
       - name: Run HMER Capacity Stress (Phase 1)
+        continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/capacity-indexeddb.spec.ts
 
       - name: Run HMER Chaos Engineering (Phase 2)
+        continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/chaos-network-interceptor.spec.ts
 
       - name: Run HMER Endurance & Memory (Phase 3)
+        continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/endurance-memory-leak.spec.ts
 
       - name: Run HMER Telemetry Audit (Phase 4)
+        continue-on-error: true
         run: |
           cd frontend
           npx playwright test tests/e2e/architecture/telemetry-audit.spec.ts

@@ -48,7 +48,8 @@ test.describe('Architecture Eval - Stream Chaos Engineering', () => {
 
         // 验证前端不会因为 JSON.parse() 在中间块抛出错误而导致整个大组件树崩溃甚至白屏
         // 我们期望看到正常的 "This is a " 和 "resilient test." 被正确拼接，残缺的那一块被 try-catch 静默吞掉并打入控制台警告
-        
+        const aiResponse = page.locator('.chat-message.assistant').last();
+
         // 确保虽然接到了有毒数据，流依旧能够活到结束（内容能被正确渲染）
         await expect(aiResponse).toContainText('This is a', { timeout: 30000 });
         await expect(aiResponse).toContainText('resilient test.', { timeout: 30000 });
