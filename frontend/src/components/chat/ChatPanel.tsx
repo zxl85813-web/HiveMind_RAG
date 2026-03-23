@@ -29,7 +29,11 @@ import { intentManager } from '../../core/IntentManager';
 import { chatApi } from '../../services/chatApi';
 import { GraphVisualizer } from '../knowledge/GraphVisualizer';
 import { matchQuickCommand } from '../../config/quickCommands';
-import { useConversations, useConversationDetails, useSubmitFeedback } from '../../hooks/useChatData';
+import { 
+    useConversationsQuery as useConversations, 
+    useConversationDetailQuery as useConversationDetails, 
+    useSubmitFeedbackMutation as useSubmitFeedback 
+} from '../../hooks/queries/useChatQuery';
 import styles from './ChatPanel.module.css';
 import { useTranslation } from 'react-i18next';
 
@@ -61,13 +65,20 @@ export const ChatPanel: React.FC = () => {
 
     // 当 historyMessages 加载完成后，同步到 x-chat
     useEffect(() => {
-        if (historyMessages && historyMessages.length > 0) {
-            setMessages(historyMessages.map((m: any) => ({
+        if (historyMessages?.messages && historyMessages.messages.length > 0) {
+            setMessages(historyMessages.messages.map((m: any) => ({
                 id: m.id,
                 message: m.content,
                 status: 'success',
                 role: m.role,
-                metadata: m.metadata,
+                metadata: m.metadata || {
+                    prompt_tokens: m.prompt_tokens,
+                    completion_tokens: m.completion_tokens,
+                    total_tokens: m.total_tokens,
+                    latency_ms: m.latency_ms,
+                    is_cached: m.is_cached,
+                    trace_data: m.trace_data
+                },
                 rating: m.rating,
                 created_at: m.created_at
             })));
@@ -237,11 +248,13 @@ export const ChatPanel: React.FC = () => {
             <Conversations
                 items={safeConversations.map((item: any) => ({
                     key: item.id,
+                    className: styles.historyItem,
                     label: (
                         <div 
                             onMouseEnter={() => intentManager.predict('chat', { id: item.id })}
                             onMouseLeave={() => intentManager.cancel('chat', { id: item.id })}
                             style={{ width: '100%' }}
+                            data-testid="conversation-item"
                         >
                             {item.title}
                         </div>
@@ -281,7 +294,7 @@ export const ChatPanel: React.FC = () => {
                 </Flex>
                 <Space size={8}>
                     <Popover content={historyContent} title={t('chat.history')} trigger="click" placement="bottomRight">
-                        <HistoryOutlined className={styles.headerAction} />
+                        <HistoryOutlined className={styles.headerAction} data-testid="history-button" />
                     </Popover>
                     <PlusOutlined className={styles.headerAction} onClick={resetStoreChat} />
                     <CompressOutlined className={styles.headerAction} onClick={togglePanel} />

@@ -109,8 +109,18 @@ test.describe('Architecture Eval - IndexedDB Capacity Stress Test', () => {
         const loadStartTime = Date.now();
         await page.reload({ waitUntil: 'domcontentloaded' });
         
-        // 4. 等待长列表渲染完成 (例如侧边栏的会话列表)
-        const firstHistoryItem = page.locator('.conversation-history-item').first();
+        // 4. 打开历史列表并等待首项渲染完成
+        // 首先展开 AI 助手（如果因为某些原因被收起）
+        const sidebar = page.locator('.anticon-robot').first();
+        if (await sidebar.isVisible()) {
+            await sidebar.click();
+        }
+
+        const historyBtn = page.getByTestId('history-button');
+        await historyBtn.waitFor({ state: 'visible', timeout: 10000 });
+        await historyBtn.click();
+        
+        const firstHistoryItem = page.getByTestId('conversation-item').first();
         await firstHistoryItem.waitFor({ state: 'visible', timeout: 30000 });
         const coldBootTime = Date.now() - loadStartTime;
         
