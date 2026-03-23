@@ -177,10 +177,11 @@ export const ChatPanel: React.FC = () => {
                         } catch { /* partial JSON */ }
                     }
 
-                    setMessage(assistantMsgId, {
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                        ...m, 
                         message: displayContent.trim(),
-                        extraInfo: foundActions.length > 0 ? { actions: foundActions } : undefined
-                    });
+                        extraInfo: foundActions.length > 0 ? { actions: foundActions } : m.extraInfo
+                    } : m));
                 })
                 .on('status', (status: string) => {
                     statuses.push(status);
@@ -204,8 +205,10 @@ export const ChatPanel: React.FC = () => {
                         };
                     });
 
-                    // 🛰️ [FE-GOV-001]: 增量更新元数据
-                    setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } } : m));
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                        ...m, 
+                        metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } 
+                    } : m));
                 })
                 .on('session_created', (data: any) => {
                     const id = typeof data === 'string' ? data : data.id;
@@ -213,20 +216,24 @@ export const ChatPanel: React.FC = () => {
                     refetchConversations();
                 })
                 .on('metrics', (metrics: any) => {
-                    setMessage(assistantMsgId, { extraInfo: { ...metrics } });
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                        ...m, 
+                        extraInfo: { ...(m.extraInfo || {}), ...metrics } 
+                    } : m));
                 })
                 .on('done', () => {
                     setIsGenerating(false);
-                    setMessage(assistantMsgId, { status: 'success' });
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { ...m, status: 'success' } : m));
                     refetchConversations();
                 })
                 .on('error', (err: any) => {
                     console.error('Chat error:', err);
                     setIsGenerating(false);
-                    setMessage(assistantMsgId, {
+                    setMessages(prev => prev.map((m: any) => m.id === assistantMsgId ? { 
+                        ...m, 
                         message: '无法连接到 AI 服务，请检查网络。',
                         status: 'error'
-                    });
+                    } : m));
                 });
 
             await stream.connect();
