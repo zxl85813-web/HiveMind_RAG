@@ -61,6 +61,7 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Build and Start Frontend (Preview Mode)
+        env:
           # 使用 127.0.0.1 避免 IPv6 导致的连接问题，并补全 /api/v1 路径
           VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
         run: |
