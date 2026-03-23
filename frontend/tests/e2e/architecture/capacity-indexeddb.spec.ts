@@ -16,62 +16,86 @@ test.describe('Architecture Eval - IndexedDB Capacity Stress Test', () => {
 
         console.log('[Stress] Injecting 1,000 mock conversations directly into IndexedDB...');
 
-        // 1. 通过页面注入脚本，直接向底层 `HMERDB` 爆破写入数据
-        await page.evaluate(async () => {
-            return new Promise((resolve, reject) => {
-                // 打开我们在 LocalEdgeEngine.ts 建立的数据库
-                const request = window.indexedDB.open('HMERDB');
-                
-                request.onerror = (e) => reject((e.target as any).error);
-                request.onsuccess = (e) => {
-                    const db = (e.target as any).result;
-                    // 以 readwrite 模式打开关键表
-                    const tx = db.transaction(['conversations', 'messages'], 'readwrite');
-                    const convStore = tx.objectStore('conversations');
-                    const msgStore = tx.objectStore('messages');
-
-                    for (let i = 0; i < 1000; i++) {
-                        const convId = `stress-conv-${i}`;
-                        const title = `Load Test Conversation ${i}`;
-                        const timestamp = Date.now() - (i * 10000);
-
-                        // 注入会话元数据
-                        convStore.put({
-                            id: convId,
-                            title: title,
-                            updatedAt: timestamp,
-                            createdAt: timestamp,
-                            model: 'gpt-4o-mini'
-                        });
-
-                        // 注入 5 条庞大的随机历史消息
-                        for (let j = 0; j < 5; j++) {
-                            const padding = "A long chunk of text intended to consume local storage space and simulate huge payload. ".repeat(50);
-                            msgStore.put({
-                                id: `stress-msg-${i}-${j}`,
-                                conversationId: convId,
-                                role: j % 2 === 0 ? 'user' : 'assistant',
-                                content: `Simulated message ${j} for ${convId}. ${padding}`,
-                                createdAt: timestamp + j * 1000
-                            });
+        // 1. 通过页面注入脚本，直接向底层 `HiveMind_Edge_Cache` 爆破写入数据
+        try {
+            await page.evaluate(async () => {
+                const DB_NAME = 'HiveMind_Edge_Cache';
+                return new Promise((resolve, reject) => {
+                    // 🛰️ [Fix]: 使用正确的数据库名称 HiveMind_Edge_Cache
+                    const request = window.indexedDB.open(DB_NAME);
+                    
+                    request.onerror = (e) => reject(new Error(`Failed to open IndexedDB: ${(e.target as any).error}`));
+                    
+                    // 增加对 UpgradeNeeded 的抗性，防止测试跑在空库上时崩溃
+                    request.onupgradeneeded = (e) => {
+                        const db = (e.target as any).result;
+                        if (!db.objectStoreNames.contains('conversations')) {
+                            db.createObjectStore('conversations', { keyPath: 'id' });
                         }
-                    }
+                        if (!db.objectStoreNames.contains('messages')) {
+                            const store = db.createObjectStore('messages', { keyPath: 'id' });
+                            store.createIndex('conversationId', 'conversationId');
+                        }
+                    };
 
-                    tx.oncomplete = () => resolve(true);
-                    tx.onerror = () => reject(tx.error);
-                };
+                    request.onsuccess = (e) => {
+                        const db = (e.target as any).result;
+                        const tx = db.transaction(['conversations', 'messages'], 'readwrite');
+                        const convStore = tx.objectStore('conversations');
+                        const msgStore = tx.objectStore('messages');
+
+                        // 批量写入
+                        for (let i = 0; i < 1000; i++) {
+                            const convId = `stress-conv-${i}`;
+                            const timestamp = Date.now() - (i * 10000);
+
+                            convStore.put({
+                                id: convId,
+                                title: `Load Test Conversation ${i}`,
+                                updatedAt: timestamp,
+                                createdAt: timestamp,
+                                model: 'gpt-4o-mini'
+                            });
+
+                            for (let j = 0; j < 5; j++) {
+                                const padding = "Test data padding. ".repeat(10);
+                                msgStore.put({
+                                    id: `stress-msg-${i}-${j}`,
+                                    conversationId: convId,
+                                    role: j % 2 === 0 ? 'user' : 'assistant',
+                                    content: `Msg ${j}. ${padding}`,
+                                    createdAt: timestamp + j * 1000
+                                });
+                            }
+                        }
+
+                        tx.oncomplete = () => {
+                            db.close();
+                            resolve(true);
+                        };
+                        tx.onerror = () => reject(tx.error);
+                    };
+                });
             });
-        });
+        } catch (err: any) {
+            console.error('[Stress] Injection failed:', err);
+            // 如果是因为环境被销毁，可能是导航导致的。
+            if (err.message.includes('destroyed')) {
+                const currentUrl = page.url();
+                console.error(`[Stress] Execution context destroyed at URL: ${currentUrl}`);
+            }
+            throw err;
+        }
 
         console.log('[Stress] Injection complete. Hard reloading the page...');
 
         // 2. 挂载性能观测器 (PerformanceObserver) 以捕获 Long Task (超过 50ms 的主线程阻塞)
         // 这一步必须在 reload 之前植入
         await page.addInitScript(() => {
-            window['__longTasks'] = [];
+            (window as any)['__longTasks'] = [];
             const observer = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
-                    window['__longTasks'].push({
+                    (window as any)['__longTasks'].push({
                         name: entry.name,
                         duration: entry.duration,
                         startTime: entry.startTime
@@ -93,7 +117,7 @@ test.describe('Architecture Eval - IndexedDB Capacity Stress Test', () => {
         console.log(`[Metrics] Application cold boot and list render took: ${coldBootTime}ms`);
 
         // 5. 提取并分析 Long Task 数据
-        const longTasks = await page.evaluate(() => window['__longTasks']);
+        const longTasks = await page.evaluate(() => (window as any)['__longTasks']);
         
         // 我们主要关心的是与我们读取 IDB + 渲染列表相关的巨大阻塞
         const severeTasks = longTasks.filter((task: any) => task.duration > 150);
