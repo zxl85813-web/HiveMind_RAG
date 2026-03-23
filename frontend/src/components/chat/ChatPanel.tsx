@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { App, Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Modal, Timeline, theme } from 'antd';
+import { Flex, Typography, Tooltip, Tag, Space, Avatar, Popover, Modal, Timeline, theme } from 'antd';
 import { Bubble, Sender, Prompts, ThoughtChain, Welcome, Conversations, Actions, CodeHighlighter } from '@ant-design/x';
 import { useXChat } from '@ant-design/x-sdk';
 import ReactMarkdown from 'react-markdown';
@@ -41,7 +41,7 @@ const { Text } = Typography;
 
 export const ChatPanel: React.FC = () => {
     const { t } = useTranslation();
-    const { message } = App.useApp();
+    // const { message } = App.useApp(); // Removed as it was unused after migration
     const { token } = theme.useToken();
     const {
         viewMode,
@@ -153,13 +153,17 @@ export const ChatPanel: React.FC = () => {
         const statuses: string[] = [];
 
         try {
-            await chatApi.streamChat({
+            // 🛰️ [HMER Phase 3]: 切换到弹性流管理器 (StreamManager)
+            const stream = chatApi.getResilientStream({
                 message: value,
                 conversationId: currentConversationId,
                 knowledgeBaseIds: selectedKnowledgeBases,
-                onDelta: (delta) => {
-                    fullContent += delta;
+                clientEvents: useChatStore.getState().clientEvents as any // 传回客户端打点用于意图校准
+            });
 
+            stream
+                .on('content', (delta: string) => {
+                    fullContent += delta;
                     const actionRegex = /\[ACTION:\s*({.*?})\]/g;
                     let match;
                     const foundActions: any[] = [];
@@ -170,68 +174,69 @@ export const ChatPanel: React.FC = () => {
                             const actionData = JSON.parse(match[1]);
                             foundActions.push(actionData);
                             displayContent = displayContent.replace(match[0], '');
-                        } catch { /* partial */ }
+                        } catch { /* partial JSON */ }
                     }
 
                     setMessage(assistantMsgId, {
                         message: displayContent.trim(),
                         extraInfo: foundActions.length > 0 ? { actions: foundActions } : undefined
                     });
-                },
-                onStatus: (status) => {
-                    const tagMatch = status.match(/Tags: \[(.*?)\\]/);
-                    if (tagMatch && tagMatch[1]) {
-                        // Tags are currently just logged/extracted but not displayed in graph
-                    } else {
-                        statuses.push(status);
-                        const thoughtChainItems = statuses.map((s, index) => {
-                            let title = s;
-                            let content = undefined;
+                })
+                .on('status', (status: string) => {
+                    statuses.push(status);
+                    const thoughtChainItems = statuses.map((s, index) => {
+                        let title = s;
+                        let content = undefined;
 
-                            if (s.includes('🤔') || s.includes('💡') || s.includes('💭') || s.includes('⚡')) {
-                                title = s;
-                            } else if (s.startsWith('<think>')) {
-                                title = '🤔 内部思考';
-                                content = s.replace(/<\/?think>/g, '').trim();
-                            } else {
-                                title = `⚡ ${s}`;
-                            }
-                            return {
-                                key: `thought-${index}`,
-                                title,
-                                content,
-                                status: 'success'
-                            };
-                        });
+                        if (s.includes('🤔') || s.includes('💡') || s.includes('💭') || s.includes('⚡')) {
+                            title = s;
+                        } else if (s.startsWith('<think>')) {
+                            title = '🤔 内部思考';
+                            content = s.replace(/<\/?think>/g, '').trim();
+                        } else {
+                            title = `⚡ ${s}`;
+                        }
+                        return {
+                            key: `thought-${index}`,
+                            title,
+                            content,
+                            status: 'success'
+                        };
+                    });
 
-                        setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } } : m));
-                    }
-                },
-                onSessionCreated: (id) => {
+                    // 🛰️ [FE-GOV-001]: 增量更新元数据
+                    setMessages((prev: any[]) => prev.map(m => m.id === assistantMsgId ? { ...m, metadata: { ...(m.metadata || {}), thoughtChain: thoughtChainItems } } : m));
+                })
+                .on('session_created', (data: any) => {
+                    const id = typeof data === 'string' ? data : data.id;
                     setCurrentConversation(id);
                     refetchConversations();
-                },
-                onFinish: (metrics) => {
+                })
+                .on('metrics', (metrics: any) => {
+                    setMessage(assistantMsgId, { extraInfo: { ...metrics } });
+                })
+                .on('done', () => {
                     setIsGenerating(false);
-                    setMessage(assistantMsgId, {
-                        status: 'success',
-                        extraInfo: { ...metrics }
-                    });
+                    setMessage(assistantMsgId, { status: 'success' });
                     refetchConversations();
-                },
-                onError: (err: any) => {
+                })
+                .on('error', (err: any) => {
+                    console.error('Chat error:', err);
                     setIsGenerating(false);
                     setMessage(assistantMsgId, {
-                        status: 'error',
-                        message: '无法连接到 AI 服务，请检查网络。'
+                        message: '无法连接到 AI 服务，请检查网络。',
+                        status: 'error'
                     });
-                    message.error(err.message || '对话出错');
-                }
-            });
-        } catch (e: unknown) {
-            console.error(e);
+                });
+
+            await stream.connect();
+        } catch (error) {
+            console.error('Stream initialization error:', error);
             setIsGenerating(false);
-            setMessage(assistantMsgId, { status: 'error' });
+            setMessage(assistantMsgId, {
+                message: '无法初始化弹性流连接，请刷新页面。',
+                status: 'error'
+            });
         }
     };
 
