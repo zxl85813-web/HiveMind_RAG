@@ -46,7 +46,7 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         });
 
         // 1. 发起对话触发 TTFT
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
+        const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Trigger my final beacon.');
         await page.keyboard.press('Enter');
 

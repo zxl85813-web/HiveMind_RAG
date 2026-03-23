@@ -36,7 +36,7 @@ test.describe('Architecture Eval - Stream Chaos Engineering', () => {
             await route.fulfill({ headers, body: maliciousBody });
         });
 
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
+        const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Fuzz me!');
         await page.keyboard.press('Enter');
 
@@ -82,7 +82,7 @@ test.describe('Architecture Eval - Stream Chaos Engineering', () => {
             }
         });
 
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
+        const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Test 429 Storm Retry Logic');
         
         const startTime = Date.now();

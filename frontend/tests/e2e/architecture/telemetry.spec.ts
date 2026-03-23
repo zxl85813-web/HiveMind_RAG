@@ -29,7 +29,7 @@ test.describe('Phase 1: AI Telemetry (Zod Driven)', () => {
         });
 
         // 触发一次对话
-        const chatInput = page.locator('textarea[placeholder*="输入消息"]');
+        const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Hi, tell me a quick joke about programmers.');
         await page.keyboard.press('Enter');
 

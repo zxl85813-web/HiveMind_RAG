@@ -51,7 +51,7 @@ test.describe('Architecture Eval - Endurance Memory Leak Profiling', () => {
 
         for (let i = 0; i < ITERATIONS; i++) {
             // 动作 1：发送消息
-            const chatInput = page.locator('textarea[placeholder*="输入消息"]');
+            const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
             await chatInput.fill(`Endurance Message ${i + 1}`);
             await page.keyboard.press('Enter');
 

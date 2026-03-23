@@ -15,7 +15,7 @@ test.describe('Phase 2: Memory Persistence (IndexedDB)', () => {
 
   test('should persist conversation in IndexedDB and restore instantly on reload', async ({ page }) => {
     // 1. 发起一条全新对话
-    const chatInput = page.locator('textarea[placeholder*="输入消息"]'); // 根据实际选择器调整
+    const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i); // 根据实际选择器调整
     await chatInput.fill('Hello, test persistence!');
     await page.keyboard.press('Enter');
 
