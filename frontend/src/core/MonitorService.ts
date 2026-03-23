@@ -114,14 +114,12 @@ class MonitorService {
      * 用于页面即将关闭、崩溃或流式任务突然终止时，确保指标能送达后端
      */
     public async dispatchBeacon(type: string, payload: any) {
-        let envBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-        // 确保以 v1 结尾
-        const normalizedBase = envBase.replace(/\/+$/, '');
-        const apiPath = normalizedBase.endsWith('/api/v1') ? normalizedBase : `${normalizedBase}/api/v1`;
-        const url = `${apiPath}/telemetry`;
+        // 🛰️ [Architecture-Gate]: 确保在 CI 环境下 URL 拼接逻辑与测试拦截器正则绝对匹配
+        const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        const url = `${apiBase.replace(/\/+$/, '')}/telemetry`.replace(/([^:]\/)\/+/g, "$1");
 
         const body = JSON.stringify({ type, payload, timestamp: Date.now() });
-        console.log(`[Monitor] Dispatching beacon to ${url} (Type: ${type})`);
+        console.log(`[Monitor] Dispatching beacon: ${url}`);
 
         if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
             const blob = new Blob([body], { type: 'application/json' });

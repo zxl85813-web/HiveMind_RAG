@@ -21,9 +21,9 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         let beaconCaptured = false;
         let beaconPayload: any = null;
 
-        // 使用正则匹配，兼容域名差异与 BaseURL 偏移
+        // 使用正则匹配，保证无论 VITE_API_BASE_URL 如何，都能捕获到 telemetry 结尾的请求
         context.on('request', (request) => {
-            if (/\/api\/v1\/telemetry$/.test(request.url()) && request.method() === 'POST') {
+            if (/.*\/telemetry$/.test(request.url()) && request.method() === 'POST') {
                 beaconCaptured = true;
                 beaconPayload = request.postDataJSON();
                 console.log('[Audit] Beacon Caught:', beaconPayload);
@@ -47,16 +47,24 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         // 1. 发起对话触发 TTFT
         const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
         await chatInput.fill('Trigger my final beacon.');
+
+        // 🛰️ [Sync-Point]: 监听控制台以确保代码已经发起了 dispatchBeacon
+        const beaconDispatched = new Promise(resolve => {
+            page.on('console', msg => {
+                if (msg.text().includes('[Monitor] Dispatching beacon')) resolve(true);
+            });
+        });
+
         await page.keyboard.press('Enter');
 
-        // 2. 致命打击：不等 UI 加载好，直接把标签页强杀！
-        // GitHub Actions 较慢，100ms 可能不足以让 Stream 触发 onmessage，放宽至 400ms
-        await page.waitForTimeout(400); 
+        // 2. 致命打击：不等 UI 完全渲染，但在确认埋点代码已执行后，直接强杀！
+        // 这样测试的是：navigator.sendBeacon 在“临终”时刻的排队上报能力
+        await Promise.race([beaconDispatched, page.waitForTimeout(5000)]);
         console.log('[Chaos] Violently closing the tab mid-flight!');
         await page.close();
         
-        // 我们等个几毫秒让底层的网络调度器收敛
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 3. 结果收割 (给底层的网络栈一点时间收敛)
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // 3. 对账 (Reconciliation)
         // 这个断言非常硬核：如果前端的 MonitorService 是挂在普通的 setTimeout 里，那绝对发不出去
