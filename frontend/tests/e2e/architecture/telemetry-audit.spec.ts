@@ -63,16 +63,29 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         // 🛰️ [Double-Lock Sync]: 同时等待代码执行日志 OR 网络请求发出
         // 允许长达 15s 的超时，以应对 CI 环境的极端冷启动延迟
         const beaconFired = new Promise(resolve => {
-            context.on('request', request => {
+            context.on('request', async request => {
                 const url = request.url();
-                if (url.includes('telemetry')) {
-                    console.log(`[Audit] Intercepted telemetry request: ${url}`);
-                    resolve('network');
+                if (url.includes('telemetry') && request.method() === 'POST') {
+                    try {
+                        const postData = request.postDataJSON();
+                        // 🛰️ [Architecture-Gate]: 重点！排除预热包，只捕获含有业务指标的数据包
+                        if (postData && postData.type !== 'warmup') {
+                            beaconCaptured = true;
+                            beaconPayload = postData;
+                            console.log(`[Audit] Verified business telemetry intercepted: ${postData.type}`);
+                            resolve('network');
+                        } else {
+                            console.log('[Audit] Ignoring warmup telemetry packet.');
+                        }
+                    } catch (e) {
+                        // 此时可能由于正在发送中导致解析失败，忽略
+                    }
                 }
             });
             page.on('console', msg => {
                 const text = msg.text();
-                if (text.includes('[Monitor] Telemetry sent')) {
+                // 如果是业务端的成功日志，也尝试触发同步
+                if (text.includes('[Monitor] Telemetry sent') && !text.includes('warmup')) {
                     resolve('console');
                 }
             });
