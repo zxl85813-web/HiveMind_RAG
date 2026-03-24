@@ -1226,3 +1226,9 @@ npm install i18next react-i18next i18next-browser-languagedetector
   
  - - -  
  
+---
+### [2026-03-24] 卫星对账与遥测加固 (Phase 4 Telemetry Hardening)
+- ✅ Fix: StreamManager TTFT 字符串匹配正则化 (兼容空格差异)
+- ✅ Feature: MonitorService 离屏补发机制 (keepalive + fallback sendBeacon)
+- ✅ Backend: 实现 /api/v1/telemetry 遥测收口端点
+- ✅ DevOps: 配置 LLM_BASE_URL 动态注入，解决火山引擎 (Ark) 密钥适配导致的 401 故障
