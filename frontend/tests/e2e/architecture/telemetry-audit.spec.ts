@@ -15,21 +15,8 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         // 创建一个全新的独立上下文 (Context)，以确保不受其它测试污染
         const context = await browser.newContext();
         const page = await context.newPage();
-        
-        console.log('[Audit] Setup telemetry interceptors on the Context level (survives page flush)...');
-        
         let beaconCaptured = false;
         let beaconPayload: any = null;
-
-        // 使用正则匹配，保证无论 VITE_API_BASE_URL 如何，都能捕获到 telemetry 结尾的请求
-        context.on('request', (request) => {
-            if (/.*\/telemetry$/.test(request.url()) && request.method() === 'POST') {
-                beaconCaptured = true;
-                beaconPayload = request.postDataJSON();
-                console.log('[Audit] Beacon Caught:', beaconPayload);
-            }
-        });
-
         await page.goto('/');
         
         // 缩短耗时：我们自己拦截并魔改流的返回速度
