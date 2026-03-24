@@ -46,14 +46,26 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
 
         // 1. 发起对话触发 TTFT
         const chatInput = page.getByPlaceholder(/在这里问我|Ask me anything/i);
+        await chatInput.click(); // 确保聚焦
         await chatInput.fill('Trigger my final beacon.');
+
+        // 🛰️ [Network Warm-up]: 在暴力强杀前，先触发一次非关键请求
+        // 这能确保 DNS、CORS 预检在 CI 容器的网络栈中先行完成热身
+        await page.evaluate(() => {
+            const apiBase = (window as any).VITE_API_BASE_URL || '';
+            fetch(`${apiBase}/telemetry`, { 
+                method: 'POST', 
+                body: JSON.stringify({ type: 'warmup' }),
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(() => {});
+        });
 
         // 🛰️ [Double-Lock Sync]: 同时等待代码执行日志 OR 网络请求发出
         // 允许长达 15s 的超时，以应对 CI 环境的极端冷启动延迟
         const beaconFired = new Promise(resolve => {
             context.on('request', request => {
                 const url = request.url();
-                if (/telemetry/.test(url)) {
+                if (url.includes('telemetry')) {
                     console.log(`[Audit] Intercepted telemetry request: ${url}`);
                     resolve('network');
                 }
@@ -72,7 +84,7 @@ test.describe('Architecture Eval - Telemetry Integrity Audit', () => {
         // 等待同步信号产生
         const reason = await Promise.race([
             beaconFired,
-            page.waitForTimeout(15000).then(() => 'timeout') // 增加到 15s
+            page.waitForTimeout(15000).then(() => 'timeout') // 15s 窗口
         ]);
 
         console.log(`[Chaos] Telemetry sync trigger: ${reason}. Closing page NOW.`);
