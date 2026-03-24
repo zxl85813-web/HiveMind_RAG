@@ -114,25 +114,35 @@ class MonitorService {
      * 用于页面即将关闭、崩溃或流式任务突然终止时，确保指标能送达后端
      */
     public async dispatchBeacon(type: string, payload: any) {
-        // 🛰️ [Architecture-Gate]: 确保在 CI 环境下 URL 拼接逻辑与测试拦截器正则绝对匹配
-        const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-        const url = `${apiBase.replace(/\/+$/, '')}/telemetry`.replace(/([^:]\/)\/+/g, "$1");
+        // 🛰️ [Architecture-Gate]: 确保在 CI 环境下 URL 拼接逻辑稳健
+        const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+        const baseUrl = apiBase.replace(/\/+$/, '');
+        const url = `${baseUrl}/telemetry`;
+        
+        const body = JSON.stringify({
+            type,
+            payload,
+            timestamp: new Date().toISOString(),
+            context: {
+                ua: navigator.userAgent,
+                url: window.location.href
+            }
+        });
 
-        const body = JSON.stringify({ type, payload, timestamp: Date.now() });
-        console.log(`[Monitor] Dispatching telemetry: ${url}`);
+        console.log(`[Monitor] Dispatching telemetry: ${url} (Type: ${type})`);
 
-        // 在 CI 环境下，fetch + keepalive 通常比 sendBeacon 更能被 Playwright 稳定拦截
         try {
+            // 使用 standard fetch + keepalive，它是目前最可靠的离屏发送方案
             await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body,
                 keepalive: true,
-                mode: 'no-cors' // 确保在各种环境下都能发出
+                credentials: 'omit'
             });
-            console.log(`[Monitor] Telemetry sent via fetch-keepalive`);
+            console.log(`[Monitor] Telemetry sent: ${type}`);
         } catch (e) {
-            // 回退到 sendBeacon
+            // 临终救赎：如果是页面卸载导致的失败，尝试最后一线生机
             if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
                 const blob = new Blob([body], { type: 'application/json' });
                 navigator.sendBeacon(url, blob);

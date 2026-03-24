@@ -23,9 +23,21 @@ def generate_report():
         f"请直接输出报告正文，不要包含任何前导说明。"
     )
 
-    api_key = os.getenv("LLM_API_KEY")
-    api_base = os.getenv("VITE_API_BASE_URL", "https://api.siliconflow.cn/v1")
+    # 🛰️ [Architecture-Gate]: 直接调用云端模型提供商，不依赖可能不稳定的本地 Backend
+    llm_api_key = os.getenv("LLM_API_KEY", "")
+    # 使用标准 API 端点，避免使用 CI 内不确定的 VITE_API_BASE_URL
+    api_url = "https://api.siliconflow.cn/v1/chat/completions"
     
+    if not llm_api_key:
+        print("Skipping LLM analysis: LLM_API_KEY not found.")
+        # Write a placeholder report if API key is missing
+        with open("architecture_report.md", "w", encoding="utf-8") as f:
+            f.write("# 🏛️ HiveMind 架构评测自动汇总\n\n")
+            f.write("## ⚠️ 架构评测概览 (LLM_API_KEY 缺失)\n\n")
+            f.write("LLM_API_KEY 环境变量未设置，无法生成详细报告。请检查您的 GitHub Secrets。\n\n")
+            f.write(f"原始结果: {json.dumps(results, indent=2)}")
+        return
+
     # 获取环境变量中的模型配置，默认使用 DeepSeek
     model = os.getenv("LLM_MODEL", "deepseek-ai/DeepSeek-V3")
 
@@ -34,8 +46,8 @@ def generate_report():
     try:
         # 使用项目已有的 SiliconFlow 接口
         response = requests.post(
-            f"{api_base.replace('/api/v1', '')}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
+            api_url,
+            headers={"Authorization": f"Bearer {llm_api_key}"},
             json={
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
