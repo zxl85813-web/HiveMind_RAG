@@ -19,6 +19,8 @@ dependencies = [
     "langchain-community>=0.3.0",
     "langgraph>=0.2.0",
     "langchain-mcp-adapters>=0.1.0",
+    "openai>=1.50.0",
+    "instructor>=1.4.0",
 
     # === Embedding & Vector Store ===
     "sentence-transformers>=3.0.0",
