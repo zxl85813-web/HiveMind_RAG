@@ -114,38 +114,59 @@ class MonitorService {
      * 用于页面即将关闭、崩溃或流式任务突然终止时，确保指标能送达后端
      */
     public async dispatchBeacon(type: string, payload: any) {
-        // 🛰️ [Architecture-Gate]: 确保在 CI 环境下 URL 拼接逻辑稳健
         const apiBase = import.meta.env.VITE_API_BASE_URL || '';
         const baseUrl = apiBase.replace(/\/+$/, '');
         const url = `${baseUrl}/telemetry`;
+        const token = localStorage.getItem('access_token');
         
-        const body = JSON.stringify({
+        const bodyContent = {
             type,
             payload,
             timestamp: new Date().toISOString(),
             context: {
                 ua: navigator.userAgent,
-                url: window.location.href
+                url: window.location.href,
+                // [Architecture-Gate]: 在遥测中增加分组标识，避免 CI 混淆
+                env: import.meta.env.MODE
             }
-        });
+        };
 
-        console.log(`[Monitor] Dispatching telemetry: ${url} (Type: ${type})`);
+        const body = JSON.stringify(bodyContent);
+
+        // 🛰️ [Debug]: 在 CI 日志中区分 Dispatch 开始，方便 Playwright 同步
+        console.log(`[Monitor] Dispatching business telemetry: ${type}`);
 
         try {
-            // 使用 standard fetch + keepalive，它是目前最可靠的离屏发送方案
-            await fetch(url, {
+            // 使用 standard fetch + keepalive，确保即使页面卸载也能继续发送
+            const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body,
                 keepalive: true,
                 credentials: 'omit'
             });
-            console.log(`[Monitor] Telemetry sent: ${type}`);
+
+            if (response.ok) {
+                console.log(`[Monitor] Telemetry sent successfully: ${type}`);
+            } else {
+                console.warn(`[Monitor] Telemetry fetch rejected with status: ${response.status}. Falling back to sendBeacon.`);
+                this.fallbackSendBeacon(url, body);
+            }
         } catch (e) {
-            // 临终救赎：如果是页面卸载导致的失败，尝试最后一线生机
-            if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-                const blob = new Blob([body], { type: 'application/json' });
-                navigator.sendBeacon(url, blob);
+            console.warn(`[Monitor] Telemetry fetch error (likely page unload). Falling back to sendBeacon.`);
+            this.fallbackSendBeacon(url, body);
+        }
+    }
+
+    private fallbackSendBeacon(url: string, body: string) {
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            const blob = new Blob([body], { type: 'application/json' });
+            const success = navigator.sendBeacon(url, blob);
+            if (success) {
+                console.log(`[Monitor] Telemetry sent via fallback sendBeacon.`);
             }
         }
     }

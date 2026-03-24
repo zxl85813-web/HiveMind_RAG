@@ -108,7 +108,10 @@ jobs:
           PHASE2_RESULT: ${{ steps.phase2.outcome }}
           PHASE3_RESULT: ${{ steps.phase3.outcome }}
           PHASE4_RESULT: ${{ steps.phase4.outcome }}
+          # 🛰️ [Architecture-Gate]: 确保报告生成器与后端使用相同的 Provider 配置
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-v3-2-251201' }}
           VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
         run: |
           pip install requests

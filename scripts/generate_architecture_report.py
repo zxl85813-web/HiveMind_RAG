@@ -23,10 +23,11 @@ def generate_report():
         f"请直接输出报告正文，不要包含任何前导说明。"
     )
 
-    # 🛰️ [Architecture-Gate]: 直接调用云端模型提供商，不依赖可能不稳定的本地 Backend
+    # 🛰️ [Architecture-Gate]: 动态适配模型提供商，默认保持 SiliconFlow
     llm_api_key = os.getenv("LLM_API_KEY", "")
-    # 使用标准 API 端点，避免使用 CI 内不确定的 VITE_API_BASE_URL
-    api_url = "https://api.siliconflow.cn/v1/chat/completions"
+    llm_base_url = os.getenv("LLM_BASE_URL", "https://api.siliconflow.cn/v1")
+    # 确保 URL 结尾符合标准
+    api_url = f"{llm_base_url.rstrip('/')}/chat/completions"
     
     if not llm_api_key:
         print("Skipping LLM analysis: LLM_API_KEY not found.")
@@ -38,10 +39,15 @@ def generate_report():
             f.write(f"原始结果: {json.dumps(results, indent=2)}")
         return
 
-    # 获取环境变量中的模型配置，默认使用 DeepSeek
-    model = os.getenv("LLM_MODEL", "deepseek-ai/DeepSeek-V3")
+    # 获取环境变量中的模型配置，默认使用 DeepSeek (SiliconFlow 路径)
+    # 如果检测到是 Ark 环境，模型通常为 deepseek-v3-2-251201 或类似
+    default_model = "deepseek-ai/DeepSeek-V3"
+    if "volces.com" in llm_base_url:
+        default_model = "deepseek-v3-2-251201"
+        
+    model = os.getenv("LLM_MODEL", default_model)
 
-    print(f"Generating report using model: {model}")
+    print(f"Generating report using model: {model} at {api_url}")
 
     try:
         # 使用项目已有的 SiliconFlow 接口
@@ -58,6 +64,12 @@ def generate_report():
         
         if response.status_code == 200:
             report_content = response.json()['choices'][0]['message']['content']
+        elif response.status_code == 401:
+            report_content = (
+                f"## ⚠️ 架构评测概览 (LLM 授权失败: 401)\n\n"
+                f"**诊断**: 当前 GitHub Actions 環境中的 `LLM_API_KEY` (SiliconFlow) 可能是无效的或已过期。\n\n"
+                f"**原始结果**: \n```json\n{json.dumps(results, indent=2)}\n```"
+            )
         else:
             report_content = f"## ⚠️ 架构评测概览 (LLM 接口返回异常: {response.status_code})\n\n结果详情: {json.dumps(results)}"
             

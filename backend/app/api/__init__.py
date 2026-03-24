@@ -21,12 +21,14 @@ from app.api.routes import (
     security,
     settings,
     tags,
+    telemetry,
     websocket,
 )
 
 router = APIRouter()
 
 router.include_router(health.router, prefix="/health", tags=["Health"])
+router.include_router(telemetry.router, tags=["Telemetry"])
 router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge Base"])
 router.include_router(agents.router, prefix="/agents", tags=["Agents"])

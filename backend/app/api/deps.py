@@ -45,3 +45,17 @@ async def get_current_user(
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db_session),
+) -> User | None:
+    """获取当前认证用户（可选，验证失败不抛出 401）。"""
+    if not credentials:
+        return None
+    try:
+        user = await get_current_user(credentials, db)
+        return user
+    except HTTPException:
+        return None

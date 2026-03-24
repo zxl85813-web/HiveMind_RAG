@@ -97,7 +97,7 @@ export class StreamManager {
                     this.parser.parse(event.data);
 
                     // 🛰️ [Architecture-Check]: 遥测对账 - TTFT (Time To First Token)
-                    if (!this.hasSentTTFT && event.data.includes('"track":"content"')) {
+                    if (!this.hasSentTTFT && (event.data.includes('"track":"content"') || event.data.includes('"track": "content"'))) {
                         this.hasSentTTFT = true;
                         const ttft = Math.round(performance.now() - this.startTime);
                         console.log(`[Telemetry] Dispatching TTFT beacon: ${ttft}ms`);
