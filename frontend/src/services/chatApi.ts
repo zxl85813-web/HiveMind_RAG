@@ -37,16 +37,17 @@ export const chatApi = {
         message: string;
         conversationId?: string | null;
         knowledgeBaseIds?: string[];
-        onDelta: (delta: string) => void;
-        onStatus?: (status: string) => void;
-        onInsight?: (data: Record<string, unknown>) => void;
-        onSessionCreated?: (id: string, title: string) => void;
-        onFinish?: (metrics?: { latency_ms?: number; is_cached?: boolean }) => void;
+        onDelta?: (delta: string) => void;
+        onStatus?: (status: any) => void;
+        onInsight?: (insight: any) => void;
+        onSessionCreated?: (session: { id: string, title?: string }) => void;
+        onFinish?: (metadata: any) => void;
         clientEvents?: Record<string, unknown>[];
         onError?: (err: unknown) => void;
         controller?: AbortController;
+        is_prefetch?: boolean;
     }) {
-        const { message, conversationId, knowledgeBaseIds, clientEvents, onDelta, onStatus, onInsight, onSessionCreated, onFinish, onError, controller } = params;
+        const { message, conversationId, knowledgeBaseIds, clientEvents, onDelta, onStatus, onInsight, onSessionCreated, onFinish, onError, controller, is_prefetch } = params;
 
         // Use the baseURL from import.meta.env via a clean string construction
         const rawBase = import.meta.env.VITE_API_BASE_URL || '';
@@ -65,7 +66,8 @@ export const chatApi = {
                     message,
                     conversation_id: conversationId,
                     knowledge_base_ids: knowledgeBaseIds,
-                    client_events: clientEvents
+                    client_events: clientEvents,
+                    is_prefetch: !!is_prefetch
                 }),
                 signal: controller?.signal,
 
@@ -73,14 +75,14 @@ export const chatApi = {
                     try {
                         const data = JSON.parse(ev.data);
 
-                        if (data.type === 'content') {
-                            onDelta(data.delta);
-                        } else if (data.type === 'status') {
+                        if (data.track === 'content' || data.type === 'content') {
+                            onDelta?.(data.delta);
+                        } else if (data.track === 'status' || data.type === 'status') {
                             onStatus?.(data.content);
-                        } else if (data.type === 'insight') {
-                            onInsight?.(data.data);
+                        } else if (data.track === 'insight' || data.type === 'insight') {
+                            onInsight?.(data.payload || data.data);
                         } else if (data.type === 'session_created') {
-                            onSessionCreated?.(data.id, data.title);
+                            onSessionCreated?.({ id: data.id, title: data.title });
                         } else if (data.type === 'done') {
                             onFinish?.({
                                 latency_ms: data.latency_ms,
@@ -114,6 +116,7 @@ export const chatApi = {
         conversationId?: string | null;
         knowledgeBaseIds?: string[];
         clientEvents?: Record<string, unknown>[];
+        is_prefetch?: boolean;
     }): StreamManager {
         const rawBase = import.meta.env.VITE_API_BASE_URL || '';
         const baseUrl = rawBase ? (rawBase.endsWith('/api/v1') ? rawBase : `${rawBase.replace(/\/$/, '')}/api/v1`) : '/api/v1';
@@ -129,7 +132,8 @@ export const chatApi = {
                 message: params.message,
                 conversation_id: params.conversationId,
                 knowledge_base_ids: params.knowledgeBaseIds,
-                client_events: params.clientEvents
+                client_events: params.clientEvents,
+                is_prefetch: !!params.is_prefetch
             }
         });
     },

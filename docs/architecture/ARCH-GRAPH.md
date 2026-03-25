@@ -1,114 +1,108 @@
-# 🧠 HiveMind 研发大脑：高效能 Agentic OS 架构指南
+# 🧠 HiveMind Intelligence Swarm: 认知架构图谱 (ARCH-Graph)
 
-> **Version**: 2.5 (High-Performance Edition)
-> **定位**: 从传统“Chat-based RAG”演进为“Orchestration-as-Code”的自适应智能体操作系统。
-
----
-
-## 1. 核心技术构想：三层演进模型
-
-我们将 Agent 的能力抽象为三个不断进化的能级，当前系统已全面实现 **Level 2** 并向 **Level 3** 迈进：
-
-| 能级 | 模式 | 核心技术 | 效能表现 | 状态 |
-| :--- | :--- | :--- | :--- | :--- |
-| **L1** | **Reactive** | 基础 ReAct 循环 (Tool Calling) | 延迟高，容易震荡 | 已超越 |
-| **L2** | **Programmatic** | **编排脚本模式 + 动态工具索引** | 批量执行，Token 节省 90% | **当前实现** |
-| **L3** | **Autonomous** | 跨会话自进化 Skill + 长期记忆 Grounding | 零干预解决复杂研发任务 | 构想中 |
+> **Version**: 3.0 (Intelligence Swarm Edition)
+> **定位**: 从“代码索引”升维为“智体认知中枢”，实现需求、代码、文档与度量指标的四维全量关联。
 
 ---
 
-## 2. 系统精密架构 (The "Hive" Core)
+## 1. 认知本体论 (The Cognitive Ontology)
+
+为了让 Agent Swarm 具备“全局架构直觉”，我们将图谱 Schema 规范化为以下四大核心域：
+
+### 🟢 A. 智体域 (Intelligence Realm)
+*   **Label**: `IntelligenceNode`
+*   **Properties**: `name`, `type` (Supervisor/Worker/Skill), `status`, `version`
+*   **Relation**: `[:OWNS]`, `[:EXECUTES]`, `[:REQUIRES_SKILL]`
+
+### 🔵 B. 资源域 (Resource Realm)
+*   **Label**: `CognitiveAsset`
+*   **Properties**: `id` (REQ/DES/GOV), `title`, `type` (Doc/Spec/Rule), `priority`
+*   **Relation**: `[:DEFINES]`, `[:MAPPED_TO_CODE]`, `[:SUPERSEDES]`
+
+### 📜 C. 代码域 (Code Realm)
+*   **Label**: `CodePrimitive`
+*   **Properties**: `path`, `type` (Class/Method/Hook/Store), `hash`, `is_complex`
+*   **Relation**: `[:IMPLEMENTS]`, `[:DEPENDS_ON]`, `[:TRIGGERS]`
+
+### 📊 D. 度量域 (Metric Realm)
+*   **Label**: `MetricNode`
+*   **Properties**: `scope` (HMER/Performance/Security), `value`, `timestamp`
+*   **Relation**: `[:AUDITS]`, `[:REPORTS_TO]`
+
+---
+
+## 2. 全景关联拓扑 (Global Linkage)
 
 ```mermaid
 graph TD
-    subgraph Control_Plane ["控制面 (Control Plane - Schema Driven)"]
-        SUP[Supervisor: 路由仲裁] -- "Adaptive Schema" --> REF[Reflection: 条件式反思]
-        SUP -- "Vector Discovery" --> ToolIdx[Tool Indexer: 工具索引]
-    end
-
-    subgraph Execution_Plane ["执行面 (Execution Plane - Programmatic)"]
-        CodeAgent[Code Agent] -- "Execute" --> Sandbox[Python Sandbox: 编排沙箱]
-        Sandbox -- "platform.call()" --> MCP[MCP Servers: 外部连接]
-        Sandbox -- "platform.call()" --> Skills[Skill Registry: 经验包]
-    end
-
-    subgraph Memory_Layer ["知识大脑 (Memory & Knowledge)"]
-        Graph[Arch-Graph: 架构图谱]
-        Vec[Vector Store: 语义搜索]
-        Shared[Shared Memory: 实时快照]
-    end
-
-    SUP -- "Route" --> CodeAgent
-    ToolIdx -- "Filter" --> Sandbox
-    Execution_Plane -- "Feedback" --> REF
-    Execution_Plane -.-> Shared
+    %% Assets to Code
+    REQ[CognitiveAsset: REQ-001] -- "[:DEFINES]" --> DES[CognitiveAsset: DES-001]
+    DES -- "[:MAPPED_TO_CODE]" --> Hook[CodePrimitive: useChatHook]
+    
+    %% Intelligence to Code
+    Agent[IntelligenceNode: ChatWorker] -- "[:EXECUTES]" --> Hook
+    Agent -- "[:REQUIRES_SKILL]" --> Crypto[IntelligenceNode: Skill-Crypto]
+    
+    %% Quality Feedback
+    HMER[MetricNode: HMER-Score] -- "[:AUDITS]" --> DES
+    HMER -- "[:REPORTS_TO]" --> Dashboard[IntelligenceNode: GovernanceAgent]
 ```
 
 ---
 
-## 3. 核心创新特性
+## 3. 核心创新特性 (Intelligence Swarm Features)
 
 ### ⚡ Programmatic Execution (编排脚本化)
 不同于传统的 Agent 步进式执行，HiveMind 允许 Agent **“生成一段 Python 编排逻辑”**。
-*   **代码级别实现**：通过 `programmatic_execute` 工具在沙箱中一次性调用多个 MCP/Skill。
 *   **价值**：将 10 次 LLM 网络往返压缩为 1 次，实现工业级的低延迟响应。
 
-### 🐝 HiveDispatcher: 系统调度中枢
-`HiveDispatcher` (原 ClawRouter) 实时分析任务复杂度：
-- **Eco 路径**：低复杂度、单轮对话。
-- **Premium 路径**：高复杂度、代码生成、多步推理。
-
 ### 🧊 Tiered Retrieval Matrix: 冷热分层检索
-为了平衡性能、成本与隐私，检索系统被划分为五个象限：
-
 1. **Tier-1 Radar** (Hot): 极速标签路由。
 2. **Tier-2 Graph** (Relation): Neo4j 的影响力分析。
 3. **Tier-3 Scalar** (Warm): SmartGrep (BM25) 提供的本地会话事实特征。
 4. **Tier-4 Vector** (Semantic): ChromaDB 进行语义内容匹配。
-5. **Tier-5 Heavy** (Cold): **Elasticsearch (ES)**。全局技术共享库的终极召回。
-
-### 🔍 Adaptive Tool Discovery (自适应工具发现)
-拒绝“全量工具挂载”导致的 Token 爆炸。
-*   **技术**：基于任务语义的 **Top-K 工具向量筛选**。模型只会看到与当前任务最相关的工具 Schema，确保注意力高度集中。
-
-### 🛡️ Selective Reflection (条件式反思机制)
-告别昂贵的“无差别全量检查”。
-*   **决策流**：系统根据 `Uncertainty` (不确定度) 和任务领域动态决定是否触发 Reflection 节点。简单任务“直通”输出，高危/复杂任务执行“严苛反思”。
 
 ---
 
-## 4. 未来构想：自进化 Skill 循环
+## 4. 场景化应用：影响分析 (Impact Analysis)
 
-在我们的蓝图中，HiveMind 不仅仅是一个工具，它是一个**自学习实体**：
-1.  **模式发现**：Agent 在解决复杂问题时，自动识别高频使用的编排逻辑。
-2.  **知识固化**：系统将这些逻辑自动封装为新的 `.agent/skills/` 模块，并生成配套的 `SKILL.md`。
-3.  **能力溢出**：随着使用时间增加，系统将从“通用 Agent”进化为专属于该项目的“领域专家”。
+借助 Arch-Graph 的关联能力，系统能够执行精准的“代码变更影响调查”：
+
+### 4.1 代码实体关联 (Code Relationship)
+*   **方法引用追踪**: `(CodePrimitive {type:'Method'})-[:CALLED_BY]->(Caller)`
+*   **依赖图谱分析**: `(CodePrimitive)-[:DEPENDS_ON]->(Dependency)`
+
+### 4.2 业务逻辑与认知对齐 (Logic & Alignment)
+*   **需求覆盖度审计**: `(CognitiveAsset {type:'REQ'})-[:DEFINES]->(DES)-[:MAPPED_TO_CODE]->(CodePrimitive)`
+*   **权限冲突扫描**: `(CognitiveAsset {type:'Rule'})-[:MAPPED_TO_CODE]->(CodePrimitive)<-[:ACCESSED_BY]-(Role)`
 
 ---
-+
-+## 5. 场景化应用：影响分析场景 (Impact Analysis Scenarios)
-+
-+借助 Arch-Graph 的关联能力，HiveMind 能够执行精准的“代码变更影响调查”。以下为系统预置的高频调查模式：
-+
-+### 5.1 基础代码实体影响 (Code Primitives)
-+*   **方法/字段变更**：查询所有引用该方法（含私有）或字段变量的处理点。
-+    *   *Path*: `(Method/Field)-[:CALLED_BY|REFERENCED_BY]->(Caller)`
-+*   **类/文件引用**：追踪类或文件被其他模块引用的所有位置。
-+    *   *Path*: `(Class/File)-[:DEPENDS_ON]->(Dependent)`
-+*   **静态资源依赖 (JSP/JS/CSS)**：追踪 JSP 包含关系、JS 调用及 CSS 样式引用。
-+    *   *Path*: `(JSP)-[:INCLUDES]->(SubJSP)`, `(Page)-[:USES_ASSET]->(JS/CSS)`
-+
-+### 5.2 业务逻辑与触发器 (Logic & Triggers)
-+*   **Action/UI 联动**：找回所有调用特定 Action 的画面按钮及关联 UI。
-+    *   *Path*: `(Action)-[:TRIGGERED_BY]->(UIElement)`
-+*   **定时任务/异步作业**：调查特定 Job 或 Trigger 与其他处理逻辑的关联。
-+    *   *Path*: `(Job/Trigger)-[:EXECUTES]->(Logic)`
-+
-+### 3.3 数据持久层影响 (Database & SQL)
-+*   **表/字段变更**：当数据库表或字段被修改/删除时，定位受影响的 SQL 语句、View 及程序逻辑。
-+    *   *Path*: `(Column/Table)-[:USED_IN]->(SQL)-[:CALLED_BY]->(Code)`
-+*   **URL 与路由变更**：评估 URL 修改对 Apache 重写规则、参数传递及后端接口的影响。
-+    *   *Path*: `(Route)-[:MAPPED_TO]->(Controller)-[:AFFECTS]->(Config)`
-+
-+---
-+*Generated by Antigravity AI Orchestrator | 2026-03-19*
+
+## 5. 智体自愈：图谱清洗与矫正 (Self-Healing)
+
+为了保障“数字大脑”不产生幻觉，系统内置了以下 Cypher 矫正指令：
+
+### 5.1 孤儿文档清理 (Orphaned Asset Clean)
+```cypher
+MATCH (a:CognitiveAsset) 
+WHERE NOT (a)-[:DEFINES|MAPPED_TO_CODE|SUPERSEDES]-()
+RETURN a.id, "Pending Archive"
+```
+
+### 5.2 影子代码检测 (Shadow Code Detection)
+*识别那些在代码库中存在，但未在图谱中注册的“黑户”逻辑。*
+```cypher
+MATCH (c:CodePrimitive)
+WHERE c.status = 'unregistered'
+RETURN c.path, "Violation of GOV-001"
+```
+
+### 5.3 认知偏航审计 (Alignment Audit)
+```cypher
+MATCH (r:CognitiveAsset {type: 'REQ'})
+WHERE NOT (r)-[:DEFINES]->(:CognitiveAsset {type: 'DES'})
+RETURN r.id, "Missing Design Link"
+```
+
+---
+*Generated by HiveMind Intelligence Swarm | 2026-03-25*

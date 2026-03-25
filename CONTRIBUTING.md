@@ -1,247 +1,54 @@
-# 🤝 贡献指南 — HiveMind RAG
+﻿# 🤝 贡献指南 — HiveMind RAG
 
-感谢你对 HiveMind RAG 的贡献！本文档描述了我们的协作开发规范，请在提交代码前仔细阅读。
+感谢你对 HiveMind RAG 的贡献！本仓库采用 **Issue 驱动 + Agent 辅助** 的开发模式。
 
----
-
-## 🌿 分支策略
-
-```
-main                 ← 受保护的主要分支，所有代码必须通过 PR 合入
- ├── feature/xxx     ← 新功能分支 (e.g. feature/semantic-cache)
- ├── fix/xxx         ← Bug 修复分支 (e.g. fix/upload-oom)
- ├── refactor/xxx    ← 重构分支
- ├── docs/xxx        ← 文档分支
- └── chore/xxx       ← 配置/工具变更
-```
-
-### 规则
-- `main` 分支始终保持可部署状态。
-- **严禁直接向 `main` 推送代码**，所有变更必须通过 Pull Request。
-- 分支命名规范：`<type>/<kebab-case-description>`。
-- 合并后删除特性分支。
+> [!TIP]
+> **深度治理手册**: 本文档仅包含快速上手概要。全量的 SOP、编码规范、架构准则和质量门禁，请务必阅读单一事实源：
+> 👉 **[docs/DEV_GOVERNANCE.md](docs/DEV_GOVERNANCE.md)**
 
 ---
 
-## 🔄 开发完整生命周期
+## 🌿 1. 分支策略 (Branch Strategy)
 
-以下是从"想法"到"代码合并"的完整流程：
+所有代码变更必须通过 Pull Request。
 
-```
-                    ┌─────────────┐
-                    │  1. 需求产生  │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │ 2. 架构评估  │ ← 是否需要 ADR？
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-           ┌────── │ 3. 设计文档  │ ── 需要ADR ──┐
-           │       └──────┬──────┘              │
-           │              │                     ▼
-           │              │           ┌─────────────────┐
-           │              │           │ 创建 ADR PR      │
-           │              │           │ → Review → 合并 │
-           │              │           └────────┬────────┘
-           │              │                    │
-           │       ┌──────▼──────┐  ◄──────────┘
-  不需要ADR ├──→   │ 4. OpenSpec  │
-           │       │   Propose    │
-           │       └──────┬──────┘
-           │              │
-           │       ┌──────▼──────┐
-           └──→    │ 5. 编码实现  │
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │ 6. 单元测试  │ ← 覆盖率 ≥ 80%
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │ 7. 提交 PR   │ ← 填写 PR 模板
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │ 8. CI 检查   │ ← Lint + Type + Test + Coverage
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │ 9. Code      │ ← 至少 1 人 Approve
-                   │    Review    │
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐   ← 仅当涉及 models/core/alembic
-                   │10. 架构审查  │
-                   │  (可选)      │
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │11. 合并到    │
-                   │    main      │
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │12. 更新文档  │ ← REGISTRY.md + TODO.md
-                   └─────────────┘
-```
+*   **main**: 受保护的生产分支，禁止直推。
+*   **develop**: 开发集成分支。
+*   **feature/issue-{ID}**: 新功能分支。
+*   **fix/issue-{ID}**: Bug 修复分支。
+
+**命名规范**: `<type>/issue-<ID>-<short-description>`
 
 ---
 
-## 📝 代码规范速查
+## 🔄 2. 极简贡献流程
 
-### Python (Backend)
-
-| 工具 | 用途 | 配置 |
-|------|------|------|
-| **ruff** | Linting | `pyproject.toml` [tool.ruff] |
-| **black** | 格式化 | `pyproject.toml` [tool.black] |
-| **mypy** | 静态类型 | `pyproject.toml` [tool.mypy] |
-| **pytest** | 测试 | `pyproject.toml` [tool.pytest] |
-| **pytest-cov** | 覆盖率 | `fail_under = 80` |
-
-```bash
-# 本地快速检查
-cd backend
-ruff check .
-black --check .
-mypy app/ --ignore-missing-imports
-pytest --cov=app --cov-fail-under=80
-```
-
-### TypeScript (Frontend)
-
-| 工具 | 用途 | 配置 |
-|------|------|------|
-| **eslint** | Linting | `eslint.config.js` |
-| **prettier** | 格式化 | `.prettierrc` |
-| **tsc** | 类型检查 | `tsconfig.app.json` (strict: true) |
-| **vitest** | 单元测试 | `vite.config.ts` |
-
-```bash
-# 本地快速检查
-cd frontend
-npm run lint
-npm run typecheck
-npm run test:unit
-```
+1.  **领取任务**: 在 [GitHub Issues](https://github.com/zxl85813-web/HiveMind_RAG/issues) 中通过评论领取任务。
+2.  **创建分支**: 从 `develop` 切出你的特性分支。
+3.  **遵循规范**: 你的代码必须通过 `.agent/rules/` 下的架构约束，并遵守 `docs/DEV_GOVERNANCE.md` 里的 SOP。
+4.  **提交代码**: 使用 **Conventional Commits** 规范提交。
+5.  **发起 PR**: 关联 Issue ID (如 `Closes #123`)，并通过所有 CI 质量门禁。
 
 ---
 
-## 📏 Code Review 规则
+## ✅ 3. 提交前 Checklist (30s 自查)
 
-### PR 要求
-1. **PR 不超过 500 行有效代码变更**（不含 lock 文件、自动生成代码和迁移文件）。
-2. **至少 1 个 Approving Review**。
-3. **所有 CI 检查绿色通过**。
-4. **0 个未解决的 Review 评论**。
-
-### ✅ 极简 PR Checklist（提交前 30 秒）
-
-- [ ] **任务态已更新**：`TODO.md` 已标记本次任务进度（完成/阻塞/搁置）
-- [ ] **资产态已同步**：若有 API/模型/服务/组件变更，`REGISTRY.md` 已登记
-- [ ] **闭环已建立**：PR 描述已关联对应 Issue/REQ/DES/OpenSpec 之一
-
-### Review 检查项
-
-#### 🔍 逻辑审查
-- 代码是否正确实现了需求？
-- 边界条件是否处理？
-- 错误处理是否完善？
-
-#### 🏗️ 架构审查 (标签: `needs-architecture-review`)
-当审查涉及核心模块变更时，请额外关注：
-- 是否违反 `project-structure.md` 中的模块边界规则？
-- 数据库变更是否有对应的 Alembic 迁移？
-- 是否引入了循环依赖？
-- Big-O 复杂度是否合理？
-- 安全边界是否被破坏？
-
-#### 🧪 测试审查
-- 新功能是否有充分的单元测试？
-- 测试是否覆盖了正常路径和异常路径？
-- 是否存在脆弱测试 (flaky tests)？
-
-#### 📖 文档审查
-- 公共 API 是否有 docstring？
-- `REGISTRY.md` 是否已更新？
-- 是否需要更新 `TODO.md`？
+- [ ] **资产登记**: 如果新增了 API 或模块，是否已在 [REGISTRY.md](REGISTRY.md) 登记？
+- [ ] **任务更新**: `TODO.md` 是否已通过 `/update-todo` 正确标注当前任务状态？
+- [ ] **质量检查**: 本地是否已运行 `./.agent/checks/run_checks.ps1`？
+- [ ] **文档关联**: PR 描述是否指向了对应的设计文档 (DES-NNN)？
 
 ---
 
-## 🏗️ 架构决策记录 (ADR)
+## 🔗 4. 核心参考链接
 
-当你的变更涉及以下范围时，**必须先提交 ADR**：
-
-- 新增或修改数据库表 (`backend/app/models/`)
-- 变更核心基础设施 (`backend/app/core/`)
-- 引入新的外部依赖或第三方 API
-- 改变模块间的通信模式
-- 新增顶层目录
-
-ADR 存放位置: `docs/architecture/decisions/`
-ADR 格式: 参见 `0000-use-madr.md`
-
-### ADR 流程
-1. 在 GitHub 创建 Issue (使用 `🏗️ 架构提案` 模板)
-2. 编写 ADR 文件并提交 PR
-3. 获得架构审查 Approve
-4. 合并 ADR PR
-5. 基于已批准的 ADR 开始 OpenSpec 变更流程
-
-## 🎭 多角色协作与需求分解
-
-在处理复杂需求时，我们遵循 **需求 -> GitHub Issues -> OpenSpec -> PR** 的降维流转机制，并支持 PO/Architect/Dev/Reviewer 多角色协作。
-
-**详情必读规范:** [`.agent/rules/project-workflow.md`](.agent/rules/project-workflow.md)
+| 内容 | 链接 |
+|:---|:---|
+| **开发治理手册** | [docs/DEV_GOVERNANCE.md](docs/DEV_GOVERNANCE.md) |
+| **功能注册表** | [REGISTRY.md](REGISTRY.md) |
+| **任务看板** | [TODO.md](TODO.md) |
+| **架构演进记录** | [docs/changelog/CHANGELOG.md](docs/changelog/CHANGELOG.md) |
+| **共学体系** | [docs/COLLABORATIVE_LEARNING.md](docs/COLLABORATIVE_LEARNING.md) |
 
 ---
-
-## 🔧 OpenSpec 协作流程
-
-我们使用 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 管理 AI 辅助开发：
-
-| 命令 | 用途 |
-|------|------|
-| `/opsx-propose` | 提出新变更，生成 proposal + design + tasks |
-| `/opsx-apply` | 按任务列表逐项实施代码 |
-| `/opsx-explore` | 探索想法、调研问题 |
-| `/opsx-archive` | 归档已完成的变更 |
-
-所有 OpenSpec 变更文件存放在 `openspec/changes/<name>/` 下。
-
----
-
-## 📝 提交信息规范
-
-使用 [Conventional Commits](https://www.conventionalcommits.org/)：
-
-```
-<type>(<scope>): <description>
-
-[optional body]
-
-[optional footer]
-```
-
-### 类型
-
-| 类型 | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档变更 |
-| `style` | 代码格式（不影响逻辑） |
-| `refactor` | 重构（不改变功能） |
-| `test` | 测试相关 |
-| `chore` | 配置/工具变更 |
-| `perf` | 性能优化 |
-
-### 示例
-```
-feat(rag): add semantic cache for repeated queries
-fix(chat): resolve SSE connection timeout on slow networks
-docs(adr): add ADR-0001 for GraphRAG integration
-test(backend): add unit tests for indexing pipeline
-chore(ci): configure backend CI with 80% coverage gate
-```
+> _“让每一行代码都有据可查，让每一处设计都服务于群体进化。”_

@@ -1,20 +1,23 @@
-# 🏛️ HiveMind RAG — 问题体系与开发治理框架总说明
+# 🏛️ HiveMind Intelligence Swarm — 系统与工程治理总览 (Engineering Overview)
 
-> **本文档是整个开发体系的导航地图 (Navigation Map)。**  
-> 任何人（开发者与 AI Agent）在动手写代码前必须先读这里，理解我们"怎么提问题、怎么解决问题、怎么记录问题"。
+> **本文档是整个智体蜂巢体系的导航地图 (Navigation Map)。**  
+> 详述“我们如何开发、如何治理、如何闭环”。
+> **技术实现层面的深度架构图谱请参阅: [docs/architecture/README.md](architecture/README.md)**
 
 ---
 
 ## 一、体系设计哲学 (Design Philosophy)
 
-HiveMind RAG 的开发不是"想到哪里写到哪里"，而是完全拥抱 **Document-Driven + Agent-Native** 的研发范式。
+HiveMind Intelligence Swarm 的开发采用 **Document-Driven + Agent-Native** 的研发范式。
 
 核心理念：**"所有意图必须显式记录，所有代码必须有依据，所有问题必须有闭环。"**
 
-在这之上，我们信奉 **HMER 验证哲学 (大胆设想，小心求真)**：
+### HMER 研发方法论 (设想-度量-实验-反思)
+作为工程实践的底层逻辑，任何架构或业务变更必须遵循以下闭环：
+
 - **H**ypothesis (假设) — 每次变更前，明确可证伪的业务或技术假设。
 - **M**easure (度量) — 建立基线数据，确定改造前后的量化指标。
-- **E**xperiment (实验) — 在最小范围（Feature Flag/影子写入/A-B 测试）进行验证。
+- **E**xperiment (实验) — 在最小范围（Feature Flag/影子写入/A-B 测试）进行验证（技术支撑详见 `architecture.md`）。
 - **R**eflect (反思) — 用数据说话，做出投产、迭代或回滚的决策。
 
 ```
@@ -222,7 +225,7 @@ Issue 建立
 [下一轮] 下一个 Issue...
 ```
 
-## 九、AI 核心理念：函数式 Agent 与 编译型 RAG (AI Philosophy)
+## 九、AI 核心理念：函数式 Agent 与 智体化知识编译 (AI Philosophy)
 
 除了研发流程，HiveMind 还有三个核心架构理念，指导所有 AI 逻辑的实现：
 
@@ -231,19 +234,19 @@ Issue 建立
 *   **Agent 驱动变迁**: Agent 是状态机的载体，负责通过调用 Skill 产生合法的副作用。
 *   **开发准则**: 优先编写可测试的纯函数 Skill，再由 Agent 进行逻辑编排。
 
-### 2. 数据治理：从"管理"到"编译" (Compilation)
-*   **Ingestion = Compiler**: 我们不只是在存文档，而是在编译知识。
+### 2. 知识治理：从"管理"到"编译" (Knowledge Compilation)
+*   **Ingestion = Compiler**: 我们不只是在存文档，而是在编译认知。
 *   **治理指标**: 关注知识的词法分析（解析）、语法分析（结构化）和语义优化（分块与关联）。
 
-### 3. 数据微服务化 (Data Microservices)
+### 3. 智体微服务化 (Intelligence Microservices)
 *   **KB = Service**: 每个知识库是一个独立治理的微服务单元。
-*   **契约驱动**: RAG 输出必须遵守强 Schema 契约 (`KnowledgeResponse`)，严禁向 Agent 返回裸字符串。
-*   **治理同步**: RAG 的治理遵循微服务治理逻辑：路由、发现、限流与熔断。
+*   **契约驱动**: 智体输出必须遵守强 Schema 契约 (`KnowledgeResponse`)，严禁向 Agent 返回裸字符串。
+*   **治理同步**: 认知的治理遵循微服务治理逻辑：路由、发现、限流与熔断。
 
-### 4. RAG 的 HMER 验证循环 (RAG Evaluation)
-*   **RAG 同样也是实验**: 调整 Prompt、更换 Embedding 模型或改变 Chunk 策略，本质上都是"架构变更"。
-*   **无度量不优化**: 所有的 RAG 优化必须建立在评估数据集 (Eval Dataset) 和基准测试 (Baseline) 之上。
-*   **验证标准**: 每次 RAG 链路更新必须通过精确度 (Precision)、召回率 (Recall) 和响应延迟 (Latency) 的数据反思，证明其优于现网版本才能全量。
+### 4. 认知的 HMER 验证循环 (Cognitive Quality Evaluation)
+*   **从实验中学习**: 调整 Prompt、更换 Embedding 模型或改变 Chunk 策略，本质上都是"架构变更"。
+*   **无度量不优化**: 所有的性能优化必须建立在评估数据集 (Eval Dataset) 和基准测试 (Baseline) 之上。
+*   **验证标准**: 每次认知链路更新必须通过精确度 (Precision)、召回率 (Recall) 和响应延迟 (Latency) 的数据反思，证明其优于现网版本才能全量。
 
 ---
 

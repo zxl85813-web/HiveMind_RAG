@@ -60,13 +60,20 @@ Agent 集群拥有共享记忆和 TODO List。每次回答后进行自评估，
 通过 MCP 标准化外部工具接入，通过 Skills 系统实现模块化能力管理。
 两者统一为 LangChain Tool 接口，供 Agent 使用。
 
-## 工程哲学 (HMER 闭环验证)
+## 技术架构中的 HMER 支撑
 
-任何组件、架构改造和 RAG 策略更新，均信守：
-- **H**ypothesis (假设)：明确更改能带来什么样的预期提升。
-- **M**easure (度量)：改造前通过轻量探针收集 Baseline，界定量化指标。
-- **E**xperiment (实验)：借由灰度、Feature Flag 和模拟混沌断网环境加以验证。
-- **R**eflect (反思)：如数据并未展现显著优势，必须果断回滚，以防止过度设计。
+系统的每一层架构设计都内置了 **HMER (Hypothesis-Measure-Experiment-Reflect)** 验证能力的支撑：
+
+1.  **Hypothesis (假设)**：通过 `docs/design/DES-NNN.md` 显式记录架构设计的假设及其预期影响（如：引入推测性加载预期降低 30% TTFT）。
+2.  **Measure (度量) —— 遥测体系**：
+    *   **Backend**: 基于 `OpenTelemetry` 的分布式追踪，记录 Agent 节点的执行耗时。
+    *   **Frontend**: `MonitorService` 实时采集用户交互延迟与流式响应首字时间 (TTFT)。
+3.  **Experiment (实验) —— 弹性路由**：
+    *   **A/B Testing**: 利用 `LLM Router` 的权重分配实现不同 Prompt 策略或模型的灰度对比。
+    *   **Feature Flags**: 代码层级的逻辑开关，支持在不重启服务的情况下动态调整检索策略（如切换向量搜索与图谱搜索）。
+4.  **Reflect (反思) —— 实验看板**：
+    *   **Architecture Lab**: 在前端专门开辟 `/architecture-lab` 页面，实时可视化 A/B 组的性能差异。
+    *   **Back Test**: 支持通过历史 Trace 数据对新算法进行离线回归测试。
 
 ## 前端画布与图可视化架构（2026-03）
 

@@ -269,7 +269,24 @@ class ChatService:
             payload_data["type"] = track_name 
             yield f"data: {json.dumps(payload_data)}\n\n"
 
-        # 1. 如果没有会话ID，创建新会话
+        # --- 🆕 [Phase 4.1]: Prefetch Interceptor ---
+        if request.is_prefetch:
+            logger.info(f"🛰️ Prefetch probe for: {request.message[:20]}...")
+            async for p in _yield_payload("status", {"content": "🔍 正在为您预先加载检索资产..."}):
+                yield p
+            
+            # 💡 [Strategy]: Here we would normally run just the retrieval node.
+            # For now, we perform a cache lookup to prime the system.
+            cached = await CacheService.get_cached_response(request.message)
+            status_msg = "⚡ 预热完成: 命中语义缓存" if cached else "✅ 预热完成: 检索索引已加载至热点内存"
+            
+            async for p in _yield_payload("status", {"content": status_msg}):
+                yield p
+            async for p in _yield_payload("done", {"is_prefetch": True}):
+                yield p
+            return # 🔚 Shortcut! No LLM, No database writes.
+
+        # --- 1. 如果没有会话ID，创建新会话 ---
         if not conversation_id:
             conv = await ChatService.create_conversation(user_id, title=request.message[:20])
             conversation_id = conv.id

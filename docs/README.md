@@ -1,130 +1,69 @@
-# 📖 HiveMind RAG — 文档体系 (Documentation System)
+# 📖 HiveMind Intelligence Swarm — 文档体系 (Documentation System)
 
-> **文档与代码绑定，文档驱动开发。**
-
-## 渐进式披露阅读顺序（推荐）
-
-按 `L0 -> L4` 阅读，避免直接跳进实现细节导致理解断层：
-
-1. `L0 系统地图`：先读 [SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md) 与 [architecture.md](./architecture.md)
-2. `L1 能力地图`：再读 [AGENT_GOVERNANCE.md](./AGENT_GOVERNANCE.md)、[DATA_GOVERNANCE.md](./DATA_GOVERNANCE.md)、[DEV_GOVERNANCE.md](./DEV_GOVERNANCE.md)
-3. `L2 流程地图`：进入 [LEARNING_PATH.md](./LEARNING_PATH.md) 的章节化流程说明
-4. `L3 实现地图`：根据每章代码锚点跳到 `backend/app/...` 与 `skills/...`
-5. `L4 证据层`：用 `backend/tests/`、`docs/reviews/`、`docs/changelog/` 做验证与回归
-
-执行原则：每一层都要能回答 4 个问题
-
-- 上层来源是什么
-- 代码实现在哪里
-- 测试证据在哪里
-- 下一层深挖入口是什么
-
-## 核心文档索引（已同步）
-
-### L0 系统地图
-
-- [SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md)
-- [architecture.md](./architecture.md)
-- [ROADMAP.md](./ROADMAP.md)
-
-### L1 能力治理
-
-- [AGENT_GOVERNANCE.md](./AGENT_GOVERNANCE.md)
-- [DATA_GOVERNANCE.md](./DATA_GOVERNANCE.md)
-- [DEV_GOVERNANCE.md](./DEV_GOVERNANCE.md)
-- [ACCESS_ROLE_MEMORY_GOVERNANCE.md](./ACCESS_ROLE_MEMORY_GOVERNANCE.md)
-- [guides/collaboration_and_delivery_playbook.md](./guides/collaboration_and_delivery_playbook.md)
-- [guides/self_reflective_learning_system.md](./guides/self_reflective_learning_system.md)
-- [guides/collaborative_learning_metrics.md](./guides/collaborative_learning_metrics.md)
-- [LEARNING_PATH.md](./LEARNING_PATH.md)
-
-### L2 需求与设计
-
-- `docs/requirements/`（REQ 系列）
-- `docs/design/`（专题设计）
-
-### L3 架构专题
-
-- `docs/architecture/`（分层架构、分支策略、工作流等）
-- `docs/architecture/decisions/`（ADR 记录）
-
-### L4 证据与演进
-
-- [changelog/CHANGELOG.md](./changelog/CHANGELOG.md)
-- `docs/changelog/devlog/`
-- `docs/reviews/`
-- [learning/weekly/WEEKLY_LEARNING_REPORT_TEMPLATE.md](./learning/weekly/WEEKLY_LEARNING_REPORT_TEMPLATE.md)
-
-## 候选归档区（待确认）
-
-以下文档偏向阶段性材料，建议按“保留/归档/删除”做一次决策：
-
-- [TEAM_TASK_GUIDE_M7.md](./TEAM_TASK_GUIDE_M7.md)
-- [team_collaboration_guide.md](./team_collaboration_guide.md)
-- [github_advanced_integrations.md](./github_advanced_integrations.md)
-
-建议策略：
-
-- 若仍在执行，保留并补充“最近更新时间”和“适用范围”
-- 若阶段已结束，移动到 `docs/changelog/devlog/` 或新增 `docs/archive/`
-- 若内容已被其他文档覆盖，直接删除
+> **文档与代码绑定，文档驱动开发。智体治理，认知先行。**
 
 ---
 
-## 文档体系结构
+## 🧭 智体自愈阅读顺序 (Recommended Order)
+
+按 `L0 -> L4` 渐进式披露阅读，确保对“蜂巢架构”的深度理解：
+
+1. **L0 系统地图**: 先读项目 [README.md](../../README.md) 与 [SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md)。
+2. **L1 治理基石**: 必读 [GOV-001 (开发治理与 RDD)](./architecture/GOV-001-DEVELOPMENT_GOVERNANCE.md) 与 [guides/LEARNING_PATH.md](./guides/LEARNING_PATH.md)。
+3. **L2 核心设计**: 进入 [docs/design/](./design/) 查阅前端 (DES-001)、后端 (DES-003) 与测试 (DES-002) 规范。
+4. **L3 架构专题**: 深入 **[docs/architecture/](./architecture/README.md)** 查阅智体协议、存储治理与 RAG 深度解构。
+5. **L4 战略白皮书**: 查阅 [AI_FRONTEND_STRATEGY.md](../../AI_FRONTEND_STRATEGY.md) 了解交互哲学。
+
+---
+
+## 核心文档索引 (SSoT Aligned)
+
+### 🌍 L0 系统全景
+- **[SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md)** — 系统的认知哲学与宏观层级说明。
+- **[ROADMAP.md](./ROADMAP.md)** — 里程碑计划与 7 大进化阶段。
+
+### 🛡️ L1 治理与协作 (Guides)
+- **[GOV-001 治理规范](./architecture/GOV-001-DEVELOPMENT_GOVERNANCE.md)** — 🆕 开发准则、RDD 注册驱动。
+- **[guides/LEARNING_PATH.md](./guides/LEARNING_PATH.md)** — 开发者的“智体化”学习曲线。
+- **[guides/COLLABORATIVE_LEARNING.md](./guides/COLLABORATIVE_LEARNING.md)** — 自省↔互学↔共进 三环飞轮。
+- **[guides/unified_development_rulebook.md](./guides/unified_development_rulebook.md)** — 统一研发准则手册。
+
+### 🏗️ L2 需求与深度设计
+- **[docs/requirements/](requirements/)** — REQ 系列功能需求。
+- **[docs/design/](design/)** — DES 系列设计说明书（核心：DES-001/002/003）。
+
+### 📐 L3 架构专题图谱
+- **[docs/architecture/README.md](./architecture/README.md)** — **权威索引：含存储治理、Agent Swarm、记忆压缩等 18+ 专篇。**
+- **[docs/architecture/decisions/](architecture/decisions/)** — ADR 技术选型记录。
+
+### 📝 L4 演进与存档
+- **[docs/changelog/archive/](changelog/archive/)** — 历史治理文档与阶段性材料归档。
+- **`docs/reviews/`** — 历次代码与架构评审快照。
+
+---
+
+## 🏗️ 空间结构 (Reality-Based V2.0)
 
 ```
 docs/
-├── requirements/              # 📋 需求文档 — 从对话中提取
-│   ├── REQ-001-agent-swarm.md
-│   ├── REQ-002-shared-memory.md
+├── architecture/              # 📐 深度架构专题 (L3 层级)
+│   ├── GOV-001-...            # 开发治理规范
+│   └── README.md              # 👈 架构导航地图
+│
+├── design/                    # 🏗️ 专题设计文档 (L2 层级)
+│   ├── DES-001-FRONTEND.md    # 前端权威设计
+│   ├── DES-003-BACKEND.md     # 后端核心整合
 │   └── ...
 │
-├── design/                    # 🏗️ 设计文档 — 架构与方案
-│   ├── architecture.md        # 整体架构
-│   ├── DES-001-agent-swarm.md
-│   └── ...
-│
-├── api/                       # 🔌 API 文档
-│   ├── overview.md            # API 总览
-│   ├── chat.md                # 对话 API
-│   ├── knowledge.md           # 知识库 API
-│   ├── agents.md              # Agent API
-│   ├── websocket.md           # WebSocket 协议
-│   └── learning.md            # 外部学习 API
-│
-├── guides/                    # 📚 开发指南
-│   ├── getting-started.md     # 快速开始
-│   ├── backend-guide.md       # 后端开发指南
-│   ├── frontend-guide.md      # 前端开发指南
-│   └── skill-development.md   # Skill 开发指南
+├── guides/                    # 📚 治理与协作指南 (L1 层级)
+│   ├── LEARNING_PATH.md       # 学习路径
+│   └── COLLABORATIVE_LEARNING # 共学体系
 │
 ├── changelog/                 # 📝 变更日志
-│   ├── CHANGELOG.md           # 版本变更记录
-│   └── decisions/             # 架构决策记录 (ADR)
-│       ├── ADR-001-sse-ws-hybrid.md
-│       └── ...
+│   └── archive/               # 🆕 过时文档归档库
 │
-├── reviews/                   # 🔍 评审记录
-│   ├── REVIEW-v0.1.md
-│   └── ...
-│
-└── README.md                  # 文档索引
+└── README.md                  # 📖 你当前所在的位置 (智体入口)
 ```
 
-## 文档编号规则
-
-| 类型 | 前缀 | 示例 |
-|------|------|------|
-| 需求文档 | REQ-NNN | REQ-001-agent-swarm.md |
-| 设计文档 | DES-NNN | DES-001-agent-swarm.md |
-| 架构决策 | ADR-NNN | ADR-001-sse-ws-hybrid.md |
-| 评审记录 | REVIEW-vX.Y | REVIEW-v0.1.md |
-
-## 文档与代码绑定
-
-每份文档和相关代码通过**交叉引用**绑定：
-
-- 文档中引用代码: `实现: backend/app/agents/swarm.py > SwarmOrchestrator`
-- 代码中引用文档: `参见: docs/requirements/REQ-001-agent-swarm.md`
-- 均在 REGISTRY.md 的 traceability 表中记录
+---
+> _“文档不只是记录，它是智体蜂巢的数字化记忆。”_

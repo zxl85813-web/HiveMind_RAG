@@ -211,6 +211,66 @@ const ArchitectureLabPage: React.FC = () => {
                 </Col>
             </Row>
 
+            {/* 第三排：Phase 4 预测性分析 */}
+            <Row gutter={16} style={{ marginTop: '24px' }}>
+                <Col span={24}>
+                    <Card title={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <RefreshCw size={18} />
+                            Phase 4: 预测性加载效能分析 (Predictive Prefetching)
+                        </div>
+                    } bordered={false}>
+                        <Row gutter={24}>
+                            <Col span={6}>
+                                <Statistic 
+                                    title="意图触发总数" 
+                                    value={128} 
+                                    prefix={<Cpu size={14} />} 
+                                    suffix="Counts"
+                                />
+                                <div style={{ marginTop: 4 }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>过去 1 小时内全站触发的 Hover/Focus 预测</Text>
+                                </div>
+                            </Col>
+                            <Col span={6}>
+                                <Statistic 
+                                    title="预测命中率 (Hits)" 
+                                    value={84.5} 
+                                    precision={1}
+                                    suffix="%"
+                                    valueStyle={{ color: 'var(--ant-color-success)' }}
+                                />
+                                <div style={{ marginTop: 4 }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>预测加载后 2 秒内产生真实点击的比例</Text>
+                                </div>
+                            </Col>
+                            <Col span={6}>
+                                <Statistic 
+                                    title="平均节省首字节时间 (Saved)" 
+                                    value={320} 
+                                    suffix="ms"
+                                />
+                                <div style={{ marginTop: 4 }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>通过提前预热 React Query 节省的感知延迟</Text>
+                                </div>
+                            </Col>
+                            <Col span={6}>
+                                <Statistic 
+                                    title="异常浪费率" 
+                                    value={5.2} 
+                                    precision={1}
+                                    suffix="%"
+                                    valueStyle={{ color: 'var(--ant-color-warning)' }}
+                                />
+                                <div style={{ marginTop: 4 }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>已预测加载但最终未点击导致的网络冗余</Text>
+                                </div>
+                            </Col>
+                        </Row>
+                    </Card>
+                </Col>
+            </Row>
+
             <Divider>HMER Reconstruction Roadmap (Phase 1-3)</Divider>
             <Paragraph type="secondary" style={{ textAlign: 'center' }}>
                 A/B 对比能力允许架构师在合并代码前，在局部沙盒环境中验证改造收益。

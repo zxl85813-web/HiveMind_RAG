@@ -30,9 +30,18 @@ import { CreateKBModal } from '../knowledge/CreateKBModal';
 import { useCreateKnowledgeBase } from '../../hooks/useDashboardData';
 import { appRoutes } from '../../config/appRoutes';
 import type { CreateKnowledgeBaseParams } from '../../services/knowledgeApi';
+import { intentManager, type IntentType } from '../../core/IntentManager';
 import styles from './AppLayout.module.css';
 
 const { Sider, Content } = Layout;
+
+/** 路由路径到意图类型的映射 */
+const routeIntentMap: Record<string, IntentType> = {
+    '/': 'dashboard',
+    '/knowledge': 'knowledge',
+    '/audit': 'audit',
+    '/security': 'security',
+};
 
 export const AppLayout: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -73,11 +82,21 @@ export const AppLayout: React.FC = () => {
     /** 导航项 (基于路由元数据 + 权限) */
     const navItems = appRoutes
         .filter((route) => route.showInMenu && hasAccess(route.access))
-        .map((route) => ({
-            key: route.path,
-            label: t(route.labelKey),
-            icon: iconMap[route.icon] || <AppstoreOutlined />,
-        }));
+        .map((route) => {
+            const intent = routeIntentMap[route.path];
+            return {
+                key: route.path,
+                label: (
+                    <div 
+                        onMouseEnter={intent ? () => intentManager.predict(intent) : undefined}
+                        onMouseLeave={intent ? () => intentManager.cancel(intent) : undefined}
+                    >
+                        {t(route.labelKey)}
+                    </div>
+                ),
+                icon: iconMap[route.icon] || <AppstoreOutlined />,
+            };
+        });
 
     const toggleLang = () => {
         const current = i18n.language;

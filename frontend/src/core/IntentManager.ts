@@ -1,15 +1,17 @@
 import { prefetchConversation } from '../hooks/queries/useChatQuery';
+import { chatApi } from '../services/chatApi';
 
 /**
  * 🛰️ [HMER Phase 4] Intent Manager (意图预测管理器)
  * 职责：感知用户交互趋势，主动触发数据预加载 (Prefetching)。
  */
 
-export type IntentType = 'chat' | 'knowledge' | 'settings' | 'graph';
+export type IntentType = 'chat' | 'knowledge' | 'settings' | 'graph' | 'dashboard' | 'audit' | 'security' | 'ai_warmup';
 
 export interface PrefetchConfig {
     id?: string;
     priority?: 'high' | 'normal' | 'low';
+    message?: string; // For AI Warmup probe
 }
 
 class IntentManager {
@@ -24,7 +26,7 @@ class IntentManager {
     /** 
      * 预测意图：在 Hover 或 Focus 时调用 
      */
-    predict(type: IntentType, options: PrefetchConfig = {}, delay: number = 150) {
+    predict(type: IntentType, options: PrefetchConfig = {}, delay: number = 200) {
         if (!this.queryClient) return;
 
         const key = `${type}-${options.id || 'all'}`;
@@ -60,13 +62,46 @@ class IntentManager {
             switch (type) {
                 case 'chat':
                     if (options.id) {
-                        // 😂 [Phase 4] 预热特定会话：
-                        // 在用户点击之前，消息记录已经静默加载到 React Query 缓存中
                         await prefetchConversation(this.queryClient, options.id);
                     }
                     break;
+                case 'ai_warmup':
+                    // 🆕 [Phase 4.1]: Proactive Backend Warming (AI Probe)
+                    if (options.message) {
+                        chatApi.streamChat({
+                            message: options.message,
+                            is_prefetch: true,
+                            onStatus: (status: any) => console.log(`🛰️ [Prefetch Status]: ${typeof status === 'string' ? status : JSON.stringify(status)}`),
+                            onFinish: () => console.log(`✅ [Prefetch Done]`)
+                        });
+                    }
+                    break;
                 case 'knowledge':
-                    // 未来可以集成知识库预热
+                    // 1. 预取知识库列表 (React Query Cache)
+                    await this.queryClient.prefetchQuery({
+                        queryKey: ['knowledgeBases'],
+                        staleTime: 60000
+                    });
+                    // 2. 🆕 [Phase 4.1]: 预热后端 AI 检索 (AI Probe)
+                    // 当用户进入知识库页面时，大概率会提问有关资产、上传或搜索的问题
+                    chatApi.streamChat({
+                        message: "如何管理和搜索我上传的知识资产？",
+                        is_prefetch: true
+                    });
+                    break;
+                case 'dashboard':
+                    // 预取仪表盘统计
+                    await this.queryClient.prefetchQuery({
+                        queryKey: ['dashboardStats'],
+                        staleTime: 30000
+                    });
+                    break;
+                case 'audit':
+                    // 预取审计日志
+                    await this.queryClient.prefetchQuery({
+                        queryKey: ['auditLogs'],
+                        staleTime: 60000
+                    });
                     break;
                 default:
                     break;

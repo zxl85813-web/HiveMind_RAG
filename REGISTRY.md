@@ -1,9 +1,9 @@
-# 📦 HiveMind RAG — 功能注册表 (Function Registry)
+# 📦 HiveMind Intelligence Swarm — 资产注册表 (Registry)
 
 > **⚠️ 重要**: 每次开发新功能/组件前，必须先查阅此文件，确认是否已存在可复用的代码。
 > 每次新增功能后，必须在此文件中登记。
 
-> 📅 最后更新: 2026-03-16 (全量资产校准)
+> 📅 最后更新: 2026-03-25 (对齐 SmartGrep/Telemetry/Phase4 资产)
 
 ---
 
@@ -27,6 +27,8 @@
 | **评估** | ALL | `/evaluation/` | RAG 质量评估系统接口 | `evaluation.py` | ✅ |
 | **流水线** | ALL | `/pipelines/` | Ingestion Pipeline 配置与监控 | `pipelines.py` | ✅ |
 | **审计** | GET | `/audit/` | 系统操作审计日志检索 | `audit.py` | ✅ |
+| **遥测** | POST | `/telemetry/` | 性能埋点与 Trace 数据上报 | `telemetry.py` | ✅ |
+| **评估** | GET | `/evaluation/ab-summary` | A/B 测试对比数据聚合 | `evaluation.py` | ✅ |
 | **学习** | ALL | `/learning/` | 外部订阅 / 发现列表 / 自动采集 | `learning.py` | ✅ |
 | **通信** | WS | `/ws/connect` | WebSocket 双工交互连接 | `websocket.py` | ✅ |
 
@@ -47,7 +49,8 @@
 | **对话驱动** | `Conversation`, `Message`, `AnswerFeedback` | `chat.py` | ✅ |
 | **知识资产** | `KnowledgeBase`, `Document`, `KbLink`, `Tag` | `knowledge.py` / `tags.py` | ✅ |
 | **治理/观测** | `Span`, `Trace`, `CircuitBreakerEvent`, `BaselineMetric` | `observability.py` | ✅ |
-| **意图/缓存** | `IntentCache` | `intent.py` | 🧪 |
+| **搜索增强** | `SmartGrepExpansion`, `MatchResult` | `smart_grep.py` | ✅ |
+| **意图/缓存** | `IntentCache`, `PrefetchJob` | `intent.py` | ✅ |
 | **质量中心** | `EvaluationItem`, `Report`, `Metrics` | `evaluation.py` | ✅ |
 | **后台任务** | `PipelineJob`, `PipelineStageLog`, `SyncLog` | `pipeline_config.py` | ✅ |
 
@@ -60,8 +63,10 @@
 | `ClawRouterGovernance` | **智能架构路由**: 按复杂度/成本动态分派 Eco/Premium 模型 | ✅ 已上线 |
 | `DependencyCircuitBreaker` | **依赖断路器**: 针对 ES/Neo4j/LLM 的滑动窗口错误隔离 | ✅ 已上线 |
 | `RateLimitGovernanceCenter` | **流量治理**: 令牌桶限流 (Route/User/Key 粒度) | ✅ 已上线 |
-| `IntentScaffoldingService` | **意图脚手架**: 流式预测预取架构 | 🧪 设计完成 |
-| `TieredParallelOrchestrator` | **并行检索编排**: Vector/Graph/Grep 并发赛马 | 🧪 设计完成 |
+| `IntentManager` | **意图预测**: 意图识别与数据并行预取 | ✅ 已上线 |
+| `TieredParallelOrchestrator` | **并行检索**: Vector/Graph/Grep 并发赛马 | ✅ 已上线 |
+| `SmartGrepService` | **语义化搜索**: 传统正则扩展与快速逻辑扫描 | ✅ 已上线 |
+| `EpisodicMemoryService` | **情景记忆召回**: 支持同义词扩展的深度回忆 | ✅ 已上线 |
 | `CacheService` | **JIT 路由缓存**: 语义级别的路由匹配决策加速 | ✅ 已实现 |
 | `KnowledgeService` | 知识库全生命周期驱动逻辑 | ✅ |
 | `AuditService` | 系统敏感操作全量埋点与持久化 | ✅ |
@@ -84,6 +89,7 @@
 | `PipelineBuilderPage`| `/pipelines` | Ingestion 流水线编排画布 | ✅ |
 | `LearningPage` | `/learning` | 外部订阅与资讯发现中心 | ✅ |
 | `SettingsPage` | `/settings` | LLM 参数、密钥与系统全局配置 | ✅ |
+| `ArchitectureLabPage` | `/architecture-lab` | A/B 测试看板、性能对比与遥测监控 | ✅ |
 | `BatchPage` | `/batch` | 批量数据处理与任务队列监控 | ✅ |
 
 ### 逻辑组件 (Hooks & Providers)
@@ -93,6 +99,9 @@
 | `useSSE` | 支持 POST 的高级流式通信 Hook (含重连逻辑) | `useSSE.ts` |
 | `useWebSocket` | WebSocket 连接管理与消息队列缓存 | `useWebSocket.ts` |
 | `useChat` | 对话交互、消息渲染与上下文感知逻辑封装 | `useChat.ts` |
+| `MonitorService` | 客户端遥测采集 (TTFT, Network, Error Audit) | `core/MonitorService.ts` |
+| `IntentManager` | 🆕 预测性预取解析器 (意图预测) | `core/IntentManager.ts` |
+| `LocalEdgeEngine` | 🆕 IndexedDB 边缘存储引擎 | `core/LocalEdgeEngine.ts` |
 | `XProvider` | AntD X 扩展组件全局注入器 | `App.tsx` |
 
 ### 状态中心 (Stores)
@@ -112,7 +121,8 @@
 | **错误边界** | `ErrorBoundary.tsx` | 捕获组件渲染崩溃，提供自愈重置机制 |
 | **权限卫兵** | `AccessGuard.tsx` | 细粒度的页面/功能位级 RBAC 拦截 |
 | **统一响应** | `ApiResponse` (后端) | 遵循 `error_code / message / detail` 标准协议 |
-| **治理韧性** | `frontend_resilience_governance.md` | 前端容错与 APM 治理专项文档 |
+| **治理韧性** | `DES-001-FRONTEND_ARCHITECTURE.md` | 前端架构权威设计说明书 (整合版) |
+| **验证体系** | `DES-002-TESTING_STRATEGY.md` | 全链路测试与质量保障策略 (整合版) |
 | **设计系统** | `frontend-design` Skill | Cyber-Refined 赛博精致视觉规范 |
 
 ---
