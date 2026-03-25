@@ -1,6 +1,0 @@
-{
-  "summary": { "pass_rate": 0.0, "passed": 0, "failed": 3, "total": 3 },
-  "expectations": [
-    { "text": "baseline", "passed": false, "evidence": "Baseline output lacked citations and deep analysis." }
-  ]
-}

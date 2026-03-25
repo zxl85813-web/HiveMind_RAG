@@ -1,6 +1,0 @@
-{
-  "summary": { "pass_rate": 0.0, "passed": 0, "failed": 1, "total": 1 },
-  "expectations": [
-    { "text": "baseline", "passed": false, "evidence": "Baseline output failed to disambiguate the query." }
-  ]
-}

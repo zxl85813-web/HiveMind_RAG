@@ -14,9 +14,25 @@
 """
 
 import sys
+from contextvars import ContextVar
 from pathlib import Path
 
 from loguru import logger
+from app.core.config import settings
+
+# 🛰️ 链路追踪上下文变量 (Cross-Request Trace ID)
+trace_id_var: ContextVar[str] = ContextVar("trace_id", default="system-internal")
+
+def get_trace_logger(module: str):
+    """
+    统一日志辅助器：注入 TraceContext 并符合 Frontend TS 定义的 UnifiedLog 契约。
+    """
+    return logger.bind(
+        module=module,
+        platform="BE",
+        env=settings.ENV,
+        trace_id=trace_id_var.get()
+    )
 
 # 移除默认 handler
 logger.remove()
@@ -48,7 +64,7 @@ logger.add(
     retention="30 days",  # 保留 30 天
     compression="gz",  # 压缩旧日志
     encoding="utf-8",
-    serialize=False,  # 设为 True 可输出 JSON 格式
+    serialize=True,  # 开启 JSON 格式输出，方便与前端日志对齐与自动化分析
 )
 
 # === Error-only Handler ===
@@ -60,6 +76,7 @@ logger.add(
     retention="90 days",
     compression="gz",
     encoding="utf-8",
+    serialize=True,
 )
 
 

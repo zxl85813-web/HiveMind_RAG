@@ -105,7 +105,9 @@ Thumbs.db
 # Docker overrides
 docker-compose.override.yml
 
+# ==========================================
 # Temporary/Backup Files
+# ==========================================
 tmp/
 *.bak
 routes.json
@@ -115,3 +117,19 @@ backend/start_data/chroma_db/
 *.sqlite3
 .checkpoints/
 test_daily_learning_cycle_gene*/
+
+# ==========================================
+# Skills Development & Evaluation Noise
+# ==========================================
+# Keep core logic (SKILL.md, tools.py, scripts), ignore runtime debris
+skills/**/*-workspace/
+skills/**/iteration-*/
+skills/**/review.html
+skills/**/grading.json
+skills/**/outputs/
+skills/**/eval_metadata.json
+skills/**/benchmark.json
+skills/**/benchmark.md
+skills/**/assets/eval_review.html
+# Ignore bulky XML schemas in xlsx skill
+skills/xlsx/scripts/office/schemas/

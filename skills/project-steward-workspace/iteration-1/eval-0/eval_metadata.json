@@ -1,8 +1,0 @@
-{
-  "eval_id": 0,
-  "eval_name": "registry-sync-task",
-  "assertions": [
-    { "name": "correct_section", "description": "Insert into API section." },
-    { "name": "emoji_usage", "description": "Used 🔌 emoji." }
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "summary": { "pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1 },
-  "expectations": [
-    { "text": "query_disambiguation", "passed": true, "evidence": "Simulated output shows successful disambiguation of 'its' to 'HiveMind'." }
-  ]
-}

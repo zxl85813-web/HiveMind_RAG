@@ -1,9 +1,0 @@
-{
-  "eval_id": 1,
-  "eval_name": "logic-deconstruction-async",
-  "prompt": "Explain how the memory distillation process in 'memory_service.py' handles concurrent background tasks. Use a Mermaid diagram if possible.",
-  "assertions": [
-    { "name": "explains_concurrency", "description": "Identify Semaphore or Queue." },
-    { "name": "mermaid_rendering", "description": "Valid Mermaid block." }
-  ]
-}

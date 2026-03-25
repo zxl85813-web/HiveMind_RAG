@@ -56,6 +56,25 @@
     *   `MonitorService` 自动将 `reportError` 转发至 Sentry，并附加结构化 Tag（error_code, layer）。
     *   开启 Browser Tracing 与 Session Replay，感知长任务与渲染异常。
 
+### 3.4 全链路统一日志协议 (Unified Logging Protocol)
+*   **状态**: 🚀 已落地 (V1.0)
+*   **定义**: 为实现前后端日志对齐，所有系统日志需遵循统一 JSON 结构。
+*   **示例**:
+    ```json
+    {
+      "ts": "2026-03-25T07:31:57Z",
+      "level": "ERROR",
+      "trace_id": "uuid-xxx-xxx",
+      "platform": "FE",
+      "category": "error",
+      "module": "ChatPanel",
+      "action": "send_message",
+      "msg": "Failed to send message",
+      "meta": { "error_code": "TIMEOUT" },
+      "env": "production"
+    }
+    ```
+
 ---
 
 ## 4. 稳定性建设 (Stability Construction)

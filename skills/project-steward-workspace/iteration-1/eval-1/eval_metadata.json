@@ -1,8 +1,0 @@
-{
-  "eval_id": 1,
-  "eval_name": "changelog-drafting",
-  "assertions": [
-    { "name": "semantic_versioning", "description": "Classified as Patch Release." },
-    { "name": "link_completeness", "description": "Included link to REQ-001." }
-  ]
-}

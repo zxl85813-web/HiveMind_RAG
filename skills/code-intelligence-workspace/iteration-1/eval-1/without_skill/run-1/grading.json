@@ -1,6 +1,0 @@
-{
-  "summary": { "pass_rate": 0.5, "passed": 1, "failed": 1, "total": 2 },
-  "expectations": [
-    { "text": "baseline", "passed": false, "evidence": "No diagram provided." }
-  ]
-}
