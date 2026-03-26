@@ -12,10 +12,18 @@ import glob
 import json
 import os
 import time
+import sys
 from pathlib import Path
 from typing import Any
 
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
 backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("validate_step7_closure_readiness")
+t_logger = get_trace_logger("scripts.step7_readiness")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -146,20 +154,21 @@ def main() -> None:
     output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     output_md.write_text(render_markdown(report), encoding="utf-8")
 
-    print(f"[Step-7-Ready] json report: {output_json}")
-    print(f"[Step-7-Ready] markdown report: {output_md}")
+    t_logger.info(f"[Step-7-Ready] json report: {output_json}", action="export")
+    t_logger.info(f"[Step-7-Ready] markdown report: {output_md}", action="export")
 
     if not args.no_versioned:
         output_json_v = _versioned_path(output_json, run_key)
         output_md_v = _versioned_path(output_md, run_key)
         output_json_v.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         output_md_v.write_text(render_markdown(report), encoding="utf-8")
-        print(f"[Step-7-Ready] versioned json report: {output_json_v}")
-        print(f"[Step-7-Ready] versioned markdown report: {output_md_v}")
+        t_logger.success(f"[Step-7-Ready] versioned json report: {output_json_v}")
 
     if args.enforce and not bool(report["closure_ready"]):
-        print(f"[Step-7-Ready] closure not ready: {report}")
+        t_logger.error(f"[Step-7-Ready] closure not ready: {report}", action="gate_failure")
         raise SystemExit(2)
+    
+    t_logger.success("[Step-7-Ready] System is ready for closure", action="gate_pass")
 
 
 if __name__ == "__main__":

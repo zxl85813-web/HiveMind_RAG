@@ -11,8 +11,6 @@ Outputs:
 - Markdown report: logs/service_governance/sg007_drill_report.md
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import json
@@ -24,17 +22,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
 backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
 load_dotenv(backend_dir / ".env")
 
+from app.core.logging import logger, setup_script_context, get_trace_logger
 from app.services.claw_router_governance import ClawRouterGovernance
 from app.services.dependency_circuit_breaker import DependencyCircuitBreakerManager, settings
 from app.services.fallback_orchestrator import FallbackOrchestrator
 from app.services.rate_limit_governance import RateLimitGovernanceCenter
 
+# 初始化脚本上下文 (获取 trace_id, 标识模块)
+setup_script_context("run_sg007_governance_drills")
+t_logger = get_trace_logger("scripts.sg007_drills")
 
 @dataclass
 class ScenarioResult:
@@ -110,6 +114,7 @@ def _versioned_path(base_path: Path, run_key: str) -> Path:
 
 async def run_steady(steady_requests: int, seed: int) -> ScenarioResult:
     random.seed(seed)
+    t_logger.info("Starting Steady State Drill", action="scenario_start", meta={"requests": steady_requests})
     router = ClawRouterGovernance()
     limiter = RateLimitGovernanceCenter()
     limiter.update_policies(
@@ -139,6 +144,8 @@ async def run_steady(steady_requests: int, seed: int) -> ScenarioResult:
     snap = router.snapshot()
     stats = snap["stats"]
     degradations = int(stats["cost_guard_downgrades"])  # type: ignore[index]
+
+    t_logger.info("Steady state drill completed", action="scenario_end", meta={"name": "steady", "success": success, "blocked": blocked})
 
     return ScenarioResult(
         name="steady",
@@ -207,6 +214,7 @@ async def run_steady_for_duration(steady_duration_sec: float, steady_rps: float,
 
 async def run_spike(spike_requests: int, seed: int) -> ScenarioResult:
     random.seed(seed + 1)
+    t_logger.info("Starting Spike Drill", action="scenario_start", meta={"requests": spike_requests})
     router = ClawRouterGovernance()
     limiter = RateLimitGovernanceCenter()
     limiter.update_policies(
@@ -236,6 +244,8 @@ async def run_spike(spike_requests: int, seed: int) -> ScenarioResult:
     snap = router.snapshot()
     stats = snap["stats"]
     degradations = int(stats["cost_guard_downgrades"]) + blocked  # type: ignore[index]
+    
+    t_logger.info("Spike drill completed", action="scenario_end", meta={"name": "spike", "success": success, "blocked": blocked})
 
     return ScenarioResult(
         name="spike",
@@ -250,6 +260,7 @@ async def run_spike(spike_requests: int, seed: int) -> ScenarioResult:
 
 async def run_chaos(chaos_requests: int, seed: int, open_duration_sec: float) -> ScenarioResult:
     random.seed(seed + 2)
+    t_logger.warning("Starting Chaos Drill (Circuit Breaker Failure Injection)", action="scenario_start", meta={"requests": chaos_requests})
 
     settings.CB_ENABLED = True
     settings.CB_WINDOW_SIZE = 6
@@ -313,6 +324,8 @@ async def run_chaos(chaos_requests: int, seed: int, open_duration_sec: float) ->
     mttr = time.perf_counter() - start
     fb_stats = fallback.snapshot()["stats"]
     degradation += int(fb_stats["backup_provider_success"])  # type: ignore[index]
+    
+    t_logger.warning("Chaos drill completed", action="scenario_end", meta={"name": "chaos", "mttr": mttr, "degradations": degradation})
 
     return ScenarioResult(
         name="chaos",
@@ -497,20 +510,21 @@ async def main() -> None:
     output_json.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     output_md.write_text(render_markdown(summary), encoding="utf-8")
 
-    print(f"[SG-007] json report: {output_json}")
-    print(f"[SG-007] markdown report: {output_md}")
+    t_logger.info(f"[SG-007] json report: {output_json}", action="export", meta={"format": "json", "path": str(output_json)})
+    t_logger.info(f"[SG-007] markdown report: {output_md}", action="export", meta={"format": "markdown", "path": str(output_md)})
 
     if not args.no_versioned:
         output_json_v = _versioned_path(output_json, run_key)
         output_md_v = _versioned_path(output_md, run_key)
         output_json_v.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         output_md_v.write_text(render_markdown(summary), encoding="utf-8")
-        print(f"[SG-007] versioned json report: {output_json_v}")
-        print(f"[SG-007] versioned markdown report: {output_md_v}")
+        t_logger.success(f"[SG-007] versioned json report: {output_json_v}")
 
     if gate_enforcement["enabled"] and not gate_enforcement["passed"]:
-        print(f"[SG-007] gate enforcement failed: {gate_enforcement['violations']}")
+        t_logger.error(f"[SG-007] gate enforcement failed: {gate_enforcement['violations']}", action="gate_failure")
         raise SystemExit(2)
+    
+    t_logger.success("[SG-007] Drill completed successfully", action="completed")
 
 
 if __name__ == "__main__":

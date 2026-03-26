@@ -60,6 +60,7 @@ coverage_report.txt
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+frontend/debug_symbols/
 
 # ==========================================
 # Local Data / DB

@@ -114,6 +114,21 @@
 
 ---
 
+## 🛠️ 运维与验证脚本 (Scripts)
+
+> **原则**: 凡是参与 CI/CD 准入、数据治理或环境验证的脚本，必须在此登记，并接入 `UnifiedLog` 协议。
+
+| 分类 | 脚本名 | 职责描述 | 相关治理 Gate | 状态 |
+|------|--------|----------|---------------|------|
+| **治理钻探** | `run_sg007_governance_drills.py` | 模拟 Steady/Spike/Chaos 场景，验证熔断与降级 | GATE-SG-4 | 🔄 接入中 |
+| **门禁验证** | `validate_gate_sg1_stability_window.py` | 滚动窗口期稳定性审计 (24h/5 samples) | GATE-SG-1 | ⚠️ 待对齐 |
+| **状态验证** | `validate_step7_closure_readiness.py` | 阶段 5 关闭前的全量就绪度核对 | GATE-SG-5 | ⚠️ 待对齐 |
+| **性能基线** | `baseline_llm.py` | 获取各 Provider 的 TTFT/TPS 基线数据 | - | ⚠️ 待对齐 |
+| **资产同步** | `create_github_milestone_from_todo.py` | 将本地 TODO.md 自动映射为 GitHub Milestone | - | ✅ |
+| **调试分析** | `trace_analyzer.py` | 聚合审计 `logs/` 目录下所有 UnifiedLog 链路 | - | ⚠️ 待对齐 |
+
+---
+
 ## 🏗️ 架构底座 (Core Architecture)
 
 | 组件 | 对应设计/规则 | 描述 |

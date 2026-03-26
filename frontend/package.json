@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/post-build.js",
     "lint": "eslint .",
     "theme:check": "node scripts/theme-check.mjs --changed",
     "theme:check:staged": "node scripts/theme-check.mjs --staged",

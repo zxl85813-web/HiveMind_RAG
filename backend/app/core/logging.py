@@ -109,5 +109,29 @@ def setup_logging(debug: bool = True) -> None:
     logger.info("Logging initialized (debug={})", debug)
 
 
-# 导出统一的 logger 实例
-__all__ = ["logger", "setup_logging"]
+def setup_script_context(script_name: str) -> None:
+    """
+    为独立运行的脚本 (backend/scripts/*.py) 初始化可观测性上下文。
+    
+    1. 自动从 GITHUB_RUN_ID 或环境变量注入 trace_id。
+    2. 设置 UnifiedLog 契约所需的模块名称。
+    """
+    import os
+    import uuid
+    
+    # 🛰️ 优先从环境变量获取由 CI 注入的 ID，或者本地随机
+    raw_id = os.getenv("GITHUB_RUN_ID") or os.getenv("TRACE_ID")
+    if not raw_id:
+        raw_id = f"local-{str(uuid.uuid4())[:8]}"
+        
+    trace_id_var.set(raw_id)
+    
+    logger.info(
+         "Script context initialized: module={module}, trace_id={trace_id}",
+         module=f"scripts.{script_name}",
+         trace_id=raw_id
+    )
+
+
+# 导出统一的 logger 实例与工具函数
+__all__ = ["logger", "setup_logging", "setup_script_context", "trace_id_var", "get_trace_logger"]

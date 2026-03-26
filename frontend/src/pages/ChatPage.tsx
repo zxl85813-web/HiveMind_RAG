@@ -15,6 +15,10 @@ import { ActionButton } from '../components/chat/ActionButton';
 import { chatApi } from '../services/chatApi';
 import styles from './ChatPage.module.css';
 
+import { useMonitor } from '../hooks/useMonitor';
+import { AppError } from '../core/AppError';
+import { ErrorCode } from '../core/schema/error';
+
 const { Text } = Typography;
 
 export const ChatPage: React.FC = () => {
@@ -55,20 +59,25 @@ export const ChatPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
     const [agentStatus, setAgentStatus] = useState<string | null>(null);
-
+    
+    const { track, report } = useMonitor(); // 🛰️ [FE-GOV]: 注入监控
     const abortControllerRef = useRef<AbortController | null>(null);
 
     /** 发送消息 */
     const handleSend = async (value: string) => {
         if (!value.trim()) return;
 
-        // 1. Add user message
+        // 1. 行为追踪：记录对话启动
+        track('user_action', 'chat_message_send', { 
+            conversationId: currentConversationId, 
+            messageLength: value.length 
+        });
+
         setMessages((prev) => [...prev, { role: 'user', content: value }]);
         setInputValue('');
         setLoading(true);
         setAgentStatus('🚀 准备启动 Swarm 编排器...');
 
-        // 2. Prepare assistant message placeholder
         setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
         const controller = new AbortController();
@@ -76,7 +85,6 @@ export const ChatPage: React.FC = () => {
 
         let fullContent = '';
 
-        // 3. Start SSE
         await chatApi.streamChat({
             message: value,
             conversationId: currentConversationId,
@@ -93,6 +101,8 @@ export const ChatPage: React.FC = () => {
             },
             onStatus: (status) => {
                 setAgentStatus(status);
+                // 链路追踪：记录 Agent 状态节点切换
+                track('system', 'agent_node_transition', { status, conversationId: currentConversationId });
             },
             onInsight: (data) => {
                 setMessages((prev) => {
@@ -107,13 +117,27 @@ export const ChatPage: React.FC = () => {
             },
             onSessionCreated: (id) => {
                 setCurrentConversationId(id);
+                track('system', 'chat_session_created', { conversationId: id });
             },
             onFinish: () => {
                 setLoading(false);
                 setAgentStatus(null);
+                track('user_action', 'chat_message_finish', { conversationId: currentConversationId });
             },
             onError: (err) => {
-                console.error('Chat error:', err);
+                // 2. 故障检测：将对话异常转化为标准 AppError 并透传元数据
+                const chatError = new AppError({
+                    code: ErrorCode.API_NETWORK_ERROR,
+                    message: 'AI 对话服务暂时不可用，请稍后重试',
+                    layer: 'api',
+                    severity: 'high',
+                    metadata: { 
+                        conversationId: currentConversationId,
+                        errorDetail: err instanceof Error ? err.message : String(err)
+                    }
+                });
+                
+                report(chatError);
                 setLoading(false);
                 setAgentStatus('❌ 服务连接异常，请重试');
             },

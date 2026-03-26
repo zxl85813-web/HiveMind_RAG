@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "HiveMind RAG"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
+    ENV: str = "development"  # development | production | test
 
     # === CORS ===
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]

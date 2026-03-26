@@ -24,6 +24,14 @@
 
 ## 🛠️ 当前活跃任务 (Active)
 
+### [2026-03-26] 全方位的可观测性治理 (Unified Observability Promotion)
+
+- [x] **基建验证**: 成功落地 `UnifiedLog` 强契约协议，单测 7/7 通过
+- [x] **业务重构**: 完成 `ChatPage` 与 `KnowledgePage` 的“样板房”式重构
+- [x] **安全封印**: `post-build.js` 自动隔离 SourceMap，本地 `debug_symbols` 归档
+- [x] **调试利器**: 交付 `trace_analyzer.py` 并通过了 `drill-trace-999` 实战演推
+- [x] **标准确立**: 发布 [Unified Observability Standard](docs/architecture/unified_observability_standard.md)
+
 ### [2026-03-25] 文档系统对齐与架构治理 (Docs Transition to SSoT)
 
 - [x] **SSoT 对齐**: 彻底清理并重建全站文档索引 (Index/README.md)
@@ -31,6 +39,7 @@
 - [x] **治理规范确立**: 发布 GOV-001，定义 RDD 与 Phase Gate 审计规范
 - [x] **后端架构大一统**: 整合碎片化设计，发布 [DES-003](docs/design/DES-003-BACKEND_ARCHITECTURE.md)
 - [x] **AI UX 表达**: 发布 [AI_FRONTEND_STRATEGY](AI_FRONTEND_STRATEGY.md) 面向 AI 场景的技术白皮书
+- [x] **运维对齐**: 整合 `backend/scripts/` 监控，接入 `UnifiedLog` 协议 (P0 级已完成)
 
 ### 🎯 下一阶段核心任务 (Phase 4.1+)
 
