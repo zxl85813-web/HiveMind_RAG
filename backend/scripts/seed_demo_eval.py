@@ -11,18 +11,35 @@ Usage:
 
 import asyncio
 import json
-import logging
 import random
+import sys
 import uuid
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
+
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("seed_demo_eval")
+t_logger = get_trace_logger("scripts.demo_seed")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 from app.core.database import async_session_factory
 from app.models.chat import User
 from app.models.evaluation import BadCase, EvaluationItem, EvaluationReport, EvaluationSet
 from app.models.knowledge import KnowledgeBase
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -51,7 +68,7 @@ FINANCE_QA = [
     },
     {
         "q": "增值税留抵退税政策适用于哪些行业?",
-        "gt": "2022年起,增值税留抵退税政策扩大至所有行业。符合条件的小微企业和制造业等6个行业可以申请一次性退还存量留抵税额,并按月退还增量留抵税额。",
+        "gt": "2022年起,增值税留抵退税政策扩大至所有行业。符合条件的小微企业 and 制造业等6个行业可以申请一次性退还存量留抵税额,并按月退还增量留抵税额。",
         "ctx": "《财政部 税务总局关于进一步加大增值税期末留抵退税政策实施力度的公告》。",
     },
     {
@@ -216,12 +233,12 @@ def _gen_detail(qa_pairs, model_name, conf):
 
 
 async def seed_eval_data():
-    logger.info("🚀 Starting comprehensive evaluation data seeding...")
+    t_logger.info("🚀 Starting comprehensive evaluation data seeding...", action="seed_start")
     async with async_session_factory() as session:
         # ── 0. Check mock user ──
         user = await session.get(User, "mock-user-001")
         if not user:
-            logger.error("Mock user not found. Run init_base_data first.")
+            t_logger.error("Mock user not found. Run init_base_data first.", action="seed_error")
             return
 
         # ── 1. Create Knowledge Bases ──
@@ -239,7 +256,7 @@ async def seed_eval_data():
                 created_at=datetime.utcnow() - timedelta(days=15),
             )
             session.add(kb1)
-            logger.info("✅ Created KB: 智能财务专家知识库")
+            t_logger.info("✅ Created KB: 智能财务专家知识库")
 
         existing_kb2 = await session.get(KnowledgeBase, kb_hr_id)
         if not existing_kb2:
@@ -252,7 +269,7 @@ async def seed_eval_data():
                 created_at=datetime.utcnow() - timedelta(days=12),
             )
             session.add(kb2)
-            logger.info("✅ Created KB: HR 政策与劳动法知识库")
+            t_logger.info("✅ Created KB: HR 政策与劳动法知识库")
 
         # ── 2. Create Testsets ──
         set_finance_id = "evalset-finance-core"
@@ -293,7 +310,7 @@ async def seed_eval_data():
                         created_at=datetime.utcnow() - timedelta(days=days_ago),
                     )
                 )
-                logger.info(f"  📝 Testset: {name}")
+                t_logger.info(f"  📝 Testset: {name}")
 
         # ── 3. Create Evaluation Items ──
         from sqlmodel import select
@@ -333,7 +350,7 @@ async def seed_eval_data():
                     )
                 )
             session.add_all(items)
-            logger.info(f"  ✅ Created {len(items)} evaluation items")
+            t_logger.info(f"  ✅ Created {len(items)} evaluation items")
 
         # ── 4. Create Evaluation Reports (Multi-Model Arena) ──
         existing_reports = await session.execute(select(EvaluationReport).limit(1))
@@ -427,7 +444,7 @@ async def seed_eval_data():
                 )
 
             session.add_all(reports)
-            logger.info(f"  📊 Created {len(reports)} evaluation reports across {len(MODEL_CONFIGS)} models")
+            t_logger.info(f"  📊 Created {len(reports)} evaluation reports across {len(MODEL_CONFIGS)} models")
 
         # ── 5. Create Bad Cases ──
         existing_bc = await session.execute(select(BadCase).limit(1))
@@ -491,7 +508,7 @@ async def seed_eval_data():
                     id=str(uuid.uuid4()),
                     question="年假怎么算?在公司工作了8年有几天?",
                     bad_answer="年假统一为10天。",
-                    expected_answer="工龄1-10年为5天,10-20年为10天,20年以上为15天。注意是累计工龄,不是本单位工龄。如果该员工累计工龄满10年则有10天,否则为5天。",
+                    expected_answer="工龄1-10年为5天,10-20年为10天,20年以上为15天. 注意是累计工龄,不是本单位工龄. 如果该员工累计工龄满10年则有10天,否则为5天。",
                     reason="回答含糊且错误 — 没有区分累计工龄和本单位工龄,给出了错误的统一天数",
                     status="pending",
                     created_at=datetime.utcnow() - timedelta(hours=18),
@@ -500,17 +517,17 @@ async def seed_eval_data():
                     id=str(uuid.uuid4()),
                     question="合同印花税是多少?",
                     bad_answer="印花税税率为万分之五。",
-                    expected_answer="不同合同类型税率不同:买卖合同万分之三,借款合同万分之零点五,技术合同万分之三,财产租赁合同千分之一。",
+                    expected_answer="不同合同类型税率不同:买卖合同万分之三,借款合同万分之零点五,技术合同万分_three,财产租赁合同千分之一。",
                     reason="笼统回答 — 只给了一个税率,实际上2022年新印花税法区分了多种合同类型",
                     status="pending",
                     created_at=datetime.utcnow() - timedelta(hours=6),
                 ),
             ]
             session.add_all(bad_cases)
-            logger.info(f"  🐛 Created {len(bad_cases)} bad cases")
+            t_logger.info(f"  🐛 Created {len(bad_cases)} bad cases")
 
         await session.commit()
-        logger.info("🎉 Comprehensive evaluation data seeding completed!")
+    t_logger.success("🎉 Comprehensive evaluation data seeding completed!", action="seed_success")
 
 
 if __name__ == "__main__":

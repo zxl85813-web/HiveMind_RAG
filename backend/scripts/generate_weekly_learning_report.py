@@ -33,9 +33,21 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+# Ensure backend/app import path works when run from repository root.
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("weekly_report")
+t_logger = get_trace_logger("scripts.weekly_report")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 from app.core.database import async_session_factory  # noqa: E402
 
@@ -212,7 +224,7 @@ async def main() -> None:
     start_date = end_date - timedelta(days=max(1, args.days) - 1)
     week_label = _iso_week_label(end_date)
 
-    repo_root = BASE_DIR.parent
+    repo_root = backend_dir.parent
     auto_stats = await _collect_auto_stats(start_date=start_date, end_date=end_date, repo_root=repo_root)
 
     manual = WeeklyInputs(
@@ -241,7 +253,16 @@ async def main() -> None:
     report_path.write_text(report, encoding="utf-8")
 
     rel_path = report_path.relative_to(repo_root).as_posix()
-    print(f"[CL-3] Weekly report generated: {rel_path}")
+    t_logger.success(
+        f"✅ Weekly report generated: {rel_path}",
+        action="report_generated",
+        meta={
+            "path": rel_path,
+            "reflections": auto_stats.reflections_total,
+            "agents": auto_stats.active_agents,
+            "week": week_label
+        }
+    )
 
 
 if __name__ == "__main__":

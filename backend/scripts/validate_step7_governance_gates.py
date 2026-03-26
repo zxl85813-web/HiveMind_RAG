@@ -14,8 +14,23 @@ import time
 from pathlib import Path
 from typing import Any
 
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
 backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("validate_step7_governance_gates")
+t_logger = get_trace_logger("scripts.step7_gates")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -253,12 +268,14 @@ def main() -> None:
     output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     output_md.write_text(render_markdown(report), encoding="utf-8")
 
-    print(f"[Step-7] json report: {output_json}")
-    print(f"[Step-7] markdown report: {output_md}")
+    t_logger.info(f"[Step-7] json report: {output_json}", action="export")
+    t_logger.info(f"[Step-7] markdown report: {output_md}", action="export")
 
     if args.enforce and not report["overall_passed"]:
-        print(f"[Step-7] failed gates: {report['failed_gates']}")
+        t_logger.error(f"[Step-7] failed gates: {report['failed_gates']}", action="gate_failure")
         raise SystemExit(2)
+    
+    t_logger.success("[Step-7] All governance gates passed", action="gate_pass")
 
 
 if __name__ == "__main__":

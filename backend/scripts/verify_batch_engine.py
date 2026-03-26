@@ -5,23 +5,36 @@ Batch Engine Integration Test.
 
 import asyncio
 import sys
+import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Add backend to path
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
 backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
-load_dotenv(backend_dir / ".env")
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
-from loguru import logger  # noqa: E402
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("verify_batch_engine")
+t_logger = get_trace_logger("scripts.batch_verify")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / ".env")
 
 from app.batch.engine import JobManager  # noqa: E402
 from app.batch.models import BatchStatus, TaskStatus, TaskUnit  # noqa: E402
 
 
 async def main():
-    logger.info("🚀 Starting Batch Engine Test")
+    t_logger.info("🚀 Starting Batch Engine Test", action="batch_test_start")
 
     # 1. Initialize Engine (Memory persistence)
     manager = JobManager()
@@ -39,8 +52,8 @@ async def main():
     job = await manager.create_job(name="Test DAG Job", tasks=tasks)
     job.max_concurrency = 2  # Limit concurrency to 2
 
-    logger.info(f"📦 Job Created: {job.id} with {len(tasks)} tasks")
-    logger.info("DAG Structure: A -> (B, C) -> D")
+    t_logger.info(f"📦 Job Created: {job.id} with {len(tasks)} tasks", action="job_create", meta={"job_id": job.id})
+    t_logger.info("DAG Structure: A -> (B, C) -> D")
 
     # 4. Start Job (runs until completion in this script)
     # in production this would be background task
@@ -52,24 +65,22 @@ async def main():
     snapshot = await manager.graph.aget_state(config)
     final_job = snapshot.values["job"]
 
-    logger.info(f"🏁 Job Status: {final_job.status}")
-    logger.info(f"   Duration: {final_job.completed_at - final_job.created_at}")
-
+    t_logger.info(f"🏁 Job Status: {final_job.status}", action="job_complete", meta={"status": str(final_job.status)})
+    
     # Assertions
     assert final_job.status == BatchStatus.COMPLETED
 
     # Verify Task Statuses
     for t in final_job.tasks.values():
-        logger.info(f"   Task [{t.name}] Status: {t.status} (Output: {t.output_data})")
+        t_logger.info(f"   Task [{t.name}] Status: {t.status} (Output: {t.output_data})", action="task_verify")
         assert t.status == TaskStatus.SUCCESS
 
     # Verify Sequentiality (A finished before B started)
     t_a = final_job.tasks[task_a.id]
     t_b = final_job.tasks[task_b.id]
     assert t_a.completed_at <= t_b.started_at
-    logger.success("✅ Dependency check: A completed before B started")
-
-    logger.success("✅ Batch Engine Test Passed!")
+    
+    t_logger.success("✅ Dependency check and Batch Engine Test Passed!", action="audit_success")
 
 
 if __name__ == "__main__":

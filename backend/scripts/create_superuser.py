@@ -7,13 +7,21 @@
 
 # ruff: noqa: E402
 
-import asyncio
-import sys
-from pathlib import Path
+# 1. 路径注入与环境初始化
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
-# 将 backend/ 目录加入 sys.path
-BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(BASE_DIR))
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("create_superuser")
+t_logger = get_trace_logger("scripts.create_superuser")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 from app.auth.security import hash_password
 from app.core.database import get_db_session, init_db
@@ -22,7 +30,7 @@ from app.models.user import User
 
 async def create_superuser(username: str, password: str, email: str = "admin@example.com"):
     """创建超级管理员。"""
-    print(f"🔄 Creating superuser: {username} ({email})...")
+    t_logger.info(f"🔄 Creating superuser: {username} ({email})...", action="user_creating")
 
     # 确保数据库已初始化 (开发环境)
     await init_db()
@@ -30,24 +38,25 @@ async def create_superuser(username: str, password: str, email: str = "admin@exa
     async for session in get_db_session():
         # TODO: 检查是否存在
         # existing = await session.exec(select(User).where(User.username == username)).first()
-        # if existing: print("🚫 User already exists"); return
+        # if existing: t_logger.warning("🚫 User already exists"); return
 
         user = User(
             username=username,
             email=email,
             hashed_password=hash_password(password),
             is_active=True,
+            is_superuser=True, # 确保 superuser 标志位
             role="admin",  # 超级管理员角色
         )
         session.add(user)
         await session.commit()
-        print(f"✅ Superuser created successfully! ID: {user.id}")
+        t_logger.success(f"✅ Superuser created successfully! ID: {user.id}", action="user_created", meta={"id": str(user.id)})
         break
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python create_superuser.py <username> <password> [email]")
+        t_logger.error("Usage: python create_superuser.py <username> <password> [email]", action="usage_error")
         sys.exit(1)
 
     username = sys.argv[1]

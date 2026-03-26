@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import datetime as dt
 import json
@@ -11,6 +9,24 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("create_github_milestone_from_todo")
+t_logger = get_trace_logger("scripts.milestone_sync")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 
 @dataclass
@@ -229,22 +245,21 @@ def main() -> int:
     tasks = extract_tasks(todo_path, args.section)
 
     if not tasks:
-        print(f"No tasks found under section: {args.section}")
+        t_logger.warning(f"No tasks found under section: {args.section}", action="parse_empty")
         return 1
 
-    print(f"Parsed {len(tasks)} tasks from {todo_path}")
+    t_logger.info(f"Parsed {len(tasks)} tasks from {todo_path}", action="parse_success", meta={"task_count": len(tasks)})
     for task in tasks:
-        print(f"  - {task.title}: {task.body}")
+        t_logger.debug(f"  - {task.title}")
 
     if not args.apply:
-        print("\nDry-run mode: no GitHub changes applied.")
-        print("Use --apply --repo <owner/name> to create/update milestone.")
+        t_logger.info("Dry-run mode: no GitHub changes applied.", action="dry_run")
         return 0
 
     owner, repo = require_repo(args.repo)
     token = os.getenv(args.token_env, "")
     if not token:
-        print(f"Missing token in env var: {args.token_env}")
+        t_logger.error(f"Missing token in env var: {args.token_env}", action="auth_error")
         return 2
 
     milestone = get_or_create_milestone(
@@ -257,7 +272,7 @@ def main() -> int:
     )
     milestone_number = milestone.get("number")
     milestone_title = milestone.get("title")
-    print(f"Milestone ready: #{milestone_number} {milestone_title}")
+    t_logger.success(f"Milestone ready: #{milestone_number} {milestone_title}", action="milestone_ready", meta={"number": milestone_number})
 
     if args.create_issues:
         labels = [item.strip() for item in args.labels.split(",") if item.strip()]
@@ -270,7 +285,7 @@ def main() -> int:
             labels=labels,
             todo_path=todo_path,
         )
-        print(f"Issues created: {created}, skipped(existing): {skipped}")
+        t_logger.success(f"Issues sync complete: created={created}, skipped={skipped}", action="issues_sync", meta={"created": created, "skipped": skipped})
 
     return 0
 

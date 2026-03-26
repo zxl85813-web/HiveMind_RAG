@@ -17,11 +17,25 @@ import time
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from dotenv import load_dotenv
-from loguru import logger
-
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
 backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("validate_step3_circuit_breaker")
+t_logger = get_trace_logger("scripts.cb_validator")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
+
+from dotenv import load_dotenv
 load_dotenv(backend_dir / ".env")
 
 from app.services.dependency_circuit_breaker import DependencyCircuitBreakerManager, settings  # noqa: E402
@@ -149,7 +163,7 @@ async def _run_one_dependency(dep: DependencyName, open_duration_sec: float) -> 
         if not closed_after_probe:
             errors.append("HALF_OPEN probe did not close circuit")
 
-    logger.info(f"[Step3-Validate] [{dep}] snapshot-closed: {snapshot_closed}")
+    t_logger.info(f"[{dep}] snapshot-closed: {snapshot_closed}", action="cb_check")
 
     return {
         "dependency": dep,
@@ -192,14 +206,16 @@ async def main() -> None:
     deps_raw = [d.strip().lower() for d in args.deps if d.strip()]
     invalid = [d for d in deps_raw if d not in {"llm", "es", "neo4j"}]
     if invalid:
+        t_logger.error(f"Unsupported dependencies: {invalid}")
         raise ValueError(f"Unsupported dependencies: {invalid}")
 
     deps = cast(list[DependencyName], deps_raw)
 
-    logger.info(f"[Step3-Validate] deps={deps}")
+    t_logger.info(f"Starting CB validation for deps: {deps}", action="batch_check_start")
 
     results: list[dict[str, Any]] = []
     for dep in deps:
+        t_logger.info(f"Checking dependency: {dep}", action="cb_check_start", meta={"dependency": dep})
         results.append(await _run_one_dependency(dep, args.open_duration_sec))
 
     overall_success = all(bool(r["success"]) for r in results)
@@ -221,8 +237,8 @@ async def main() -> None:
     out_json.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     out_md.write_text(_render_markdown(summary), encoding="utf-8")
 
-    logger.info(f"[Step3-Validate] json report: {out_json}")
-    logger.info(f"[Step3-Validate] markdown report: {out_md}")
+    t_logger.info(f"json report: {out_json}", action="export")
+    t_logger.info(f"markdown report: {out_md}", action="export")
 
     if not args.no_versioned:
         run_key = cast(str, summary["run_key"])
@@ -230,14 +246,13 @@ async def main() -> None:
         out_md_v = _versioned_path(out_md, run_key)
         out_json_v.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         out_md_v.write_text(_render_markdown(summary), encoding="utf-8")
-        logger.info(f"[Step3-Validate] versioned json report: {out_json_v}")
-        logger.info(f"[Step3-Validate] versioned markdown report: {out_md_v}")
+        t_logger.success(f"versioned json report: {out_json_v}")
 
     if overall_success:
-        logger.success("[Step3-Validate] completed")
+        t_logger.success("[Step3-Validate] completed", action="gate_pass")
         return
 
-    logger.error("[Step3-Validate] completed with failures")
+    t_logger.error("[Step3-Validate] completed with failures", action="gate_failure")
     raise SystemExit(2)
 
 

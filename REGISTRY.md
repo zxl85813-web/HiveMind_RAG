@@ -120,12 +120,23 @@
 
 | 分类 | 脚本名 | 职责描述 | 相关治理 Gate | 状态 |
 |------|--------|----------|---------------|------|
-| **治理钻探** | `run_sg007_governance_drills.py` | 模拟 Steady/Spike/Chaos 场景，验证熔断与降级 | GATE-SG-4 | 🔄 接入中 |
-| **门禁验证** | `validate_gate_sg1_stability_window.py` | 滚动窗口期稳定性审计 (24h/5 samples) | GATE-SG-1 | ⚠️ 待对齐 |
-| **状态验证** | `validate_step7_closure_readiness.py` | 阶段 5 关闭前的全量就绪度核对 | GATE-SG-5 | ⚠️ 待对齐 |
-| **性能基线** | `baseline_llm.py` | 获取各 Provider 的 TTFT/TPS 基线数据 | - | ⚠️ 待对齐 |
+| **治理钻探** | `run_sg007_governance_drills.py` | 模拟 Steady/Spike/Chaos 场景，验证熔断与降级 | GATE-SG-4 | ✅ |
+| **门禁验证** | `validate_gate_sg1_stability_window.py` | 滚动窗口期稳定性审计 (24h/5 samples) | GATE-SG-1 | ✅ |
+| **熔断验证** | `validate_step3_circuit_breaker.py` | 模拟依赖故障，验证熔断/探针/恢复链路 | GATE-SG-2 | ✅ |
+| **成本审计** | `validate_step5_sg3_cost_quality.py` | 模拟负载，审计智能路由的成本节约与质量损耗 | GATE-SG-3 | ✅ |
+| **门禁验证** | `validate_step7_governance_gates.py` | 评估 SG-003/007 结果并生成最终准出结论 | GATE-SG-5 | ✅ |
+| **状态验证** | `validate_step7_closure_readiness.py` | 阶段 5 关闭前的全量就绪度核对 | GATE-SG-5 | ✅ |
+| **数据管理** | `seed_demo_eval.py` | 植入综合评测 Demo 数据 (Arena/KB) | - | 已对齐 (UnifiedLog 🛰️) |
+| **性能基线** | `baseline_llm.py` | 获取各 Provider 的 TTFT/TPS 基线数据 | - | ✅ |
 | **资产同步** | `create_github_milestone_from_todo.py` | 将本地 TODO.md 自动映射为 GitHub Milestone | - | ✅ |
-| **调试分析** | `trace_analyzer.py` | 聚合审计 `logs/` 目录下所有 UnifiedLog 链路 | - | ⚠️ 待对齐 |
+| **调试分析** | `trace_analyzer.py` | 聚合审计 `logs/` 目录下所有 UnifiedLog 链路 | - | ✅ |
+| **覆盖审计** | `check_registration_coverage.py` | 自动化检测 scripts 资产登记情况与监控对齐度 | - | ✅ |
+| **执行层验证** | `verify_batch_engine.py` | 验证基于 LangGraph 的 JobManager DAG 调度逻辑 | - | ✅ |
+| **日常学习** | `run_daily_learning_cycle.py` | 运行每日自学习任务 | - | 已对齐 (UnifiedLog 🛰️) |
+| **日常学习** | `run_daily_learning_cycle_with_retry.py` | 带重试机制的学习循环 | - | 已对齐 (UnifiedLog 🛰️) |
+| **协同报告** | `generate_weekly_learning_report.py` | 生成协同学习周报 (CL-3) | - | 已对齐 (UnifiedLog 🛰️) |
+| **缓存维护** | `clear_cache.py` | 清理语义缓存 (Semantic Cache) | - | 已对齐 (UnifiedLog 🛰️) |
+| **身份管理** | `create_superuser.py` | 创建系统超级管理员 (admin) | - | 已对齐 (UnifiedLog 🛰️) |
 
 ---
 

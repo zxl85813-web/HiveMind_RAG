@@ -39,13 +39,13 @@
 - [x] **治理规范确立**: 发布 GOV-001，定义 RDD 与 Phase Gate 审计规范
 - [x] **后端架构大一统**: 整合碎片化设计，发布 [DES-003](docs/design/DES-003-BACKEND_ARCHITECTURE.md)
 - [x] **AI UX 表达**: 发布 [AI_FRONTEND_STRATEGY](AI_FRONTEND_STRATEGY.md) 面向 AI 场景的技术白皮书
-- [x] **运维对齐**: 整合 `backend/scripts/` 监控，接入 `UnifiedLog` 协议 (P0 级已完成)
+- [x] **运维对齐**: 整合 `backend/scripts/` 监控，接入 `UnifiedLog` 协议 (**100% 覆盖**)
 
 ### 🎯 下一阶段核心任务 (Phase 4.1+)
 
 - [x] **后端预感应支持**: 为 retrieval 接口实现 `is_prefetch` 参数，开启“轻量级预热”
 - [x] **前端预测增强**: 在 IntentManager 中集成 AI Warmup 探测器
-- [ ] **HMER 自动化评分**: 开发 `scripts/check_registration_coverage.py` 自动计算 REGISTRY.md 对齐度
+- [x] **HMER 自动化评分**: 交付 `scripts/check_registration_coverage.py` 自动计算 REGISTRY.md 对齐度
 - [ ] **断点续传联调**: 验证 `StreamManager` 与后端 `_resume_index` 协议的端到端闭环
 - [ ] **GitHub Issues 迁移**: 将本 TODO.md 的活跃项迁移至 GitHub Projects
 
