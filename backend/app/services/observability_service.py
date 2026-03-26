@@ -47,24 +47,39 @@ async def record_rag_trace(
     Intended to be called as a background task (fire-and-forget).
     """
     from app.core.database import async_session_factory
+    import hashlib
 
-    trace = RAGQueryTrace(
-        query=query,
-        kb_ids=kb_ids,
-        retrieval_strategy=retrieval_strategy,
-        user_id=user_id,
-        total_found=total_found,
-        returned_count=returned_count,
-        has_results=returned_count > 0,
-        latency_ms=latency_ms,
-        is_error=is_error,
-        retrieved_doc_ids=retrieved_doc_ids,
-        step_traces=step_traces,
-    )
     try:
         async with async_session_factory() as session:
+            # 🔒 [Integrity] Fetch the last record's hash to form the chain
+            from sqlalchemy import desc
+            last_stmt = select(RAGQueryTrace).order_by(desc(RAGQueryTrace.created_at)).limit(1)
+            last_res = await session.execute(last_stmt)
+            last_record = last_res.scalar_one_or_none()
+            p_hash = last_record.h_integrity if last_record else "0000000000000000000000000000000000000000000000000000000000000000"
+
+            # Prepare integrity content (minimal context for proof of existence/intent)
+            payload = f"{p_hash}|{query}|{user_id}|{total_found}"
+            h_integrity = hashlib.sha256(payload.encode()).hexdigest()
+
+            trace = RAGQueryTrace(
+                query=query,
+                kb_ids=kb_ids,
+                retrieval_strategy=retrieval_strategy,
+                user_id=user_id,
+                total_found=total_found,
+                returned_count=returned_count,
+                has_results=returned_count > 0,
+                latency_ms=latency_ms,
+                is_error=is_error,
+                retrieved_doc_ids=retrieved_doc_ids,
+                step_traces=step_traces,
+                p_hash=p_hash,
+                h_integrity=h_integrity
+            )
             session.add(trace)
             await session.commit()
+        logger.debug(f"[AuditIntegrity] Recorded trace with signature {h_integrity[:8]}")
     except Exception as exc:  # pragma: no cover
         logger.warning(f"[ObservabilityService] Failed to persist RAG trace: {exc}")
 

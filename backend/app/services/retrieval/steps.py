@@ -161,17 +161,36 @@ class ParentChunkExpansionStep(BaseRetrievalStep):
                 if parent_id:
                     # Fetch parent chunk
                     parent = await session.get(DocumentChunk, parent_id)
-                    if parent and parent.content:
-                        original_length = len(doc.page_content)
-                        # Substitute the content
-                        doc.page_content = parent.content
-                        ctx.log(
-                            "ParentExpansion",
-                            f"Expanded chunk '{doc.metadata.get('chunk_id')}' "
-                            f"from {original_length} to {len(parent.content)} chars.",
-                        )
-                        # Clear parent_chunk_id so we don't expand again
-                        doc.metadata["expanded_from_parent"] = True
+                    if not parent or not parent.content:
+                        continue
+
+                    # 🔒 Cascading Security Check (TASK-SG-003): 
+                    # If the parent chunk belongs to a DIFFERENT document, must re-verify ACL.
+                    parent_doc_id = parent.document_id
+                    original_doc_id = doc.metadata.get("document_id")
+                    
+                    if parent_doc_id != original_doc_id:
+                        # Check cache first
+                        allowed = ctx.permission_cache.get(parent_doc_id)
+                        if allowed is None:
+                            # Fresh check (e.g. if the parent doc wasn't in original candidates)
+                            from app.auth.permissions import has_document_permission
+                            allowed = await has_document_permission(session, ctx.user_model, parent_doc_id, "read")
+                            ctx.permission_cache[parent_doc_id] = allowed
+                        
+                        if not allowed:
+                            ctx.log("ParentExpansion", f"🚨 Blocked Shadow Leak! User {ctx.user_id} tried to expand to doc {parent_doc_id}")
+                            continue
+
+                    # Safe to expand
+                    original_length = len(doc.page_content)
+                    doc.page_content = parent.content
+                    ctx.log(
+                        "ParentExpansion",
+                        f"Expanded chunk '{doc.metadata.get('chunk_id')}' "
+                        f"from {original_length} to {len(parent.content)} chars.",
+                    )
+                    doc.metadata["expanded_from_parent"] = True
 
 
 class GraphRetrievalStep(BaseRetrievalStep):
@@ -299,6 +318,9 @@ class AclFilterStep(BaseRetrievalStep):
                 ctx.log("ACL", f"User {ctx.user_id} not found, rejecting all candidates.")
                 ctx.candidates = []
                 return
+            
+            # Cache the user model for subsequent steps (e.g. expansion)
+            ctx.user_model = user
 
             for doc in ctx.candidates:
                 doc_id = doc.metadata.get("document_id")
@@ -309,6 +331,8 @@ class AclFilterStep(BaseRetrievalStep):
                 # Default Deny (ARM-P0-2): Any document retrieved must pass an explicit has_document_permission check.
                 # If no records exist in DocumentPermission, has_document_permission returns False.
                 is_allowed = await has_document_permission(session, user, doc_id, "read")
+                # Cache decision for expansion step
+                ctx.permission_cache[doc_id] = is_allowed
 
                 if is_allowed:
                     allowed_candidates.append(doc)

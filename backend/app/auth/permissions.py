@@ -14,7 +14,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.api.deps import get_current_user
+
+from app.core.database import get_db_session as get_db
 from app.core.exceptions import ForbiddenError
 from app.models.chat import User
 from app.models.security import DocumentPermission
@@ -58,7 +59,7 @@ def require_permission(permission: Permission):
             ...
     """
 
-    async def checker(current_user: User = Depends(get_current_user)):
+    async def checker(current_user: User = Depends(get_current_user_local)):
         # Role defaults to string since DB maps it. Here we safely check.
         if not has_permission(current_user.role, permission):
             raise ForbiddenError(
@@ -67,6 +68,12 @@ def require_permission(permission: Permission):
             )
 
     return checker
+
+
+async def get_current_user_local(db: AsyncSession = Depends(get_db)):
+    from app.api.deps import get_current_user
+    # We pass None for credentials since we want the dep to handle it via its own security_scheme
+    return await get_current_user(None, db)
 
 
 async def has_document_permission(db: AsyncSession, user: User, doc_id: str, required_level: str = "read") -> bool:

@@ -14,7 +14,9 @@ class RetrievalContext(BaseModel):
     query: str
     kb_ids: list[str]
     user_id: str | None = None
+    user_model: object | None = None  # Loaded User instance (SQLModel)
     is_admin: bool = False
+    permission_cache: dict[str, bool] = Field(default_factory=dict)
 
     # Configuration
     top_k: int = 20

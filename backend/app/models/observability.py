@@ -133,6 +133,10 @@ class RAGQueryTrace(SQLModel, table=True):
     intent_predicted: str | None = Field(default=None, index=True)
     time_budget_used: int | None = Field(default=None)
 
+    # 🔒 Integrity Chain (TASK-GOV-002: Audit Immutability)
+    p_hash: str | None = Field(default=None, index=True)  # Previous record's integrity hash
+    h_integrity: str | None = Field(default=None, index=True)  # SHA-256(p_hash + current_data)
+
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 

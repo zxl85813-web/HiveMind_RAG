@@ -31,6 +31,7 @@
 - [x] **安全封印**: `post-build.js` 自动隔离 SourceMap，本地 `debug_symbols` 归档
 - [x] **调试利器**: 交付 `trace_analyzer.py` 并通过了 `drill-trace-999` 实战演推
 - [x] **标准确立**: 发布 [Unified Observability Standard](docs/architecture/unified_observability_standard.md)
+- [x] **量化拷打**: 完成 RAG 权限/投毒深度审计并归档至 [RAG-SECURITY-AUDIT-2026.md](docs/governance/RAG-SECURITY-AUDIT-2026.md)
 
 ### [2026-03-25] 文档系统对齐与架构治理 (Docs Transition to SSoT)
 

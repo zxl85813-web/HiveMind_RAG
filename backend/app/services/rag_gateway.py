@@ -76,23 +76,20 @@ class RAGGateway:
             )
 
         # 2. Parallel retrieval from active KBs
-        # Note: In a real implementation, we'd use the RetrievalPipeline's internal logic
-        if topo.path == "split":
-            tasks = [
-                breaker_manager.execute(
-                    "es",
-                    lambda kb_id=kb_id: self.read_service.retrieve_from_kb(
-                        query=query,
-                        kb_id=kb_id,
-                        top_k=top_k,
-                        search_type=strategy,
-                        user_id=user_id,
-                    ),
-                )
-                for kb_id in active_kbs
-            ]
-        else:
-            tasks = [self._retrieve_from_single_kb(query, kb_id, top_k) for kb_id in active_kbs]
+        # Use the real RetrievalReadService to ensure fact fidelity and ACL.
+        tasks = [
+            breaker_manager.execute(
+                "es",
+                lambda kb_id=kb_id: self.read_service.retrieve_from_kb(
+                    query=query,
+                    kb_id=kb_id,
+                    top_k=top_k,
+                    search_type=strategy,
+                    user_id=user_id,
+                ),
+            )
+            for kb_id in active_kbs
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, res in enumerate(results):
@@ -103,6 +100,7 @@ class RAGGateway:
                 logger.error(f"❌ [RAGGateway] KB {kb_id} failed: {res}")
             else:
                 self._record_success(kb_id)
+                # Ensure we handle list of KnowledgeFragment
                 all_fragments.extend(res)
 
         # 3. Global Reranking / Post-processing
