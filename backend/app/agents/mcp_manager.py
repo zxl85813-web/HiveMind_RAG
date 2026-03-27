@@ -43,7 +43,7 @@ class MCPManager:
             return
 
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
                 self._servers = data.get("mcpServers", data)
                 logger.info(f"Loaded {len(self._servers)} MCP servers from config")

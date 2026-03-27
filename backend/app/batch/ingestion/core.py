@@ -103,6 +103,29 @@ class ParserRegistry:
                 return parser
         return None
 
+    @classmethod
+    def get_parser_for_file(cls, file_path: str) -> type[BaseParser] | None:
+        """
+        Helper for the Swarm Orchestrator.
+        Reads the first 4KB of the file to provide a content preview for better sniffing.
+        """
+        import os
+
+        filename = os.path.basename(file_path)
+        content_preview = ""
+
+        # Only sneak a peek at relatively small text files
+        try:
+            with open(file_path, "rb") as f:
+                header = f.read(4096)
+                # Try to decode as utf-8, ignore errors
+                content_preview = header.decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+
+        parser = cls.get_parser(filename, content_preview)
+        return type(parser) if parser else None
+
 
 # ============================================================
 #  Default / Fallback Parsers

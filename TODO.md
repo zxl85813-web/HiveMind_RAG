@@ -69,5 +69,5 @@
 
 ## 🐛 待修复 Bug / 风险追踪
 
-- [ ] **BUG-001**: 某些文档在 `view_file` 时被识别为 `unsupported mime type` (由于异常 UTF-8 字节)
+- [x] **BUG-001**: 某些文档在 `view_file` 时被识别为 `unsupported mime type` (已通过全局 UTF-8 容错和 ParserRegistry 嗅探加固修复)
 - [ ] **RISK-001**: 并发开发时 TODO.md 的合并冲突风险 (建议转向 GitHub Issues)

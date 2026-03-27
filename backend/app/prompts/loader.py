@@ -52,7 +52,7 @@ class PromptLoader:
             return {}
 
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
             logger.error(f"Failed to load prompt config {file_path}: {e}")

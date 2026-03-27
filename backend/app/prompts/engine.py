@@ -249,7 +249,7 @@ class PromptEngine:
             return {}
 
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 data = yaml.safe_load(f) or {}
             self._config_cache[cache_key] = data
             return data

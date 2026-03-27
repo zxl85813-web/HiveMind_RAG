@@ -144,7 +144,7 @@ Output:"""
         for filename in files:
             filepath = os.path.join(data_dir, filename)
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
                     lines = f.readlines()
                 full_text = "".join(lines)
                 tokens = re.findall(r'\w+', full_text.lower())
@@ -260,7 +260,7 @@ Output:"""
                 continue
             filepath = os.path.join(data_dir, filename)
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
                     text = f.read()
                 hits = len(pattern.findall(text))
                 if hits > 0:

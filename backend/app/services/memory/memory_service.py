@@ -98,7 +98,7 @@ class MemoryService:
             try:
                 import json
 
-                with open(path, encoding="utf-8") as f:
+                with open(path, encoding="utf-8", errors="replace") as f:
                     return RoleMemory(**json.load(f))
             except Exception as e:
                 logger.error(f"Failed to load role memory for {role_id}: {e}")
@@ -124,7 +124,7 @@ class MemoryService:
             try:
                 import json
 
-                with open(path, encoding="utf-8") as f:
+                with open(path, encoding="utf-8", errors="replace") as f:
                     return PersonalMemory(**json.load(f))
             except Exception as e:
                 logger.error(f"Failed to load personal memory for {self.user_id}: {e}")
@@ -264,7 +264,7 @@ class MemoryService:
         timestamp = datetime.now().strftime("%H:%M:%S")
         entry = f"\n### [{timestamp}] {role.upper()}\n{content}\n"
 
-        with open(log_file, "a", encoding="utf-8") as f:
+        with open(log_file, "a", encoding="utf-8", errors="replace") as f:
             f.write(entry)
 
         # 仅对用户消息或较长的 AI 回复建索，避免噪声污染记忆库
@@ -274,7 +274,7 @@ class MemoryService:
     async def update_user_profile(self, content: str):
         """写入用户画像（持久化记忆 USER.md），同时进行向量索引。"""
         file_path = self.user_dir / "USER.md"
-        with open(file_path, "a", encoding="utf-8") as f:
+        with open(file_path, "a", encoding="utf-8", errors="replace") as f:
             f.write(f"\n- {content}")
         await self.add_memory(content, metadata={"source": "user_profile", "type": "fact"})
 
@@ -334,7 +334,7 @@ class MemoryService:
         # ── Block 1: 用户画像（始终最高优先）
         profile_path = self.user_dir / "USER.md"
         if profile_path.exists():
-            profile = profile_path.read_text(encoding="utf-8")
+            profile = profile_path.read_text(encoding="utf-8", errors="replace")
             if profile.strip():
                 context_blocks.append(f"--- USER PROFILE ---\n{profile}")
 
@@ -411,7 +411,7 @@ class MemoryService:
         daily_log = self._get_daily_log_path()
 
         if daily_log.exists():
-            logs = daily_log.read_text(encoding="utf-8")[-2000:]
+            logs = daily_log.read_text(encoding="utf-8", errors="replace")[-2000:]
             if logs.strip():
                 context_blocks.append(f"--- TODAY'S LOG (Ephemeral) ---\n...{logs}")
 

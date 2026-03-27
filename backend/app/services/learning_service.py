@@ -118,7 +118,7 @@ class LearningService:
     @staticmethod
     def _read_heading(path: Path) -> str:
         try:
-            with path.open(encoding="utf-8") as f:
+            with path.open(encoding="utf-8", errors="replace") as f:
                 for line in f:
                     if line.strip().startswith("#"):
                         return line.strip().lstrip("#").strip()
