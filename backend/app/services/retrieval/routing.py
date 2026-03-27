@@ -53,8 +53,12 @@ class KnowledgeBaseSelector:
         """
 
         try:
+            from langchain_core.messages import HumanMessage
+            from app.agents.llm_router import LLMRouter, ModelTier
+            
             router = LLMRouter()
-            response = await router.acomplete(messages=[{"role": "user", "content": prompt}], temperature=0.0)
+            llm = router.get_model(ModelTier.SIMPLE)  # Use cheap model for routing
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
 
             if not response or not response.content:
                 # Fallback to first if failed

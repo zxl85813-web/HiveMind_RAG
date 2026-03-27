@@ -140,6 +140,52 @@ class RAGQueryTrace(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
+class SwarmTrace(SQLModel, table=True):
+    """
+    High-level trace for a multi-agent Swarm request (M4.1.4).
+    Synchronizes across multiple specialized workers.
+    """
+
+    __tablename__ = "obs_swarm_traces"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str | None = Field(default=None, index=True)
+    query: str
+    
+    # Triage decision data
+    triage_reasoning: str | None = Field(default=None)
+    status: TraceStatus = Field(default=TraceStatus.PENDING, index=True)
+
+    total_tokens: int = Field(default=0)
+    latency_ms: float = Field(default=0.0)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class SwarmSpan(SQLModel, table=True):
+    """
+    Single task execution entry by a specialized agent in a Swarm.
+    """
+
+    __tablename__ = "obs_swarm_spans"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    swarm_trace_id: str = Field(foreign_key="obs_swarm_traces.id", index=True)
+
+    agent_name: str = Field(index=True)
+    status: TraceStatus = Field(default=TraceStatus.PENDING)
+    
+    # Payload
+    instruction: str
+    output: str | None = Field(default=None)
+    
+    # Performance
+    tokens: int = Field(default=0)
+    latency_ms: float = Field(default=0.0)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class HITLTask(SQLModel, table=True):
     """
     Queue for Human-in-the-Loop review of ambiguous or low-confidence data.

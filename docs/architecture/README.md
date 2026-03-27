@@ -42,6 +42,7 @@
 ## 🛠️ 4. 工程化与治理 (Engineering & Governance)
 
 *   **[GOV-001-DEVELOPMENT_GOVERNANCE.md](./GOV-001-DEVELOPMENT_GOVERNANCE.md)** — 🆕 开发治理、RDD 注册驱动与 Phase Gate 审计规范
+*   **[全链路可观测性标准](./unified_observability_standard.md)** — `UnifiedLog` 协议、遥测收口与全链路追踪规范
 *   **[DES-002-TESTING_STRATEGY.md](../design/DES-002-TESTING_STRATEGY.md)** — 全链路质量保障与 TDD 体系
 *   **[超级力量 (Superpowers) 集集指南](SUPERPOWERS_INTEGRATION_GUIDE.md)** — 基于 Agent 辅助的“降维”开发理念。
 *   **[分支策略手册](branch_strategy.md)** — 不同类型 Issue 对应的分支生命周期。

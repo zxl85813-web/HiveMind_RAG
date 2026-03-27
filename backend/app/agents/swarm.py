@@ -518,7 +518,8 @@ class SwarmOrchestrator:
         # Build prompt via PromptEngine (Layer 1 + 2 + 3)
         system_prompt = self.prompt_engine.build_supervisor_prompt(
             agents=agents_info,
-            memory_context=state.get("context_data", ""),
+            rag_context=state.get("context_data", ""),
+            memory_context="", # Supervisor doesn't strictly need memory snippets yet
             language=state.get("language", "zh-CN"),
         )
 
@@ -586,8 +587,16 @@ class SwarmOrchestrator:
         # If we already did retrieval and the supervisor says go to retrieval,
         # we can just merge the result HERE and skip the retrieval node's next-tick latency.
         if decision.next_agent == "retrieval" and pre_retrieval_result:
-            logger.info("⚡ [Phase 6] Speculative Retrieval Hit! Merging results now.")
-            updates.update(pre_retrieval_result)
+            if pre_retrieval_result.get("retrieved_docs"):
+                logger.info("⚡ [Phase 6] Speculative Retrieval Hit! Merging new docs.")
+                # Merge into updates but keep existing context if it was already there
+                existing_context = state.get("context_data", "")
+                if existing_context and pre_retrieval_result["context_data"]:
+                    updates["context_data"] = f"{existing_context}\n\n{pre_retrieval_result['context_data']}"
+                else:
+                    updates.update(pre_retrieval_result)
+            else:
+                logger.debug("🔍 [Phase 6] Speculative Retrieval returned no results. Skipping merge.")
             # Since we merged it, we can tell LangGraph to go back to supervisor
             # or directly to an agent? No, keep the graph flow, but the retrieval node
             # will now see the context is already there and be a no-op.
@@ -700,13 +709,28 @@ class SwarmOrchestrator:
                 role_id = state["auth_context"].role if state.get("auth_context") else None
                 memory_context = await mem_svc.get_context(query=task, role_id=role_id)
 
+            # 🧬 [GOV-004] Dynamic Context Anchoring — Inject structural markers for long-context
+            # to help combat 'Lost in the Middle' problem.
+            rag_context = state.get("context_data", "")
+            prompt_variant = state.get("prompt_variant", "default")
+            
+            if len(rag_context) > 10000 or prompt_variant == "head_tail_v1":
+                from app.services.agents.prompt_fixer import VirtualSegmenter
+                # Auto-upgrade to head_tail_v1 if context is massive (>5000 tokens)
+                if len(rag_context) > 20000 and prompt_variant == "default":
+                    prompt_variant = "head_tail_v1"
+                    logger.info("🧬 [Dynamic Prompt] Autograded to 'head_tail_v1' due to massive context size.")
+                
+                # Apply structural markers (Virtual Segmenting)
+                rag_context = VirtualSegmenter.inject_markers(rag_context)
+
             system_prompt = self.prompt_engine.build_agent_prompt(
                 agent_name=agent_def.name,
                 task=task,
-                rag_context=state.get("context_data", ""),
+                rag_context=rag_context,
                 memory_context=memory_context,
                 tools_available=[t.name for t in available_tools if hasattr(t, "name")],
-                prompt_variant=state.get("prompt_variant", "default"),
+                prompt_variant=prompt_variant,
                 language=state.get("language", "zh-CN"),
             )
 
@@ -958,15 +982,20 @@ class SwarmOrchestrator:
             query=state.get("original_query", ""), response=last_message.content, context=context_data
         )
 
-        # --- Tier Escalation Logic (P1) ---
-        # If the verdict is ESCALATE or consistency score is extremely low,
-        # we can force the next supervisor loop into the REASONING tier.
-        should_escalate = eval_result.verdict == "ESCALATE"
-        consistency_score = next((o.score for o in eval_result.opinions if o.aspect == "consistency"), 1.0)
-
-        if consistency_score < 0.4:
-            logger.error(f"🚨 [Routing Watchdog] Critical factual inconsistency! Forcing REASONING tier. Score: {consistency_score}")
-            should_escalate = True
+        # 🧬 [Dynamic Feedback Loop] Context Overload Detection
+        # If the evaluator says FAIL/REVISE, and we suspect 'Lost in Middle', we switch prompt variant for the retry.
+        prompt_variant = state.get("prompt_variant", "default")
+        suggested_variant = prompt_variant
+        if eval_result.verdict in ["FAIL", "REVISE"]:
+            from app.services.agents.prompt_fixer import VirtualSegmenter
+            failure_cause = VirtualSegmenter.detect_failure_cause(
+                query=state.get("original_query", ""),
+                response=last_message.content,
+                context=context_data
+            )
+            if failure_cause == "lost_in_middle_likely" and prompt_variant == "default":
+                logger.info("🧬 [Dynamic Detection] 'Lost in Middle' detected. Suggested strategy: 'head_tail_v1'")
+                suggested_variant = "head_tail_v1"
 
         # Decide next step based on composite score
         next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
@@ -1007,10 +1036,15 @@ class SwarmOrchestrator:
 
         node_id = f"reflection_{uuid.uuid4().hex[:6]}"
 
+        # Tier Escalation Logic (P1)
+        consistency_score = next((o.score for o in eval_result.opinions if o.aspect == "consistency"), 1.0)
+        should_escalate = eval_result.verdict == "ESCALATE" or consistency_score < 0.4
+
         return {
             "reflection_count": reflection_count,
             "next_step": next_step,
             "last_node_id": node_id,
+            "prompt_variant": suggested_variant, 
             "force_reasoning_tier": should_escalate,
         }
 
@@ -1461,13 +1495,12 @@ class SwarmOrchestrator:
             "conversation_id": conversation_id,
             "reflection_count": 0,
             "original_query": user_message,
-            "context_data": "",
+            "context_data": context.get("context_data", "") if context else "",
             "kb_ids": kb_ids,  # Pass to state
             "prompt_variant": context.get("prompt_variant", "default") if context else "default",
             "retrieval_variant": context.get("retrieval_variant", "default") if context else "default",
             "last_node_id": "",  # Init empty
-            "retrieval_trace": [],
-            "retrieved_docs": [],
+            "retrieved_docs": context.get("retrieved_docs", []) if context else [],
             "status_update": None,
             "thought_log": None,
             "user_id": context.get("user_id") if context else None,

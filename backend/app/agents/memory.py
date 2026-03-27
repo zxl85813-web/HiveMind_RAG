@@ -58,11 +58,15 @@ class SharedMemoryManager:
 
     async def add_todo(self, item: TodoItem) -> TodoItem:
         """Add a new TODO item to the swarm's shared list."""
-        async with async_session_factory() as session:
-            session.add(item)
-            await session.commit()
-            await session.refresh(item)
-            logger.info(f"📝 TODO recorded in DB: {item.title} (by {item.created_by})")
+        try:
+            async with async_session_factory() as session:
+                session.add(item)
+                await session.commit()
+                await session.refresh(item)
+                logger.info(f"📝 TODO recorded in DB: {item.title} (by {item.created_by})")
+                return item
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to save TODO to DB: {e}")
             return item
 
     async def update_todo(self, todo_id: str, **updates: Any) -> TodoItem | None:
@@ -100,11 +104,15 @@ class SharedMemoryManager:
 
     async def add_reflection(self, entry: ReflectionEntry) -> ReflectionEntry:
         """Record a self-reflection from an agent to the database."""
-        async with async_session_factory() as session:
-            session.add(entry)
-            await session.commit()
-            await session.refresh(entry)
-            logger.info(f"🪞 Reflection logged in DB: [{entry.type}] by {entry.agent_name}")
+        try:
+            async with async_session_factory() as session:
+                session.add(entry)
+                await session.commit()
+                await session.refresh(entry)
+                logger.info(f"🪞 Reflection logged in DB: [{entry.type}] by {entry.agent_name}")
+                return entry
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to save Reflection to DB: {e}")
             return entry
 
     async def get_reflections(

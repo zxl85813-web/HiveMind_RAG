@@ -61,6 +61,11 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 frontend/debug_symbols/
+query_db.py
+scenario_f_log*.txt
+tmp_report.txt
+data/
+docs/api/
 
 # ==========================================
 # Local Data / DB

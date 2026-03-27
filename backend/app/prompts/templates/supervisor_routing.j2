@@ -43,9 +43,14 @@
 4. **Finalization**: If the task is already fully addressed in the conversation, choose `FINISH`.
 5. **Confidence**: If you are uncertain about the intent, set `uncertainty` > 0.6 and choose the safest agent.
 
+{% if rag_context %}
+## Context Information (RAG)
+The following information has already been retrieved from knowledge bases:
+{{ rag_context }}
+{% endif %}
+
 {% if memory_context %}
 ## Relevant Memory
-The system recalls these relevant context snippets:
 {{ memory_context }}
 {% endif %}
 

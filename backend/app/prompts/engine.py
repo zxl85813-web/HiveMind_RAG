@@ -77,6 +77,7 @@ class PromptEngine:
     def build_supervisor_prompt(
         self,
         agents: list[dict[str, str]],
+        rag_context: str = "",
         memory_context: str = "",
         language: str = "zh-CN",
     ) -> str:
@@ -85,10 +86,8 @@ class PromptEngine:
 
         Args:
             agents: 可用 Agent 列表, 每个 dict 包含 name 和 description
+            rag_context: 当前 RAG 检索到的内容 (context_data)
             memory_context: 可选的记忆上下文
-
-        Returns:
-            完整的 System Prompt 字符串
         """
         role = self._load_yaml("agents", "supervisor")
 
@@ -98,6 +97,7 @@ class PromptEngine:
             role=role,
             schemas=self._schemas,
             agents=agents,
+            rag_context=rag_context,
             memory_context=memory_context,
             language=language,
         )

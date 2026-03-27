@@ -23,6 +23,18 @@ class SecuritySanitizer:
     ]
 
     @classmethod
+    def contains_sensitive_data(cls, text: str) -> bool:
+        """Check if any sensitive data patterns match in the text."""
+        if not text:
+            return False
+            
+        for pattern, _ in cls.PATTERNS:
+            if re.search(pattern, text):
+                return True
+                
+        return False
+
+    @classmethod
     def mask_text(cls, text: str) -> str:
         """Apply masking patterns to the text."""
         if not text:

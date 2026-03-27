@@ -33,6 +33,14 @@
 - [x] **标准确立**: 发布 [Unified Observability Standard](docs/architecture/unified_observability_standard.md)
 - [x] **量化拷打**: 完成 RAG 权限/投毒深度审计并归档至 [RAG-SECURITY-AUDIT-2026.md](docs/governance/RAG-SECURITY-AUDIT-2026.md)
 
+### [2026-03-26] 智能协作 Swarm 架构升级 (M4.2 - Swarm Collaboration)
+
+- [x] **Kernel 加固**: 在 `SupervisorAgent` 中集成 `SwarmMemoryBridge`
+- [x] **记忆对齐**: 实现 Plan 阶段的 L1-L5 历史背景自动装载
+- [x] **闭环持久化**: Swarm 成功执行后自动回写 L3 向量库与 Episodic 记忆
+- [x] **专家增强**: 为 `ResearchAgent` 增加基于 LLM 的结果合成（Synthesis）阶段
+- [ ] **多端联调**: 在 `/api/v1/swarm/chat` 端点暴露协作接口并对接前端
+
 ### [2026-03-25] 文档系统对齐与架构治理 (Docs Transition to SSoT)
 
 - [x] **SSoT 对齐**: 彻底清理并重建全站文档索引 (Index/README.md)

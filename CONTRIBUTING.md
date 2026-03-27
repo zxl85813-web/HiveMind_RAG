@@ -1,10 +1,10 @@
-﻿# 🤝 贡献指南 — HiveMind RAG
+# 🤝 贡献指南 — HiveMind RAG
 
 感谢你对 HiveMind RAG 的贡献！本仓库采用 **Issue 驱动 + Agent 辅助** 的开发模式。
 
 > [!TIP]
 > **深度治理手册**: 本文档仅包含快速上手概要。全量的 SOP、编码规范、架构准则和质量门禁，请务必阅读单一事实源：
-> 👉 **[docs/DEV_GOVERNANCE.md](docs/DEV_GOVERNANCE.md)**
+> 👉 **[docs/architecture/GOV-001-DEVELOPMENT_GOVERNANCE.md](docs/architecture/GOV-001-DEVELOPMENT_GOVERNANCE.md)**
 
 ---
 
@@ -44,7 +44,7 @@
 
 | 内容 | 链接 |
 |:---|:---|
-| **开发治理手册** | [docs/DEV_GOVERNANCE.md](docs/DEV_GOVERNANCE.md) |
+| **开发治理手册** | [GOV-001 (开发治理与 RDD)](docs/architecture/GOV-001-DEVELOPMENT_GOVERNANCE.md) |
 | **功能注册表** | [REGISTRY.md](REGISTRY.md) |
 | **任务看板** | [TODO.md](TODO.md) |
 | **架构演进记录** | [docs/changelog/CHANGELOG.md](docs/changelog/CHANGELOG.md) |
