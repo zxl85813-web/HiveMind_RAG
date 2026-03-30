@@ -36,7 +36,10 @@ class ArchitectureIndexer:
         
         logger.info("Indexing Requirements...")
         for req_file in req_dir.glob("REQ-*.md"):
-            req_id = req_file.stem.split("-")[0] + "-" + req_file.stem.split("-")[1]
+            match = re.match(r"REQ-\d+", req_file.stem)
+            if not match: continue
+            req_id = match.group(0)
+            
             with open(req_file, encoding="utf-8") as f:
                 content = f.read()
                 title_match = re.search(r"# (REQ-.*?): (.*)", content)
@@ -52,12 +55,12 @@ class ArchitectureIndexer:
         if not design_dir.exists(): return
         
         logger.info("Indexing Design Documents...")
-        for design_file in design_dir.glob("DES-*.md"):
-            design_id = design_file.stem.split("-")[0] + "-" + design_file.stem.split("-")[1]
+        for design_file in design_dir.glob("*.md"):
+            design_id = design_file.stem
             with open(design_file, encoding="utf-8") as f:
                 content = f.read()
                 
-                # Link to Requirement
+                # Link to Requirement (find REQ-001 pattern)
                 req_match = re.search(r"REQ-\d+", content)
                 req_id = req_match.group(0) if req_match else None
                 
@@ -169,6 +172,26 @@ class ArchitectureIndexer:
                     MERGE (t)-[:VALIDATES_DESIGN]->(d)
                     """, {"tid": test_id, "did": des_id})
 
+    def index_source_code(self):
+        logger.info("Indexing source code files (py, ts, tsx)...")
+        # backend
+        for py_file in (BASE_DIR / "backend" / "app").rglob("*.py"):
+            if "__pycache__" in str(py_file): continue
+            relative_path = str(py_file.relative_to(BASE_DIR)).replace("\\", "/")
+            self.run_query("""
+            MERGE (f:ArchNode:File {id: $path})
+            SET f.path = $path, f.type = 'File'
+            """, {"path": relative_path})
+            
+        # frontend
+        for ts_file in (BASE_DIR / "frontend" / "src").rglob("*.[tj]s*"):
+            if "node_modules" in str(ts_file): continue
+            relative_path = str(ts_file.relative_to(BASE_DIR)).replace("\\", "/")
+            self.run_query("""
+            MERGE (f:ArchNode:File {id: $path})
+            SET f.path = $path, f.type = 'File'
+            """, {"path": relative_path})
+
 def main():
     # Load env for Neo4j
     from dotenv import load_dotenv
@@ -182,6 +205,7 @@ def main():
     indexer.clear_graph()
     indexer.index_requirements()
     indexer.index_designs()
+    indexer.index_source_code()
     indexer.index_skills()
     indexer.link_files_to_skills()
     indexer.index_tests()
