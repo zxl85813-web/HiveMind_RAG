@@ -33,7 +33,7 @@
 **场景**: 架构师在输入框通过 /extract-requirement 解析新需求。
 
 *   **1. 触发路径**:
-    前端发送带有指令的文本 -> API `POST /api/v1/chat/completions` -> `SwarmOrchestrator` -> 唤起 `Skill: generate-design-doc`。
+    前端发送带有指令的文本 -> API `POST /api/v1/chat/completions` -> `SwarmOrchestrator` -> 唤起 `Skill: generate-design-doc`
 *   **2. Neo4j 入库与节点联动**:
     *   AI 分析完毕后，通过 Repository 写库操作生成需求节点: `CREATE (req:CognitiveAsset {id: 'REQ-012', type: 'Requirement'})`
     *   AI 同步推理出架构设计，生成并链接: `(req)-[:DEFINES]->(des:CognitiveAsset {id: 'DES-012'})`

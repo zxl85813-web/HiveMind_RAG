@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { App, Drawer, Table, Button, Space, Tag, Upload, Typography, Tooltip, List, Tabs, Spin, Empty, Input, Popover, Select } from 'antd';
 import { DeleteOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined, InboxOutlined, SafetyCertificateOutlined, InfoCircleOutlined, RightOutlined, SearchOutlined, PlusOutlined, UserAddOutlined } from '@ant-design/icons';
-import { GraphVisualizer } from './GraphVisualizer';
+import { G6GraphVisualizer } from './G6GraphVisualizer';
 import { KBPermissionsModal } from './KBPermissionsModal';
 import { useTranslation } from 'react-i18next';
 import { securityApi } from '../../services/securityApi';
@@ -444,7 +444,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                                         <Spin size="large" />
                                     </div>
                                 ) : graphData && graphData.nodes.length > 0 ? (
-                                    <GraphVisualizer data={graphData} />
+                                    <G6GraphVisualizer data={graphData} />
                                 ) : (
                                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                                         <Empty description="暂无图谱数据,请上传包含复杂关系文档" />
