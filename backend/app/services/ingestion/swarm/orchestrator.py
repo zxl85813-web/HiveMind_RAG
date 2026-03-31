@@ -36,6 +36,7 @@ class IngestionState(TypedDict):
     # Content extraction storage
     raw_text: str
     sections: list[dict[str, Any]]
+    code_structure: dict[str, Any] | None # New: M7.2 Code Vault Metadata
 
     # Processing Metadata (Confidence and Quality)
     confidence_score: float
@@ -66,10 +67,12 @@ class IngestionOrchestrator:
 
     def _build_graph(self) -> StateGraph:
         """Constructs the non-linear processing graph."""
+        from app.utils.code_parser import CodeStructureParser
         workflow = StateGraph(IngestionState)
 
         # 1. Add Processing Nodes
         workflow.add_node("parser_agent", self._parser_node)
+        workflow.add_node("code_extractor_agent", self._code_extractor_node)
         workflow.add_node("security_agent", self._security_node)
         workflow.add_node("critic_agent", self._critic_node)
         workflow.add_node("assembler_node", self._assembler_node)
@@ -77,8 +80,18 @@ class IngestionOrchestrator:
         # 2. Define Edges (Non-linear flow)
         workflow.set_entry_point("parser_agent")
 
-        # Parser -> Security (Always scan for PII/BSI)
-        workflow.add_edge("parser_agent", "security_agent")
+        # Parser -> CodeExtractor (Conditional)
+        workflow.add_conditional_edges(
+            "parser_agent",
+            self._route_parser_decision,
+            {
+                "extract_code": "code_extractor_agent",
+                "skip_code": "security_agent"
+            }
+        )
+
+        # Code Extractor -> Security
+        workflow.add_edge("code_extractor_agent", "security_agent")
 
         # Security -> Critic (Evaluate quality and extraction completeness)
         workflow.add_edge("security_agent", "critic_agent")
@@ -120,8 +133,22 @@ class IngestionOrchestrator:
         return {
             "raw_text": resource.raw_text,
             "sections": [s.model_dump() for s in resource.sections],
-            "next_step": "scan",
+            "next_step": "code_check",
         }
+
+    async def _code_extractor_node(self, state: IngestionState) -> dict[str, Any]:
+        """Agent that extract structural code assets."""
+        from app.utils.code_parser import CodeStructureParser
+        file_path = state["file_path"]
+        logger.info(f"🧬 [Swarm] CodeExtractorAgent analyzing AST structure for: {file_path}")
+        
+        # We only handle Python in MVP
+        if file_path.endswith(".py"):
+            structure = CodeStructureParser.parse_python(file_path)
+            # Mix structural info into the sections for the assembler to pick up
+            return {"code_structure": structure}
+        
+        return {}
 
     async def _security_node(self, state: IngestionState) -> dict[str, Any]:
         """PII / Sensitive data scanning agent."""
@@ -156,6 +183,7 @@ class IngestionOrchestrator:
             doc_id=state.get("file_path"),
             raw_text=state.get("raw_text", ""),
             sections=state.get("sections", []),
+            code_structure=state.get("code_structure"),
         )
 
         return {"next_step": "completed", "assembler_result": result}
@@ -170,6 +198,13 @@ class IngestionOrchestrator:
             return "retry"
         return "hitl"
 
+    def _route_parser_decision(self, state: IngestionState) -> Literal["extract_code", "skip_code"]:
+        from app.utils.code_parser import CodeStructureParser
+        file_path = state.get("file_path", "")
+        if CodeStructureParser.is_code_file(file_path):
+            return "extract_code"
+        return "skip_code"
+
     # --- Execution Entrypoint ---
 
     async def run(self, file_path: str) -> dict[str, Any]:
@@ -180,6 +215,7 @@ class IngestionOrchestrator:
             "file_path": file_path,
             "raw_text": "",
             "sections": [],
+            "code_structure": None,
             "confidence_score": 0.0,
             "is_sensitive": False,
             "audit_verdict": "",

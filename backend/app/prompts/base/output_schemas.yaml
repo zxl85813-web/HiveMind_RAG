@@ -9,7 +9,7 @@ routing_decision: |
   ```typescript
   interface RoutingDecision {
     /** The ID of the next specialist agent to invoke, or "FINISH" if the task is complete. */
-    next_agent: "rag_agent" | "code_agent" | "qa_tester" | "retrieval" | "FINISH" | "PLATFORM_ACTION";
+    next_agent: "rag" | "code" | "web" | "sql" | "eval_architect" | "retrieval" | "parallel" | "FINISH" | "PLATFORM_ACTION";
     /** Confidence score: 0.0 (completely sure) to 1.0 (no confidence). */
     uncertainty: number;
     /** Logical reasoning behind this routing choice. */
@@ -18,6 +18,10 @@ routing_decision: |
     task_refinement: string;
     /** Optional: Breakdown of complex tasks into serial sub-steps. */
     planned_steps?: string[];
+    /** Optional: Invoke multiple agents in parallel for debate or speed. 
+     *  Required if next_agent is "parallel". 
+     */
+    parallel_agents?: string[];
   }
   ```
   Rules:

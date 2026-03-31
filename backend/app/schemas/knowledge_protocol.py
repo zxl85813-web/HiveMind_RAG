@@ -25,6 +25,7 @@ class KnowledgeResponse(BaseModel):
     retrieval_strategy: str = "hybrid"
     context_summary: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    step_traces: list[str] = Field(default_factory=list)
 
 
 class KBStatus(BaseModel):

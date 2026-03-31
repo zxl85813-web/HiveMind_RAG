@@ -378,3 +378,21 @@ async def get_baseline_phase_gate(
 
     result = await get_hmer_phase_gate(phase, db)
     return ApiResponse.ok(data=result)
+
+
+@router.get(
+    "/llm-metrics",
+    response_model=ApiResponse[list[dict[str, Any]]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[M7.1] LLM 模型性能与路由健康度",
+)
+async def get_llm_performance_metrics(
+    days: int = Query(default=1, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """返回各模型供应商的实时性能指标（平均耗时、错误率、成本）。"""
+    from app.services.observability_service import get_llm_metrics_summary
+
+    metrics = await get_llm_metrics_summary(db, days=days)
+    return ApiResponse.ok(data=metrics)

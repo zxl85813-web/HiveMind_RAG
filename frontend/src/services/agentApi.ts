@@ -135,5 +135,10 @@ export const agentApi = {
      */
     getTraces: (): Promise<AxiosResponse<ApiResponse<DAGData>>> => {
         return api.get<ApiResponse<DAGData>>('/agents/swarm/traces');
-    }
+    },
+
+    /**
+     * URL for Swarm Chat SSE Endpoint
+     */
+    SWARM_CHAT_URL: '/agents/swarm/chat'
 };

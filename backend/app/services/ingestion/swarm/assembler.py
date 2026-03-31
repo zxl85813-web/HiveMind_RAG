@@ -23,7 +23,12 @@ class SwarmAssembler:
 
     @staticmethod
     async def process_and_vectorize(
-        kb_id: str, doc_id: str, raw_text: str, sections: list[dict[str, Any]], chunking_strategy: str = "recursive"
+        kb_id: str, 
+        doc_id: str, 
+        raw_text: str, 
+        sections: list[dict[str, Any]], 
+        chunking_strategy: str = "recursive",
+        code_structure: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Consolidated logic for chunking and vectorization.
@@ -76,8 +81,13 @@ class SwarmAssembler:
                 store = get_vector_store()
                 await store.add_documents(vector_docs, collection_name=collection_name)
 
-            logger.success(f"✅ [Assembler] Successfully vectorized {len(vector_docs)} chunks for Doc {doc_id}")
-            return {"chunks_created": len(chunks), "status": "vectorized"}
+            # 4. Code Vault Indexing (M7.2)
+            if code_structure:
+                from app.services.memory.tier.graph_index import graph_index
+                await graph_index.index_code_structure(doc_id, code_structure)
+
+            logger.success(f"✅ [Assembler] Successfully vectorized {len(vector_docs)} chunks and indexed structures for Doc {doc_id}")
+            return {"chunks_created": len(chunks), "status": "vectorized", "has_code_structure": code_structure is not None}
 
         except Exception as e:
             logger.error(f"❌ [Assembler] Vectorization failed: {e}")

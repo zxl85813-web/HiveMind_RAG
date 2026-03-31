@@ -20,7 +20,8 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models.observability import RAGQueryTrace
+from sqlalchemy import Integer
+from app.models.observability import RAGQueryTrace, LLMMetric
 
 # ---------------------------------------------------------------------------
 # Write path
@@ -82,6 +83,80 @@ async def record_rag_trace(
         logger.debug(f"[AuditIntegrity] Recorded trace with signature {h_integrity[:8]}")
     except Exception as exc:  # pragma: no cover
         logger.warning(f"[ObservabilityService] Failed to persist RAG trace: {exc}")
+
+
+async def record_llm_metric(
+    *,
+    model_name: str,
+    provider: str,
+    latency_ms: float,
+    tokens_input: int = 0,
+    tokens_output: int = 0,
+    cost: float = 0.0,
+    is_error: bool = False,
+    error_type: str | None = None,
+    context: dict[str, Any] | None = None,
+) -> None:
+    """Record detailed LLM performance metrics."""
+    from app.core.database import async_session_factory
+    try:
+        async with async_session_factory() as session:
+            metric = LLMMetric(
+                model_name=model_name,
+                provider=provider,
+                latency_ms=latency_ms,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
+                cost=cost,
+                is_error=is_error,
+                error_type=error_type,
+                context=context or {}
+            )
+            session.add(metric)
+            await session.commit()
+    except Exception as exc:
+        logger.warning(f"[ObservabilityService] Failed to persist LLM metric: {exc}")
+
+
+async def get_llm_metrics_summary(db: AsyncSession, days: int = 1) -> list[dict[str, Any]]:
+    """
+    M7.1: Aggregate LLM performance metrics for the router dashboard.
+    """
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    from app.models.observability import LLMMetric
+    
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    stmt = (
+        select(
+            LLMMetric.model_name,
+            LLMMetric.provider,
+            func.avg(LLMMetric.latency_ms).label("avg_latency"),
+            func.count(LLMMetric.id).label("total_calls"),
+            func.sum(LLMMetric.is_error.cast(Integer)).label("error_count"),
+            func.sum(LLMMetric.tokens_input + LLMMetric.tokens_output).label("total_tokens")
+        )
+        .where(LLMMetric.created_at >= since)
+        .group_by(LLMMetric.model_name, LLMMetric.provider)
+    )
+    
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    summary = []
+    for row in rows:
+        error_count = row.error_count or 0
+        total_calls = row.total_calls or 1
+        summary.append({
+            "model_name": row.model_name,
+            "provider": row.provider,
+            "avg_latency": round(float(row.avg_latency or 0), 2),
+            "success_rate": round(1.0 - (error_count / total_calls), 4),
+            "total_calls": total_calls,
+            "total_tokens": int(row.total_tokens or 0)
+        })
+    return summary
 
 
 def fire_and_forget_trace(**kwargs: Any) -> None:

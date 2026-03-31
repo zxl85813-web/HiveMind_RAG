@@ -224,3 +224,28 @@ class BaselineMetric(SQLModel, table=True):
     user_id: str | None = Field(default=None, index=True)
     context: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class LLMMetric(SQLModel, table=True):
+    """
+    M7.1: Model Health & Performance Metrics for ClawRouter.
+    Tracks real-time latency, error rates, and costs per model/provider.
+    """
+    __tablename__ = "obs_llm_metrics"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    model_name: str = Field(index=True)
+    provider: str = Field(index=True)
+    
+    latency_ms: float = Field(default=0.0)
+    tokens_input: int = Field(default=0)
+    tokens_output: int = Field(default=0)
+    cost: float = Field(default=0.0)
+    
+    is_error: bool = Field(default=False, index=True)
+    error_type: str | None = Field(default=None)
+    
+    # Context (e.g. user priority, routing reason)
+    context: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

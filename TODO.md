@@ -3,11 +3,11 @@
 > **⚠️ 强制规则**: 每次开发对话结束前，必须更新此文件。
 > 任何"先不做"、"暂时跳过"、"以后再说"的内容必须记录在此。
 >
-> 🗺️ **完整开发计划**: [docs/ROADMAP.md](docs/ROADMAP.md) — 7 个里程碑 / 87 个任务 / ~30 天   
+> 🗺️ **完整开发计划**: [docs/ROADMAP.md](docs/ROADMAP.md) — 7 个里程碑 / 95 个任务 / ~35 天   
 > 📄 **需求文档**: `docs/requirements/`
-> 🛡️ **架构治理**: [开发治理准则](docs/DEV_GOVERNANCE.md)
+> 🛡️ **架构治理**: [开发治理准则](docs/governance/DEV_GOVERNANCE.md)
 > 📦 **功能注册表**: [REGISTRY.md](REGISTRY.md)
-> 🕒 **历史归档**: [docs/changelog/devlog/](docs/changelog/devlog/)
+> 🕒 **历史归档**: [docs/changelog/CHANGELOG.md](docs/changelog/CHANGELOG.md)
 
 ---
 
@@ -15,19 +15,52 @@
 
 | 维度 | Agent / 模块 | 核心待办 (Now / Next / Later) | 状态 |
 | :--- | :--- | :--- | :--- |
-| **路由层** | RAGGateway | ⬜ 检索策略 A/B 测试基线 | 🟡 |
-| **执行层** | Workers | ⬜ 标签→Pipeline 动态分派系统 | ⬜ |
-| **存储层** | Memory Agent | ⬜ 知识库 Gap-Insight 自动诊断 | ⬜ |
-| **治理层** | Governance Agent | ⬜ 自动审核规则引擎联调 | ⬜ |
+| **路由层** | RAGGateway | ⬜ 检索策略 A/B 测试基线数据对接 `ArchitectureLabPage` | 🟡 进行中 |
+| **执行层** | Workers | ⬜ 标签→Pipeline 动态分派系统 (M3.1.5) | ⬜ 未启动 |
+| **存储层** | Memory Agent | ⬜ 知识库 Gap-Insight 自动诊断 (M5.1.6) | ⬜ 未启动 |
+| **治理层** | Governance Agent | ⬜ 自动审核规则引擎联调 (M2.3.3-M2.3.5) | 🟡 后端骨架在 |
+| **前端层** | AgentsPage | [x] Swarm Chat 联调与 DAG 追踪图谱展示 | ✅ 已完成 |
+| **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
 
 ---
 
-## 🛠️ 当前活跃任务 (Active)
+## ✅ 已完成归档 (最近 Sprint)
+
+### [2026-03-31] 架构治理与 Code Vault (M7.1/M7.2 Architecture Resilience)
+
+- [x] **M7.1 智能路由升级**: `ClawRouter` 实现 15 维动态评分矩阵，支持 Cost/Latency/Code 综合分流
+- [x] **M7.1 治理观测**: `LLMMetric` 模型落地，支持 per-model 实时性能追踪
+- [x] **M7.2 AST 解析集成**: 交付 `CodeStructureParser`，支持 Python 类、函数与文档字符串提取
+- [x] **M7.2 Swarm 增强**: `IngestionOrchestrator` 接入 `CodeExtractorAgent` 节点，实现代码本体逻辑自动入图
+- [x] **M7.2 双擎索引**: 实现 ES (文本) + Neo4j (结构) 代码资产解耦存储
+
+### [2026-03-31] Swarm Chat 联调与 6 指标评估体系 (M4/M5 Synergy)
+
+- [x] **Swarm Chat Backend**: 后端 `agents.py` 实现 SSE 流式端点，支持节点思考与消息增量同步
+- [x] **Swarm Chat Frontend**: 交付 `SwarmChatPanel` 组件，集成玻璃拟态 UI 与 Action 动态按钮
+- [x] **RAG 评估引擎升级**: `EvaluationService` 升级为 6 维评估模型 (F/R/P/Rec/Acc/Sim)
+- [x] **Eval UI 全面更新**: `EvalPage` 支持 6 维雷达对比、QA 逐题明细分析与 HTML 报表导出
+- [x] **资产注册**: `REGISTRY.md` 补录新 API 与组件，模型层同步更新
+
+### [2026-03-31] 文档体系对齐 (Docs Alignment)
+
+- [x] **CHANGELOG 补录**: 补录 v0.1.0~v0.5.2 共 6 个版本发布记录
+- [x] **ROADMAP 交付标准**: 修复 M2/M4 交付标准 — 勾选已实现项，保留真实待办项
+- [x] **REGISTRY 全面补登**: 新增 2 个图谱服务、3 个 API 路由、4 个前端页面、8 个验证脚本
+- [x] **架构索引更新**: `architecture/README.md` 补录 6 份新文档导航
+- [x] **TODO 对齐**: 任务看板细化、活跃任务更新
+
+### [2026-03-31] 智体图谱记忆 (Agent Graph Memory)
+
+- [x] **Hybrid GraphRAG**: `RAGGateway` 接入图谱架构跳跃检索，`Score: 0.95`
+- [x] **Agent Style Memory**: `GraphIndexService` 写入/注入闭环，Neo4j 持久化
+- [x] **技术债扫描**: `detect_timebombs.py` 基于图谱依赖 + 测试节点检测零覆盖高耦合模块
+- [x] **架构文档**: 发布 `AGENT_GRAPH_MEMORY.md`、`SHOWCASE-GRAPH-DECOMPOSITION.md`、`GRAPH-ADVANCED-USECASES.md`
 
 ### [2026-03-26] 全方位的可观测性治理 (Unified Observability Promotion)
 
 - [x] **基建验证**: 成功落地 `UnifiedLog` 强契约协议，单测 7/7 通过
-- [x] **业务重构**: 完成 `ChatPage` 与 `KnowledgePage` 的“样板房”式重构
+- [x] **业务重构**: 完成 `ChatPage` 与 `KnowledgePage` 的"样板房"式重构
 - [x] **安全封印**: `post-build.js` 自动隔离 SourceMap，本地 `debug_symbols` 归档
 - [x] **调试利器**: 交付 `trace_analyzer.py` 并通过了 `drill-trace-999` 实战演推
 - [x] **标准确立**: 发布 [Unified Observability Standard](docs/architecture/unified_observability_standard.md)
@@ -39,7 +72,7 @@
 - [x] **记忆对齐**: 实现 Plan 阶段的 L1-L5 历史背景自动装载
 - [x] **闭环持久化**: Swarm 成功执行后自动回写 L3 向量库与 Episodic 记忆
 - [x] **专家增强**: 为 `ResearchAgent` 增加基于 LLM 的结果合成（Synthesis）阶段
-- [ ] **多端联调**: 在 `/api/v1/swarm/chat` 端点暴露协作接口并对接前端
+- [ ] **多端联调**: 在 `/api/v1/swarm/chat` 端点暴露协作接口并对接前端 ← **M4 遗留**
 
 ### [2026-03-25] 文档系统对齐与架构治理 (Docs Transition to SSoT)
 
@@ -50,24 +83,35 @@
 - [x] **AI UX 表达**: 发布 [AI_FRONTEND_STRATEGY](AI_FRONTEND_STRATEGY.md) 面向 AI 场景的技术白皮书
 - [x] **运维对齐**: 整合 `backend/scripts/` 监控，接入 `UnifiedLog` 协议 (**100% 覆盖**)
 
-### 🎯 下一阶段核心任务 (Phase 4.1+)
+### 🎯 Phase 4.1 完成项
 
-- [x] **后端预感应支持**: 为 retrieval 接口实现 `is_prefetch` 参数，开启“轻量级预热”
+- [x] **后端预感应支持**: 为 retrieval 接口实现 `is_prefetch` 参数，开启"轻量级预热"
 - [x] **前端预测增强**: 在 IntentManager 中集成 AI Warmup 探测器
 - [x] **HMER 自动化评分**: 交付 `scripts/check_registration_coverage.py` 自动计算 REGISTRY.md 对齐度
+
+---
+
+## 🛠️ 当前活跃任务 (Active — M4/M5 主线)
+
+### M4 / M5 后续精进 (Refinement)
+
+- [x] **V3 Trace 全链路可视化**: Query→改写→检索→Rerank→压缩→生成 完整 Trace 展示 (`M5.2.3`)
+- [x] **Token 实时大屏**: 基于 `TokenUsage` 独立表的实时成本监控大屏 (`M5.2.1`)
+- [x] **知识库使用分析看板**: 热门查询/冷门文档/使用趋势前端 (`M5.2.4`)
+- [x] **并行协作 (Debate Mode)**: 实现 Supervisor 触发多智体并行工作与共识合成 (`M4.2.5`)
+- [ ] **Swarm 策略 A/B 测试**: 支持在 `EvalPage` 直接对比不同 Swarm 策略的跑分结果
+
+### 其他待办
+
 - [ ] **断点续传联调**: 验证 `StreamManager` 与后端 `_resume_index` 协议的端到端闭环
 - [ ] **GitHub Issues 迁移**: 将本 TODO.md 的活跃项迁移至 GitHub Projects
-
-### [2026-03-24] 卫星对账与遥测加固 (Phase 4 Telemetry Hardening)
-
-- ✅ Fix: StreamManager TTFT 字符串匹配正则化 (兼容空格差异)
-- ✅ Feature: MonitorService 离屏补发机制 (keepalive + fallback sendBeacon)
-- ✅ Backend: 实现 /api/v1/telemetry 遥测收口端点
-- ✅ DevOps: 配置 LLM_BASE_URL 动态注入
+- [ ] **M2.3.5 审核台前端**: 文档审核/分块对比/批注页面 (Governance Agent 所需)
+- [ ] **M2.4 权限落地验证**: ACL 全链路 E2E 测试 (`torture_cascading_acl.py` 已有基础)
 
 ---
 
 ## 🐛 待修复 Bug / 风险追踪
 
 - [x] **BUG-001**: 某些文档在 `view_file` 时被识别为 `unsupported mime type` (已通过全局 UTF-8 容错和 ParserRegistry 嗅探加固修复)
-- [ ] **RISK-001**: 并发开发时 TODO.md 的合并冲突风险 (建议转向 GitHub Issues)
+- [ ] **RISK-001**: 并发开发时 TODO.md 的合并冲突风险 (建议转向 GitHub Issues — **待迁移**)
+- [ ] **RISK-002**: M2/M4 ROADMAP 交付标准仍有 4 条未勾选 (审核台前端 + ACL验证 + DAG可视化 + MCP外部工具)

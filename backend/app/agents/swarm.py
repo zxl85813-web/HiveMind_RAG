@@ -161,6 +161,10 @@ class RoutingDecision(BaseModel):
     planned_steps: list[str] = Field(
         default_factory=list, description="Optional: decompose complex task into sub-tasks"
     )
+    # --- Phase 4: Parallel Collaboration (M4.2.5) ---
+    parallel_agents: list[str] = Field(
+        default_factory=list, description="Optional: invoke multiple agents in parallel for debate or speed"
+    )
 
 
 class ReflectionResult(BaseModel):
@@ -316,6 +320,10 @@ class SwarmOrchestrator:
         # 1. Add Supervisor Node
         workflow.add_node("supervisor", self._supervisor_node)
 
+        # 1.1 Add Parallel & Consensus Nodes (M4.2.5)
+        workflow.add_node("parallel_worker", self._parallel_node)
+        workflow.add_node("consensus", self._consensus_node)
+
         # 2. Add Agent Nodes
         for name, agent_def in self._agents.items():
             workflow.add_node(name, self._create_agent_node(agent_def))
@@ -341,6 +349,7 @@ class SwarmOrchestrator:
             {
                 **{name: name for name in self._agents},
                 "retrieval": "retrieval",
+                "parallel": "parallel_worker",
                 "FINISH": END,
                 "REFLECTION": "reflection",
                 "PLATFORM_ACTION": "platform_action",
@@ -365,6 +374,10 @@ class SwarmOrchestrator:
         workflow.add_conditional_edges(
             "reflection", self._route_after_reflection, {"supervisor": "supervisor", "FINISH": END}
         )
+
+        # Consensus → Reflection Decision
+        workflow.add_edge("consensus", "reflection_decision")
+        workflow.add_edge("parallel_worker", "consensus") # Default path from parallel if not routed elsewhere
 
         # 5. Compile with Checkpointer (Phase 5)
         checkpointer = MemorySaver()
@@ -639,6 +652,117 @@ class SwarmOrchestrator:
             ),
             "thought_log": f"👨‍✈️ 决策路径: {decision.reasoning}",
             "force_reasoning_tier": False, # Reset after use
+            "parallel_agents": decision.parallel_agents, # [M4.2.5]
+        }
+
+    # ============================================================
+    #  Parallel & Consensus Logic (M4.2.5)
+    # ============================================================
+
+    async def _parallel_node(self, state: SwarmState) -> dict:
+        """
+        [M4.2.5] 并行协作节点。
+        根据 Supervisor 的决策，并行调用多个专家 Agent，并将结果合并至 agent_outputs。
+        """
+        agents_to_invoke = state.get("parallel_agents", [])
+        if not agents_to_invoke:
+            return {"next_step": "FINISH", "status_update": "⚠️ 并行节点未分配任务"}
+
+        logger.info(f"⚡ [M4.2.5] Parallel execution triggered for: {agents_to_invoke}")
+        
+        # 1. Prepare tasks for all agents
+        tasks = []
+        for agent_name in agents_to_invoke:
+            agent_def = self._agents.get(agent_name)
+            if agent_def:
+                # Use the existing factory-built node function
+                node_func = self._create_agent_node(agent_def)
+                tasks.append(node_func(state))
+            else:
+                logger.warning(f"Unknown agent in parallel list: {agent_name}")
+
+        if not tasks:
+            return {"next_step": "supervisor"}
+
+        # 2. Fan-out execution (Parallel)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 3. Fan-in results
+        merged_outputs = state.get("agent_outputs", {}).copy()
+        merged_msgs = []
+        
+        for i, res in enumerate(results):
+            agent_name = agents_to_invoke[i]
+            if isinstance(res, Exception):
+                logger.error(f"❌ Parallel Agent {agent_name} failed: {res}")
+                merged_outputs[agent_name] = f"Error: {res}"
+            else:
+                merged_outputs.update(res.get("agent_outputs", {}))
+                merged_msgs.extend(res.get("messages", []))
+
+        logger.info(f"⚡ Parallel execution completed for {len(tasks)} agents.")
+        
+        # Determine next step: if more than 1 agent was used, go to CONSENSUS
+        next_step = "consensus" if len(agents_to_invoke) > 1 else "reflection_decision"
+
+        return {
+            "agent_outputs": merged_outputs,
+            "messages": merged_msgs,
+            "next_step": next_step,
+            "status_update": f"⚡ 并行协作完成：{', '.join(agents_to_invoke)}",
+            "thought_log": f"⚡ 并行执行器聚合了 {len(agents_to_invoke)} 个智体的响应",
+        }
+
+    async def _consensus_node(self, state: SwarmState) -> dict:
+        """
+        [M4.2.5] 共识合成节点。
+        当多个 Agent 观点不一致时，使用高阶 LLM 进行辩论总结与共识达成。
+        """
+        agent_outputs = state.get("agent_outputs", {})
+        original_query = state.get("original_query", "")
+        task = state.get("current_task", "")
+        
+        # Format the debate for the LLM
+        debate_buffer = []
+        for name, output in agent_outputs.items():
+            # Only include recent outputs from the current parallel run
+            if name in state.get("parallel_agents", []):
+                debate_buffer.append(f"【{name} 的观点】:\n{output}")
+        
+        debate_text = "\n\n".join(debate_buffer)
+        
+        system_prompt = f"""
+        You are the Swarm Consensus Synthesizer.
+        Multiple specialist agents have worked on the following task in parallel, and they may have different perspectives or conflicting results.
+        Your goal is to synthesize their outputs into a single, high-quality, and coherent answer that resolves any conflicts.
+        
+        Original User Query: {original_query}
+        Current Sub-task: {task}
+        
+        --- AGENT DEBATE ---
+        {debate_text}
+        --- END DEBATE ---
+        
+        Synthesis Guidelines:
+        1. If agents agree, reinforce the consensus.
+        2. If agents conflict, analyze the reasoning of each and choose the most evidence-backed or logical one.
+        3. Factual truth from RAG agents usually outweighs creative suggestions from Code/Web agents.
+        4. Maintain a unified tone for the final response.
+        
+        Final Synthesized Answer (Markdown):
+        """
+        
+        llm = self.router.get_model(ModelTier.REASONING) # Escalated tier for consensus
+        response = await llm.ainvoke([SystemMessage(content=system_prompt)])
+        
+        logger.info("⚖️ Consensus reached through agentic debate.")
+        
+        return {
+            "messages": [AIMessage(content=response.content)],
+            "agent_outputs": {"consensus": str(response.content)},
+            "next_step": "reflection_decision",
+            "status_update": "⚖️ 多智体共识合成完成",
+            "thought_log": "⚖️ 已综合多个智体的独立见解，解决潜在冲突并形成最终一致性结论",
         }
 
 
@@ -1444,6 +1568,7 @@ class SwarmOrchestrator:
             "prompt_variant": context.get("prompt_variant", "default") if context else "default",
             "retrieval_variant": context.get("retrieval_variant", "default") if context else "default",
             "last_node_id": "",
+            "parallel_agents": [], # [M4.2.5]
             "retrieval_trace": [],
             "retrieved_docs": [],
             "status_update": None,
@@ -1500,6 +1625,7 @@ class SwarmOrchestrator:
             "prompt_variant": context.get("prompt_variant", "default") if context else "default",
             "retrieval_variant": context.get("retrieval_variant", "default") if context else "default",
             "last_node_id": "",  # Init empty
+            "parallel_agents": [], # [M4.2.5]
             "retrieved_docs": context.get("retrieved_docs", []) if context else [],
             "status_update": None,
             "thought_log": None,

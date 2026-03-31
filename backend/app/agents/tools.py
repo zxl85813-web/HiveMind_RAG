@@ -105,7 +105,8 @@ async def search_knowledge_base(query: str, top_k: int = 3) -> str:
         from app.services.retrieval import get_retrieval_service
 
         retriever = get_retrieval_service()
-        docs = await retriever.retrieve(query, top_k=top_k)
+        # RetrievalPipeline returns (docs, trace_log)
+        docs, _ = await retriever.run(query, collection_names=[], top_k=top_k)
         if not docs:
             return "No matching documents found in deep storage."
 

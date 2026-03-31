@@ -59,6 +59,8 @@ class EvaluationReport(SQLModel, table=True):
     answer_relevance: float = Field(default=0.0)
     context_precision: float = Field(default=0.0)
     context_recall: float = Field(default=0.0)
+    answer_correctness: float = Field(default=0.0)
+    semantic_similarity: float = Field(default=0.0)
     total_score: float = Field(default=0.0)
 
     # M2.5: Model Arena & Cost Analysis

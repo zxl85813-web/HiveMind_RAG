@@ -3,7 +3,7 @@
 > **⚠️ 重要**: 每次开发新功能/组件前，必须先查阅此文件，确认是否已存在可复用的代码。
 > 每次新增功能后，必须在此文件中登记。
 
-> 📅 最后更新: 2026-03-25 (对齐 SmartGrep/Telemetry/Phase4 资产)
+> 📅 最后更新: 2026-03-31 (补录 GraphMemory / 图谱记忆服务 / 脚本 / 页面)
 
 ---
 
@@ -19,18 +19,22 @@
 | **知识库** | ALL | `/knowledge/` | 库管理 (CRUD) / 搜索 / 链路 | `knowledge.py` | ✅ |
 | **知识库** | ALL | `/tags/` | 文档/库标签体系管理 | `tags.py` | ✅ |
 | **Agent** | GET | `/agents/swarm/todos` | 蜂巢任务监控 (TODO/Reflect) | `agents.py` | ✅ |
+| **Agent** | POST | `/agents/swarm/chat` | Swarm 协作对话 (SSE 流式) | `agents.py` | ✅ |
 | **Agent** | ALL | `/memory/` | 长期/短期记忆管理接口 | `memory.py` | ✅ |
 | **安全** | ALL | `/security/` | RBAC 权限 / 部门 / 密钥管理 | `security.py` | ✅ |
 | **可观测** | GET | `/observability/` | 检索质量 / 路由占比 / 成本监控 | `observability.py` | ✅ |
 | **可观测** | GET | `/observability/phase-gate/{phase}` | HMER 阶段准出审计报告 (Phase 0->1) | `observability.py` | ✅ |
 | **治理** | ALL | `/service-governance/` | 限流 / 熔断器 / 智能路由配置 | `settings.py` | ✅ |
-| **评估** | ALL | `/evaluation/` | RAG 质量评估系统接口 | `evaluation.py` | ✅ |
+| **评估** | ALL | `/evaluation/` | RAG 质量评估系统 (6 指标版) | `evaluation.py` | ✅ |
 | **流水线** | ALL | `/pipelines/` | Ingestion Pipeline 配置与监控 | `pipelines.py` | ✅ |
 | **审计** | GET | `/audit/` | 系统操作审计日志检索 | `audit.py` | ✅ |
 | **遥测** | POST | `/telemetry/` | 性能埋点与 Trace 数据上报 | `telemetry.py` | ✅ |
 | **评估** | GET | `/evaluation/ab-summary` | A/B 测试对比数据聚合 | `evaluation.py` | ✅ |
 | **学习** | ALL | `/learning/` | 外部订阅 / 发现列表 / 自动采集 | `learning.py` | ✅ |
 | **通信** | WS | `/ws/connect` | WebSocket 双工交互连接 | `websocket.py` | ✅ |
+| **微调** | ALL | `/finetuning/` | 模型微调任务管理接口 | `finetuning.py` | 🟡 骨架 |
+| **生成** | ALL | `/generation/` | 内容生成与资产输出接口 | `generation.py` | 🟡 骨架 |
+| **审计V3** | GET | `/audit/v3/` | 升级版审计链路查询接口 | `audit_v3.py` | 🟡 骨架 |
 
 ### 核心解耦协议 (Schemas)
 
@@ -52,6 +56,7 @@
 | **搜索增强** | `SmartGrepExpansion`, `MatchResult` | `smart_grep.py` | ✅ |
 | **意图/缓存** | `IntentCache`, `PrefetchJob` | `intent.py` | ✅ |
 | **质量中心** | `EvaluationItem`, `Report`, `Metrics` | `evaluation.py` | ✅ |
+| **治理中心** | `LLMMetric` | `observability.py` | ✅ |
 | **后台任务** | `PipelineJob`, `PipelineStageLog`, `SyncLog` | `pipeline_config.py` | ✅ |
 
 ### 服务治理与业务逻辑 (Services)
@@ -71,6 +76,10 @@
 | `KnowledgeService` | 知识库全生命周期驱动逻辑 | ✅ |
 | `AuditService` | 系统敏感操作全量埋点与持久化 | ✅ |
 | `WriteEventBus` | 跨服务异步写通知 (Document -> Indexing) | ✅ |
+| 🆕 `GraphIndexService` | **图谱记忆核心**: Hybrid GraphRAG 架构检索 + Agent Style Memory 偏好读写 | ✅ 已实现 |
+| 🆕 `CodeVaultService` | **代码全景资产**: 基于 AST 的代码解析与图谱存储 (M7.2) | `memory/tier/graph_index.py` | ✅ |
+| 🆕 `ClawRouterGovernance` | **智能分流引擎**: 15 维动态评分决策中心 (M7.1) | `claw_router_governance.py` | ✅ |
+| 🆕 `AbstractIndexService` | **图谱索引抽象层**: 定义 `record_agent_preference` / `get_agent_preferences` 契约 | ✅ 已实现 |
 
 ---
 
@@ -91,6 +100,10 @@
 | `SettingsPage` | `/settings` | LLM 参数、密钥与系统全局配置 | ✅ |
 | `ArchitectureLabPage` | `/architecture-lab` | A/B 测试看板、性能对比与遥测监控 | ✅ |
 | `BatchPage` | `/batch` | 批量数据处理与任务队列监控 | ✅ |
+| 🆕 `CanvasLabPage` | `/canvas-lab` | 画布模式实验性交互 Lab | 🟡 实验中 |
+| 🆕 `FineTuningPage` | `/fine-tuning` | 模型微调任务配置与监控 | 🟡 骨架 |
+| 🆕 `StudioPage` | `/studio` | 创作工作台 (代码/文档生成) | 🟡 骨架 |
+| 🆕 `ForbiddenPage` | `/403` | 无权限访问提示页 | ✅ |
 
 ### 逻辑组件 (Hooks & Providers)
 
@@ -103,6 +116,7 @@
 | `IntentManager` | 🆕 预测性预取解析器 (意图预测) | `core/IntentManager.ts` |
 | `LocalEdgeEngine` | 🆕 IndexedDB 边缘存储引擎 | `core/LocalEdgeEngine.ts` |
 | `XProvider` | AntD X 扩展组件全局注入器 | `App.tsx` |
+| `SwarmChatPanel` | **智体协作面板**: SSE 流式思考与 Action 交互 | `components/agents/SwarmChatPanel.tsx` |
 
 ### 状态中心 (Stores)
 
@@ -137,6 +151,14 @@
 | **协同报告** | `generate_weekly_learning_report.py` | 生成协同学习周报 (CL-3) | - | 已对齐 (UnifiedLog 🛰️) |
 | **缓存维护** | `clear_cache.py` | 清理语义缓存 (Semantic Cache) | - | 已对齐 (UnifiedLog 🛰️) |
 | **身份管理** | `create_superuser.py` | 创建系统超级管理员 (admin) | - | 已对齐 (UnifiedLog 🛰️) |
+| 🆕 **图谱记忆验证** | `test_agent_memory.py` | 验证 Agent Style Memory 写入与注入闭环 | - | ✅ |
+| 🆕 **GraphRAG 验证** | `test_graphrag.py` | 验证 Hybrid GraphRAG 架构跳跃检索效果 | - | ✅ |
+| 🆕 **技术债扫描** | `detect_timebombs.py` | 基于图谱依赖/测试关系检测高危零覆盖模块 | - | ✅ |
+| 🆕 **Swarm 智能验证** | `verify_swarm_intelligence.py` | 验证多 Agent 协作推理与反思质量 | - | ✅ |
+| 🆕 **复杂协作测试** | `test_complex_collaboration.py` | 端到端 Swarm 多角色协同场景测试 | - | ✅ |
+| 🆕 **Swarm 评估矩阵** | `run_swarm_eval_matrix.py` | 批量评估 Swarm 跨场景表现 | - | ✅ |
+| 🆕 **肠架构图** | `torture_cascading_acl.py` | ACL 级联权限边界压力测试 | GATE-SEC | ✅ |
+| 🆕 **动态提示恢复** | `verify_dynamic_prompt_recovery.py` | 验证长上下文动态 Prompt 恢复机制 | - | ✅ |
 
 ---
 

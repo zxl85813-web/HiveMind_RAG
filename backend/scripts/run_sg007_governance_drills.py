@@ -138,7 +138,7 @@ async def run_steady(steady_requests: int, seed: int) -> ScenarioResult:
         if not bool(decision["allowed"]):
             blocked += 1
             continue
-        router.decide([{"role": "user", "content": msg}])
+        await router.decide([{"role": "user", "content": msg}])
         success += 1
 
     snap = router.snapshot()
@@ -188,7 +188,7 @@ async def run_steady_for_duration(steady_duration_sec: float, steady_rps: float,
         if not bool(decision["allowed"]):
             blocked += 1
         else:
-            router.decide([{"role": "user", "content": msg}])
+            await router.decide([{"role": "user", "content": msg}])
             success += 1
         i += 1
         await asyncio.sleep(interval_sec)
@@ -238,7 +238,7 @@ async def run_spike(spike_requests: int, seed: int) -> ScenarioResult:
         if not bool(decision["allowed"]):
             blocked += 1
             continue
-        router.decide([{"role": "user", "content": msg}])
+        await router.decide([{"role": "user", "content": msg}])
         success += 1
 
     snap = router.snapshot()

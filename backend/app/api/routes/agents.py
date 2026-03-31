@@ -4,14 +4,17 @@ Agent management & monitoring endpoints.
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.agents.swarm import SwarmOrchestrator
+from app.api import deps
 from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
 from app.models.agents import ReflectionSignalType
+from app.schemas.auth import AuthorizationContext
 from app.services.rag_gateway import RAGGateway
 
 router = APIRouter()
@@ -29,6 +32,14 @@ class CreateBatchJobRequest(BaseModel):
     description: str = ""
     tasks: list[dict]  # Simple list of tasks for demo
     max_concurrency: int = 3
+    kb_ids: list[str] = []
+
+
+class SwarmChatRequest(BaseModel):
+    message: str
+    conversation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    kb_ids: list[str] = []
+    parent_message_id: str | None = None
 
 
 class DevRAGSearchRequest(BaseModel):
@@ -175,6 +186,58 @@ async def get_swarm_traces():
         return ApiResponse.ok(data={"nodes": [], "links": []})
     traces = await memory_manager.get_traces()
     return ApiResponse.ok(data=traces)
+
+
+@router.post("/swarm/chat")
+async def swarm_chat_stream(
+    request: SwarmChatRequest, 
+    user_id: str | None = None  # TODO: Get from deps.get_current_user
+):
+    """
+    Streaming entry point for the Agent Swarm Chat.
+    Yields LangGraph node updates and AI message chunks as Server-Sent Events (SSE).
+    """
+    context = {
+        "user_id": user_id,
+        "knowledge_base_ids": request.kb_ids,
+        "language": "zh-CN",
+    }
+
+    async def event_generator():
+        try:
+            # yield initial signal
+            yield f"data: {json.dumps({'event': 'start', 'conversation_id': request.conversation_id})}\n\n"
+            
+            async for update in _swarm.invoke_stream(
+                user_message=request.message,
+                context=context,
+                conversation_id=request.conversation_id
+            ):
+                # LangGraph 2.0 output is a dict of {node_name: state_diff}
+                for node_name, state_diff in update.items():
+                    # Send node status update
+                    yield f"data: {json.dumps({'event': 'node_start', 'node': node_name})}\n\n"
+                    
+                    # Extract thought logs or status updates if present
+                    thought = state_diff.get("thought_log") or state_diff.get("status_update")
+                    if thought:
+                        yield f"data: {json.dumps({'event': 'thought', 'content': thought})}\n\n"
+                    
+                    # Extract messages if present in diff
+                    msgs = state_diff.get("messages", [])
+                    for m in msgs:
+                        # Only stream AI messages content for UI
+                        if hasattr(m, "content") and m.type == "ai":
+                             yield f"data: {json.dumps({'event': 'delta', 'content': m.content})}\n\n"
+                    
+                    yield f"data: {json.dumps({'event': 'node_end', 'node': node_name})}\n\n"
+
+            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+        except Exception as e:
+            logger.error(f"Swarm Stream Error: {e}")
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.post("/swarm/dev-rag/search")

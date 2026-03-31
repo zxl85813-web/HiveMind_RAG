@@ -165,7 +165,7 @@ def main() -> None:
         t_logger.success(f"[Step-7-Ready] versioned json report: {output_json_v}")
 
     if args.enforce and not bool(report["closure_ready"]):
-        t_logger.error(f"[Step-7-Ready] closure not ready: {report}", action="gate_failure")
+        t_logger.error("[Step-7-Ready] closure not ready", report_data=report, action="gate_failure")
         raise SystemExit(2)
     
     t_logger.success("[Step-7-Ready] System is ready for closure", action="gate_pass")

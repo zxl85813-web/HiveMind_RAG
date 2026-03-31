@@ -41,6 +41,9 @@ const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ defa
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ default: m.CanvasLabPage })));
 const ArchitectureLabPage = lazy(() => import('./pages/ArchitectureLabPage'));
+const TokenDashboardPage = lazy(() => import('./pages/TokenDashboardPage').then(m => ({ default: m.TokenDashboardPage })));
+const KBAnalyticsPage = lazy(() => import('./pages/KBAnalyticsPage').then(m => ({ default: m.KBAnalyticsPage })));
+const TracePage = lazy(() => import('./pages/TracePage').then(m => ({ default: m.TracePage })));
 const ForbiddenPage = lazy(() => import('./pages/ForbiddenPage').then(m => ({ default: m.ForbiddenPage })));
 
 const pageComponentMap = {
@@ -58,6 +61,9 @@ const pageComponentMap = {
   learning: LearningPage,
   settings: SettingsPage,
   architectureLab: ArchitectureLabPage,
+  tokenDashboard: TokenDashboardPage,
+  kbAnalytics: KBAnalyticsPage,
+  trace: TracePage,
 } as const;
 
 /**

@@ -76,7 +76,7 @@ class RAGGateway:
             )
 
         # 2. Parallel retrieval from active KBs
-        # Use the real RetrievalReadService to ensure fact fidelity and ACL.
+        all_step_traces = []
         tasks = [
             breaker_manager.execute(
                 "es",
@@ -100,13 +100,13 @@ class RAGGateway:
                 logger.error(f"❌ [RAGGateway] KB {kb_id} failed: {res}")
             else:
                 self._record_success(kb_id)
-                # Ensure we handle list of KnowledgeFragment
-                all_fragments.extend(res)
+                # handle (fragments, trace_log) tuple
+                fragments, trace_log = res
+                all_fragments.extend(fragments)
+                all_step_traces.extend(trace_log)
 
         # 3. Global Reranking / Post-processing
-        # (Simplified for now: just sort by score)
         all_fragments.sort(key=lambda x: x.score, reverse=True)
-
         final_fragments = all_fragments[: top_k * len(active_kbs)]
 
         # 4. Fire-and-forget observability trace
@@ -119,7 +119,7 @@ class RAGGateway:
             returned_count=len(final_fragments),
             latency_ms=(time.time() - start_time) * 1000,
             retrieved_doc_ids=retrieved_doc_ids,
-            step_traces=warnings,
+            step_traces=list(set(all_step_traces)) if all_step_traces else warnings,
             is_error=bool(warnings),
         )
 
@@ -130,6 +130,7 @@ class RAGGateway:
             processing_time_ms=(time.time() - start_time) * 1000,
             retrieval_strategy=strategy,
             warnings=warnings,
+            step_traces=all_step_traces
         )
 
     async def retrieve_for_development(

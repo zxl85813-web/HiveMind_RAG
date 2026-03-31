@@ -13,7 +13,7 @@ import {
     ShareAltOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageContainer, StatCard } from '../components/common';
+import { PageContainer, StatCard, ErrorBoundary } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
 import { 
     useSwarmReflections, 
@@ -22,6 +22,7 @@ import {
     useSwarmTodos, 
     useSwarmTraces 
 } from '../hooks/queries/useSwarmQuery';
+import { SwarmChatPanel } from '../components/agents/SwarmChatPanel';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -191,26 +192,41 @@ export const AgentsPage: React.FC = () => {
             </Title>
 
             <Row gutter={[24, 24]}>
-                <Col xs={24}>
+                <Col xs={24} lg={15}>
+                    <Card
+                        title={
+                            <Space>
+                                <span style={{ color: token.colorPrimary }}><MessageOutlined /> Swarm 交互中心 (Action Control)</span>
+                                <Tag color="blue" variant="filled">LIVE SSE</Tag>
+                            </Space>
+                        }
+                        style={{ borderRadius: '12px', border: 'var(--hm-border-subtle)' }}
+                        bodyStyle={{ padding: 0 }}
+                    >
+                        <SwarmChatPanel />
+                    </Card>
+                </Col>
+                <Col xs={24} lg={9}>
                     <Card
                         title={
                             <Space split={<Text type="secondary" style={{ fontWeight: 'normal' }}>|</Text>}>
-                                <span style={{ color: token.colorInfo }}><ClusterOutlined /> Agent DAG 实时链路追踪 (Execution Trace)</span>
-                                <Text type="secondary" style={{ fontSize: '12px', fontWeight: 'normal' }}>
-                                    可视化展示 Agent 之间的协作流水线与数据流转状态
-                                </Text>
+                                <span style={{ color: token.colorInfo }}><ClusterOutlined /> Agent DAG 追踪</span>
                             </Space>
                         }
                         loading={loadingTraces && dagData.nodes.length === 0}
-                        style={{ borderRadius: '12px', background: 'var(--hm-color-bg-elevated)', border: 'var(--hm-border-subtle)' }}
-                        bodyStyle={{ padding: 0, height: '440px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                        style={{ height: '100%', borderRadius: '12px', background: 'var(--hm-color-bg-elevated)', border: 'var(--hm-border-subtle)' }}
+                        bodyStyle={{ padding: 0, height: '600px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}
                     >
                         {dagData.nodes && dagData.nodes.length > 0 ? (
-                            <React.Suspense fallback={<Flex align="center" justify="center" style={{ height: '100%', width: '100' }}><SyncOutlined spin /> &nbsp; Loading Chart...</Flex>}>
-                                <AgentDAGVisualizer data={dagData} height={440} />
-                            </React.Suspense>
+                            <ErrorBoundary fallback={<div style={{ padding: 20 }}><Empty description="图谱渲染发生冲突，请尝试刷新。" /></div>}>
+                                <React.Suspense fallback={<Flex align="center" justify="center" style={{ height: '100%', width: '100%' }}><SyncOutlined spin /> &nbsp; Loading Chart...</Flex>}>
+                                    <AgentDAGVisualizer data={dagData} height={590} />
+                                </React.Suspense>
+                            </ErrorBoundary>
                         ) : (
-                            <Empty description="等待 Agent 集群产生执行链路 (在侧边栏对话以生成 Trace)" />
+                            <div style={{ padding: '0 20px', textAlign: 'center' }}>
+                                <Empty description="等待 Agent 集群产生执行链路 (在左侧发送指令以开启 Trace)" />
+                            </div>
                         )}
                     </Card>
                 </Col>

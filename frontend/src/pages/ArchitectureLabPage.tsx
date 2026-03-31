@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, Divider, Badge, Empty, Spin, Button } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Divider, Badge, Empty, Spin, Button, Flex } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -8,6 +9,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { Zap, ShieldAlert, Cpu, RefreshCw } from 'lucide-react';
 import api from '../services/api';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -57,6 +59,15 @@ const ArchitectureLabPage: React.FC = () => {
             return res.data.data as { audit_report: string; ready_to_proceed: boolean };
         },
         enabled: !!report
+    });
+
+    // 4. M7.1: 获取 LLM 性能指标
+    const { data: llmMetrics, isLoading: loadingLLM } = useQuery({
+        queryKey: ['llm-performance-metrics'],
+        queryFn: async () => {
+            const res = await api.get('/observability/llm-metrics');
+            return res.data.data;
+        }
     });
 
     const handleRefresh = () => {
@@ -207,6 +218,71 @@ const ArchitectureLabPage: React.FC = () => {
                         ) : (
                             <Empty description="等待采集足够数据后开启阶段审计" />
                         )}
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* M7.1: Model Performance Dashboard */}
+            <Row gutter={16} style={{ marginTop: '24px' }}>
+                <Col span={24}>
+                    <Card 
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <ShieldAlert size={18} />
+                                M7.1: ClawRouter 实时分流监控 (Model Performance & Health)
+                            </div>
+                        } 
+                        bordered={false}
+                        extra={<Badge color="green" text="REALTIME" />}
+                    >
+                        <Row gutter={24}>
+                            <Col span={14}>
+                                <div style={{ height: 350 }}>
+                                    {loadingLLM ? (
+                                        <Flex align="center" justify="center" style={{ height: '100%' }}>
+                                            <SyncOutlined spin style={{ color: 'var(--hm-color-success)', fontSize: 24 }} />
+                                        </Flex>
+                                    ) : (
+                                        <ErrorBoundary fallback={<div style={{ padding: 20 }}><Empty description="图表加载失败" /></div>}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={llmMetrics || []}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="model_name" />
+                                                    <YAxis unit="ms" />
+                                                    <Tooltip 
+                                                        contentStyle={{ backgroundColor: 'var(--hm-color-bg-elevated)', border: 'none', borderRadius: 8 }}
+                                                        itemStyle={{ color: 'var(--hm-color-text)' }}
+                                                    />
+                                                    <Legend />
+                                                    <Bar dataKey="avg_latency" name="平均耗时 (Lat.)" fill="var(--hm-color-success)" radius={[4, 4, 0, 0]} />
+                                                    <Bar dataKey="total_calls" name="请求吞吐 (Throughput)" fill="var(--hm-color-brand)" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </ErrorBoundary>
+                                    )}
+                                </div>
+                            </Col>
+                            <Col span={10}>
+                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 12, height: '100%' }}>
+                                    <Title level={5}>模型供应商健康度</Title>
+                                    {(llmMetrics || []).map((m: any) => (
+                                        <div key={m.model_name} style={{ marginBottom: 16 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <Text strong>{m.model_name} ({m.provider})</Text>
+                                                <Text type="success">{(m.success_rate * 100).toFixed(1)}%</Text>
+                                            </div>
+                                            <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
+                                                <div style={{ width: `${m.success_rate * 100}%`, height: '100%', background: m.success_rate > 0.95 ? 'var(--hm-color-success)' : 'var(--hm-color-warning)', borderRadius: 2 }} />
+                                            </div>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                累计消耗: {m.total_tokens?.toLocaleString()} Tokens | 延迟: {m.avg_latency}ms
+                                            </Text>
+                                        </div>
+                                    ))}
+                                    {(!llmMetrics || llmMetrics.length === 0) && <Empty description="暂无实时模型指标" />}
+                                </div>
+                            </Col>
+                        </Row>
                     </Card>
                 </Col>
             </Row>

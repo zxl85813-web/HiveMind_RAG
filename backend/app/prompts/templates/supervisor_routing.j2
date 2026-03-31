@@ -42,6 +42,10 @@
 3. **Loop Management**: If an agent previously reported "information not found" in its output, consider routing to **web** (if internet search is needed) or **retrieval** with a refined query.
 4. **Finalization**: If the task is already fully addressed in the conversation, choose `FINISH`.
 5. **Confidence**: If you are uncertain about the intent, set `uncertainty` > 0.6 and choose the safest agent.
+6. **Parallel Collaboration (Debate Mode)**:
+   - Use `next_agent: "parallel"` if the task is complex and would benefit from multiple perspectives (e.g., a technical design that needs both **rag_agent** for specs and **code_agent** for implementation ideation).
+   - List the agents to invoke in `parallel_agents`.
+   - The system will automatically synthesize their unique viewpoints into a final consensus.
 
 {% if rag_context %}
 ## Context Information (RAG)

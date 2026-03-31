@@ -14,6 +14,9 @@
 *   **[动态技能架构设计](dynamic_skill_architecture.md)** — 系统的热插拔 Skill 机制说明。
 *   **[工作流生命周期](workflow_lifecycle.md)** — 每类任务从触发到闭环的状态机逻辑。
 *   **[Agent 协作图谱 (ARCH-Graph)](ARCH-GRAPH.md)** — 多 Agent 环境下的拓扑结构定义。
+*   🆕 **[动态图谱记忆体系 (AGENT_GRAPH_MEMORY)](AGENT_GRAPH_MEMORY.md)** — Hybrid GraphRAG + Agent Style Memory 双核能力：架构跳跃检索与个性化编程风格持久记忆。
+*   🆕 **[图谱驱动架构拆解展示 (SHOWCASE)](SHOWCASE-GRAPH-DECOMPOSITION.md)** — 图谱节点可视化与架构关系分解示范。
+*   🆕 **[图谱高级用例 (GRAPH-ADVANCED)](GRAPH-ADVANCED-USECASES.md)** — 技术债热力图(Timebomb Detection)等进阶图谱分析场景。
 
 ---
 
@@ -23,6 +26,9 @@
 *   **[数据微服务治理](data_microservice_governance.md)** — 将每一个知识库 (KB) 视为独立治理的服务单元。
 *   **[RAG 数据接口协议](rag_data_interface_design.md)** — 规范 RAG 输出的强 Schema 契约。
 *   **[记忆压缩方案](memory_compression_design.md)** — 长程记忆中的信息蒸馏与压缩设计。
+*   🆕 **[业务流全景映射 (business_flow)](business_flow.md)** — 系统端到端请求生命周期的全链路 Neo4j 图谱映射。
+*   🆕 **[业务驱动测试策略 (business_driven_testing)](business_driven_testing.md)** — 基于图谱的全栈 E2E 测试用例生成策略。
+*   🆕 **[Neo4j 数据流设计 (neo4j_data_flow)](neo4j_data_flow.md)** — 图谱节点/关系的写入、查询与扩展设计规范。
 
 ---
 

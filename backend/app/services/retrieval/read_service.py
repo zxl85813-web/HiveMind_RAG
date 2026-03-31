@@ -28,7 +28,7 @@ class RetrievalReadService:
         top_k: int,
         search_type: str = SearchType.HYBRID,
         user_id: str | None = None,
-    ) -> list[KnowledgeFragment]:
+    ) -> tuple[list[KnowledgeFragment], list[str]]:
         run_result = await self.pipeline.run(
             query=query,
             collection_names=[kb_id],
@@ -40,8 +40,10 @@ class RetrievalReadService:
             variant="default",
         )
         docs: list[VectorDocument]
+        trace_log: list[str] = []
         if isinstance(run_result, tuple):
             docs = cast(list[VectorDocument], run_result[0])
+            trace_log = cast(list[str], run_result[1])
         else:
             docs = cast(list[VectorDocument], run_result)
 
@@ -58,7 +60,7 @@ class RetrievalReadService:
                     chunk_index=int(metadata.get("chunk_index", idx) or idx),
                 )
             )
-        return fragments
+        return fragments, trace_log
 
 
 _read_service = RetrievalReadService()

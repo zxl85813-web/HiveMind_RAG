@@ -143,6 +143,26 @@ export interface KnowledgeBase {
     created_at: string;
 }
 
+export interface KnowledgeFragment {
+    content: string;
+    metadata: Record<string, any>;
+    score: number;
+    kb_id: string;
+    source_id: string;
+    chunk_index: number;
+}
+
+export interface KnowledgeResponse {
+    query: string;
+    fragments: KnowledgeFragment[];
+    total_found: number;
+    processing_time_ms: number;
+    retrieval_strategy: string;
+    context_summary?: string;
+    warnings: string[];
+    step_traces: string[];
+}
+
 export interface KnowledgeBasePermission {
     id: string;
     kb_id: string;
@@ -312,6 +332,8 @@ export interface EvaluationReport {
     answer_relevance: number;
     context_precision: number;
     context_recall: number;
+    answer_correctness: number;
+    semantic_similarity: number;
     total_score: number;
     details_json: string; // JSON string in backend
     status: 'pending' | 'running' | 'completed' | 'failed';

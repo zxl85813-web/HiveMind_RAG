@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, theme } from 'antd';
-import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined } from '@ant-design/icons';
+import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { PermissionButton } from '../components/common';
 import { evalApi } from '../services/evalApi';
@@ -44,12 +44,30 @@ const RAGAS_METRICS = [
     },
     {
         key: 'context_recall',
-        name: 'Context Recall (上下文召回率)',
+        name: 'Context Recall (召回率)',
         icon: <FileSearchOutlined />,
         color: 'deeppink',
         description: '评估 Ground Truth 中的关键信息有多少被检索系统成功召回。',
         formula: 'GT Sentences in Context / Total GT Sentences',
         benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
+    },
+    {
+        key: 'answer_correctness',
+        name: 'Answer Correctness (答案准确度)',
+        icon: <CheckCircleOutlined />,
+        color: 'orange',
+        description: '评估 AI 回答是否与 Ground Truth 事实一致。',
+        formula: 'Weighted average of Fact extraction + Semantic matching',
+        benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
+    },
+    {
+        key: 'semantic_similarity',
+        name: 'Semantic Similarity (语义相似度)',
+        icon: <ThunderboltOutlined />,
+        color: 'cyan',
+        description: '评估 AI 回答与标准答案在语义空间上的相似距离。',
+        formula: 'Cosine Similarity between Embeddings',
+        benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
     }
 ];
 
@@ -122,15 +140,15 @@ function generateReportHTML(
                         <td>${d.question}</td>
                         <td>${d.ground_truth}</td>
                         <td>${d.answer}</td>
-                        <td style="text-align:center;color:${d.faithfulness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.faithfulness}</td>
-                        <td style="text-align:center;color:${d.relevance > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.relevance}</td>
+                        <td style="text-align:center;color:${d.faithfulness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.faithfulness.toFixed(2)}</td>
+                        <td style="text-align:center;color:${d.answer_correctness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${(d.answer_correctness || 0).toFixed(2)}</td>
                     </tr>
                 `).join('');
                 qaDetail = `
                     <h2>📋 最优模型 QA 逐题分析 — ${bestModel}</h2>
                     <table>
                         <thead><tr>
-                            <th>#</th><th>问题 (Question)</th><th>标准答案 (Ground Truth)</th><th>AI 回答</th><th>Faithfulness</th><th>Relevance</th>
+                            <th>#</th><th>问题 (Question)</th><th>标准答案 (Ground Truth)</th><th>AI 回答</th><th>Faithfulness</th><th>Correctness</th>
                         </tr></thead>
                         <tbody>${qaRows}</tbody>
                     </table>
@@ -384,6 +402,7 @@ export const EvalPage: React.FC = () => {
             modelStats[m].avgCost += (r.cost || 0);
             modelStats[m].faithfulness += r.faithfulness;
             modelStats[m].relevance += r.answer_relevance;
+            modelStats[m].correctness = (modelStats[m].correctness || 0) + (r.answer_correctness || 0);
             modelStats[m].count += 1;
         });
 
@@ -393,7 +412,8 @@ export const EvalPage: React.FC = () => {
             avgLatency: s.avgLatency / s.count,
             avgCost: s.avgCost / s.count,
             faithfulness: s.faithfulness / s.count,
-            relevance: s.relevance / s.count
+            relevance: s.relevance / s.count,
+            correctness: (s.correctness || 0) / s.count
         })).sort((a, b) => b.avgScore - a.avgScore);
     }, [reports]);
 
@@ -536,6 +556,12 @@ export const EvalPage: React.FC = () => {
             render: (s: number) => <Tag color="purple">{s.toFixed(2)}</Tag>
         },
         {
+            title: 'Correctness',
+            dataIndex: 'correctness',
+            key: 'acc',
+            render: (s: number) => <Tag color="orange">{(s || 0).toFixed(2)}</Tag>
+        },
+        {
             title: '平均延迟',
             dataIndex: 'avgLatency',
             key: 'lat',
@@ -570,22 +596,30 @@ export const EvalPage: React.FC = () => {
 
                 {/* RAGAS Metrics Summary for this report */}
                 <Card size="small" style={{ borderRadius: 12, background: 'rgba(20,20,20,0.4)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <Row gutter={16}>
-                        <Col span={6}>
+                    <Row gutter={[16, 16]}>
+                        <Col span={4}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Faithfulness</span>} value={selectedReport.faithfulness} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.faithfulness > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                                valueStyle={{ fontSize: 14, color: selectedReport.faithfulness > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
-                        <Col span={6}>
+                        <Col span={4}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Relevance</span>} value={selectedReport.answer_relevance} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.answer_relevance > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                                valueStyle={{ fontSize: 14, color: selectedReport.answer_relevance > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
-                        <Col span={6}>
-                            <Statistic title={<span style={{ fontSize: 11 }}>Ctx Precision</span>} value={selectedReport.context_precision} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.context_precision > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                        <Col span={4}>
+                            <Statistic title={<span style={{ fontSize: 11 }}>Ctx Prec.</span>} value={selectedReport.context_precision} precision={3}
+                                valueStyle={{ fontSize: 14, color: selectedReport.context_precision > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
-                        <Col span={6}>
+                        <Col span={4}>
                             <Statistic title={<span style={{ fontSize: 11 }}>Ctx Recall</span>} value={selectedReport.context_recall} precision={3}
-                                valueStyle={{ fontSize: 16, color: selectedReport.context_recall > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                                valueStyle={{ fontSize: 14, color: selectedReport.context_recall > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                        </Col>
+                        <Col span={4}>
+                            <Statistic title={<span style={{ fontSize: 11 }}>Correctness</span>} value={selectedReport.answer_correctness || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.answer_correctness || 0) > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                        </Col>
+                        <Col span={4}>
+                            <Statistic title={<span style={{ fontSize: 11 }}>Semantic Sim</span>} value={selectedReport.semantic_similarity || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.semantic_similarity || 0) > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                     </Row>
                 </Card>
@@ -599,8 +633,8 @@ export const EvalPage: React.FC = () => {
                             title={<Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>Case #{idx + 1}</Text>}
                             extra={
                                 <Space size={4}>
-                                    <Tag color={item.faithfulness > 0.7 ? 'success' : 'error'} bordered={false} style={{ fontSize: 10 }}>F: {item.faithfulness}</Tag>
-                                    <Tag color={item.relevance > 0.7 ? 'success' : 'error'} bordered={false} style={{ fontSize: 10 }}>R: {item.relevance}</Tag>
+                                    <Tag color={item.faithfulness > 0.7 ? 'success' : 'error'} bordered={false} style={{ fontSize: 10 }}>F: {item.faithfulness.toFixed(2)}</Tag>
+                                    <Tag color={item.answer_correctness > 0.7 ? 'success' : 'error'} bordered={false} style={{ fontSize: 10 }}>A: {(item.answer_correctness || 0).toFixed(2)}</Tag>
                                 </Space>
                             }
                         >
@@ -637,13 +671,17 @@ export const EvalPage: React.FC = () => {
             answer_relevance: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.answer_relevance, 0) / completedReports.length : 0,
             context_precision: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.context_precision, 0) / completedReports.length : 0,
             context_recall: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.context_recall, 0) / completedReports.length : 0,
+            answer_correctness: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.answer_correctness || 0), 0) / completedReports.length : 0,
+            semantic_similarity: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.semantic_similarity || 0), 0) / completedReports.length : 0,
         };
 
         const metricColors = {
             faithfulness: 'hsl(145, 63%, 49%)',
             answer_relevance: 'hsl(210, 100%, 60%)',
             context_precision: 'hsl(265, 60%, 60%)',
-            context_recall: 'hsl(330, 80%, 60%)'
+            context_recall: 'hsl(330, 80%, 60%)',
+            answer_correctness: 'hsl(38, 100%, 50%)',
+            semantic_similarity: 'hsl(180, 100%, 40%)'
         };
 
         return (
@@ -654,15 +692,15 @@ export const EvalPage: React.FC = () => {
                         <ExperimentOutlined style={{ color: token.colorInfo, fontSize: 18 }} />
                         <Title level={5} style={{ margin: 0, fontWeight: 500 }}>RAGAS 综合质量看板</Title>
                     </Flex>
-                    <Row gutter={[20, 20]}>
+                    <Row gutter={[12, 12]}>
                         {RAGAS_METRICS.map(metric => {
-                            const val = (avgMetrics as any)[metric.key] || 0;
-                            const bm = metric.benchmark;
-                            const level = val >= bm.excellent ? 'Excellent' : val >= bm.good ? 'Good' : val >= bm.poor ? 'Fair' : 'Poor';
-                            const baseColor = (metricColors as any)[metric.key];
+                             const val = (avgMetrics as any)[metric.key] || 0;
+                             const bm = metric.benchmark;
+                             const level = val >= bm.excellent ? 'Excellent' : val >= bm.good ? 'Good' : val >= bm.poor ? 'Fair' : 'Poor';
+                             const baseColor = (metricColors as any)[metric.key];
 
-                            return (
-                                <Col span={6} key={metric.key}>
+                             return (
+                                 <Col span={4} key={metric.key}>
                                     <Card
                                         size="small"
                                         bordered={false}

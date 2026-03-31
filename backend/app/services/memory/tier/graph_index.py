@@ -213,6 +213,56 @@ class GraphIndex:
             logger.warning(f"Tier-2 style preference retrieval failed: {e}")
             return []
 
+    async def index_code_structure(self, doc_id: str, structure: dict[str, Any]) -> None:
+        """
+        M7.2.1/3: Code Vault - 将代码结构（类、方法、函数）持久化到图谱中。
+        """
+        if not self._is_available() or not structure:
+            return
+
+        nodes = []
+        edges = []
+
+        # 1. 文件节点
+        nodes.append({"id": doc_id, "label": "CodeFile", "name": doc_id})
+
+        # 2. 类及其方法
+        for cls in structure.get("classes", []):
+            cid = f"{doc_id}::class::{cls['name']}"
+            nodes.append({
+                "id": cid, 
+                "label": "Class", 
+                "name": cls['name'], 
+                "docstring": cls.get("docstring") or "",
+                "lineno": cls.get("lineno")
+            })
+            edges.append({"source": doc_id, "target": cid, "type": "CONTAINS_CLASS"})
+            
+            for m in cls.get("methods", []):
+                mid = f"{cid}::method::{m}"
+                nodes.append({"id": mid, "label": "Method", "name": m})
+                edges.append({"source": cid, "target": mid, "type": "HAS_METHOD"})
+
+        # 3. 独立函数
+        for fn in structure.get("functions", []):
+            fid = f"{doc_id}::function::{fn['name']}"
+            nodes.append({
+                "id": fid, 
+                "label": "Function", 
+                "name": fn['name'],
+                "docstring": fn.get("docstring") or "",
+                "lineno": fn.get("lineno"),
+                "params": ", ".join(fn.get("args", []))
+            })
+            edges.append({"source": doc_id, "target": fid, "type": "CONTAINS_FUNCTION"})
+
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: self.store.import_subgraph(nodes, edges))
+            logger.info(f"🏗️  M7.2 CodeVault: Indexed structural assets for {doc_id} ({len(nodes)} assets)")
+        except Exception as e:
+            logger.warning(f"CodeVault indexing failed for {doc_id}: {e}")
+
 
 # 单例访问
 graph_index = GraphIndex()
