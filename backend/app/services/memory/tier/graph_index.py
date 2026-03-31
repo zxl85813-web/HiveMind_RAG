@@ -128,6 +128,91 @@ class GraphIndex:
             logger.warning(f"Tier-2 graph neighborhood query failed: {e}")
             return []
 
+    async def record_agent_preference(self, agent_name: str, user_feedback: str) -> None:
+        """
+        从用户反馈中异步提取开发规范/风格偏好（特别是注释和代码风格），固化为图谱长期记忆。
+        """
+        if not self._is_available() or not user_feedback.strip():
+            return
+
+        llm = get_llm_service()
+        prompt = f"""
+        Analyze the user's feedback and extract explicit programming preferences, style guides, or rules (especially regarding code structure, naming conventions, or comment styles).
+        Return ONLY valid JSON matching this schema:
+        {{
+            "preferences": [
+                {{"category": "COMMENT_STYLE | NAMING | ARCHITECTURE | ERROR_HANDLING | OTHER", "rule": "The specific rule to follow", "confidence": 0.9}}
+            ]
+        }}
+        User Feedback:
+        {user_feedback}
+        """
+
+        try:
+            resp_text = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
+            data = json.loads(resp_text)
+            preferences = data.get("preferences", [])
+            
+            if preferences:
+                cypher = """
+                MERGE (agent:IntelligenceNode {name: $agent_name})
+                ON CREATE SET agent.type = 'Worker', agent.status = 'active'
+                
+                WITH agent
+                UNWIND $preferences AS pref
+                
+                // 创建或更新偏好认知节点
+                MERGE (prefNode:CognitiveAsset {id: 'PREF_' + pref.category, type: 'Preference'})
+                SET prefNode.rule = pref.rule,
+                    prefNode.confidence = pref.confidence,
+                    prefNode.last_updated = datetime()
+                
+                // 将 Agent 与这个偏好灵魂绑定
+                MERGE (agent)-[r:FOLLOWS_STYLE]->(prefNode)
+                SET r.weight = prefNode.confidence
+                """
+                
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, 
+                    lambda: self.store.query(cypher, {"agent_name": agent_name, "preferences": preferences})
+                )
+                logger.info(f"🧠 Tier-2 Indexed {len(preferences)} style preferences for agent '{agent_name}'.")
+        except Exception as e:
+            logger.warning(f"Tier-2 style preference extraction failed for {agent_name}: {e}")
+
+    async def get_agent_preferences(self, agent_name: str, limit: int = 5) -> list[str]:
+        """
+        在启动 Agent 前，从图谱中召回与其相关的长期开发和注释偏好。
+        """
+        if not self._is_available():
+            return []
+
+        cypher = """
+        MATCH (agent:IntelligenceNode {name: $agent_name})-[:FOLLOWS_STYLE]->(pref:CognitiveAsset {type: 'Preference'})
+        WHERE pref.confidence >= 0.5
+        RETURN pref.category AS category, pref.rule AS rule
+        ORDER BY pref.confidence DESC, pref.last_updated DESC
+        LIMIT $limit
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None, 
+                lambda: self.store.query(cypher, {"agent_name": agent_name, "limit": limit})
+            )
+            
+            preferences_str = []
+            for item in results:
+                cat = item.get("category", "RULE")
+                rule = item.get("rule", "")
+                preferences_str.append(f"- [{cat}] {rule}")
+                
+            return preferences_str
+        except Exception as e:
+            logger.warning(f"Tier-2 style preference retrieval failed: {e}")
+            return []
+
 
 # 单例访问
 graph_index = GraphIndex()

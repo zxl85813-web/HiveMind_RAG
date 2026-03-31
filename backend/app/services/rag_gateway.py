@@ -142,16 +142,25 @@ class RAGGateway:
     ) -> KnowledgeResponse:
         """
         Development-oriented retrieval interface for Agent workflows.
-        Aggregates vector retrieval and optional Neo4j graph hints into one response.
+        Aggregates vector retrieval and Hybrid GraphRAG contextual hints into one response.
         """
         start_time = time.time()
         warnings: list[str] = []
         merged_fragments: list[KnowledgeFragment] = []
+        vector_sources = []
 
         if kb_ids:
             vector_part = await self.retrieve(query=query, kb_ids=kb_ids, top_k=top_k, strategy=strategy)
             merged_fragments.extend(vector_part.fragments)
             warnings.extend(vector_part.warnings)
+            
+            # Extract filenames/paths from vector chunks to guide Graph traversal
+            for frag in vector_part.fragments:
+                src = frag.metadata.get("source") or frag.metadata.get("filename") or frag.source_id
+                if src:
+                    # Clean up path to get just the filename
+                    basename = src.split("/")[-1].split("\\")[-1]
+                    vector_sources.append(basename)
         else:
             warnings.append("No kb_ids provided; vector retrieval skipped.")
 
@@ -161,31 +170,47 @@ class RAGGateway:
 
                 store = get_graph_store()
                 if store.driver:
+                    # Hybrid GraphRAG: Find nodes matching the query OR the vector matches, and expand 1 hop.
                     cypher = """
-                    MATCH (a)-[r]->(b)
-                    WHERE toLower(coalesce(a.name, a.id, "")) CONTAINS toLower($query)
-                       OR toLower(coalesce(b.name, b.id, "")) CONTAINS toLower($query)
-                       OR toLower(type(r)) CONTAINS toLower($query)
-                    RETURN coalesce(a.name, a.id, "") AS source,
+                    WITH $query AS q, $sources AS sources
+                    
+                    MATCH (n)
+                    WHERE toLower(coalesce(n.name, n.id, n.path, "")) CONTAINS toLower(q)
+                       OR coalesce(n.name, n.id, "") IN sources
+                       OR split(coalesce(n.path, ""), "/")[-1] IN sources
+                       OR split(coalesce(n.path, ""), "\\\\")[-1] IN sources
+                    
+                    MATCH (n)-[r]-(m)
+                    WHERE type(r) IN ['MAPPED_TO_CODE', 'DEFINES', 'DEPENDS_ON', 'EXPOSES_API', 
+                                      'DEFINES_MODEL', 'USES_CONTRACT', 'ADDRESSES', 'VERIFIES', 'DEFINES_CONTRACT']
+                    
+                    RETURN DISTINCT 
+                           coalesce(n.name, n.id, n.path, "") AS source,
                            type(r) AS relation,
-                           coalesce(b.name, b.id, "") AS target
+                           coalesce(m.name, m.id, m.path, "") AS target,
+                           labels(n)[0] AS sourceLabel,
+                           labels(m)[0] AS targetLabel
                     LIMIT $limit
                     """
                     records = await breaker_manager.execute(
                         "neo4j",
-                        lambda: asyncio.to_thread(store.query, cypher, {"query": query, "limit": top_k}),
+                        lambda: asyncio.to_thread(store.query, cypher, {"query": query, "sources": vector_sources, "limit": top_k * 3}),
                     )
+                    
                     for idx, rec in enumerate(records):
-                        source = rec.get("source") or "unknown"
-                        relation = rec.get("relation") or "RELATED"
-                        target = rec.get("target") or "unknown"
+                        src = rec.get("source") or "unknown"
+                        rel = rec.get("relation") or "RELATED"
+                        tgt = rec.get("target") or "unknown"
+                        src_label = rec.get("sourceLabel") or "Node"
+                        tgt_label = rec.get("targetLabel") or "Node"
+                        
                         merged_fragments.append(
                             KnowledgeFragment(
-                                content=f"{source} -[{relation}]-> {target}",
-                                metadata={"source": "neo4j", "kind": "graph_hint"},
-                                score=0.75,
+                                content=f"[GraphRAG Context] {src_label}({src}) -[{rel}]-> {tgt_label}({tgt})",
+                                metadata={"source": "neo4j_hybrid_graphrag", "kind": "graph_hint"},
+                                score=0.95,  # High score to prioritize architecture hints
                                 kb_id="graph",
-                                source_id=f"graph:{idx}",
+                                source_id=f"graph:{src}->{tgt}",
                                 chunk_index=0,
                             )
                         )
@@ -196,14 +221,15 @@ class RAGGateway:
                 warnings.append(f"Graph retrieval failed: {e!s}")
 
         merged_fragments.sort(key=lambda x: x.score, reverse=True)
-        max_items = max(top_k, 1)
+        # Cap the max items returned
+        max_items = max(top_k + (len(records) if 'records' in locals() else 0), top_k)
 
         return KnowledgeResponse(
             query=query,
             fragments=merged_fragments[:max_items],
             total_found=len(merged_fragments),
             processing_time_ms=(time.time() - start_time) * 1000,
-            retrieval_strategy="dev-hybrid",
+            retrieval_strategy="hybrid-graphrag",
             warnings=warnings,
         )
 
