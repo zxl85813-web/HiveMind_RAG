@@ -13,7 +13,7 @@
 *   **[Anthropic 智能体模式](anthropic_agent_patterns.md)** — 基于 Anthropic 最佳实践的模式实现。
 *   **[动态技能架构设计](dynamic_skill_architecture.md)** — 系统的热插拔 Skill 机制说明。
 *   **[工作流生命周期](workflow_lifecycle.md)** — 每类任务从触发到闭环的状态机逻辑。
-*   **[Agent 协作图谱 (ARCH-Graph)](ARCH-GRAPH.md)** — 多 Agent 环境下的拓扑结构定义。
+*   **[认知架构图谱 (ARCH-Graph)](ARCH-GRAPH.md)** — 连接需求、设计、代码与度量的“数字大脑”中枢定义。
 *   🆕 **[动态图谱记忆体系 (AGENT_GRAPH_MEMORY)](AGENT_GRAPH_MEMORY.md)** — Hybrid GraphRAG + Agent Style Memory 双核能力：架构跳跃检索与个性化编程风格持久记忆。
 *   🆕 **[图谱驱动架构拆解展示 (SHOWCASE)](SHOWCASE-GRAPH-DECOMPOSITION.md)** — 图谱节点可视化与架构关系分解示范。
 *   🆕 **[图谱高级用例 (GRAPH-ADVANCED)](GRAPH-ADVANCED-USECASES.md)** — 技术债热力图(Timebomb Detection)等进阶图谱分析场景。
