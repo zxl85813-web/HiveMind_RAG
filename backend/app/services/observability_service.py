@@ -17,11 +17,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from loguru import logger
+from sqlalchemy import Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from sqlalchemy import Integer
-from app.models.observability import RAGQueryTrace, LLMMetric
+from app.models.observability import LLMMetric, RAGQueryTrace
 
 # ---------------------------------------------------------------------------
 # Write path
@@ -47,8 +47,9 @@ async def record_rag_trace(
     Persist a RAG query trace to PostgreSQL.
     Intended to be called as a background task (fire-and-forget).
     """
-    from app.core.database import async_session_factory
     import hashlib
+
+    from app.core.database import async_session_factory
 
     try:
         async with async_session_factory() as session:
@@ -122,12 +123,14 @@ async def get_llm_metrics_summary(db: AsyncSession, days: int = 1) -> list[dict[
     """
     M7.1: Aggregate LLM performance metrics for the router dashboard.
     """
-    from sqlalchemy import func
     from datetime import datetime, timedelta
+
+    from sqlalchemy import func
+
     from app.models.observability import LLMMetric
-    
+
     since = datetime.utcnow() - timedelta(days=days)
-    
+
     stmt = (
         select(
             LLMMetric.model_name,
@@ -140,10 +143,10 @@ async def get_llm_metrics_summary(db: AsyncSession, days: int = 1) -> list[dict[
         .where(LLMMetric.created_at >= since)
         .group_by(LLMMetric.model_name, LLMMetric.provider)
     )
-    
+
     result = await db.execute(stmt)
     rows = result.all()
-    
+
     summary = []
     for row in rows:
         error_count = row.error_count or 0

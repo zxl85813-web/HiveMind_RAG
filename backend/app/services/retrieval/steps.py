@@ -164,11 +164,11 @@ class ParentChunkExpansionStep(BaseRetrievalStep):
                     if not parent or not parent.content:
                         continue
 
-                    # 🔒 Cascading Security Check (TASK-SG-003): 
+                    # 🔒 Cascading Security Check (TASK-SG-003):
                     # If the parent chunk belongs to a DIFFERENT document, must re-verify ACL.
                     parent_doc_id = parent.document_id
                     original_doc_id = doc.metadata.get("document_id")
-                    
+
                     if parent_doc_id != original_doc_id:
                         # Check cache first
                         allowed = ctx.permission_cache.get(parent_doc_id)
@@ -177,7 +177,7 @@ class ParentChunkExpansionStep(BaseRetrievalStep):
                             from app.auth.permissions import has_document_permission
                             allowed = await has_document_permission(session, ctx.user_model, parent_doc_id, "read")
                             ctx.permission_cache[parent_doc_id] = allowed
-                        
+
                         if not allowed:
                             ctx.log("ParentExpansion", f"🚨 Blocked Shadow Leak! User {ctx.user_id} tried to expand to doc {parent_doc_id}")
                             continue
@@ -318,7 +318,7 @@ class AclFilterStep(BaseRetrievalStep):
                 ctx.log("ACL", f"User {ctx.user_id} not found, rejecting all candidates.")
                 ctx.candidates = []
                 return
-            
+
             # Cache the user model for subsequent steps (e.g. expansion)
             ctx.user_model = user
 

@@ -210,10 +210,10 @@ class EvaluationService:
 
                 scored_details.append(
                     {
-                        **res, 
-                        "faithfulness": f_s, 
-                        "relevance": r_s, 
-                        "context_precision": p_s, 
+                        **res,
+                        "faithfulness": f_s,
+                        "relevance": r_s,
+                        "context_precision": p_s,
                         "context_recall": rec_s,
                         "answer_correctness": acc_s,
                         "semantic_similarity": sim_s
@@ -236,14 +236,14 @@ class EvaluationService:
             report.context_recall = sum(recall_scores) / len(recall_scores)
             report.answer_correctness = sum(correct_scores) / len(correct_scores)
             report.semantic_similarity = sum(sim_scores) / len(sim_scores)
-            
+
             # Weighted total_score (Answer Correctness and Faithfulness weighted slightly more)
             report.total_score = (
                 report.faithfulness * 0.2 +
                 report.answer_relevance * 0.1 +
                 report.context_precision * 0.1 +
                 report.context_recall * 0.1 +
-                report.answer_correctness * 0.3 + 
+                report.answer_correctness * 0.3 +
                 report.semantic_similarity * 0.2
             )
 

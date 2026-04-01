@@ -74,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Start External Learning Crawler Scheduler (2.4 实际爬取引擎)
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
     from app.core.config import settings as _cfg
     from app.services.learning_service import LearningService
 
@@ -104,8 +105,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 import uuid
+
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.logging import trace_id_var
+
 
 class TraceMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):

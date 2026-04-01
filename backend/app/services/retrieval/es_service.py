@@ -1,19 +1,21 @@
 import os
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
+
 from elasticsearch import Elasticsearch
 from pydantic import BaseModel
-from app.core.config import settings
+
 from app.core.logging import logger
+
 
 class HeavySearchResult(BaseModel):
     id: str
     index: str
     content: str
     score: float
-    title: Optional[str] = None
-    metadata: Dict[str, Any] = {}
-    source_url: Optional[str] = None
+    title: str | None = None
+    metadata: dict[str, Any] = {}
+    source_url: str | None = None
 
 class GlobalKnowledgeService:
     """Tier-5: Cold Retrieval Layer (Elasticsearch).
@@ -21,9 +23,9 @@ class GlobalKnowledgeService:
     This service is HEAVY and should only be invoked when local/warm 
     memories (Tiers 1-4) provide insufficient context.
     """
-    
+
     _instance: Optional['GlobalKnowledgeService'] = None
-    _client: Optional[Elasticsearch] = None
+    _client: Elasticsearch | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -31,17 +33,17 @@ class GlobalKnowledgeService:
         return cls._instance
 
     @property
-    def client(self) -> Optional[Elasticsearch]:
+    def client(self) -> Elasticsearch | None:
         """Lazy init: established connection only when needed."""
         if self._client is None:
             host = os.getenv("ES_HOST")
             port = os.getenv("ES_PORT")
             api_key = os.getenv("ES_API_KEY")
-            
+
             if not all([host, port, api_key]):
                 logger.warning("❄️ [ES-Service] Configuration missing, skipping initialization.")
                 return None
-                
+
             try:
                 self._client = Elasticsearch(
                     f"http://{host}:{port}",
@@ -62,11 +64,11 @@ class GlobalKnowledgeService:
         return self._client
 
     async def global_search(
-        self, 
-        query: str, 
-        limit: int = 3, 
+        self,
+        query: str,
+        limit: int = 3,
         min_score: float = 0.3
-    ) -> List[HeavySearchResult]:
+    ) -> list[HeavySearchResult]:
         """Perform a deep keyword/BM25 search on global indices."""
         es = self.client
         if not es:
@@ -74,7 +76,7 @@ class GlobalKnowledgeService:
 
         index_prefix = os.getenv("ES_INDEX_PREFIX", "linkrag")
         start_time = time.perf_counter()
-        
+
         try:
             # Multi-field search for better relevancy
             body = {
@@ -93,19 +95,19 @@ class GlobalKnowledgeService:
                     }
                 }
             }
-            
+
             resp = es.search(index=f"{index_prefix}*", body=body)
             hits = resp.get("hits", {}).get("hits", [])
-            
+
             results = []
             for hit in hits:
                 score = hit.get("_score", 0)
                 if score < min_score:
                     continue
-                
+
                 source = hit.get("_source", {})
                 highlight = hit.get("highlight", {}).get("content", [""])
-                
+
                 results.append(HeavySearchResult(
                     id=hit.get("_id"),
                     index=hit.get("_index"),
@@ -115,11 +117,11 @@ class GlobalKnowledgeService:
                     metadata=source.get("metadata", {}),
                     source_url=source.get("url")
                 ))
-                
+
             elapsed = (time.perf_counter() - start_time) * 1000
             logger.info(f"❄️ [ES-Search] Query='{query[:30]}' hits={len(results)} time={elapsed:.1f}ms")
             return results
-            
+
         except Exception as e:
             logger.warning(f"❄️ [ES-Search] Query failed: {e}")
             return []

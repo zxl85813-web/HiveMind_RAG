@@ -12,8 +12,8 @@ from loguru import logger
 from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse
 from app.services.dependency_circuit_breaker import breaker_manager
 from app.services.observability_service import fire_and_forget_trace
-from app.services.retrieval.read_service import get_retrieval_read_service
 from app.services.retrieval.pipeline import RetrievalPipeline
+from app.services.retrieval.read_service import get_retrieval_read_service
 from app.services.service_governance import choose_topology_path
 
 
@@ -154,7 +154,7 @@ class RAGGateway:
             vector_part = await self.retrieve(query=query, kb_ids=kb_ids, top_k=top_k, strategy=strategy)
             merged_fragments.extend(vector_part.fragments)
             warnings.extend(vector_part.warnings)
-            
+
             # Extract filenames/paths from vector chunks to guide Graph traversal
             for frag in vector_part.fragments:
                 src = frag.metadata.get("source") or frag.metadata.get("filename") or frag.source_id
@@ -197,14 +197,14 @@ class RAGGateway:
                         "neo4j",
                         lambda: asyncio.to_thread(store.query, cypher, {"query": query, "sources": vector_sources, "limit": top_k * 3}),
                     )
-                    
+
                     for idx, rec in enumerate(records):
                         src = rec.get("source") or "unknown"
                         rel = rec.get("relation") or "RELATED"
                         tgt = rec.get("target") or "unknown"
                         src_label = rec.get("sourceLabel") or "Node"
                         tgt_label = rec.get("targetLabel") or "Node"
-                        
+
                         merged_fragments.append(
                             KnowledgeFragment(
                                 content=f"[GraphRAG Context] {src_label}({src}) -[{rel}]-> {tgt_label}({tgt})",

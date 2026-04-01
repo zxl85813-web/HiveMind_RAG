@@ -1,6 +1,7 @@
 import ast
 import os
-from typing import Any, Dict, List
+from typing import Any
+
 
 class CodeStructureParser:
     """
@@ -8,13 +9,13 @@ class CodeStructureParser:
     Identifies classes, functions, and docstrings for structural indexing.
     """
     @staticmethod
-    def parse_python(file_path: str) -> Dict[str, Any]:
+    def parse_python(file_path: str) -> dict[str, Any]:
         """Parse Python file using AST."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 tree = ast.parse(f.read())
         except Exception as e:
-            return {"error": f"Failed to parse AST: {str(e)}"}
+            return {"error": f"Failed to parse AST: {e!s}"}
 
         structures = {
             "classes": [],

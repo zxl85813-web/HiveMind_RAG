@@ -11,7 +11,6 @@ from sqlmodel import select
 
 from app.core.database import async_session_factory
 from app.core.logging import logger
-from app.llm.router import LLMRouter
 from app.models.knowledge import KnowledgeBase
 
 
@@ -54,6 +53,7 @@ class KnowledgeBaseSelector:
 
         try:
             from langchain_core.messages import HumanMessage
+
             from app.agents.llm_router import LLMRouter, ModelTier
             
             router = LLMRouter()

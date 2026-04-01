@@ -229,10 +229,8 @@ class ChatService:
         P2: 集成语义缓存 (Semantic Cache) 与 Token 追踪。
         P3: 卫星级弹性流层 — 支持断点续传、多轨解析与服务降级。
         """
-        import time
-        import json
-        import asyncio
         import re
+        import time
 
         from app.api.routes.agents import _swarm
         from app.core.tracing import ChatTracer
@@ -266,7 +264,7 @@ class ChatService:
 
             payload_data["_index"] = chunk_counter
             payload_data["track"] = track_name
-            payload_data["type"] = track_name 
+            payload_data["type"] = track_name
             yield f"data: {json.dumps(payload_data)}\n\n"
 
         # --- 🆕 [Phase 4.1]: Prefetch Interceptor ---
@@ -274,12 +272,12 @@ class ChatService:
             logger.info(f"🛰️ Prefetch probe for: {request.message[:20]}...")
             async for p in _yield_payload("status", {"content": "🔍 正在为您预先加载检索资产..."}):
                 yield p
-            
+
             # 💡 [Strategy]: Here we would normally run just the retrieval node.
             # For now, we perform a cache lookup to prime the system.
             cached = await CacheService.get_cached_response(request.message)
             status_msg = "⚡ 预热完成: 命中语义缓存" if cached else "✅ 预热完成: 检索索引已加载至热点内存"
-            
+
             async for p in _yield_payload("status", {"content": status_msg}):
                 yield p
             async for p in _yield_payload("done", {"is_prefetch": True}):
@@ -341,7 +339,7 @@ class ChatService:
             for i in range(0, len(response_content), batch_size):
                 chunk = response_content[i : i + batch_size]
                 async for p in _yield_payload("content", {
-                    "delta": chunk, 
+                    "delta": chunk,
                     "conversation_id": conversation_id,
                     "is_cached": True
                 }):
@@ -379,6 +377,7 @@ class ChatService:
                 "auth_context": auth_context,
                 "prompt_variant": request.prompt_variant,
                 "retrieval_variant": request.retrieval_variant,
+                "execution_variant": request.execution_variant, # 🆕 [GOV-EXP-001]
                 "language": accept_language or "zh-CN",
             }
             if request.knowledge_base_ids:
@@ -443,7 +442,7 @@ class ChatService:
                             content = re.sub(r"<(think|thought)>.*?</\1>", "", raw_content, flags=re.DOTALL)
                             content = re.sub(r"<[\|｜].*?[\|｜]>", "", content)
                             content = content.replace("< | tool_calls_begin | >", "").replace("< | tool_calls_end | >", "")
-                            
+
                             if not content.strip(): continue
 
                             batch_size = 15

@@ -1,10 +1,12 @@
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
 from pathlib import Path
+
 import httpx
 from dotenv import load_dotenv
+
 
 def get_base_dir():
     return Path(r"c:\Users\linkage\Desktop\aiproject")
@@ -18,7 +20,7 @@ def load_config():
     for path in env_paths:
         if path.exists():
             load_dotenv(path)
-    
+
     token = os.getenv("GITHUB_TOKEN")
     if not token:
         print("❌ Error: GITHUB_TOKEN not found.")
@@ -37,11 +39,11 @@ class GitHubGraphQL:
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
-        
+
         response = httpx.post(self.url, headers=self.headers, json=payload)
         if response.status_code != 200:
             raise Exception(f"GraphQL Query Failed: {response.status_code}, {response.text}")
-        
+
         data = response.json()
         if "errors" in data:
             raise Exception(f"GraphQL Errors: {json.dumps(data['errors'], indent=2)}")
@@ -49,7 +51,7 @@ class GitHubGraphQL:
 
 def create_discussion(token, owner, repo, title, body, category_name="Ideas"):
     client = GitHubGraphQL(token)
-    
+
     # 1. Get Repo ID and Category ID
     get_ids_query = """
     query($owner: String!, $repo: String!) {
@@ -70,7 +72,7 @@ def create_discussion(token, owner, repo, title, body, category_name="Ideas"):
         return
     repo_id = res["repository"]["id"]
     categories = res["repository"]["discussionCategories"]["nodes"]
-    
+
     # Debug
     # print(f"Repo ID: {repo_id}")
     # print(f"Categories raw: {categories}")
@@ -102,10 +104,10 @@ def create_discussion(token, owner, repo, title, body, category_name="Ideas"):
     print(f"Success: Discussion created at {res['createDiscussion']['discussion']['url']}")
 
 def sync_projects(token, owner, repo, project_name):
-    # This is a complex logic for Project V2. 
+    # This is a complex logic for Project V2.
     # For now, we simulate the logic or provide a placeholder that explains Project V2 sync.
     print(f"🚧 Syncing tasks from TODO.md to GitHub Project: {project_name}")
-    # Logic: 
+    # Logic:
     # 1. Get Project V2 ID by name
     # 2. Parse TODO.md (same as sync_github_issues.py)
     # 3. For each task, check if issue exists (via github_issue_map.json)

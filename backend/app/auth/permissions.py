@@ -14,7 +14,6 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-
 from app.core.database import get_db_session as get_db
 from app.core.exceptions import ForbiddenError
 from app.models.chat import User

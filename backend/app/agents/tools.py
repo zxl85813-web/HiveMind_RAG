@@ -2,19 +2,22 @@
 Native tools for the Agent Swarm.
 """
 
-import json
-
-from langchain_core.tools import tool
 from loguru import logger
 
 from app.agents.memory import SharedMemoryManager
+from app.agents.tool_types import InterruptBehavior, hive_tool
 from app.models.agents import ReflectionEntry, ReflectionSignalType, ReflectionType, TodoItem, TodoPriority
 
 # Singleton for tools to share
 _memory = SharedMemoryManager()
 
 
-@tool
+@hive_tool(
+    is_read_only=False,
+    is_concurrency_safe=False,
+    search_hint="add a follow-up task to the shared todo list",
+    always_load=True
+)
 async def add_collective_todo(
     title: str, description: str = "", priority: str = "medium", agent_name: str = "unknown"
 ) -> str:
@@ -45,7 +48,12 @@ async def add_collective_todo(
         return f"Failed to add TODO: {e!s}"
 
 
-@tool
+@hive_tool(
+    is_read_only=False,
+    is_concurrency_safe=False,
+    search_hint="record an insight or correction to collective memory",
+    always_load=True
+)
 async def record_reflection(
     content: str,
     reflection_type: str = "insight",
@@ -95,7 +103,12 @@ async def record_reflection(
         return f"Failed to record reflection: {e!s}"
 
 
-@tool
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    search_hint="search vector store for technical details",
+    always_load=True
+)
 async def search_knowledge_base(query: str, top_k: int = 3) -> str:
     """
     Search the deep knowledge base (Vector Store) for specific technical details.
@@ -119,7 +132,12 @@ async def search_knowledge_base(query: str, top_k: int = 3) -> str:
         return f"Retrieval error: {e!s}"
 
 
-@tool
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    search_hint="development RAG for code and docs with graph support",
+    always_load=True
+)
 async def search_dev_knowledge(
     query: str,
     kb_ids: str = "",
@@ -162,7 +180,11 @@ async def search_dev_knowledge(
         return f"Development retrieval error: {e!s}"
 
 
-@tool
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    search_hint="search the internet for real-time facts or news"
+)
 async def web_search(query: str) -> str:
     """
     Search the internet for real-time information or external documentation.
@@ -176,24 +198,45 @@ async def web_search(query: str) -> str:
     )
 
 
-@tool
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    search_hint="discover platform tools and skills",
+    always_load=True
+)
 async def search_available_tools(query: str) -> str:
     """
     Search for specialized tools or skills in the platform catalog.
     Use this if NATIVE_TOOLS are insufficient for the task.
     Returns tool names and descriptions.
     """
+    from app.agents.tool_index import get_tool_index
+
+    index = get_tool_index()
+    if not index:
+        return "Tool indexing not yet initialized."
+
     logger.info(f"🔍 [ToolDiscovery] Searching for: {query}")
-    # In a real impl, this would query MCPManager and SkillRegistry metadata
-    return (
-        "Found specialized tools:\n"
-        "- 'sql_query_executor': Execute read-only SQL queries on the production DB.\n"
-        "- 'image_generator': Generate visual assets from text prompts.\n"
-        "- 'artifact_publisher': Create and publish versioned artifacts to the team."
-    )
+    results = index.search(query)
+
+    if not results:
+        return f"No specialized tools found for query: '{query}'"
+
+    lines = ["Found relevant tools in platform catalog:"]
+    for t in results:
+        meta = getattr(t, "_hive_meta", None)
+        desc = meta.description[:150] if meta else getattr(t, "description", "No description")
+        lines.append(f"- '{t.name}': {desc}")
+
+    return "\n".join(lines)
 
 
-@tool
+@hive_tool(
+    is_read_only=False,
+    is_concurrency_safe=False,
+    interrupt_behavior=InterruptBehavior.CANCEL,
+    search_hint="execute python calculations in restricted sandbox"
+)
 async def python_interpreter(code: str) -> str:
     """
     Execute Python code in a restricted environment.
@@ -274,7 +317,12 @@ async def python_interpreter(code: str) -> str:
         return f"Error executing Python: {e!s}"
 
 
-@tool
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    always_load=True,
+    search_hint="perform explicit reasoning before acting"
+)
 async def think(thought: str, target_goal: str | None = None) -> str:
     """
     Perform explicit reasoning or step-by-step planning.

@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     client_events: list[dict] = []  # UI interaction logs (button clicks, navigation, etc.)
     prompt_variant: str = "default"  # Prompt A/B selector
     retrieval_variant: str = "default"  # Retrieval chain A/B selector
+    execution_variant: str | None = None  # 🆕 [GOV-EXP-001]: monolithic | react A/B selector
     resume_index: int | None = None  # 🛰️ [HMER Phase 3]: Resume from specific chunk index
     is_prefetch: bool = False  # 🆕 [Phase 4.1]: If true, warm up retrieval/cache but don't generate text
 

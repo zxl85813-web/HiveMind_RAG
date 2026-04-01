@@ -5,8 +5,8 @@ LLM Core Service — Wrapper for Model Inference (DeepSeek/SiliconFlow/OpenAI).
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import AsyncOpenAI
 from loguru import logger
+from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.services.claw_router_governance import claw_router_governance

@@ -1,7 +1,6 @@
 """
 Intent and Prefetch Cache Models (HMER Phase 1).
 """
-import uuid
 from datetime import datetime
 from typing import Any
 
@@ -18,7 +17,7 @@ class IntentCache(SQLModel, table=True):
 
     # Use query hash or partial query hash as PK for quick lookups
     query_hash: str = Field(primary_key=True)
-    
+
     predicted_intent: str = Field(index=True)
     confidence: float = Field(default=0.0)
 

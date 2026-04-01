@@ -20,7 +20,6 @@ from loguru import logger
 
 from app.schemas.artifact import DocType
 
-
 # --- 规则映射表（路径/文件名关键词 -> DocType）---
 
 _PATH_RULES: list[tuple[re.Pattern, DocType]] = [
@@ -178,7 +177,7 @@ class DocClassifier:
         }
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         output: dict[str, DocClassificationOutput] = {}
-        for path, result in zip(tasks.keys(), results):
+        for path, result in zip(tasks.keys(), results, strict=False):
             if isinstance(result, Exception):
                 output[path] = DocClassificationOutput(DocType.UNKNOWN, 0.0, ClassificationResult.FALLBACK, str(result))
             elif isinstance(result, DocClassificationOutput):

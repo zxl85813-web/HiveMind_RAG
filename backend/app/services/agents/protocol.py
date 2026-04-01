@@ -9,6 +9,7 @@ Definitions for:
 
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
+
 from pydantic import BaseModel, Field
 
 
@@ -37,7 +38,7 @@ class AgentResponse(BaseModel):
     output: str
     new_knowledge: dict[str, Any] = Field(default_factory=dict)
     # 💡 Intelligence Signal: Allows agent to influence the Swarm's direction
-    signal: dict[str, Any] = Field(default_factory=dict) 
+    signal: dict[str, Any] = Field(default_factory=dict)
     status: AgentStatus
 
 

@@ -42,6 +42,7 @@ export const chatApi = {
         onInsight?: (insight: any) => void;
         onSessionCreated?: (session: { id: string, title?: string }) => void;
         onFinish?: (metadata: any) => void;
+        executionVariant?: string; // 🆕 [GOV-EXP-001]
         clientEvents?: Record<string, unknown>[];
         onError?: (err: unknown) => void;
         controller?: AbortController;
@@ -66,6 +67,7 @@ export const chatApi = {
                     message,
                     conversation_id: conversationId,
                     knowledge_base_ids: knowledgeBaseIds,
+                    execution_variant: params.executionVariant,
                     client_events: clientEvents,
                     is_prefetch: !!is_prefetch
                 }),
@@ -116,6 +118,7 @@ export const chatApi = {
         conversationId?: string | null;
         knowledgeBaseIds?: string[];
         clientEvents?: Record<string, unknown>[];
+        executionVariant?: string; // 🆕 [GOV-EXP-001]
         is_prefetch?: boolean;
     }): StreamManager {
         const rawBase = import.meta.env.VITE_API_BASE_URL || '';
@@ -132,6 +135,7 @@ export const chatApi = {
                 message: params.message,
                 conversation_id: params.conversationId,
                 knowledge_base_ids: params.knowledgeBaseIds,
+                execution_variant: params.executionVariant,
                 client_events: params.clientEvents,
                 is_prefetch: !!params.is_prefetch
             }

@@ -36,16 +36,18 @@ def decay_memory(self, decay_rate: float = 0.95, eviction_threshold: float = 0.0
 
         # 2. Decay Episodic Memory (Database) - EP-008
         import asyncio
+
+        from sqlmodel import select
+
         from app.core.database import async_session_factory
         from app.models.episodic import EpisodicMemory
-        from sqlmodel import select
 
         async def _decay_episodic():
             async with async_session_factory() as session:
                 stmt = select(EpisodicMemory).where(EpisodicMemory.temperature > 0.01)
                 results = await session.execute(stmt)
                 episodes = results.scalars().all()
-                
+
                 update_count = 0
                 for ep in episodes:
                     # Apply specific episodic decay (slightly slower than Radar for persistence)
@@ -54,7 +56,7 @@ def decay_memory(self, decay_rate: float = 0.95, eviction_threshold: float = 0.0
                         ep.temperature = 0.0
                     session.add(ep)
                     update_count += 1
-                
+
                 await session.commit()
                 return update_count
 

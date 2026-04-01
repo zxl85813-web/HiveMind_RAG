@@ -5,29 +5,29 @@ Implements the Research -> Plan -> Execute -> Verify -> Loop pattern.
 Supports Dynamic Task DAG and Context Passing between agents.
 """
 
-from typing import Any, List, Dict
-from pydantic import BaseModel, Field
-from app.services.agents.protocol import AgentTask, AgentResponse, AgentStatus
-from app.services.llm_gateway import llm_gateway
-from app.services.swarm_observability import (
-    start_swarm_trace, record_swarm_triage, finalize_swarm_trace
-)
-from app.services.agents.memory_bridge import SwarmMemoryBridge
-from app.models.observability import TraceStatus as ObsStatus
-from loguru import logger
 import asyncio
+from typing import Any
+
 import networkx as nx
+from loguru import logger
+from pydantic import BaseModel, Field
+
+from app.models.observability import TraceStatus as ObsStatus
+from app.services.agents.memory_bridge import SwarmMemoryBridge
+from app.services.agents.protocol import AgentTask
+from app.services.llm_gateway import llm_gateway
+from app.services.swarm_observability import finalize_swarm_trace, record_swarm_triage, start_swarm_trace
 
 
 class SwarmTaskDef(BaseModel):
     id: str = Field(description="Unique task ID, e.g., T1")
     agent_name: str = Field(description="Name of the agent to execute this task")
     instruction: str = Field(description="Highly detailed instruction for the agent")
-    depends_on: List[str] = Field(default_factory=list, description="IDs of tasks that must complete before this one")
+    depends_on: list[str] = Field(default_factory=list, description="IDs of tasks that must complete before this one")
 
 
 class SwarmPlan(BaseModel):
-    tasks: List[SwarmTaskDef] = Field(default_factory=list)
+    tasks: list[SwarmTaskDef] = Field(default_factory=list)
     reasoning: str = Field(default="No explicit reasoning provided.")
 
 
@@ -37,7 +37,7 @@ class VerifyResult(BaseModel):
 
 
 class SupervisorAgent:
-    def __init__(self, agents: List[Any], user_id: str = "system-default", max_loops: int = 3):
+    def __init__(self, agents: list[Any], user_id: str = "system-default", max_loops: int = 3):
         self.name = "HVM-Supervisor"
         self.user_id = user_id
         self.agents = {a.name: a for a in agents}
@@ -90,12 +90,12 @@ class SupervisorAgent:
         }}
         """
         response = await llm_gateway.call_tier(
-            tier=3, 
+            tier=3,
             prompt=f"Objective: {query}",
             system_prompt=system_prompt,
             response_format={"type": "json_object"}
         )
-        
+
         import json
         try:
             data = json.loads(response.content)
@@ -108,7 +108,7 @@ class SupervisorAgent:
             logger.error(f"Failed to parse Plan: {e}")
             return SwarmPlan(reasoning=f"Error: {e}")
 
-    async def _verify(self, query: str, context: Dict[str, Any]) -> VerifyResult:
+    async def _verify(self, query: str, context: dict[str, Any]) -> VerifyResult:
         """Reflect on the swarm's collective output to determine if the goal is met."""
         system_prompt = f"""
         You are the HVM-Reviewer.
@@ -124,17 +124,17 @@ class SupervisorAgent:
           "feedback": "string explaining what is good and what is missing"
         }}
         """
-        
+
         # Format the context for the reviewer
         context_str = "\n".join([f"=== Task {k} Output ===\n{v}" for k, v in context.items()])
-        
+
         response = await llm_gateway.call_tier(
             tier=3,
             prompt=f"Swarm Outputs:\n{context_str}",
             system_prompt=system_prompt,
             response_format={"type": "json_object"}
         )
-        
+
         import json
         try:
             data = json.loads(response.content)
@@ -143,20 +143,20 @@ class SupervisorAgent:
             logger.error(f"Failed to parse Verification: {e}")
             return VerifyResult(is_complete=False, feedback="Verification parsing failed.")
 
-    async def _execute_dag(self, plan: SwarmPlan, trace_id: str, query: str) -> Dict[str, str]:
+    async def _execute_dag(self, plan: SwarmPlan, trace_id: str, query: str) -> dict[str, str]:
         """Execute a plan topologically, passing context through a HiveMind Blackboard."""
         G = nx.DiGraph()
         for task in plan.tasks:
             G.add_node(task.id, data=task)
             for dep in task.depends_on:
                 G.add_edge(dep, task.id)
-                
+
         if not nx.is_directed_acyclic_graph(G):
             raise ValueError("Plan is not a valid DAG (Cycle detected)")
-            
+
         execution_order = list(nx.topological_sort(G))
         shared_blackboard = {}  # task_id -> output. This is the "Collective Brain".
-        
+
         for batch in self._get_parallel_batches(G, execution_order):
             # Execute batch in parallel
             tasks_to_run = []
@@ -166,10 +166,10 @@ class SupervisorAgent:
                 if not agent:
                     shared_blackboard[task_id] = f"Error: Agent {task_def.agent_name} not found."
                     continue
-                
+
                 # 🧠 Swarm Advantage: Agents get DIRECT dependencies + FULL blackboard access
                 dep_context = {dep: shared_blackboard.get(dep, "") for dep in task_def.depends_on}
-                
+
                 agent_task = AgentTask(
                     id=task_id,
                     swarm_trace_id=trace_id,
@@ -179,27 +179,27 @@ class SupervisorAgent:
                     blackboard=shared_blackboard # The BIG difference: peer visibility
                 )
                 tasks_to_run.append((task_id, agent.execute(agent_task)))
-                
+
             if tasks_to_run:
                 # Parallel await
                 ids = [t[0] for t in tasks_to_run]
                 coros = [t[1] for t in tasks_to_run]
                 results = await asyncio.gather(*coros)
-                
-                for task_id, res in zip(ids, results):
+
+                for task_id, res in zip(ids, results, strict=False):
                     shared_blackboard[task_id] = res.output
-                    
+
                     # 💡 React to Intelligence Signals from the Swarm (M4.2.2)
                     if res.signal:
                         logger.info(f"⚡ Received Signal from {task_id}: {res.signal}")
-                        
+
                         # 🦾 Cross-Viewpoint Reactivity:
                         # If a Reviewer signals a critical failure, stop the DAG and trigger REPLAN
                         if res.signal.get("requires_replan") or res.signal.get("critical_failure"):
                             logger.error(f"🚨 [Swarm Critique] {task_id} reported a blocker! Forcing Re-plan.")
                             # Store the review as part of the context and exit early
                             return shared_blackboard
-                        
+
         return shared_blackboard
 
     def _get_parallel_batches(self, G, topological_order):
@@ -214,39 +214,39 @@ class SupervisorAgent:
             G_copy.remove_nodes_from(zero_in_degree)
         return batches
 
-    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None) -> Dict[str, Any]:
+    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None) -> dict[str, Any]:
         """Execute the Cognitive Loop: Plan -> Execute -> Verify -> Replans."""
         effective_user_id = user_id or self.user_id
         trace_id = await start_swarm_trace(query, user_id=effective_user_id)
-        
+
         loop_count = 0
         feedback_history = ""
         final_context = {}
-        
+
         # 🧠 PHASE 0: Context Hydration
         historical_context = await self.memory_bridge.load_historical_context(query)
-        
+
         try:
             while loop_count < self.max_loops:
                 loop_count += 1
                 logger.info(f"--- SWARM LOOP {loop_count}/{self.max_loops} ---")
-                
+
                 # 1. PLAN
                 plan = await self._plan(query, feedback_history, historical_context)
                 await record_swarm_triage(trace_id, f"Loop {loop_count} Plan: {plan.reasoning}")
                 logger.info(f"Plan generated with {len(plan.tasks)} tasks.")
-                
+
                 if not plan.tasks:
                     logger.warning("Empty plan generated.")
                     break
-                
+
                 # 2. EXECUTE (DAG)
                 final_context = await self._execute_dag(plan, trace_id, query)
-                
+
                 # 3. VERIFY
                 verify_res = await self._verify(query, final_context)
                 logger.info(f"Verification Result: Complete={verify_res.is_complete}, Feedback={verify_res.feedback}")
-                
+
                 if verify_res.is_complete:
                     logger.info("Swarm objective achieved!")
                     # 📼 PHASE 4: Memory Persistence (Success)
@@ -259,7 +259,7 @@ class SupervisorAgent:
                     feedback_history += f"\nLoop {loop_count} Feedback: {verify_res.feedback}"
                     # 🪞 Record Reflection Gap
                     await self.memory_bridge.record_failure_reflection(query, verify_res.feedback)
-            
+
             await finalize_swarm_trace(trace_id, status=ObsStatus.SUCCESS)
             return {
                 "success": loop_count <= self.max_loops and (verify_res.is_complete if 'verify_res' in locals() else False),
@@ -267,7 +267,7 @@ class SupervisorAgent:
                 "final_context": final_context,
                 "feedback": verify_res.feedback if 'verify_res' in locals() else "Unknown"
             }
-            
+
         except Exception as e:
             logger.exception(f"Swarm Workflow FAILED: {e}")
             await finalize_swarm_trace(trace_id, status=ObsStatus.FAILED)

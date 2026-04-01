@@ -1,5 +1,5 @@
-import re
 from loguru import logger
+
 
 class VirtualSegmenter:
     """
@@ -15,14 +15,14 @@ class VirtualSegmenter:
         """
         if len(text) < chunk_chars * 1.5:
             return text
-            
+
         logger.info(f"🧬 [VirtualSegmenter] Injecting markers into {len(text)} characters of context.")
-        
+
         # Split into roughly equal parts at newline boundaries if possible
         parts = []
         current_pos = 0
         seg_num = 1
-        
+
         while current_pos < len(text):
             # Try to find a good split point (newline) near chunk_chars
             next_pos = current_pos + chunk_chars
@@ -34,7 +34,7 @@ class VirtualSegmenter:
                     split_point = text.find("\n", next_pos)
                     if split_point == -1 or split_point > next_pos + 1000:
                         split_point = next_pos
-                
+
                 segment = text[current_pos:split_point]
                 parts.append(f"--- [LANDMARK SEGMENT {seg_num}] ---\n{segment}\n--- [END SEGMENT {seg_num}] ---")
                 current_pos = split_point
@@ -43,7 +43,7 @@ class VirtualSegmenter:
                 segment = text[current_pos:]
                 parts.append(f"--- [LANDMARK SEGMENT {seg_num}] ---\n{segment}\n--- [END SEGMENT {seg_num}] ---")
                 break
-                
+
         return "\n\n".join(parts)
 
     @staticmethod
@@ -53,13 +53,13 @@ class VirtualSegmenter:
         rather than total total missing information.
         """
         resp_lower = response.lower()
-        
+
         # Signals that the model couldn't find the info
         negative_signals = ["i found no information", "not in the context", "is not mentioned", "没找到", "没有提及"]
-        
+
         if any(sig in resp_lower for sig in negative_signals):
             # If the context is very large but the response is negative, it's likely a context failure
             if len(context) > 8000:
                 return "lost_in_middle_likely"
-                
+
         return None

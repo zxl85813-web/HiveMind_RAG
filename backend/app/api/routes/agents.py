@@ -4,17 +4,15 @@ Agent management & monitoring endpoints.
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agents.swarm import SwarmOrchestrator
-from app.api import deps
 from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
 from app.models.agents import ReflectionSignalType
-from app.schemas.auth import AuthorizationContext
 from app.services.rag_gateway import RAGGateway
 
 router = APIRouter()
@@ -190,7 +188,7 @@ async def get_swarm_traces():
 
 @router.post("/swarm/chat")
 async def swarm_chat_stream(
-    request: SwarmChatRequest, 
+    request: SwarmChatRequest,
     user_id: str | None = None  # TODO: Get from deps.get_current_user
 ):
     """
@@ -207,7 +205,7 @@ async def swarm_chat_stream(
         try:
             # yield initial signal
             yield f"data: {json.dumps({'event': 'start', 'conversation_id': request.conversation_id})}\n\n"
-            
+
             async for update in _swarm.invoke_stream(
                 user_message=request.message,
                 context=context,
@@ -217,19 +215,19 @@ async def swarm_chat_stream(
                 for node_name, state_diff in update.items():
                     # Send node status update
                     yield f"data: {json.dumps({'event': 'node_start', 'node': node_name})}\n\n"
-                    
+
                     # Extract thought logs or status updates if present
                     thought = state_diff.get("thought_log") or state_diff.get("status_update")
                     if thought:
                         yield f"data: {json.dumps({'event': 'thought', 'content': thought})}\n\n"
-                    
+
                     # Extract messages if present in diff
                     msgs = state_diff.get("messages", [])
                     for m in msgs:
                         # Only stream AI messages content for UI
                         if hasattr(m, "content") and m.type == "ai":
                              yield f"data: {json.dumps({'event': 'delta', 'content': m.content})}\n\n"
-                    
+
                     yield f"data: {json.dumps({'event': 'node_end', 'node': node_name})}\n\n"
 
             yield f"data: {json.dumps({'event': 'done'})}\n\n"

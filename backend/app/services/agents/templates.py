@@ -1,10 +1,10 @@
-from typing import List, Dict, Any
 from pydantic import BaseModel
+
 
 class VerificationPoint(BaseModel):
     name: str # e.g. "Security Audit"
     description: str # e.g. "Check for hardcoded secrets"
-    success_criteria: List[str]
+    success_criteria: list[str]
 
 # Standard Swarm Checkpoint Templates
 SWARM_TEMPLATES = {
@@ -29,5 +29,5 @@ SWARM_TEMPLATES = {
     ]
 }
 
-def get_checkpoints_for_task(task_type: str) -> List[VerificationPoint]:
+def get_checkpoints_for_task(task_type: str) -> list[VerificationPoint]:
     return SWARM_TEMPLATES.get(task_type, [])

@@ -23,10 +23,10 @@ class SwarmAssembler:
 
     @staticmethod
     async def process_and_vectorize(
-        kb_id: str, 
-        doc_id: str, 
-        raw_text: str, 
-        sections: list[dict[str, Any]], 
+        kb_id: str,
+        doc_id: str,
+        raw_text: str,
+        sections: list[dict[str, Any]],
         chunking_strategy: str = "recursive",
         code_structure: dict[str, Any] | None = None
     ) -> dict[str, Any]:

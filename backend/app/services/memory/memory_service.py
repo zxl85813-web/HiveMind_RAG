@@ -340,7 +340,7 @@ class MemoryService:
 
         if query:
             from app.services.memory.smart_grep_service import get_smart_grep_service
-            
+
             # ── Block 2: Tier-1 Radar — 摘要级路由
             # ... (Block 2 & 3 implementation remains)
             radar_tags = await self._extract_query_tags(query)
@@ -384,7 +384,7 @@ class MemoryService:
                     for r in grep_results:
                         snippet = r.content.replace("\n", " ")[:150]
                         grep_lines.append(f"- [{r.method}] {r.filename}: ...{snippet}...")
-                    context_blocks.append(f"--- LOG EVIDENCE (SmartGrep) ---\n" + "\n".join(grep_lines))
+                    context_blocks.append("--- LOG EVIDENCE (SmartGrep) ---\n" + "\n".join(grep_lines))
             except Exception as e:
                 logger.warning(f"SmartGrep integration failed: {e}")
 
@@ -403,7 +403,7 @@ class MemoryService:
                         global_lines = []
                         for gr in global_results:
                             global_lines.append(f"- [{gr.index}] {gr.title or gr.id}: {gr.content}")
-                        context_blocks.append(f"--- GLOBAL KNOWLEDGE (Tier-5 ES) ---\n" + "\n".join(global_lines))
+                        context_blocks.append("--- GLOBAL KNOWLEDGE (Tier-5 ES) ---\n" + "\n".join(global_lines))
                 except Exception as e:
                     logger.warning(f"Tier-5 global search failed: {e}")
 

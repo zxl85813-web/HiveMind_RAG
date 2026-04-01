@@ -151,13 +151,22 @@ class SwarmTrace(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str | None = Field(default=None, index=True)
     query: str
-    
+
     # Triage decision data
     triage_reasoning: str | None = Field(default=None)
     status: TraceStatus = Field(default=TraceStatus.PENDING, index=True)
 
     total_tokens: int = Field(default=0)
     latency_ms: float = Field(default=0.0)
+
+    # --- GOV-EXP-001: A/B Execution Metrics ---
+    execution_variant: str | None = Field(default=None, index=True)
+    think_time_ms: float = Field(default=0.0)    # 网路往返 + LLM 生成耗时
+    tool_time_ms: float = Field(default=0.0)     # 实际代码/工具执行耗时
+    num_llm_calls: int = Field(default=0)        # 为此请求调用的 LLM 次数
+
+    # Quality feedback from Reflection
+    quality_score: float | None = Field(default=None)
 
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
@@ -174,11 +183,11 @@ class SwarmSpan(SQLModel, table=True):
 
     agent_name: str = Field(index=True)
     status: TraceStatus = Field(default=TraceStatus.PENDING)
-    
+
     # Payload
     instruction: str
     output: str | None = Field(default=None)
-    
+
     # Performance
     tokens: int = Field(default=0)
     latency_ms: float = Field(default=0.0)
@@ -236,16 +245,16 @@ class LLMMetric(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     model_name: str = Field(index=True)
     provider: str = Field(index=True)
-    
+
     latency_ms: float = Field(default=0.0)
     tokens_input: int = Field(default=0)
     tokens_output: int = Field(default=0)
     cost: float = Field(default=0.0)
-    
+
     is_error: bool = Field(default=False, index=True)
     error_type: str | None = Field(default=None)
-    
+
     # Context (e.g. user priority, routing reason)
     context: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

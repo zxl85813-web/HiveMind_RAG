@@ -27,11 +27,11 @@ class SecuritySanitizer:
         """Check if any sensitive data patterns match in the text."""
         if not text:
             return False
-            
+
         for pattern, _ in cls.PATTERNS:
             if re.search(pattern, text):
                 return True
-                
+
         return False
 
     @classmethod
@@ -50,24 +50,77 @@ class SecuritySanitizer:
         return text
 
 
+from typing import Any
+
+from pydantic import BaseModel
+
+
+class AuditResult(BaseModel):
+    is_safe: bool = True
+    requires_approval: bool = False
+    message: str = ""
+    error_code: str | None = None
+
 class ToolAuditor:
     """
-    Logs and audits tool calls for behavioral policy compliance.
+    CC-inspired 4-layer Security Chain.
+    LAYER 1: DENY (Hard blocks by policy)
+    LAYER 2: VALIDATE (Schema & Injection checks)
+    LAYER 3: CHECK (Metadata-driven role check)
+    LAYER 4: CAN_USE (Final dynamic approval / Consent)
     """
 
-    FORBIDDEN_COMMANDS: ClassVar[list[str]] = ["rm -rf", "format c:", "drop table", "shutdown"]
+    DENY_PATTERNS: ClassVar[list[str]] = [
+        r"rm\s+-rf\s+/",         # Root deletion
+        r"format\s+c:",          # Windows disk format
+        r"drop\s+database",      # DB destruction
+        r"shutdown\s+-h",        # System shutdown
+        r"\/etc\/shadow",        # Sensitive OS files
+        r"\.env",                # Secrets
+    ]
 
     @classmethod
-    def audit_tool_call(cls, tool_name: str, args: dict) -> bool:
+    def audit_chain(
+        cls,
+        tool_name: str,
+        args: dict,
+        meta: Any = None,
+        auth: Any = None
+    ) -> AuditResult:
         """
-        Check if tool arguments violate safety policies.
-        Returns True if SAFE, False if BLOCKED.
+        Processes the 4-layer security chain.
         """
         args_str = str(args).lower()
 
-        for cmd in cls.FORBIDDEN_COMMANDS:
-            if cmd in args_str:
-                logger.critical(f"🛑 [Security] BLOCKED potentially dangerous tool call: {tool_name} with args {args}")
-                return False
+        # --- LAYER 1: DENY ---
+        for pattern in cls.DENY_PATTERNS:
+            if re.search(pattern, args_str):
+                logger.critical(f"🛑 [LAYER 1] Blocked dangerous pattern in tool {tool_name}")
+                return AuditResult(is_safe=False, message=f"Dangerous input pattern detected: {pattern}", error_code="SECURITY_L1_DENY")
 
-        return True
+        # --- LAYER 2: VALIDATE ---
+        # Placeholder for complex AST-based injection detection (Phase 3 upgrade)
+        if "script" in args and ("import os" in args["script"] or "subprocess" in args["script"]):
+             # Note: python_interpreter might allow this, but we check if sandbox supports it
+             pass
+
+        # --- LAYER 3: CHECK (Metadata-driven) ---
+        if meta:
+            # Rule: only Admin can use non-read-only tools if enforced
+            user_role = getattr(auth, "role", "guest") if auth else "guest"
+
+            if not meta.is_read_only and user_role == "guest":
+                logger.warning(f"🚫 [LAYER 3] Guest user blocked from non-read-only tool: {tool_name}")
+                return AuditResult(is_safe=False, message="Permission denied: Write operations not allowed for Guest.", error_code="SECURITY_L3_ROLE")
+
+        # --- LAYER 4: CAN_USE (Manual Consent) ---
+        if meta and meta.is_destructive:
+            logger.info(f"🛡️ [LAYER 4] Destructive operation {tool_name} requires user consent.")
+            return AuditResult(is_safe=True, requires_approval=True, message=f"Confirm destructive action: {tool_name}")
+
+        return AuditResult(is_safe=True)
+
+    @classmethod
+    def audit_tool_call(cls, tool_name: str, args: dict) -> bool:
+        """Deprecated: use audit_chain for full protection."""
+        return cls.audit_chain(tool_name, args).is_safe

@@ -16,6 +16,7 @@ Tier-2 Memory: The Graph Overview Layer (GraphIndex).
 
 import asyncio
 import json
+from typing import Any
 
 from loguru import logger
 
@@ -152,7 +153,7 @@ class GraphIndex:
             resp_text = await llm.chat_complete([{"role": "user", "content": prompt}], json_mode=True)
             data = json.loads(resp_text)
             preferences = data.get("preferences", [])
-            
+
             if preferences:
                 cypher = """
                 MERGE (agent:IntelligenceNode {name: $agent_name})
@@ -171,10 +172,10 @@ class GraphIndex:
                 MERGE (agent)-[r:FOLLOWS_STYLE]->(prefNode)
                 SET r.weight = prefNode.confidence
                 """
-                
+
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(
-                    None, 
+                    None,
                     lambda: self.store.query(cypher, {"agent_name": agent_name, "preferences": preferences})
                 )
                 logger.info(f"🧠 Tier-2 Indexed {len(preferences)} style preferences for agent '{agent_name}'.")
@@ -198,16 +199,16 @@ class GraphIndex:
         try:
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
-                None, 
+                None,
                 lambda: self.store.query(cypher, {"agent_name": agent_name, "limit": limit})
             )
-            
+
             preferences_str = []
             for item in results:
                 cat = item.get("category", "RULE")
                 rule = item.get("rule", "")
                 preferences_str.append(f"- [{cat}] {rule}")
-                
+
             return preferences_str
         except Exception as e:
             logger.warning(f"Tier-2 style preference retrieval failed: {e}")
@@ -230,14 +231,14 @@ class GraphIndex:
         for cls in structure.get("classes", []):
             cid = f"{doc_id}::class::{cls['name']}"
             nodes.append({
-                "id": cid, 
-                "label": "Class", 
-                "name": cls['name'], 
+                "id": cid,
+                "label": "Class",
+                "name": cls['name'],
                 "docstring": cls.get("docstring") or "",
                 "lineno": cls.get("lineno")
             })
             edges.append({"source": doc_id, "target": cid, "type": "CONTAINS_CLASS"})
-            
+
             for m in cls.get("methods", []):
                 mid = f"{cid}::method::{m}"
                 nodes.append({"id": mid, "label": "Method", "name": m})
@@ -247,8 +248,8 @@ class GraphIndex:
         for fn in structure.get("functions", []):
             fid = f"{doc_id}::function::{fn['name']}"
             nodes.append({
-                "id": fid, 
-                "label": "Function", 
+                "id": fid,
+                "label": "Function",
                 "name": fn['name'],
                 "docstring": fn.get("docstring") or "",
                 "lineno": fn.get("lineno"),

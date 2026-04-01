@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from loguru import logger
@@ -31,7 +31,7 @@ async def publish_write_event(
         "kb_id": kb_id,
         "doc_id": doc_id,
         "payload": payload or {},
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Best-effort Redis publish; fallback to structured log if Redis package/runtime unavailable.

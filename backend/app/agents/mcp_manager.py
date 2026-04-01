@@ -109,25 +109,25 @@ class MCPManager:
         """
         if not self._tools:
             return []
-            
+
         query_lower = query.lower()
         query_words = set(query_lower.split())
-        
+
         scored_tools = []
         for tool in self._tools:
             # MCP tools in LangChain adapter usually have .name and .description
             desc = getattr(tool, "description", "").lower()
             name = getattr(tool, "name", "").lower()
-            
+
             score = sum(2 if word in name else 0 for word in query_words)
             score += sum(1 if word in desc else 0 for word in query_words)
-            
+
             if score > 0:
                 scored_tools.append((score, tool))
-        
+
         if not scored_tools:
             return self._tools[:limit]
-            
+
         scored_tools.sort(key=lambda x: x[0], reverse=True)
         return [t for _, t in scored_tools[:limit]]
 

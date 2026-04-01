@@ -1,9 +1,9 @@
-import math
-import asyncio
-from typing import Any, Dict, List
+from typing import Any
+
 from loguru import logger
-from datetime import datetime, timedelta
+
 from app.core.config import settings
+
 
 class ClawRouterGovernance:
     """
@@ -34,39 +34,39 @@ class ClawRouterGovernance:
             "cost_guard_downgrades": 0,
         }
 
-    async def decide(self, 
-        messages: List[Dict[str, str]], 
+    async def decide(self,
+        messages: list[dict[str, str]],
         user_id: str | None = None,
-        context: Dict[str, Any] | None = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Smart routing decision.
         """
         self._stats["total_calls"] += 1
         context = context or {}
-        
+
         # 1-5: Task Context Dimensions
         input_len = sum(len(m.get("content", "")) for m in messages)
         complexity_score = min(1.0, input_len / 4000.0) # Length dimension
         is_code = 1.0 if any("```" in m.get("content", "") for m in messages) else 0.0 # Content type dimension
         needs_expert = 1.0 if context.get("agent_role") in ["architect", "critic", "planner"] else 0.0
-        
+
         # 6-10: User/Env Dimensions
         user_priority = 1.0 if context.get("user_tier") == "vip" else 0.5
         load_factor = context.get("system_load", 0.5) # System pressure dimension
-        
+
         # 11-15: Model Real-time Stats
         model_reliability = context.get("last_success_rate", 0.99)
-        
+
         # Calculate Final Score
         score = (
-            complexity_score * 0.4 + 
-            is_code * 0.2 + 
+            complexity_score * 0.4 +
+            is_code * 0.2 +
             needs_expert * 0.2 +
             user_priority * 0.1 +
             (1.0 - load_factor) * 0.1
         )
-        
+
         # Model Selection Mapping
         tier = "eco"
         if score >= self.thresholds["premium"]:
@@ -102,11 +102,11 @@ class ClawRouterGovernance:
             },
             "is_fallback": tier == "fallback"
         }
-        
+
         logger.info(f"[ClawRouter] Decision: {tier} ({model}) | Score: {result['score']}")
         return result
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Expose stats for reports."""
         return {
             "stats": dict(self._stats),

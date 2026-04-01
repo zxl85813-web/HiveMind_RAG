@@ -18,6 +18,7 @@ from contextvars import ContextVar
 from pathlib import Path
 
 from loguru import logger
+
 from app.core.config import settings
 
 # 🛰️ 链路追踪上下文变量 (Cross-Request Trace ID)
@@ -118,14 +119,14 @@ def setup_script_context(script_name: str) -> None:
     """
     import os
     import uuid
-    
+
     # 🛰️ 优先从环境变量获取由 CI 注入的 ID，或者本地随机
     raw_id = os.getenv("GITHUB_RUN_ID") or os.getenv("TRACE_ID")
     if not raw_id:
         raw_id = f"local-{str(uuid.uuid4())[:8]}"
-        
+
     trace_id_var.set(raw_id)
-    
+
     logger.info(
          "Script context initialized: module={module}, trace_id={trace_id}",
          module=f"scripts.{script_name}",
@@ -134,4 +135,4 @@ def setup_script_context(script_name: str) -> None:
 
 
 # 导出统一的 logger 实例与工具函数
-__all__ = ["logger", "setup_logging", "setup_script_context", "trace_id_var", "get_trace_logger"]
+__all__ = ["get_trace_logger", "logger", "setup_logging", "setup_script_context", "trace_id_var"]

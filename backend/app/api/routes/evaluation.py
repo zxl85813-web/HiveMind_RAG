@@ -162,3 +162,43 @@ async def get_kb_health_stats(kb_id: str, db: AsyncSession = Depends(deps.get_db
             "status": "healthy" if avg_score > 0.7 else "warning" if avg_score > 0.4 else "critical",
         }
     )
+
+
+# ============================================================
+#  GOV-EXP-001: A/B Execution Variant Experiment Endpoints
+# ============================================================
+
+
+@router.get("/ab/summary", response_model=ApiResponse[dict[str, Any]])
+async def get_ab_summary():
+    """
+    GOV-EXP-001 A/B 实验汇总报告。
+
+    比较 monolithic（集中思考）vs react（分散 Think→Act→Observe）两种模式的：
+    - 平均思考耗时（ms）
+    - 每次请求 LLM 调用次数
+    - 平均质量分
+    - 当前领先的模式及耗时节省百分比
+    """
+    from app.services.evaluation.ab_tracker import ab_tracker
+
+    summary = ab_tracker.get_summary()
+    return ApiResponse.ok(data=summary)
+
+
+@router.get("/ab/records", response_model=ApiResponse[list[dict[str, Any]]])
+async def get_ab_records(limit: int = 100):
+    """
+    GOV-EXP-001 A/B 原始记录列表（最新 N 条）。
+
+    每条记录包含：variant、agent_name、total_think_ms、num_llm_calls、quality_score 等。
+    """
+    from dataclasses import asdict
+
+    from app.services.evaluation.ab_tracker import ab_tracker
+
+    with ab_tracker._lock:
+        records = list(ab_tracker._records)
+
+    recent = records[-limit:][::-1]  # 最新的在前
+    return ApiResponse.ok(data=[asdict(r) for r in recent])

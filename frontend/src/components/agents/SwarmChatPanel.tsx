@@ -54,7 +54,7 @@ export const SwarmChatPanel: React.FC = () => {
         // New Swarm message for streaming
         const swarmMsgId = (Date.now() + 1).toString();
         let currentContent = '';
-        let currentThoughts: string[] = [];
+        const currentThoughts: string[] = [];
 
         try {
             const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');

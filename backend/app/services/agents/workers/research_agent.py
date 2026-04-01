@@ -5,12 +5,14 @@ Purpose: Retrieves and summarizes information from the HiveMind Knowledge Base.
 Integration: Calls RAGGateway for high-fidelity retrieval.
 """
 
-from typing import Any, Tuple
-from app.services.agents.worker import WorkerAgent
-from app.services.agents.protocol import AgentTask
-from app.services.rag_gateway import RAGGateway
-from app.services.llm_gateway import llm_gateway
+from typing import Any
+
 from loguru import logger
+
+from app.services.agents.protocol import AgentTask
+from app.services.agents.worker import WorkerAgent
+from app.services.llm_gateway import llm_gateway
+from app.services.rag_gateway import RAGGateway
 
 
 class ResearchAgent(WorkerAgent):
@@ -22,10 +24,10 @@ class ResearchAgent(WorkerAgent):
         self.kb_ids = kb_ids or []
         self.gw = RAGGateway()
 
-    async def _run_logic(self, task: AgentTask) -> Tuple[str, dict[str, Any], dict[str, Any]]:
+    async def _run_logic(self, task: AgentTask) -> tuple[str, dict[str, Any], dict[str, Any]]:
         """Worker's specialized logic: RAG-based Research with Collective Intelligence (Blackboard)."""
         logger.info(f"ResearchAgent researching for task: {task.instruction}")
-        
+
         # 🧠 Swarm Advantage: Check what we ALREADY know from other agents (Research-Code collaboration)
         if task.blackboard:
             # Optionally adjust retrieval based on what others found
@@ -33,17 +35,17 @@ class ResearchAgent(WorkerAgent):
 
         # 1. RAG Retrieval
         res = await self.gw.retrieve(
-            query=task.instruction, 
-            kb_ids=self.kb_ids, 
-            user_id="supervisor_system", 
+            query=task.instruction,
+            kb_ids=self.kb_ids,
+            user_id="supervisor_system",
             top_k=8
         )
-        
+
         if not res.fragments:
             return "No relevant information found in knowledge base.", {}, {"status": "NO_RECORDS"}
-            
+
         context_str = "\n".join([f"[{i}] {f.content}" for i, f in enumerate(res.fragments)])
-        
+
         # 2. LLM Synthesis
         # We can now inject findings from OTHER agents to refine our summary
         blackboard_summary = ""
@@ -59,15 +61,15 @@ class ResearchAgent(WorkerAgent):
         Fragments:
         {context_str}
         """
-        
+
         synth_response = await llm_gateway.call_tier(
-            tier=2, 
+            tier=2,
             prompt=f"Synthesize research for: {task.instruction}",
             system_prompt=system_prompt
         )
-        
+
         # 💡 Return Intelligence Signal
-        # Example: if we find critical security info, we signal "SECURITY_HINT" 
+        # Example: if we find critical security info, we signal "SECURITY_HINT"
         doc_ids = list(set([f.metadata.get("document_id") for f in res.fragments]))
         signal = {"found_docs": len(doc_ids)}
         if "security" in synth_response.content.lower():

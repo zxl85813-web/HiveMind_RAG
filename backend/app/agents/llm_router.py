@@ -6,7 +6,7 @@ Routes requests based on task complexity (Model Tiering) to save inference costs
 """
 
 from enum import StrEnum
-import re
+
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from loguru import logger
@@ -17,10 +17,10 @@ from app.core.config import settings
 
 class ModelTier(StrEnum):
     """Classification of models by capability and cost."""
-    SIMPLE = "simple"       
-    MEDIUM = "medium"       
-    COMPLEX = "complex"     
-    REASONING = "reasoning" 
+    SIMPLE = "simple"
+    MEDIUM = "medium"
+    COMPLEX = "complex"
+    REASONING = "reasoning"
 
 
 class LLMRouter:
@@ -83,7 +83,7 @@ class LLMRouter:
         """Initialize models for each tier from settings."""
         try:
             global_provider = settings.LLM_PROVIDER
-            
+
             # --- SIMPLE Tier ---
             try:
                 p = settings.SIMPLE_PROVIDER or global_provider
@@ -145,7 +145,7 @@ class LLMRouter:
         Dynamically routes the prompt based on semantic footprint.
         """
         decision = await semantic_router.route(prompt, routes=[], threshold=0.15)
-        
+
         target_tier = ModelTier(decision.target_node) if decision.target_node in [t.value for t in ModelTier] else ModelTier.MEDIUM
         logger.debug(f"🐝 [HiveDispatcher] Routed to {target_tier.name} (confidence={decision.confidence:.2f})")
 

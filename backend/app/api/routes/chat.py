@@ -8,11 +8,11 @@ from loguru import logger
 from pydantic import BaseModel
 
 from app.common.response import ApiResponse
-from app.services.rate_limit_governance import rate_limit_governance_center
 
 # 这里使用 Any 模拟 User，后续换成 auth 的 Depends
 from app.schemas.chat import ChatRequest, ConversationListItem
 from app.services.chat_service import ChatService
+from app.services.rate_limit_governance import rate_limit_governance_center
 
 router = APIRouter()
 

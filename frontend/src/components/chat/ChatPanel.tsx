@@ -164,11 +164,16 @@ export const ChatPanel: React.FC = () => {
         statusesRef.current = [];
 
         try {
+            // --- GOV-EXP-001: Experimental Variant Selector ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const variantOverride = urlParams.get('execution_variant');
+
             const stream = chatApi.getResilientStream({
                 message: value,
                 conversationId: currentConversationId,
                 knowledgeBaseIds: selectedKnowledgeBases,
-                clientEvents: useChatStore.getState().clientEvents as any
+                clientEvents: useChatStore.getState().clientEvents as any,
+                executionVariant: variantOverride || undefined
             });
 
             stream

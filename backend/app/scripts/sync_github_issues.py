@@ -19,7 +19,7 @@ def load_config():
         # Try finding in parent .env if any
         load_dotenv(get_base_dir() / ".env")
         token = os.getenv("GITHUB_TOKEN")
-    
+
     if not token:
         print("Error: GITHUB_TOKEN not found in .env files")
         sys.exit(1)
@@ -48,7 +48,7 @@ def scan_todo_for_tasks():
     tasks = []
     if not todo_path.exists():
         return tasks
-    
+
     with open(todo_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -80,12 +80,12 @@ def sync_req_to_github():
                 content = f.read()
                 # Use filename stem as title or extract first H1
                 title_id = req_file.stem.split("-")[0] + "-" + req_file.stem.split("-")[1]
-                title = f"{title_id}: New Requirement" 
+                title = f"{title_id}: New Requirement"
                 for line in content.splitlines():
                     if line.startswith("#"):
                         title = line.replace("#", "").strip()
                         break
-                
+
                 if title not in sync_map:
                     print(f"📡 Syncing {title_id}...")
                     issue_num, url = create_issue(token, owner, repo, title, content, labels=["requirement", "P1"])
@@ -105,7 +105,7 @@ def sync_req_to_github():
             labels = ["task"]
             if "GOV-" in st_title: labels.append("governance")
             if "ARM-" in st_title: labels.append("security")
-            
+
             issue_num, url = create_issue(token, owner, repo, st_title, st_desc, labels=labels)
             if issue_num:
                 sync_map[st_title] = {"number": issue_num, "url": url}

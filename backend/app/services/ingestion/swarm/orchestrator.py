@@ -67,7 +67,6 @@ class IngestionOrchestrator:
 
     def _build_graph(self) -> StateGraph:
         """Constructs the non-linear processing graph."""
-        from app.utils.code_parser import CodeStructureParser
         workflow = StateGraph(IngestionState)
 
         # 1. Add Processing Nodes
@@ -141,13 +140,13 @@ class IngestionOrchestrator:
         from app.utils.code_parser import CodeStructureParser
         file_path = state["file_path"]
         logger.info(f"🧬 [Swarm] CodeExtractorAgent analyzing AST structure for: {file_path}")
-        
+
         # We only handle Python in MVP
         if file_path.endswith(".py"):
             structure = CodeStructureParser.parse_python(file_path)
             # Mix structural info into the sections for the assembler to pick up
             return {"code_structure": structure}
-        
+
         return {}
 
     async def _security_node(self, state: IngestionState) -> dict[str, Any]:

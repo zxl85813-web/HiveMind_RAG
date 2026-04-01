@@ -8,12 +8,9 @@ Records the lifecycle of a multi-agent HiveMind Swarm.
 """
 
 import uuid
-import time
-from datetime import datetime
-from typing import Any, List
-from loguru import logger
+
 from app.core.database import async_session_factory
-from app.models.observability import SwarmTrace, SwarmSpan, TraceStatus
+from app.models.observability import SwarmSpan, SwarmTrace, TraceStatus
 
 
 async def start_swarm_trace(query: str, user_id: str | None = None) -> str:

@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 
 from app.schemas.artifact import SqlComplexityLevel
 
-
 # --- 正则特征提取 ---
 
 _RE_JOIN = re.compile(r"\b(INNER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b", re.IGNORECASE)

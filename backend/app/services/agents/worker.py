@@ -7,10 +7,12 @@ Standardizes the agent lifecycle:
 3. reflect:   Check if goals were met.
 """
 
-from typing import Any, List
 import asyncio
-from app.services.agents.protocol import BaseAgent, AgentTask, AgentResponse, AgentStatus
+from typing import Any
+
 from loguru import logger
+
+from app.services.agents.protocol import AgentResponse, AgentStatus, AgentTask, BaseAgent
 
 
 class WorkerAgent(BaseAgent):
@@ -22,8 +24,9 @@ class WorkerAgent(BaseAgent):
     async def execute(self, task: AgentTask) -> AgentResponse:
         """Main entry for Agent execution with Tracing (M4.1.4)."""
         import time
-        from app.services.swarm_observability import record_swarm_span
+
         from app.models.observability import TraceStatus as ObsStatus
+        from app.services.swarm_observability import record_swarm_span
 
         start_time = time.time()
         self.status = AgentStatus.EXECUTING
@@ -33,13 +36,13 @@ class WorkerAgent(BaseAgent):
             # 1. Logic Execution — now with Swarm Blackboard access
             output, knowledge, signal = await self._run_logic(task)
             latency_ms = (time.time() - start_time) * 1000
-            
+
             # 2. Reflection
             self.status = AgentStatus.REFLECTING
             await self._reflect(task, output)
-            
+
             self.status = AgentStatus.DONE
-            
+
             # 🔒 3. RECORD TRACE
             if task.swarm_trace_id:
                 asyncio.create_task(record_swarm_span(
@@ -52,9 +55,9 @@ class WorkerAgent(BaseAgent):
                 ))
 
             return AgentResponse(
-                task_id=task.id, 
-                output=str(output), 
-                new_knowledge=knowledge or {}, 
+                task_id=task.id,
+                output=str(output),
+                new_knowledge=knowledge or {},
                 signal=signal or {},
                 status=self.status
             )
@@ -62,7 +65,7 @@ class WorkerAgent(BaseAgent):
             latency_ms = (time.time() - start_time) * 1000
             logger.exception(f"Agent {self.name} FAILED: {e}")
             self.status = AgentStatus.FAILED
-            
+
             if task.swarm_trace_id:
                 asyncio.create_task(record_swarm_span(
                     trace_id=task.swarm_trace_id,
@@ -72,7 +75,7 @@ class WorkerAgent(BaseAgent):
                     latency_ms=latency_ms,
                     status=ObsStatus.FAILED
                 ))
-                
+
             return AgentResponse(task_id=task.id, output=f"Internal Error: {e}", status=self.status)
 
     async def _run_logic(self, task: AgentTask) -> tuple[Any, dict[str, Any], dict[str, Any]]:

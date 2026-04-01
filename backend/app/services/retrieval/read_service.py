@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from app.core.vector_store import SearchType
-from app.core.vector_store import VectorDocument
+from app.core.vector_store import SearchType, VectorDocument
 from app.schemas.knowledge_protocol import KnowledgeFragment
 from app.services.retrieval.pipeline import RetrievalPipeline
 

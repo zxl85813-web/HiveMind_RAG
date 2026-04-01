@@ -32,7 +32,6 @@ from loguru import logger
 
 from app.services.knowledge.sql.summary_card import SqlSummaryCard, sql_summary_card_service
 
-
 # --- SQL 查询意图检测 ---
 
 _SQL_INTENT_PATTERNS = [

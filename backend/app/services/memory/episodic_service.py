@@ -15,7 +15,7 @@ Episodic Memory Service — 跨会话情节记忆的写入与召回。
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import chromadb
 from loguru import logger
@@ -101,7 +101,7 @@ class EpisodicMemoryService:
         if not distill:
             logger.warning(f"❌ [EpisodicMemory] Distillation returned None for conv={conversation_id}")
             return None
-        
+
         print(f"✅ [EpisodicMemory] Distilled successfully: {distill.topics}")
 
         # 3. 写入 PostgreSQL (Upsert by conversation_id)
@@ -193,7 +193,7 @@ class EpisodicMemoryService:
             return str(m.get(field, ""))
         return str(getattr(m, field, ""))
 
-    async def _distill_conversation(self, messages: list[Any]) -> Optional[EpisodeDistillResult]:
+    async def _distill_conversation(self, messages: list[Any]) -> EpisodeDistillResult | None:
         """使用 LLM 对对话进行总结和提炼。"""
         if not messages:
             return None
@@ -317,8 +317,8 @@ Summary: {existing_summary}
 
     async def _recall_by_topics(self, user_id: str, query: str, limit: int, min_temperature: float) -> list[EpisodicMemory]:
         async with async_session_factory() as session:
-            from sqlmodel import select, desc
-            
+            from sqlmodel import desc, select
+
             # 1. 粗排：取出最近的高质量候选
             stmt = (
                 select(EpisodicMemory)
@@ -334,10 +334,10 @@ Summary: {existing_summary}
 
         # 2. 精排：使用同义词扩展进行关键词碰撞
         from app.services.memory.smart_grep_service import _expand_with_synonyms
-        
+
         expanded_query_tokens = set(_expand_with_synonyms(query))
         scored = []
-        
+
         for ep in candidates:
             # 计算主题重叠度 (支持同义词碰撞)
             # 例如：query 含 "db", topic 含 "database" -> 命中
@@ -346,7 +346,7 @@ Summary: {existing_summary}
                 topic_lower = topic.lower()
                 if any(token in topic_lower or topic_lower in token for token in expanded_query_tokens):
                     score += 1
-            
+
             if score > 0 or len(scored) < limit:
                 scored.append((score, ep))
 

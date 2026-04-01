@@ -31,7 +31,7 @@ export default defineConfig({
 
     /* Run local dev server before starting tests (in Mock mode) */
     webServer: {
-        command: 'npm run dev -- --mode mock',
+        command: 'npm run dev',
         url: 'http://localhost:5173',
         reuseExistingServer: true,
         timeout: 120 * 1000,

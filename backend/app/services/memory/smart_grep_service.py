@@ -20,18 +20,16 @@ Usage:
 
 import os
 import re
-import asyncio
 import time
-from typing import List, Dict, Any, Optional, Literal
+from typing import Any, Literal
+
 from loguru import logger
 from pydantic import BaseModel
-
 from rank_bm25 import BM25Okapi
-from rapidfuzz import fuzz, process as rf_process
+from rapidfuzz import fuzz
+from rapidfuzz import process as rf_process
 
 from app.core.llm import get_llm_service
-from app.core.config import settings
-
 
 # ── Data Models ──────────────────────────────────────────────────────
 
@@ -42,13 +40,13 @@ class GrepResult(BaseModel):
     context: str
     score: float
     method: str = ""  # "bm25" | "fuzzy" | "llm"
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
 
 
 class _IndexItem(BaseModel):
     """Internal cache item for a specific directory's index."""
     index: Any  # BM25Okapi
-    docs: List[Dict[str, Any]]
+    docs: list[dict[str, Any]]
     timestamp: float
     dir_path: str
 
@@ -56,7 +54,7 @@ class _IndexItem(BaseModel):
 # ── Synonym / Stemming Table (Zero-Cost Expansion) ──────────────────
 # ── Synonym / Stemming Table (Zero-Cost Expansion) ──────────────────
 # This replaces the LLM call for common technical terms.
-_SYNONYM_MAP: Dict[str, List[str]] = {
+_SYNONYM_MAP: dict[str, list[str]] = {
     "database": ["db", "postgresql", "postgres", "mysql", "sqlite", "sql", "rdbms"],
     "optimization": ["optimize", "optimizing", "tuning", "performance", "speedup", "fast"],
     "frontend": ["front-end", "ui", "react", "vue", "angular", "javascript", "typescript"],
@@ -74,7 +72,7 @@ _SYNONYM_MAP: Dict[str, List[str]] = {
 }
 
 
-def _expand_with_synonyms(query: str) -> List[str]:
+def _expand_with_synonyms(query: str) -> list[str]:
     """Zero-cost synonym expansion using a static lookup table."""
     tokens = re.findall(r'\w+', query.lower())
     expanded = set(tokens)
@@ -102,7 +100,7 @@ Output:"""
         self.base_data_dir = base_data_dir
         os.makedirs(self.base_data_dir, exist_ok=True)
         # Multi-user Index Cache: {dir_path: _IndexItem}
-        self._indices: Dict[str, _IndexItem] = {}
+        self._indices: dict[str, _IndexItem] = {}
         self._cache_limit = 10  # Maximum number of directory indices to keep in memory
 
     def _get_user_logs_dir(self, user_id: str) -> str:
@@ -115,7 +113,7 @@ Output:"""
 
     # ── Index Builder ────────────────────────────────────────────────
 
-    def _build_bm25_index(self, data_dir: str) -> Optional[_IndexItem]:
+    def _build_bm25_index(self, data_dir: str) -> _IndexItem | None:
         """Build or retrieve a cached BM25 index for a directory."""
         # 1. Check cache
         if data_dir in self._indices:
@@ -131,7 +129,7 @@ Output:"""
         # 3. Build new index
         start = time.perf_counter()
         docs = []
-        corpus_tokens: List[List[str]] = []
+        corpus_tokens: list[list[str]] = []
 
         if not os.path.exists(data_dir):
             return None
@@ -144,7 +142,7 @@ Output:"""
         for filename in files:
             filepath = os.path.join(data_dir, filename)
             try:
-                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                with open(filepath, encoding="utf-8", errors="replace") as f:
                     lines = f.readlines()
                 full_text = "".join(lines)
                 tokens = re.findall(r'\w+', full_text.lower())
@@ -169,14 +167,14 @@ Output:"""
             dir_path=data_dir
         )
         self._indices[data_dir] = item
-        
+
         elapsed = (time.perf_counter() - start) * 1000
         logger.info(f"📚 [SmartGrep] Built index for {data_dir} ({len(docs)} docs) in {elapsed:.1f}ms")
         return item
 
     # ── Search Strategies ────────────────────────────────────────────
 
-    def _search_bm25(self, query: str, data_dir: str, limit: int) -> List[GrepResult]:
+    def _search_bm25(self, query: str, data_dir: str, limit: int) -> list[GrepResult]:
         """BM25 search with synonym expansion. Pure algorithm, ~10ms."""
         item = self._build_bm25_index(data_dir)
         if not item:
@@ -201,7 +199,7 @@ Output:"""
             ))
         return results
 
-    def _search_fuzzy(self, query: str, data_dir: str, limit: int) -> List[GrepResult]:
+    def _search_fuzzy(self, query: str, data_dir: str, limit: int) -> list[GrepResult]:
         """RapidFuzz trigram search. Handles typos, ~15ms for 100 docs."""
         item = self._build_bm25_index(data_dir)
         if not item or not item.docs:
@@ -230,7 +228,7 @@ Output:"""
             ))
         return results
 
-    async def _search_llm_expand(self, query: str, data_dir: str, limit: int) -> List[GrepResult]:
+    async def _search_llm_expand(self, query: str, data_dir: str, limit: int) -> list[GrepResult]:
         """LLM-powered keyword expansion + regex scan. Slowest but highest recall."""
         try:
             llm = get_llm_service()
@@ -254,13 +252,13 @@ Output:"""
         results = []
         if not os.path.exists(data_dir):
             return []
-            
+
         for filename in os.listdir(data_dir):
             if not filename.endswith(".md"):
                 continue
             filepath = os.path.join(data_dir, filename)
             try:
-                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                with open(filepath, encoding="utf-8", errors="replace") as f:
                     text = f.read()
                 hits = len(pattern.findall(text))
                 if hits > 0:
@@ -284,10 +282,10 @@ Output:"""
         self,
         query: str,
         limit: int = 5,
-        user_id: Optional[str] = None,
-        data_dir: Optional[str] = None,
+        user_id: str | None = None,
+        data_dir: str | None = None,
         mode: Literal["bm25", "fuzzy", "llm", "auto"] = "auto",
-    ) -> List[GrepResult]:
+    ) -> list[GrepResult]:
         """
         Multi-strategy search with User Isolation.
         
@@ -299,7 +297,7 @@ Output:"""
             mode: Search strategy.
         """
         start_time = time.perf_counter()
-        
+
         # Determine target directory
         if user_id:
             target_dir = self._get_user_logs_dir(user_id)

@@ -6,8 +6,8 @@
 注册位置: REGISTRY.md > Batch Engine > JobManager (Dependency)
 """
 
-import os
 import json
+import os
 from collections.abc import Sequence
 from typing import Any
 
@@ -45,7 +45,7 @@ class JsonCheckpointer(MemorySaver):
         """Load state from disk if exists using safe JSON."""
         if os.path.exists(self.filepath):
             try:
-                with open(self.filepath, "r", encoding="utf-8") as f:
+                with open(self.filepath, encoding="utf-8") as f:
                     data = json.load(f, object_hook=safe_json_hook)
                     if isinstance(data, dict):
                         # Restore internal storage
