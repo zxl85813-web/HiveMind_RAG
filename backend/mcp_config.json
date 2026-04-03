@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "database": {
+      "command": "python",
+      "args": ["-m", "app.agents.mcp.db_server"],
+      "env": {
+        "PYTHONPATH": ".",
+        "MCP_DB_PATH": "storage/mcp_research.sqlite"
+      }
+    }
+  }
+}

@@ -13,6 +13,22 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
     ENV: str = "development"  # development | production | test
+    STORAGE_DIR: str = "storage"
+    CHECKPOINT_DB_PATH: str = "storage/swarm_checkpoints.sqlite"
+
+    # === Token Governance (P0 Hardening) ===
+    # Standard 32K context window budget (Reference: REQ-014)
+    CONTEXT_WINDOW_LIMIT: int = 32768
+    # Percentage-based budgets (Total must be <= 1.0)
+    BUDGET_SYSTEM_RATIO: float = 0.10
+    BUDGET_MEMORY_RATIO: float = 0.15
+    BUDGET_RAG_RATIO: float = 0.45
+    BUDGET_HISTORY_RATIO: float = 0.20
+    BUDGET_OUTPUT_RATIO: float = 0.10
+
+    # === Sandbox Governance (P0 Hardening) ===
+    SANDBOX_TIMEOUT_SEC: float = 5.0
+    SANDBOX_MAX_RECURSION: int = 500
 
     # === CORS ===
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]

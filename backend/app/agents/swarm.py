@@ -48,6 +48,7 @@ from app.schemas.auth import AuthorizationContext
 from app.services.cache_service import CacheService
 from app.services.evaluation.multi_grader import MultiGraderEval
 from app.services.sandbox.tool_sandbox import ToolSandbox
+from app.core.token_service import TokenService
 
 # ============================================================
 #  Agent Definition
@@ -228,7 +229,7 @@ class SwarmOrchestrator:
         # --- Services (Lazy load) ---
         self._retriever = None
 
-        # --- MCP Manager ---
+        # --- MCP Manager (P2 Migration) ---
         from app.agents.mcp_manager import MCPManager
 
         self.mcp = MCPManager()
@@ -252,11 +253,14 @@ class SwarmOrchestrator:
         # --- Internal Message Bus (OPT-3) ---
         self.bus = get_agent_bus()
 
-        # --- History Compactor (OPT-5) ---
+        # --- History Compactor (OPT-5 + P0 Hardening) ---
         self.compactor = ContextCompactor(
             llm=self.router.get_model(tier=ModelTier.SIMPLE), # Use cheaper model for summarization
-            threshold_messages=30
+            threshold_tokens=int(settings.CONTEXT_WINDOW_LIMIT * settings.BUDGET_HISTORY_RATIO)
         )
+
+        self._initialized = False
+        self._init_lock = asyncio.Lock()
 
         logger.info("🐝 SwarmOrchestrator initialized with Tiered LLM Routing, MCP, Skills, Bus, and Compactor")
 
@@ -264,6 +268,20 @@ class SwarmOrchestrator:
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
+
+    async def ensure_initialized(self):
+        """Ensure MCP, Tool Index, and Graph are stable (M4 Fix)."""
+        if self._initialized:
+            return
+        async with self._init_lock:
+            if not self._initialized:
+                logger.info("📡 [Swarm] Initializing persistent assets (MCP/Embeddings/Graph)...")
+                await self.mcp.load_config("mcp_config.json")
+                await self.mcp.connect_all()
+                await self.tool_index.initialize_embeddings()
+                # Ensure the graph is built
+                await self.build_graph()
+                self._initialized = True
 
     # ============================================================
     #  Agent Management
@@ -415,10 +433,19 @@ class SwarmOrchestrator:
         workflow.add_edge("consensus", "reflection_decision")
         workflow.add_edge("parallel_worker", "consensus") # Default path from parallel if not routed elsewhere
 
-        # 5. Compile with Checkpointer (Phase 5)
-        checkpointer = MemorySaver()
+        # 5. Compile with Persistent Checkpointer (P1 Resilience)
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+            import sqlite3
+            conn = sqlite3.connect(settings.CHECKPOINT_DB_PATH, check_same_thread=False)
+            checkpointer = SqliteSaver(conn)
+            logger.info(f"🕸️ Swarm Graph compiled with Persistent SqliteSaver: {settings.CHECKPOINT_DB_PATH}")
+        except Exception as e:
+            from langgraph.checkpoint.memory import MemorySaver
+            checkpointer = MemorySaver()
+            logger.warning(f"⚠️ Persistence init failed, falling back to MemorySaver: {e}")
+
         self._graph = workflow.compile(checkpointer=checkpointer)
-        logger.info("🕸️ Swarm Graph compiled with Checkpointer Persistence")
 
     # ============================================================
     #  Supervisor Node — uses PromptEngine
@@ -867,15 +894,12 @@ class SwarmOrchestrator:
                     logger.debug(f"🔍 [Tool Discovery] Filtering specialized tools for task: {task[:50]}...")
 
                     # 1.2.1 Search in native tools that are NOT always loaded (Deferred Tools)
-                    deferred_tools = [t for t in NATIVE_TOOLS if t not in mandatory_tools]
-                    task_lower = task.lower()
-                    for t in deferred_tools:
-                        meta = getattr(t, "_hive_meta", None)
-                        if meta and (meta.name in task_lower or (meta.search_hint and any(kw in task_lower for kw in meta.search_hint.split()))):
-                            available_tools.append(t)
+                    # Use semantic search if available (P2 Upgrade)
+                    await self.tool_index.initialize_embeddings() # Ensure ready
+                    available_tools.extend(await self.tool_index.asearch(task, limit=5))
 
-                    # 1.2.2 Discover relevant MCP tools
-                    mcp_tools = self.mcp.discover_tools(task, limit=10)
+                    # 1.2.2 Discover relevant MCP tools (P2 semantic logic)
+                    mcp_tools = await self.mcp.discover_tools(task, limit=10)
                     available_tools.extend(mcp_tools)
 
                     # 1.2.3 Discover relevant Skills
@@ -910,6 +934,13 @@ class SwarmOrchestrator:
             # to help combat 'Lost in the Middle' problem.
             rag_context = state.get("context_data", "")
             prompt_variant = state.get("prompt_variant", "default")
+
+            # --- Token Governance (P0 Hardening) ---
+            rag_budget = int(settings.CONTEXT_WINDOW_LIMIT * settings.BUDGET_RAG_RATIO)
+            mem_budget = int(settings.CONTEXT_WINDOW_LIMIT * settings.BUDGET_MEMORY_RATIO)
+
+            rag_context = TokenService.truncate_to_budget(rag_context, rag_budget)
+            memory_context = TokenService.truncate_to_budget(memory_context, mem_budget)
 
             if len(rag_context) > 10000 or prompt_variant == "head_tail_v1":
                 from app.services.agents.prompt_fixer import VirtualSegmenter
@@ -1622,10 +1653,9 @@ class SwarmOrchestrator:
         self, user_message: str, context: dict[str, Any] | None = None, conversation_id: str = "default_user"
     ) -> dict[str, Any]:
         """
-        Main entry point — process a user request through the swarm.
+        Main entry point with Atomic Initialization (M4 Fix).
         """
-        if not self._graph:
-            await self.build_graph()
+        await self.ensure_initialized()
 
         # TASK-RAG-002: Preprocess query — pronoun resolution + vague query completion
         user_message = await self._preprocess_query(user_message)
@@ -1679,10 +1709,9 @@ class SwarmOrchestrator:
         conversation_id: str = "default_stream",
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
-        Streaming version of invoke — yields intermediate updates/events.
+        Streaming entry point with Atomic Initialization (M4 Fix).
         """
-        if not self._graph:
-            await self.build_graph()
+        await self.ensure_initialized()
 
         # TASK-RAG-002: Preprocess query — pronoun resolution + vague query completion
         user_message = await self._preprocess_query(user_message)

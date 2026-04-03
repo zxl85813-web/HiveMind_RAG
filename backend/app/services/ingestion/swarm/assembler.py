@@ -28,7 +28,8 @@ class SwarmAssembler:
         raw_text: str,
         sections: list[dict[str, Any]],
         chunking_strategy: str = "recursive",
-        code_structure: dict[str, Any] | None = None
+        code_structure: dict[str, Any] | None = None,
+        enrichment_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Consolidated logic for chunking and vectorization.
@@ -86,8 +87,18 @@ class SwarmAssembler:
                 from app.services.memory.tier.graph_index import graph_index
                 await graph_index.index_code_structure(doc_id, code_structure)
 
-            logger.success(f"✅ [Assembler] Successfully vectorized {len(vector_docs)} chunks and indexed structures for Doc {doc_id}")
-            return {"chunks_created": len(chunks), "status": "vectorized", "has_code_structure": code_structure is not None}
+            # 5. Enrichment Indexing (P1-1)
+            if enrichment_data:
+                from app.services.memory.tier.graph_index import graph_index
+                await graph_index.index_enrichment_data(doc_id, enrichment_data, kb_id=kb_id)
+
+            logger.success(f"✅ [Assembler] Successfully vectorized {len(vector_docs)} chunks and enriched Doc {doc_id}")
+            return {
+                "chunks_created": len(chunks),
+                "status": "vectorized",
+                "has_code_structure": code_structure is not None,
+                "has_enrichment": enrichment_data is not None
+            }
 
         except Exception as e:
             logger.error(f"❌ [Assembler] Vectorization failed: {e}")

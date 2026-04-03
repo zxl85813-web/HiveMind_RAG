@@ -37,6 +37,12 @@ class IngestionState(TypedDict):
     raw_text: str
     sections: list[dict[str, Any]]
     code_structure: dict[str, Any] | None # New: M7.2 Code Vault Metadata
+    
+    # Enrichment Data (P1 Resilience)
+    temporal_entities: list[dict[str, str]] | None
+    version_chain: dict[str, str] | None
+    semantic_tags: list[str] | None
+    pulse_summary: str | None
 
     # Processing Metadata (Confidence and Quality)
     confidence_score: float
@@ -74,6 +80,7 @@ class IngestionOrchestrator:
         workflow.add_node("code_extractor_agent", self._code_extractor_node)
         workflow.add_node("security_agent", self._security_node)
         workflow.add_node("critic_agent", self._critic_node)
+        workflow.add_node("enricher_agent", self._enricher_node)
         workflow.add_node("assembler_node", self._assembler_node)
 
         # 2. Define Edges (Non-linear flow)
@@ -103,11 +110,13 @@ class IngestionOrchestrator:
             "critic_agent",
             self._route_critic_decision,
             {
-                "assemble": "assembler_node",
+                "assemble": "enricher_agent",
                 "retry": "parser_agent",
                 "hitl": END,  # Will be flagged in the state for the fallback queue
             },
         )
+
+        workflow.add_edge("enricher_agent", "assembler_node")
 
         workflow.add_edge("assembler_node", END)
 
@@ -172,6 +181,25 @@ class IngestionOrchestrator:
 
         return {"audit_verdict": "PASS", "confidence_score": 0.98}
 
+    async def _enricher_node(self, state: IngestionState) -> dict[str, Any]:
+        """Agent that performs semantic enrichment (P1)."""
+        from app.services.ingestion.swarm.enricher import IngestionEnricher
+        logger.info("🧬 [Swarm] EnricherAgent performing semantic compilation...")
+
+        enricher = IngestionEnricher(llm=None) # Will use internal router
+        result = await enricher.enrich(
+            text=state["raw_text"],
+            file_path=state["file_path"],
+            kb_id=self.kb_id
+        )
+
+        return {
+            "temporal_entities": result.get("temporal_entities"),
+            "version_chain": result.get("version_chain"),
+            "semantic_tags": result.get("semantic_tags"),
+            "pulse_summary": result.get("pulse_summary"),
+        }
+
     async def _assembler_node(self, state: IngestionState) -> dict[str, Any]:
         """Final node: Contextual chunking and Vector synchronization."""
         logger.info("🧩 [Swarm] KnowledgeAssembler starting AssemblerService...")
@@ -183,6 +211,12 @@ class IngestionOrchestrator:
             raw_text=state.get("raw_text", ""),
             sections=state.get("sections", []),
             code_structure=state.get("code_structure"),
+            enrichment_data={
+                "temporal_entities": state.get("temporal_entities"),
+                "version_chain": state.get("version_chain"),
+                "semantic_tags": state.get("semantic_tags"),
+                "pulse_summary": state.get("pulse_summary"),
+            }
         )
 
         return {"next_step": "completed", "assembler_result": result}
@@ -218,6 +252,10 @@ class IngestionOrchestrator:
             "confidence_score": 0.0,
             "is_sensitive": False,
             "audit_verdict": "",
+            "temporal_entities": [],
+            "version_chain": None,
+            "semantic_tags": [],
+            "pulse_summary": None,
             "next_step": "",
             "errors": [],
             "messages": [],

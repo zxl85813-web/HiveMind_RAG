@@ -17,9 +17,21 @@ from app.services.rag_gateway import RAGGateway
 
 router = APIRouter()
 
-# Global Swarm & Job Manager (Singletons)
-_swarm = SwarmOrchestrator()
-_job_manager = JobManager(swarm=_swarm)
+# Global Swarm & Job Manager (Lazy Loading)
+_swarm_instance = None
+_job_manager_instance = None
+
+def get_swarm():
+    global _swarm_instance
+    if _swarm_instance is None:
+        _swarm_instance = SwarmOrchestrator()
+    return _swarm_instance
+
+def get_job_manager():
+    global _job_manager_instance
+    if _job_manager_instance is None:
+        _job_manager_instance = JobManager(swarm=get_swarm())
+    return _job_manager_instance
 
 
 # --- Request Models ---
@@ -66,14 +78,14 @@ async def create_batch_job(request: CreateBatchJobRequest, background_tasks: Bac
             )
         )
 
-    job = await _job_manager.create_job(
+    job = await get_job_manager().create_job(
         name=request.name,
         tasks=task_units,
     )
     job.max_concurrency = request.max_concurrency
 
     # Start in background using LangGraph
-    background_tasks.add_task(_job_manager.start_job, job.id, job)
+    background_tasks.add_task(get_job_manager().start_job, job.id, job)
 
     return {"job_id": job.id, "status": "created"}
 
@@ -81,13 +93,13 @@ async def create_batch_job(request: CreateBatchJobRequest, background_tasks: Bac
 @router.get("/batch/jobs")
 async def list_batch_jobs():
     """List all batch jobs."""
-    return _job_manager.list_jobs()
+    return get_job_manager().list_jobs()
 
 
 @router.get("/batch/jobs/{job_id}")
 async def get_batch_job_status(job_id: str):
     """Get detailed status of a specific batch job."""
-    job = _job_manager.get_job(job_id)
+    job = get_job_manager().get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -98,7 +110,7 @@ async def get_batch_job_status(job_id: str):
 @router.post("/batch/jobs/{job_id}/cancel")
 async def cancel_batch_job(job_id: str):
     """Cancel a running batch job."""
-    await _job_manager.cancel_job(job_id)
+    await get_job_manager().cancel_job(job_id)
     return {"status": "cancelled"}
 
 
@@ -109,7 +121,8 @@ async def get_swarm_reflections(
     match_key: str | None = None,
 ):
     """Get recent reflections from the agent swarm."""
-    memory_manager = getattr(_swarm, "memory", None)
+    swarm = get_swarm()
+    memory_manager = getattr(swarm, "memory", None)
     if not memory_manager:
         return []
     reflections = await memory_manager.get_reflections(limit=limit, signal_type=signal_type, match_key=match_key)
@@ -119,7 +132,8 @@ async def get_swarm_reflections(
 @router.get("/swarm/reflections/matches")
 async def get_swarm_reflection_matches(limit: int = 10):
     """Get suggested GAP -> INSIGHT pairings (exact key + semantic overlap)."""
-    memory_manager = getattr(_swarm, "memory", None)
+    swarm = get_swarm()
+    memory_manager = getattr(swarm, "memory", None)
     if not memory_manager:
         return ApiResponse.ok(data=[])
     matches = await memory_manager.suggest_gap_matches(limit=limit)
@@ -129,7 +143,8 @@ async def get_swarm_reflection_matches(limit: int = 10):
 @router.get("/swarm/agents")
 async def get_swarm_agents():
     """Get all registered agents in the swarm."""
-    agents = _swarm.get_agents()
+    swarm = get_swarm()
+    agents = swarm.get_agents()
     return ApiResponse.ok(
         data=[
             {
@@ -146,8 +161,9 @@ async def get_swarm_agents():
 @router.get("/swarm/stats")
 async def get_swarm_stats():
     """Get high-level swarm statistics."""
-    agents = _swarm.get_agents()
-    memory_manager = getattr(_swarm, "memory", None)
+    swarm = get_swarm()
+    agents = swarm.get_agents()
+    memory_manager = getattr(swarm, "memory", None)
     reflections_count = 0
     todos_count = 0
     if memory_manager:
@@ -169,7 +185,8 @@ async def get_swarm_stats():
 @router.get("/swarm/todos")
 async def get_swarm_todos():
     """Get the communal TODO list from shared memory."""
-    memory_manager = getattr(_swarm, "memory", None)
+    swarm = get_swarm()
+    memory_manager = getattr(swarm, "memory", None)
     if not memory_manager:
         return ApiResponse.ok(data=[])
     todos = await memory_manager.get_todos()
@@ -179,7 +196,8 @@ async def get_swarm_todos():
 @router.get("/swarm/traces")
 async def get_swarm_traces():
     """Get the live execution DAG trace."""
-    memory_manager = getattr(_swarm, "memory", None)
+    swarm = get_swarm()
+    memory_manager = getattr(swarm, "memory", None)
     if not memory_manager:
         return ApiResponse.ok(data={"nodes": [], "links": []})
     traces = await memory_manager.get_traces()
@@ -200,13 +218,14 @@ async def swarm_chat_stream(
         "knowledge_base_ids": request.kb_ids,
         "language": "zh-CN",
     }
+    swarm = get_swarm()
 
     async def event_generator():
         try:
             # yield initial signal
             yield f"data: {json.dumps({'event': 'start', 'conversation_id': request.conversation_id})}\n\n"
 
-            async for update in _swarm.invoke_stream(
+            async for update in swarm.invoke_stream(
                 user_message=request.message,
                 context=context,
                 conversation_id=request.conversation_id
@@ -258,15 +277,16 @@ async def search_swarm_dev_rag(request: DevRAGSearchRequest):
 @router.get("/mcp/status")
 async def get_mcp_status():
     """Get status of all configured MCP servers."""
-    if not hasattr(_swarm, "mcp"):
+    swarm = get_swarm()
+    if not hasattr(swarm, "mcp"):
         return ApiResponse.ok(data={})
 
-    status = await _swarm.mcp.health_check()
+    status = await swarm.mcp.health_check()
 
     # We want to return more detailed info
     result = []
     for name, is_connected in status.items():
-        config = _swarm.mcp._servers.get(name, {})
+        config = swarm.mcp._servers.get(name, {})
         result.append(
             {
                 "name": name,
@@ -282,10 +302,11 @@ async def get_mcp_status():
 @router.get("/mcp/tools")
 async def get_mcp_tools():
     """Get all tools loaded from MCP servers."""
-    if not hasattr(_swarm, "mcp"):
+    swarm = get_swarm()
+    if not hasattr(swarm, "mcp"):
         return ApiResponse.ok(data=[])
 
-    tools = _swarm.mcp.get_tools()
+    tools = swarm.mcp.get_tools()
 
     result = []
     for t in tools:

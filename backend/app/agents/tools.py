@@ -144,13 +144,16 @@ async def search_dev_knowledge(
     top_k: int = 5,
     include_graph: bool = True,
     strategy: str = "hybrid",
+    concise: bool = False,
 ) -> str:
     """
     Development RAG retrieval for code/docs knowledge.
     kb_ids should be a comma-separated list, e.g. "kb-code,kb-docs".
+    Set concise=True to return only first 100 chars per fragment to save tokens.
     """
     try:
         from app.services.rag_gateway import RAGGateway
+        from app.core.token_service import TokenService
 
         parsed_kb_ids = [item.strip() for item in kb_ids.split(",") if item.strip()]
         gateway = RAGGateway()
@@ -169,12 +172,18 @@ async def search_dev_knowledge(
         lines = []
         for frag in result.fragments:
             source = frag.metadata.get("source", "vector")
-            lines.append(f"[{source}] score={frag.score:.2f} kb={frag.kb_id} :: {frag.content}")
+            content = frag.content
+            if concise:
+                content = content[:200] + "... [Truncated for Token Budget]"
+            lines.append(f"[{source}] score={frag.score:.2f} kb={frag.kb_id} :: {content}")
 
         if result.warnings:
             lines.append(f"Warnings: {' | '.join(result.warnings)}")
 
-        return "\n".join(lines)
+        final_text = "\n".join(lines)
+        token_est = TokenService.count_text_tokens(final_text)
+        
+        return f"{final_text}\n\n[TOKEN_ESTIMATION: {token_est} tokens]"
     except Exception as e:
         logger.error(f"Error in search_dev_knowledge: {e}")
         return f"Development retrieval error: {e!s}"
@@ -216,8 +225,9 @@ async def search_available_tools(query: str) -> str:
     if not index:
         return "Tool indexing not yet initialized."
 
-    logger.info(f"🔍 [ToolDiscovery] Searching for: {query}")
-    results = index.search(query)
+    logger.info(f"🔍 [ToolDiscovery] Performing semantic search for: {query}")
+    await index.initialize_embeddings()
+    results = await index.asearch(query)
 
     if not results:
         return f"No specialized tools found for query: '{query}'"

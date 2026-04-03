@@ -34,6 +34,24 @@
 - [x] **M7.2 Swarm 增强**: `IngestionOrchestrator` 接入 `CodeExtractorAgent` 节点，实现代码本体逻辑自动入图
 - [x] **M7.2 双擎索引**: 实现 ES (文本) + Neo4j (结构) 代码资产解耦存储
 
+### [2026-04-02] 架构硬化 (P0 Hardening — M7.3 Architecture Resilience)
+
+- [x] **P0 核心沙箱加固**: 引入 `RestrictedPython` 实现 AST 层级安全隔离，增加 5s 强制超时与递归深度限制 (M7.3.1)
+- [x] **P0 Token 预算系统**: 基于 `tiktoken` 落地 32K 五区预算管理(System/Memory/RAG/History/Output)与语义化自动截断 (M7.3.2)
+- [x] **架构自省**: 完成 Sandbox 逃逸安全测试与 Token 边界压力测试
+
+### [2026-04-02] P1 优先项交付 (Resilience & Intelligence Density — M7.4)
+
+- [x] **P1 Ingestion 语义编译**: 交付 `EnricherAgent` 节点，实现在入库环节自动提取时间实体、语义标签、版本链与 Pulse 摘要 (M7.4.1)
+- [x] **P1 Swarm Checkpointing**: 引入 `SqliteSaver` 持久化检查点，支持 Swarm 任务在后端重启后的 100% 状态恢复 (M4.2.9)
+- [x] **P1 工具 Token 预估**: 为核心 RAG 工具增加 `concise` 模式与精准 Token 消耗预估返回，实现预算闭环 (M7.3.3)
+
+### [2026-04-02] P2 协作进化 (Semantic Discovery & MCP Integration — M7.4)
+
+- [x] **P2 语义 Skill 发现**: `ToolIndex` 升级为 Embedding 向量召回，智体现可通过语义理解发现 100+ 潜在原子技能 (M7.4.2)
+- [x] **P2 MCP 标准落地**: 交付 `DatabaseServer` (FastMCP 实例)，实现结构化数据的标准化上下文注入与安全查询 (M4.2.10)
+- [x] **P2 智体互联**: `MCPManager` 接入 Swarm 运行时，支持动态加载 external 工具集
+
 ### [2026-03-31] Swarm Chat 联调与 6 指标评估体系 (M4/M5 Synergy)
 
 - [x] **Swarm Chat Backend**: 后端 `agents.py` 实现 SSE 流式端点，支持节点思考与消息增量同步
@@ -107,6 +125,16 @@
 - [ ] **GitHub Issues 迁移**: 将本 TODO.md 的活跃项迁移至 GitHub Projects
 - [ ] **M2.3.5 审核台前端**: 文档审核/分块对比/批注页面 (Governance Agent 所需)
 - [ ] **M2.4 权限落地验证**: ACL 全链路 E2E 测试 (`torture_cascading_acl.py` 已有基础)
+
+### 🏗️ 架构硬化 (Harness & Knife Hardening — M7.3/M7.4)
+
+- [x] **P0: 核心沙箱安全加固 (M7.3.1)**: 已落地 `RestrictedPython` 隔离层与 `SafeEnvironment`
+- [x] **P0: TokenService 与 32K 预算系统 (M7.3.2)**: 已落地 `tiktoken` 五区预算管理与自动截断
+- [x] **P1: Ingestion 管线 EnrichmentStep (M7.4.1)**: 已落地语义编译 Agent (Tags/Timeline/Pulse)
+- [x] **P1: Agent 状态持久化 (Checkpointing)**: 已落地 `SqliteSaver` 检查点持久化
+- [x] **P1: 工具响应 Token 预估**: 已为 RAG 工具增加 `concise` 模式
+- [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
+- [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
 
 ---
 

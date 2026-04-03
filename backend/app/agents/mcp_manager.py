@@ -103,33 +103,58 @@ class MCPManager:
         """
         return self._tools
 
-    def discover_tools(self, query: str, limit: int = 15) -> list[Any]:
+    async def discover_tools(self, query: str, limit: int = 15) -> list[Any]:
         """
-        Discover MCP tools relevant to the query based on tool descriptions.
+        [P2 Upgrade] Discover MCP tools relevant using Semantic Search.
         """
         if not self._tools:
             return []
 
-        query_lower = query.lower()
-        query_words = set(query_lower.split())
+        try:
+            from app.core.embeddings import get_embedding_service
+            import numpy as np
+            
+            embedder = get_embedding_service()
+            query_vector = await embedder.aembed_query(query)
+            
+            tool_texts = [
+                f"MCP Tool: {getattr(t, 'name', '')}. Desc: {getattr(t, 'description', '')}"
+                for t in self._tools
+            ]
+            
+            # Since we don't cache MCP embeddings yet (dynamic), we do it on the fly
+            # In production, we'd cache these per-session.
+            tool_vectors = await embedder.aembed_documents(tool_texts)
+            
+            q_vec = np.array(query_vector)
+            t_vecs = np.array(tool_vectors)
+            
+            similarities = np.dot(t_vecs, q_vec) / (
+                np.linalg.norm(t_vecs, axis=1) * np.linalg.norm(q_vec)
+            )
+            
+            idx = np.argsort(similarities)[::-1]
+            results = [self._tools[i] for i in idx[:limit] if similarities[i] > 0.3]
+            
+            if results:
+                logger.debug(f"🧬 [MCP Semantic] Found {len(results)} relevant tools for query '{query}'")
+                return results
 
+        except Exception as e:
+            logger.debug(f"[MCP Semantic] Search fallback to keyword: {e}")
+
+        # Fallback keyword logic
+        query_words = set(query.lower().split())
         scored_tools = []
         for tool in self._tools:
-            # MCP tools in LangChain adapter usually have .name and .description
             desc = getattr(tool, "description", "").lower()
             name = getattr(tool, "name", "").lower()
-
             score = sum(2 if word in name else 0 for word in query_words)
             score += sum(1 if word in desc else 0 for word in query_words)
-
-            if score > 0:
-                scored_tools.append((score, tool))
-
-        if not scored_tools:
-            return self._tools[:limit]
+            if score > 0: scored_tools.append((score, tool))
 
         scored_tools.sort(key=lambda x: x[0], reverse=True)
-        return [t for _, t in scored_tools[:limit]]
+        return [t for _, t in scored_tools[:limit]] or self._tools[:limit]
 
     async def health_check(self) -> dict[str, bool]:
         """Check connectivity to all MCP servers."""

@@ -1,18 +1,11 @@
-"""
-Unified Tool Sandbox for Programmatic Tool Calling.
-Allows executing complex logic (Python) that orchestrates other system tools.
-"""
-
-import asyncio
 import io
-import json
-import math
 import sys
 from typing import Any
 
 from loguru import logger
 
 from app.agents.tool_types import InterruptBehavior, hive_tool
+from app.services.sandbox.safe_environment import SafeEnvironment
 
 
 class ToolSandbox:
@@ -23,6 +16,17 @@ class ToolSandbox:
 
     def __init__(self, available_tools: list[Any]):
         self.tools_map = {getattr(t, "name", t.__name__): t for t in available_tools if hasattr(t, "name") or hasattr(t, "__name__")}
+        
+        # Inject standard platform bridge
+        class PlatformBridge:
+            def __init__(self, sandbox: 'ToolSandbox'):
+                self._sandbox = sandbox
+
+            async def call(self, tool_name: str, **kwargs):
+                return await self._sandbox.call_tool(tool_name, **kwargs)
+
+        self.bridge = PlatformBridge(self)
+        self.env = SafeEnvironment(platform_bridge=self.bridge)
 
     async def call_tool(self, name: str, **kwargs) -> Any:
         """Internal bridge for the script to call other tools."""
@@ -40,68 +44,34 @@ class ToolSandbox:
             return tool_obj(**kwargs)
 
     async def run_script(self, code: str) -> str:
-        """Execute Python orchestration code."""
+        """Execute Python orchestration code inside SafeEnvironment."""
         stdout = io.StringIO()
         old_stdout = sys.stdout
         sys.stdout = stdout
 
-        # Define the 'platform' object available to the script
-        class PlatformBridge:
-            def __init__(self, sandbox: 'ToolSandbox'):
-                self._sandbox = sandbox
-
-            def call(self, tool_name: str, **kwargs):
-                # We use a helper to run async in what might look like a sync script
-                # or the script itself can use 'await platform.acall(...)'
-                # For simplicity in Phase 1, we provide an async method
-                return self._sandbox.call_tool(tool_name, **kwargs)
-
-        platform = PlatformBridge(self)
-
         try:
-            # Restricted execution environment
-            # Note: In a real production environment, use E2B or a Docker container.
-            safe_globals = {
-                "platform": platform,
-                "logger": logger,
-                "json": json,
-                "math": math,
-                "asyncio": asyncio,
-                "__builtins__": {
-                    "print": print, "range": range, "len": len, "int": int, "float": float,
-                    "str": str, "list": list, "dict": dict, "set": set, "tuple": tuple,
-                    "min": min, "max": max, "sum": sum, "any": any, "all": all, "bool": bool,
-                    "Exception": Exception, "ValueError": ValueError, "TypeError": TypeError
-                }
-            }
-
-            # Since we want to support 'await', we wrap the code in an async function
-            wrapped_code = "async def _run_orchestration():\n"
-            for line in code.splitlines():
-                wrapped_code += f"    {line}\n"
-            wrapped_code += "\n_loop = asyncio.get_event_loop()\n_result = _run_orchestration()"
-
-            local_scope = {}
-            exec(wrapped_code, safe_globals, local_scope)
-
-            # Execute the generated async function
-            result_val = await local_scope["_run_orchestration"]()
+            # Restricted execution via SafeEnvironment (P0 Hardening)
+            result_val = await self.env.execute(code, timeout=5.0)
 
             output = stdout.getvalue()
             sys.stdout = old_stdout
 
-            summary = "✅ Orchestration completed inside sandbox."
+            if isinstance(result_val, str) and result_val.startswith("Error"):
+                summary = f"❌ {result_val}"
+            else:
+                summary = "✅ Orchestration completed inside SAFE sandbox."
+            
             if output:
                 summary += f"\nOutput:\n{output}"
-            if result_val is not None:
+            if result_val is not None and not (isinstance(result_val, str) and result_val.startswith("Error")):
                 summary += f"\nFinal Result: {result_val}"
 
             return summary
 
         except Exception as e:
             sys.stdout = old_stdout
-            logger.error(f"❌ Sandbox Execution Error: {e}")
-            return f"Error during programmatic execution: {e!s}"
+            logger.error(f"❌ Sandbox Wrapper Error: {e}")
+            return f"Error during sandbox orchestration: {e!s}"
 
 @hive_tool(
     is_read_only=False,

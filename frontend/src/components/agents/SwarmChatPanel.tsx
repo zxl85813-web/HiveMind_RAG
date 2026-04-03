@@ -1,26 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Input, Button, Avatar, Space, Typography, Badge, Tooltip, message as antdMessage } from 'antd';
+import { Input, Button, Space, Typography, Badge, Tooltip, message as antdMessage } from 'antd';
 import { 
     SendOutlined, 
     RobotOutlined, 
     LoadingOutlined,
-    BulbOutlined,
-    HistoryOutlined,
-    PlayCircleOutlined
+    HistoryOutlined
 } from '@ant-design/icons';
 import styles from './SwarmChatPanel.module.css';
 import { agentApi } from '../../services/agentApi';
-
-const { Text, Paragraph } = Typography;
-
-interface ChatMessage {
-    id: string;
-    role: 'user' | 'swarm';
-    content: string;
-    nodes?: string[];
-    thoughts?: string[];
-    actions?: any[];
-}
+import { ChatBubble } from './ChatBubble';
+import type { ChatMessage } from './ChatBubble';
 
 export const SwarmChatPanel: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -51,7 +40,6 @@ export const SwarmChatPanel: React.FC = () => {
         setIsStreaming(true);
         setCurrentNode('supervisor');
 
-        // New Swarm message for streaming
         const swarmMsgId = (Date.now() + 1).toString();
         let currentContent = '';
         const currentThoughts: string[] = [];
@@ -66,7 +54,7 @@ export const SwarmChatPanel: React.FC = () => {
                 body: JSON.stringify({
                     message: inputValue,
                     conversation_id: conversationIdRef.current,
-                    kb_ids: [] // Option to pass KBs
+                    kb_ids: []
                 })
             });
 
@@ -88,9 +76,7 @@ export const SwarmChatPanel: React.FC = () => {
                     if (line.startsWith('data: ')) {
                         const data = JSON.parse(line.slice(6));
                         
-                        if (data.event === 'start') {
-                            // Thread ID is managed by parent or ref if needed
-                        } else if (data.event === 'node_start') {
+                        if (data.event === 'node_start') {
                             setCurrentNode(data.node);
                         } else if (data.event === 'thought') {
                             currentThoughts.push(data.content);
@@ -127,76 +113,25 @@ export const SwarmChatPanel: React.FC = () => {
         }
     };
 
-    const renderAction = (content: string) => {
-        // Simple regex to detect [ACTION: {...}]
-        const actionMatch = content.match(/\[ACTION: (.*?)\]/);
-        if (actionMatch) {
-            try {
-                const action = JSON.parse(actionMatch[1]);
-                const cleanContent = content.replace(/\[ACTION: (.*?)\]/, '');
-                
-                return (
-                    <>
-                        <Paragraph>{cleanContent}</Paragraph>
-                        <Button 
-                            type={action.variant === 'primary' ? 'primary' : 'default'}
-                            icon={<PlayCircleOutlined />}
-                            shape="round"
-                            onClick={() => window.location.href = action.target}
-                        >
-                            {action.label}
-                        </Button>
-                    </>
-                );
-            } catch (e) {
-                return <Paragraph>{content}</Paragraph>;
-            }
-        }
-        return <Paragraph>{content}</Paragraph>;
-    };
-
     return (
         <div className={styles.swarmChatPanel}>
             <div className={styles.chatMessages} ref={scrollRef}>
                 {messages.length === 0 && (
                     <div style={{ textAlign: 'center', marginTop: '15%', padding: '0 40px' }}>
                         <RobotOutlined style={{ fontSize: 48, color: 'var(--hm-color-brand-dim)', marginBottom: 16 }} />
-                        <Text strong style={{ display: 'block', fontSize: 18 }}>Agent Swarm 实时监控台</Text>
-                        <Text type="secondary">发送消息以触发 Agent 协作，下方将实时展示节点的思考与执行路径。</Text>
+                        <Typography.Text strong style={{ display: 'block', fontSize: 18 }}>Agent Swarm 实时监控台</Typography.Text>
+                        <Typography.Text type="secondary">发送消息以触发 Agent 协作，下方将实时展示节点的思考与执行路径。</Typography.Text>
                     </div>
                 )}
                 
                 {messages.map((msg) => (
-                    <div 
-                        key={msg.id} 
-                        className={`${styles.message} ${msg.role === 'user' ? styles.userMessage : styles.swarmMessage}`}
-                    >
-                        {msg.role === 'swarm' && (
-                            <div style={{ marginBottom: 8 }}>
-                                <Space>
-                                    <Avatar size="small" icon={<RobotOutlined />} style={{ backgroundColor: 'var(--hm-color-brand)' }} />
-                                    <Text strong>HiveMind Swarm</Text>
-                                </Space>
-                            </div>
-                        )}
-                        
-                        {msg.thoughts?.map((thought, idx) => (
-                            <div key={idx} className={styles.thoughtBubble}>
-                                <BulbOutlined />
-                                <span>{thought}</span>
-                            </div>
-                        ))}
-                        
-                        <div style={{ marginTop: 4 }}>
-                            {renderAction(msg.content)}
-                        </div>
-                    </div>
+                    <ChatBubble key={msg.id} message={msg} />
                 ))}
                 
                 {isStreaming && currentNode && (
-                    <div className={styles.message} style={{ alignSelf: 'flex-start', background: 'transparent', padding: '0' }}>
+                    <div style={{ alignSelf: 'flex-start', background: 'transparent', padding: '0 16px' }}>
                         <Space className={styles.typingIndicator}>
-                            <Badge status="processing" text={<Text type="secondary" style={{fontSize: '12px'}}>{`Agent Node [${currentNode}] is thinking...`}</Text>} />
+                            <Badge status="processing" text={<Typography.Text type="secondary" style={{fontSize: '12px'}}>{`Agent Node [${currentNode}] is thinking...`}</Typography.Text>} />
                             <div className={styles.dot}></div>
                             <div className={styles.dot}></div>
                             <div className={styles.dot}></div>

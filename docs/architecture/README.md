@@ -28,6 +28,7 @@
 *   **[记忆压缩方案](memory_compression_design.md)** — 长程记忆中的信息蒸馏与压缩设计。
 *   🆕 **[业务流全景映射 (business_flow)](business_flow.md)** — 系统端到端请求生命周期的全链路 Neo4j 图谱映射。
 *   🆕 **[业务驱动测试策略 (business_driven_testing)](business_driven_testing.md)** — 基于图谱的全栈 E2E 测试用例生成策略。
+*   🆕 **[图谱驱动全链路测试方法论 (graph_driven_testing_methodology)](graph_driven_testing_methodology.md)** — **推荐阅读**：基于 Neo4j 与 RAG 6 指标的深度验证体系与自愈测试闭环。
 *   🆕 **[Neo4j 数据流设计 (neo4j_data_flow)](neo4j_data_flow.md)** — 图谱节点/关系的写入、查询与扩展设计规范。
 
 ---

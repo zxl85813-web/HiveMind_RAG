@@ -57,6 +57,8 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "httpx>=0.28.0",
     "aiofiles>=24.1.0",
+    "RestrictedPython>=7.4",
+    "tiktoken>=0.8.0",
 ]
 
 [tool.setuptools]

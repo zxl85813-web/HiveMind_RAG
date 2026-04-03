@@ -38,8 +38,16 @@ description: 基于 Neo4j 的架构资产图谱映射，实现从需求到代码
 
 ### Step 3: Knowledge Augmentation
 - If the graph returns relevant files, use `view_file` to read them and augment your context.
-- Use `prompts/cypher-generation.j2` if you need to perform more complex custom traversals in the Neo4j browser or via tool.
+- Use `prompts/cypher-generation.j2` if you need complex traversals.
+
+### Step 4: Code Similarity (Anti-Duplication)
+- Before creating a new service or component, run the block-level similarity tool:
+  ```powershell
+  python skills/architectural-mapping/scripts/code_similarity_tool.py --dir frontend/src --threshold 0.8
+  ```
+- If a match > 0.8 is found, analyze blocks A and B for refactoring potential.
 
 ## 🛡️ Best Practices
-- **Impact First**: Before any major refactoring, always perform an impact analysis query to identify downstream dependencies.
-- **Sync Often**: Run `index_architecture.py` after completing a DES or REQ document to keep the "Brain" synchronized with the filesystem.
+- **Impact First**: Perform an impact analysis query before any major refactoring.
+- **Sync Often**: Run `index_architecture.py` after completing a DES or REQ document.
+- **Clean Logic**: Keep similarity thresholds at 0.8 for design-time and 0.9 for CI-time.

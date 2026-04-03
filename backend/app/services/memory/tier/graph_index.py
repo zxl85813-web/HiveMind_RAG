@@ -264,6 +264,70 @@ class GraphIndex:
         except Exception as e:
             logger.warning(f"CodeVault indexing failed for {doc_id}: {e}")
 
+    async def index_enrichment_data(
+        self, doc_id: str, enrichment_data: dict[str, Any], kb_id: str | None = None
+    ) -> None:
+        """
+        P1-1: EnrichmentStep - 将语义特征（时间实体、标签、摘要）持久化到图谱中。
+        """
+        if not self._is_available() or not enrichment_data:
+            return
+
+        nodes = []
+        edges = []
+
+        # 1. 强化 Document 节点
+        pulse = enrichment_data.get("pulse_summary", "")
+        # Use simple dictionary for nodes if we don't have a model here
+        # Note: id/label/name are standard for import_subgraph
+        nodes.append({
+            "id": doc_id,
+            "label": "Document",
+            "name": doc_id,
+            "pulse_summary": pulse,
+            "kb_id": kb_id
+        })
+
+        # 2. 语义标签 (Tags)
+        for tag in enrichment_data.get("semantic_tags", []):
+            tid = f"TAG_{tag}"
+            nodes.append({"id": tid, "label": "Tag", "name": tag})
+            edges.append({"source": doc_id, "target": tid, "type": "HAS_TAG"})
+
+        # 3. 时间实体 (Events)
+        for event in enrichment_data.get("temporal_entities", []):
+            date_str = event.get("date", "unknown")
+            desc = event.get("description", "")
+            eid = f"EVENT_{doc_id}_{date_str}"
+            nodes.append({
+                "id": eid,
+                "label": "Event",
+                "name": date_str,
+                "date": date_str,
+                "description": desc
+            })
+            edges.append({"source": doc_id, "target": eid, "type": "MENTIONS_EVENT"})
+
+        # 4. 版本链 (Version Chain)
+        v_chain = enrichment_data.get("version_chain")
+        if v_chain and isinstance(v_chain, dict) and v_chain.get("current_version"):
+            curr_v = v_chain["current_version"]
+            vid = f"VERSION_{doc_id}_{curr_v}"
+            nodes.append({
+                "id": vid,
+                "label": "Version",
+                "name": curr_v,
+                "prev_hint": v_chain.get("previous_version_hint", "")
+            })
+            edges.append({"source": doc_id, "target": vid, "type": "HAS_VERSION"})
+
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: self.store.import_subgraph(nodes, edges))
+            logger.info(f"🧬 P1 Enrichment: Indexed {len(nodes)} semantic assets for doc: {doc_id}.")
+        except Exception as e:
+            logger.error(f"Enrichment indexing failed for {doc_id}: {e}")
+
 
 # 单例访问
 graph_index = GraphIndex()
