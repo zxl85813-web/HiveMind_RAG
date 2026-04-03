@@ -1,10 +1,9 @@
 import json
 from loguru import logger
-from redis import Redis
-from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.observability import AgentSpan
+from app.core.redis import get_redis_client
 
 from app.core.celery_app import celery_app
 
@@ -14,7 +13,7 @@ def flush_trace_buffer():
     Consumer task for trace_span_buffer in Redis.
     Pops spans and bulk-inserts them into PostgreSQL.
     """
-    redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    redis_client = get_redis_client()
     
     # Attempt to pop up to 100 items at once for bulk insertion
     spans_to_insert = []

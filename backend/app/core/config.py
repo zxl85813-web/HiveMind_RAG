@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     BUDGET_HISTORY_RATIO: float = 0.20
     BUDGET_OUTPUT_RATIO: float = 0.10
 
+    # === LLM Cost Budget (M7.1 Hardening) ===
+    BUDGET_DAILY_LIMIT_USD: float = 10.0      # Daily cap in USD
+    BUDGET_MONTHLY_LIMIT_USD: float = 100.0   # Monthly cap
+    BUDGET_ALERT_THRESHOLD: float = 0.8       # Alert at 80% usage
+
     # === Sandbox Governance (P0 Hardening) ===
     SANDBOX_TIMEOUT_SEC: float = 5.0
     SANDBOX_MAX_RECURSION: int = 500

@@ -52,8 +52,14 @@ class Document(SQLModel, table=True):
     chunk_count: int = 0
     status: str = "pending"  # Global parsing status: pending | processing | parsed | failed
     error_message: str | None = None
+    
+    # === Freshness & Lifecycle (TASK-GOV-003) ===
+    expiry_date: datetime | None = Field(default=None, index=True)
+    last_reviewed_at: datetime | None = Field(default_factory=datetime.utcnow)
+    next_review_at: datetime | None = Field(default=None, index=True)
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column_kwargs={"onupdate": datetime.utcnow})
 
     knowledge_bases: list[KnowledgeBase] = Relationship(
         back_populates="documents", link_model=KnowledgeBaseDocumentLink

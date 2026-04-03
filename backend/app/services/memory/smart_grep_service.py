@@ -29,7 +29,9 @@ from rank_bm25 import BM25Okapi
 from rapidfuzz import fuzz
 from rapidfuzz import process as rf_process
 
-from app.core.llm import get_llm_service
+from app.services.governance.prompt_service import prompt_service
+
+# ── Data Models ──────────────────────────────────────────────────────
 
 # ── Data Models ──────────────────────────────────────────────────────
 
@@ -91,10 +93,6 @@ def _expand_with_synonyms(query: str) -> list[str]:
 
 class SmartGrepService:
     """Multi-strategy memory search engine with BM25, Fuzzy, and LLM modes."""
-
-    _EXPANSION_PROMPT = """You are a search keyword expander. Given a technical query, output 8-12 related keywords/synonyms separated by commas. Include the original terms. No other text.
-Query: {query}
-Output:"""
 
     def __init__(self, base_data_dir: str = "data/memories"):
         self.base_data_dir = base_data_dir
@@ -232,7 +230,13 @@ Output:"""
         """LLM-powered keyword expansion + regex scan. Slowest but highest recall."""
         try:
             llm = get_llm_service()
-            prompt = self._EXPANSION_PROMPT.format(query=query)
+            # 🛰️ [PromptGov]: Fetch from registry
+            raw_prompt = await prompt_service.get_prompt("smart_grep_expansion")
+            if not raw_prompt:
+                 # Last resort fallback if DB is empty and seeder hasn't run
+                 raw_prompt = "You are a search keyword expander. Query: {query} Output:"
+                 
+            prompt = raw_prompt.format(query=query)
             resp = await llm.chat_complete([{"role": "user", "content": prompt}], temperature=0.1)
             keywords = [k.strip() for k in resp.replace("`", "").split(",") if k.strip()]
             if not keywords:

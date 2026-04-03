@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.logging import logger
+from app.core.logging import logger, trace_id_var
+from sqlalchemy import event
 
 # === Engine 配置 ===
 
@@ -35,7 +36,24 @@ else:
     db_config["max_overflow"] = 20
     db_config["pool_recycle"] = 3600
 
+# === SQL 追踪染色 (TASK-GOV-001) ===
+def inject_trace_id(conn, cursor, statement, parameters, context, executemany):
+    """
+    在所有 SQL 执行前注入 Trace ID 注释。
+    """
+    trace_id = trace_id_var.get()
+    if statement.startswith("/*"):
+        return
+    
+    new_statement = f"/* trace:{trace_id} */ {statement}"
+    
+    if hasattr(context, 'statement'):
+        context.statement = new_statement
+
 engine = create_async_engine(settings.DATABASE_URL, **db_config)
+
+# 挂载监听器
+event.listen(engine.sync_engine, "before_cursor_execute", inject_trace_id)
 
 # === Session 工厂 ===
 async_session_factory = async_sessionmaker(

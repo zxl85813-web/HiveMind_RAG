@@ -80,6 +80,8 @@
 | 🆕 `CodeVaultService` | **代码全景资产**: 基于 AST 的代码解析与图谱存储 (M7.2) | `memory/tier/graph_index.py` | ✅ |
 | 🆕 `ClawRouterGovernance` | **智能分流引擎**: 15 维动态评分决策中心 (M7.1) | `claw_router_governance.py` | ✅ |
 | 🆕 `AbstractIndexService` | **图谱索引抽象层**: 定义 `record_agent_preference` / `get_agent_preferences` 契约 | ✅ 已实现 |
+| 🆕 `BudgetService` | **成本治理中心**: LLM Token 预算统计与自动化超支熔断 (M7.1) | `app/services/governance/budget_service.py` | ✅ |
+| 🆕 `KnowledgeFreshnessService` | **知识新鲜度中心**: RAG 文档生命周期巡检与过期治理 (TASK-GOV-003) | `app/services/knowledge/freshness_service.py` | ✅ |
 
 ---
 
@@ -163,6 +165,8 @@
 | 🆕 **Swarm 评估矩阵** | `run_swarm_eval_matrix.py` | 批量评估 Swarm 跨场景表现 | - | ✅ |
 | 🆕 **肠架构图** | `torture_cascading_acl.py` | ACL 级联权限边界压力测试 | GATE-SEC | ✅ |
 | 🆕 **动态提示恢复** | `verify_dynamic_prompt_recovery.py` | 验证长上下文动态 Prompt 恢复机制 | - | ✅ |
+| 🆕 **成本审计** | `audit_llm_costs.py` | 全系统 LLM 消耗金额统计与预警 | - | ✅ |
+| 🆕 **知识新鲜度审计** | `audit_knowledge_freshness.py` | 识别 RAG 知识库中过期的陈旧文档 | - | ✅ |
 
 ---
 
