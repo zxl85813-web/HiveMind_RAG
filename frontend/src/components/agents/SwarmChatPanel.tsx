@@ -8,8 +8,8 @@ import {
 } from '@ant-design/icons';
 import styles from './SwarmChatPanel.module.css';
 import { agentApi } from '../../services/agentApi';
-import { ChatBubble } from './ChatBubble';
-import type { ChatMessage } from './ChatBubble';
+import { ChatBubble } from '@/components/chat/ChatBubble';
+import type { ChatMessage } from '@/components/chat/ChatBubble';
 
 export const SwarmChatPanel: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
