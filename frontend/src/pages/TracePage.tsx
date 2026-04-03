@@ -36,7 +36,15 @@ const STEP_CONFIG: Record<string, { icon: React.ReactNode, color: string, label:
     "Pipeline": { icon: <CheckCircleOutlined />, color: 'var(--hm-color-text-quaternary)', label: '管道流水线' }
 };
 
+import { useMonitor } from '../hooks/useMonitor';
+
 export const TracePage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'TraceViewer' });
+    }, [track]);
+
     const { token } = theme.useToken();
     const { data: traces, isLoading: isLoadingTraces } = useTraces();
     const [selectedTrace, setSelectedTrace] = useState<any>(null);

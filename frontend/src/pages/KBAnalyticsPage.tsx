@@ -17,9 +17,17 @@ import { knowledgeApi } from '../services/knowledgeApi';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
+import { useMonitor } from '../hooks/useMonitor';
+
 const { Title, Text } = Typography;
 
 export const KBAnalyticsPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'KBAnalytics' });
+    }, [track]);
+
     const { token } = theme.useToken();
     const [selectedKbId, setSelectedKbId] = useState<string | undefined>(undefined);
     const [days, setDays] = useState(7);

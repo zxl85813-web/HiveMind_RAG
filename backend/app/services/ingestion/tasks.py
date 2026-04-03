@@ -8,7 +8,9 @@ import asyncio
 from typing import Any
 
 from celery import shared_task
-from loguru import logger
+from app.core.logging import get_trace_logger
+
+logger = get_trace_logger("ingestion.tasks")
 
 
 # Lazy imports for the heavy swarm mechanisms

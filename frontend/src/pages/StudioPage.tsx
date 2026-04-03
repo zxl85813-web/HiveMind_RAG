@@ -8,9 +8,17 @@ import type { GenerateResponse } from '../services/generationApi';
 import type { KnowledgeBase } from '../types';
 
 const { TextArea } = Input;
-const { Title, Text } = Typography;
+import { useMonitor } from '../hooks/useMonitor';
+
+const { Title, Text, Paragraph } = Typography;
 
 export const StudioPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'Studio' });
+    }, [track]);
+
     const { message } = App.useApp();
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
     const [selectedKbs, setSelectedKbs] = useState<string[]>([]);

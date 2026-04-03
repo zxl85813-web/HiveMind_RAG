@@ -5,10 +5,17 @@ import { PageContainer } from '../components/common/PageContainer';
 import { auditApi } from '../services/auditApi';
 import { knowledgeApi } from '../services/knowledgeApi';
 import type { DocumentReview } from '../types';
+import { useMonitor } from '../hooks/useMonitor';
+import styles from './AuditPage.module.css';
 
 const { Title, Text } = Typography;
 
 export const AuditPage: React.FC = () => {
+    const { track } = useMonitor();
+    
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'AuditLog' });
+    }, [track]);
     const { message } = App.useApp();
     const { token } = theme.useToken();
     const [reviews, setReviews] = useState<DocumentReview[]>([]);

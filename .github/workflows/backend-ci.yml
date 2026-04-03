@@ -128,6 +128,9 @@ jobs:
       - name: Phase 5 Step-7 Closure Readiness
         run: python scripts/validate_step7_closure_readiness.py --sg1-window-hours ${{ env.SG1_WINDOW_HOURS }} --sg1-min-pass-count ${{ env.STEP7_CLOSURE_MIN_SG1_PASS_COUNT }} --enforce
 
+      - name: 🛡️ Architecture & Observability Audit
+        run: python scripts/sync_registry.py --enforce --max-unregistered 160 --max-unmonitored 180
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4

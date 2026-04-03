@@ -6,10 +6,17 @@ import { PermissionButton } from '../components/common';
 import { ftApi } from '../services/ftApi';
 import type { FineTuningItem } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Text } = Typography;
 
 export const FineTuningPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    useEffect(() => {
+        track('system', 'page_load', { page: 'FineTuningManager' });
+    }, [track]);
+
     const { message, modal } = App.useApp();
     const hasAccess = useAuthStore((state) => state.hasAccess);
     const [items, setItems] = useState<FineTuningItem[]>([]);

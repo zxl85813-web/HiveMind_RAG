@@ -31,7 +31,15 @@ interface DiagnosisResult {
     analysis: string;
 }
 
+import { useMonitor } from '../hooks/useMonitor';
+
 const ArchitectureLabPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'ArchitectureLab' });
+    }, [track]);
+
     // 1. 获取基线数据摘要
     const { data: report, isLoading: loadingReport, refetch: refetchReport } = useQuery({
         queryKey: ['baseline-overall-report'],

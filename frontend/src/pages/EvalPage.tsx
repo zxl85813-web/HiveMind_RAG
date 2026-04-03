@@ -7,6 +7,7 @@ import { evalApi } from '../services/evalApi';
 import { knowledgeApi } from '../services/knowledgeApi';
 import type { EvaluationSet, EvaluationReport, KnowledgeBase } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { TabPane } = Tabs;
 const { Text, Title, Paragraph } = Typography;
@@ -295,6 +296,12 @@ function generateReportHTML(
 
 
 export const EvalPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'EvaluationDashboard' });
+    }, [track]);
+    
     const { message } = App.useApp();
     const { token } = theme.useToken();
     const hasAccess = useAuthStore((state) => state.hasAccess);

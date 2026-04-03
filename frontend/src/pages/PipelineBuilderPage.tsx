@@ -20,6 +20,7 @@ import type {
 import '@xyflow/react/dist/style.css';
 import { Button, Card, Flex, Select, Typography, message, Tag, Layout, Drawer, Form, Input, InputNumber, Switch } from 'antd';
 import { SaveOutlined, PlayCircleOutlined, SettingOutlined } from '@ant-design/icons';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -368,6 +369,12 @@ const DnDFlow = () => {
 };
 
 export const PipelineBuilderPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'PipelineBuilder' });
+    }, [track]);
+
     return (
         <Card bodyStyle={{ padding: 0 }} bordered={false} style={{ background: 'transparent' }}>
             <ReactFlowProvider>

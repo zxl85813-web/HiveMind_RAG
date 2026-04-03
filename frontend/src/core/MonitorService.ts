@@ -1,4 +1,4 @@
-import { MonitorEventSchema, type MonitorEvent } from './schema/monitoring';
+import { UnifiedLogSchema, type UnifiedLog, type MonitorEvent } from './schema/monitoring';
 import type { AppError } from './AppError';
 
 // 🚀 [Architecture-Optimization]: Sentry Lazy Loading
@@ -12,6 +12,7 @@ class MonitorService {
     private isProd = import.meta.env.PROD;
     private dsn = import.meta.env.VITE_SENTRY_DSN;
     private initPromise: Promise<void> | null = null;
+    private traceId: string = `fe-${Math.random().toString(36).substring(2, 15)}`;
 
     constructor() {
         if (this.dsn && this.dsn !== 'https://placeholder@sentry.io/4500000000000000') {
@@ -47,32 +48,50 @@ class MonitorService {
         return this.initPromise;
     }
 
+    public getTraceId() {
+        return this.traceId;
+    }
+
     /** 记录标准事件 */
     public log(event: Omit<MonitorEvent, 'timestamp'>) {
         try {
-            const validatedEvent = MonitorEventSchema.parse({
-                ...event,
-                timestamp: Date.now()
-            });
+            // 🛰️ [FE-GOV-002]: 统一映射到 UnifiedLog 契约
+            const unifiedLog: UnifiedLog = {
+                ts: Date.now(),
+                level: event.category === 'error' ? 'ERROR' : 'INFO',
+                trace_id: this.traceId,
+                platform: 'FE',
+                category: event.category,
+                module: event.user_context?.page || 'UnknownUI',
+                action: event.action,
+                msg: event.label || event.action,
+                meta: {
+                    ...event.metadata,
+                    value: event.value,
+                },
+                env: import.meta.env.MODE
+            };
+
+            const validatedLog = UnifiedLogSchema.parse(unifiedLog);
 
             // 1. 开发环境输出
             if (!this.isProd) {
-                console.log(`[Monitor][${validatedEvent.category}] ${validatedEvent.action}`, validatedEvent);
+                console.log(`[UnifiedLog][${validatedLog.level}][${this.traceId}] ${validatedLog.module} -> ${validatedLog.action}`, validatedLog);
             }
 
             // 2. Sentry 面包屑记录 (如果已加载)
             if (sentryInstance) {
                 sentryInstance.addBreadcrumb({
-                    category: validatedEvent.category,
-                    message: validatedEvent.action,
-                    data: validatedEvent.metadata,
-                    level: "info",
+                    category: validatedLog.category,
+                    message: `${validatedLog.module}: ${validatedLog.action}`,
+                    data: validatedLog.meta,
+                    level: validatedLog.level.toLowerCase() as any,
                 });
             }
 
-            // 3. TODO: 批量上报逻辑
+            // 3. TODO: 批量上报逻辑 (P1)
         } catch (e) {
-            console.warn('[Monitor] Failed to log event due to schema non-compliance', e);
+            console.warn('[Monitor] Failed to log event due to UnifiedLog non-compliance', e);
         }
     }
 

@@ -3,6 +3,7 @@ import { agentApi } from '../../services/agentApi';
 import { knowledgeApi } from '../../services/knowledgeApi';
 import { evalApi } from '../../services/evalApi';
 import { observabilityApi } from '../../services/observabilityApi';
+import { useMonitor } from '../useMonitor';
 
 /**
  * 🛰️ [FE-GOV-001]: Dashboard 概览数据管理 Hook
@@ -16,18 +17,23 @@ export const DASHBOARD_KEYS = {
 
 /** 聚合仪表盘统计数据 */
 export function useDashboardStats() {
+    const { track } = useMonitor();
+
     return useQuery({
         queryKey: DASHBOARD_KEYS.STATS,
         queryFn: async () => {
+            track('system', 'fetch_start', { resource: 'dashboard_stats' });
             const [statsRes, kbRes] = await Promise.all([
                 agentApi.getStats(),
                 knowledgeApi.listKBs()
             ]);
             
-            return {
+            const data = {
                 ...statsRes.data.data,
                 total_kbs: kbRes.data.data.length
             };
+            track('system', 'fetch_success', { resource: 'dashboard_stats' });
+            return data;
         },
         staleTime: 1000 * 60 * 2, // 2分钟缓存
     });

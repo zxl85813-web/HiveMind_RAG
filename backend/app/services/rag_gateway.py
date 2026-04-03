@@ -7,7 +7,9 @@ import asyncio
 import time
 from typing import ClassVar
 
-from loguru import logger
+from app.core.logging import get_trace_logger
+
+logger = get_trace_logger("services.rag_gateway")
 
 from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse
 from app.services.dependency_circuit_breaker import breaker_manager

@@ -11,7 +11,9 @@ These are hard rules (HardBlock), not soft scoring opinions.
 import re
 from dataclasses import dataclass
 
-from loguru import logger
+from app.core.logging import get_trace_logger
+
+logger = get_trace_logger(__name__)
 
 
 @dataclass

@@ -63,6 +63,8 @@ api.interceptors.request.use(
         }
         // 🛰️ [FE-GOV-003]: 将前端语言偏好同步至后端
         config.headers['Accept-Language'] = i18n.language || 'zh-CN';
+        // 🛰️ [FE-GOV-002]: 全链路追踪同步
+        config.headers['X-Trace-Id'] = monitor.getTraceId();
         return config;
     },
     (error) => Promise.reject(error),

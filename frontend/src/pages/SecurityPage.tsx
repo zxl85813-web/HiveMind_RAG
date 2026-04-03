@@ -7,12 +7,19 @@ import { securityApi } from '../services/securityApi';
 import type { CreatePolicyParams } from '../services/securityApi';
 import type { DesensitizationPolicy } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
 const { Text } = Typography;
 
 export const SecurityPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    useEffect(() => {
+        track('system', 'page_load', { page: 'SecurityCenter' });
+    }, [track]);
+
     const { message } = App.useApp();
     const { t } = useTranslation();
     const hasAccess = useAuthStore((state) => state.hasAccess);

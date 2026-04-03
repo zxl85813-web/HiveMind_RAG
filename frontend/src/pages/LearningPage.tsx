@@ -8,7 +8,15 @@ import { useAuthStore } from '../stores/authStore';
 
 const { Text, Paragraph } = Typography;
 
+import { useMonitor } from '../hooks/useMonitor';
+
 export const LearningPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'LearningHub' });
+    }, [track]);
+
     const { t } = useTranslation();
     const { message } = App.useApp();
     const [discoveries, setDiscoveries] = useState<TechDiscovery[]>([]);

@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { StatCard } from '../components/common';
 import { useDashboardStats, useRecentReports } from '../hooks/queries/useDashboardQuery';
+import { useMonitor } from '../hooks/useMonitor';
 import styles from './DashboardPage.module.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -27,6 +28,11 @@ export const DashboardPage: React.FC = () => {
     // Server State
     const { data: stats, isLoading: loadingStats } = useDashboardStats();
     const { data: reports = [], isLoading: loadingReports } = useRecentReports(3);
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'Dashboard' });
+    }, [track]);
 
     /** 快捷入口 */
     const quickActions = [

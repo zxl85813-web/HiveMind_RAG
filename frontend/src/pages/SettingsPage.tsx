@@ -18,7 +18,14 @@ const { TextArea } = Input;
 /**
  * 🛰️ [FE-GOV-001]: 系统设置页面 (Refactored with React Query)
  */
+import { useMonitor } from '../hooks/useMonitor';
+
 export const SettingsPage: React.FC = () => {
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'Settings' });
+    }, [track]);
     const { t } = useTranslation();
     const { message } = App.useApp();
     

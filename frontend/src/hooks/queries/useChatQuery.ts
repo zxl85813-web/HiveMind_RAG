@@ -54,13 +54,22 @@ export const conversationDetailFetcher = (id: string) => async () => {
 
 // --- Queries ---
 
+import { useMonitor } from '../useMonitor';
+
 /** 
  * 获取所有历史会话列表
  */
 export function useConversationsQuery(options?: Partial<UseQueryOptions<ConversationItem[], Error>>) {
+    const { track } = useMonitor();
+    
     return useQuery({
         queryKey: CHAT_QUERY_KEYS.CONVERSATIONS,
-        queryFn: conversationFetcher,
+        queryFn: async () => {
+            track('system', 'fetch_start', { resource: 'conversations' });
+            const data = await conversationFetcher();
+            track('system', 'fetch_success', { resource: 'conversations', count: data.length });
+            return data;
+        },
         placeholderData: [],
         staleTime: 1000 * 30,
         ...options as any

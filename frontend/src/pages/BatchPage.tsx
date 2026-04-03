@@ -4,12 +4,19 @@ import { PlayCircleOutlined, StopOutlined, SyncOutlined, EyeOutlined } from '@an
 import { PageContainer, PermissionButton } from '../components/common';
 import { batchApi, type BatchJob, type TaskUnit } from '../services/batchApi';
 import { useAuthStore } from '../stores/authStore';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Text } = Typography;
 const { Panel } = Collapse;
 
 export const BatchPage: React.FC = () => {
     const hasAccess = useAuthStore((state) => state.hasAccess);
+    const { track } = useMonitor();
+    
+    useEffect(() => {
+        track('system', 'page_load', { page: 'BatchJobs' });
+    }, [track]);
+
     const [jobs, setJobs] = useState<BatchJob[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedJob, setSelectedJob] = useState<BatchJob | null>(null);

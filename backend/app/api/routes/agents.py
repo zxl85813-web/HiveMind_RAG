@@ -13,8 +13,10 @@ from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
 from app.models.agents import ReflectionSignalType
+from app.core.logging import get_trace_logger
 from app.services.rag_gateway import RAGGateway
 
+logger = get_trace_logger("api.routes.agents")
 router = APIRouter()
 
 # Global Swarm & Job Manager (Lazy Loading)

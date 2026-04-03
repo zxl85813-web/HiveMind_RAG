@@ -104,6 +104,10 @@
 | 🆕 `FineTuningPage` | `/fine-tuning` | 模型微调任务配置与监控 | 🟡 骨架 |
 | 🆕 `StudioPage` | `/studio` | 创作工作台 (代码/文档生成) | 🟡 骨架 |
 | 🆕 `ForbiddenPage` | `/403` | 无权限访问提示页 | ✅ |
+| 🆕 `ChatPage` | `/chat` | 核心对话交互页面 | ✅ |
+| 🆕 `KBAnalyticsPage` | `/kb-analytics` | 知识库质量与热点分析 | ✅ |
+| 🆕 `TokenDashboardPage` | `/token-stats` | 实时 Token 消耗与成本仪表盘 | ✅ |
+| 🆕 `TracePage` | `/traces` | 全链路追踪日志查看器 | ✅ |
 
 ### 逻辑组件 (Hooks & Providers)
 

@@ -15,7 +15,8 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         "app.services.ingestion.tasks",
-        "app.services.memory.tasks",   # P2: Memory decay tasks
+        "app.services.memory.tasks",
+        "app.services.observability.tasks",
     ],
 )
 
@@ -44,6 +45,10 @@ celery_app.conf.update(
             "task": "app.services.memory.tasks.decay_memory",
             "schedule": crontab(hour=3, minute=0),
             "kwargs": {"decay_rate": 0.95, "eviction_threshold": 0.05},
+        },
+        "observability-flush-trace-buffer": {
+            "task": "app.services.observability.tasks.flush_trace_buffer",
+            "schedule": 10.0,  # Every 10 seconds
         },
     },
 )

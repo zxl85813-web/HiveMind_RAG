@@ -23,6 +23,7 @@ import {
     useSwarmTraces 
 } from '../hooks/queries/useSwarmQuery';
 import { SwarmChatPanel } from '../components/agents/SwarmChatPanel';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -41,6 +42,13 @@ export const AgentsPage: React.FC = () => {
     const { data: stats } = useSwarmStats();
     const { data: todos = [], isLoading: loadingTodos } = useSwarmTodos();
     const { data: dagData = { nodes: [], links: [] }, isLoading: loadingTraces, refetch, isRefetching } = useSwarmTraces();
+    const { track } = useMonitor();
+
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'AgentsOverview' });
+    }, [track]);
+    
+    // ...
 
     const renderTodoTab = () => (
         <List

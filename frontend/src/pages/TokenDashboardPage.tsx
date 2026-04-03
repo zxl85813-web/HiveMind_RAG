@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Typography, Table, Tag, Segmented, Space, Empty } from 'antd';
 import { 
     ThunderboltOutlined, 
@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { PageContainer, StatCard } from '../components/common';
 import { useLLMMetrics } from '../hooks/queries/useDashboardQuery';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Text } = Typography;
 
@@ -28,7 +29,13 @@ const COLORS = [
  * 🛰️ [M5.2.1]: Token 实时大屏 — 基于 TokenUsage 独立表的实时成本监控。
  */
 export const TokenDashboardPage: React.FC = () => {
+    const { track } = useMonitor();
     const [days, setDays] = useState<number>(1);
+
+    useEffect(() => {
+        track('system', 'page_load', { page: 'TokenDashboard' });
+    }, [track]);
+
     const { data: metrics = [], isLoading } = useLLMMetrics(days);
 
     // 计算全局指标

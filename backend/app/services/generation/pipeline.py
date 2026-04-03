@@ -4,6 +4,9 @@ Generation Pipeline — Orchestrator for Content Creation.
 
 from .protocol import GenerationContext
 from .steps import BaseGenerationStep, ContextRetrievalStep, DraftingStep, ExcelExportStep, SelfCorrectionStep
+from app.core.logging import get_trace_logger
+
+logger = get_trace_logger(__name__)
 
 
 class GenerationPipeline:
@@ -28,12 +31,15 @@ class GenerationPipeline:
         """
         Execute the generation pipeline.
         """
+        logger.info(f"🚀 Starting generation pipeline for task: {task_description[:30]}...")
         ctx = GenerationContext(task_description=task_description, kb_ids=kb_ids)
 
         for step in self.steps:
             try:
+                logger.info(f"⏳ Executing step: {step.__class__.__name__}")
                 await step.execute(ctx)
             except Exception as e:
+                logger.error(f"❌ Error in step {step.__class__.__name__}: {e}")
                 ctx.log("Pipeline", f"Error in step {step.__class__.__name__}: {e}")
 
         return ctx

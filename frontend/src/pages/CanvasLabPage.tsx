@@ -3,10 +3,16 @@ import { Card, Tabs, Typography, Tag, Space, Row, Col } from 'antd';
 import { PageContainer } from '../components/common';
 import { G6SimpleGraph, X6SimpleCanvas } from '../components/canvas';
 import styles from './CanvasLabPage.module.css';
+import { useMonitor } from '../hooks/useMonitor';
 
 const { Paragraph, Text } = Typography;
 
 export const CanvasLabPage: React.FC = () => {
+    const { track } = useMonitor();
+    
+    React.useEffect(() => {
+        track('system', 'page_load', { page: 'CanvasLab' });
+    }, [track]);
     return (
         <PageContainer
             title="Canvas Lab"
