@@ -30,6 +30,7 @@ class ContextCompactor:
     async def compact_messages(
         self,
         messages: list[BaseMessage],
+        pinned_messages: list[str] | None = None,
         on_compact_callback: Callable[[list[BaseMessage], str], Awaitable[None]] | None = None
     ) -> list[BaseMessage]:
         """
@@ -55,8 +56,19 @@ class ContextCompactor:
         anchors = other_msgs[:2]
         # Recent: Last 8 messages (preserving high resolution for current context)
         recent = other_msgs[-8:]
-        # Middle: Everything else
+        # [M5.1.5] Extract Pinned Messages from middle
+        pinned_msgs_to_preserve = []
         middle = other_msgs[2:-8]
+        
+        if pinned_messages:
+            new_middle = []
+            for m in middle:
+                if any(p in str(m.content) for p in pinned_messages):
+                    pinned_msgs_to_preserve.append(m)
+                    logger.debug(f"📌 [Compactor] Preserving pinned message: {str(m.content)[:40]}")
+                else:
+                    new_middle.append(m)
+            middle = new_middle
 
         if not middle:
             return messages
@@ -83,8 +95,8 @@ Summary of developments:
             except Exception as e:
                 logger.warning(f"Failed to trigger compaction callback: {e}")
 
-        # 3. Rebuild (System + Anchors + Summary + Recent)
-        rebuilt = system_msgs + anchors + [compacted_msg] + recent
+        # 3. Rebuild (System + Anchors + Pinned + Summary + Recent)
+        rebuilt = system_msgs + anchors + pinned_msgs_to_preserve + [compacted_msg] + recent
         
         # Double check if we are STILL over budget (shouldn't be, but good safe-guard)
         final_tokens = await self._get_total_tokens(rebuilt)

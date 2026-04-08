@@ -101,11 +101,11 @@ class LLMService:
         logger.warning(f"[LLMService] fallback activated: {reason_code}")
         return recovered
 
-    def _route_model(self, messages: list[dict[str, str]]) -> str:
+    async def _route_model(self, messages: list[dict[str, str]]) -> str:
         """
         SG-006: multi-factor dynamic routing with cost guard.
         """
-        decision = claw_router_governance.decide(messages)
+        decision = await claw_router_governance.decide(messages)
         logger.info(
             "[ClawRouter] tier={} model={} score={} reason={}",
             decision["tier"],
@@ -127,7 +127,7 @@ class LLMService:
         Non-streaming chat completion with intelligent routing.
         """
         try:
-            target_model = self._route_model(messages)
+            target_model = await self._route_model(messages)
             # print(f"🚀 [Router] Selected model: {target_model}")
 
             async def _invoke():
@@ -162,7 +162,7 @@ class LLMService:
         Streaming chat completion with intelligent routing.
         """
         try:
-            target_model = self._route_model(messages)
+            target_model = await self._route_model(messages)
 
             async def _invoke_stream_create():
                 return await self.client.chat.completions.create(

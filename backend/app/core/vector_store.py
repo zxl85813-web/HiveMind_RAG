@@ -272,7 +272,13 @@ class ChromaVectorStore(BaseVectorStore):
     ) -> list[VectorDocument]:
         collection = self.client.get_or_create_collection(name=collection_name)
 
-        results = collection.query(query_texts=[query], n_results=k)
+        # ARAG-003: Force Remote Embedding to avoid local onnxruntime dependency
+        from app.core.embeddings import get_embedding_service
+        embedder = get_embedding_service()
+        query_vector = embedder.embed_query(query)
+
+        # Pass vector directly to prevent Chroma from trying to embed it locally
+        results = collection.query(query_embeddings=[query_vector], n_results=k)
 
         docs = []
         if results and results["documents"]:

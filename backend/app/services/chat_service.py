@@ -516,7 +516,7 @@ class ChatService:
         # 11. 跨会话情节记忆蒸馏 (EP-006)
         if conversation_id and not is_cached:
             try:
-                from app.services.memory.episodic_service import episodic_memory_service
+                from app.services.memory.consolidator import consolidator
                 current_session_msgs = []
                 for m in history:
                     msg_role = "user" if m.type == "human" else "assistant"
@@ -525,9 +525,9 @@ class ChatService:
                 current_session_msgs.append({"role": "assistant", "content": response_content})
 
                 asyncio.create_task(
-                    episodic_memory_service.store_episode(
+                    consolidator.consolidate_session(
                         user_id=user_id, conversation_id=conversation_id, messages=current_session_msgs
                     )
                 )
             except Exception as dist_err:
-                logger.warning(f"Failed to trigger episodic distillation: {dist_err}")
+                logger.warning(f"Failed to trigger autonomous consolidation: {dist_err}")

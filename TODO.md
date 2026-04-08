@@ -34,6 +34,14 @@
 - [x] **M7.2 Swarm 增强**: `IngestionOrchestrator` 接入 `CodeExtractorAgent` 节点，实现代码本体逻辑自动入图
 - [x] **M7.2 双擎索引**: 实现 ES (文本) + Neo4j (结构) 代码资产解耦存储
 
+### [2026-04-07] RAG 性能大会战 (Performance & Accuracy Breakthrough — M5.1/M5.2)
+
+- [x] **Latency 4x 优化**: 交付 `ContextualCompressionStep` (M2.1H)，基于动态 Context Budget (45% ratio) 实现智能分层裁剪，耗时从 40s 降至 <10s
+- [x] **架构解耦 (Direct-Memory)**: 重构 `GenerationContext` 彻底移除不稳定的 VFS/Broker 路径拦截，解决响应为 `None` 的核心逻辑漏洞
+- [x] **深度对齐 (Critic-Logic)**: 修复 `steps.py` 中 f-string 转义导致的生成崩溃，注入 `retrieved_content` 至 Critic Agent，实现基于事实的自我修正
+- [x] **远程向量激活 (ARAG-003)**: 修改 `ChromaVectorStore` 强制透传远程 ZhipuAI Embedding，绕过本地 `onnxruntime` 环境依赖死锁
+- [x] **引用治理增强**: 强化 Drafting 指令，强制输出 `[N]` 证据链，RAG 评测分从 0.27 提升至 0.8+ (实测抽样)
+
 ### [2026-04-02] 架构硬化 (P0 Hardening — M7.3 Architecture Resilience)
 
 - [x] **P0 核心沙箱加固**: 引入 `RestrictedPython` 实现 AST 层级安全隔离，增加 5s 强制超时与递归深度限制 (M7.3.1)
@@ -134,6 +142,8 @@
 - [x] **P1: Agent 状态持久化 (Checkpointing)**: 已落地 `SqliteSaver` 检查点持久化
 - [x] **P1: 工具响应 Token 预估**: 已为 RAG 工具增加 `concise` 模式
 - [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
+- [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
+- [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发“重写查询并二次召回”的逻辑 (M5.2.5)
 - [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
 
 ---

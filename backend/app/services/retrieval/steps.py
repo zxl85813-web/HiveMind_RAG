@@ -384,8 +384,8 @@ class PromptInjectionFilterStep(BaseRetrievalStep):
 
 class ContextualCompressionStep(BaseRetrievalStep):
     """
-    Compression Phase: Reduce Token usage by keeping only relevant sentences.
-    (M2.1H Advanced Compaction)
+    Compression Phase: Reduce Token usage by keeping only relevant sentences
+    and trimming based on contextual budgets (M2.1H Advanced Compaction).
     """
 
     async def execute(self, ctx: RetrievalContext):
@@ -393,40 +393,69 @@ class ContextualCompressionStep(BaseRetrievalStep):
             return
 
         import re
+        from app.core.config import settings
+
+        # --- ARAG-002: Dynamic Context Budgeting ---
+        # Calculate allowed characters based on budget ratios (assuming ~4 chars per token)
+        total_window = settings.CONTEXT_WINDOW_LIMIT
+        rag_ratio = settings.BUDGET_RAG_RATIO # Usually 0.45
+        max_rag_chars = int(total_window * rag_ratio * 4) 
+        
+        ctx.log("Compression", f"Target RAG Budget: {int(total_window * rag_ratio)} tokens (~{max_rag_chars} chars)")
 
         # Get keywords from QueryPreProcessingStep if available
-        keywords = getattr(ctx, "keywords", [])
+        keywords = set(getattr(ctx, "keywords", []))
         if not keywords:
-            # Fallback: simple split of the original query
-            keywords = [w.strip() for w in re.split(r"[,.\s]+", ctx.query) if len(w.strip()) > 2]
+            keywords = {w.strip().lower() for w in re.split(r"[,.\s]+", ctx.query) if len(w.strip()) > 2}
 
         compressed_results = []
+        current_total_chars = 0
         reduction_total = 0
 
-        for doc in ctx.final_results:
+        # Process results in order of relevance (Rerank priority)
+        for i, doc in enumerate(ctx.final_results):
             original_text = doc.page_content
-            # Split into sentences (simple rule-based)
+            
+            # 💡 Tiered Preservation Policy:
+            # - Top 3 results: Preserve more carefully
+            # - Others: Aggressive keyword filtering
+            is_top_tier = i < 3
+            
+            # Split into sentences
             sentences = re.split(r"(?<=[。？！.?!])\s+", original_text)
-
-            # Keep sentences that contain any keyword
             relevant_sentences = []
+            
             for sent in sentences:
-                if any(kw.lower() in sent.lower() for kw in keywords):
+                sent_lower = sent.lower()
+                # Score sentence based on keyword density
+                msg_score = sum(1 for kw in keywords if kw in sent_lower)
+                
+                if msg_score > 0 or (is_top_tier and len(relevant_sentences) < 2):
                     relevant_sentences.append(sent)
 
-            # If nothing was matched, keep the first 2 sentences as fallback
-            if not relevant_sentences and len(sentences) > 0:
+            # If nothing matched even for top tier, fallback to snippet
+            if not relevant_sentences and sentences:
                 relevant_sentences = sentences[:2]
 
             new_content = " ".join(relevant_sentences)
-            reduction_total += len(original_text) - len(new_content)
+            
+            # Check if adding this doc exceeds the RAG budget
+            if current_total_chars + len(new_content) > max_rag_chars:
+                if i < 5: # Force include at least top 5 even if slightly over
+                    new_content = new_content[:2000] + "... [TRUNCATED]"
+                else:
+                    ctx.log("Compression", f"✂️ Budget Exceeded. Dropping remaining {len(ctx.final_results) - i} lower-rank docs.")
+                    break
 
+            reduction_total += len(original_text) - len(new_content)
+            current_total_chars += len(new_content)
+            
             doc.page_content = new_content
             doc.metadata["compressed"] = True
             compressed_results.append(doc)
 
         ctx.final_results = compressed_results
-        ctx.log("Compression", f"Reduced context by {reduction_total} chars using keyword extraction.")
+        ctx.log("Compression", f"Final context: {len(compressed_results)} docs, {current_total_chars} chars. (Saved {reduction_total} chars)")
 
 class TruthAlignmentStep(BaseRetrievalStep):
     """

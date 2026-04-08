@@ -25,7 +25,15 @@ All agents share a common memory space.
 import asyncio
 import json
 from collections.abc import AsyncGenerator, Coroutine
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Callable, Literal, TypedDict
+
+
+def merge_dict_outputs(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
+    """[M5.1.2] Reducer for merging agent outputs without overwriting."""
+    new_state = (left or {}).copy()
+    new_state.update(right or {})
+    return new_state
+
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -102,7 +110,10 @@ class SwarmState(TypedDict):
 
     # Agent outputs for debate/collaboration
     # Key: Agent Name, Value: Their latest output/opinion
-    agent_outputs: dict[str, str]
+    agent_outputs: Annotated[dict[str, str], merge_dict_outputs]
+
+    # [M5.1.4] Distributed Trace ID for inter-agent communication tracking
+    swarm_trace_id: str
 
     # Uncertainty level (0.0 - 1.0)
     # High uncertainty triggers debate or user clarification
@@ -140,6 +151,9 @@ class SwarmState(TypedDict):
     thinking_time_ms: list[float]
     tool_time_ms: list[float]
 
+    # [M5.1.5] Pinned Messages that MUST NOT be compacted (e.g. Decisions, User Preferences)
+    pinned_messages: list[str]
+
     # --- GOV-EXP-002: Dynamic Reasoning Budget (M4.2.8) ---
     reasoning_budget: int | None # Number of ReAct steps allowed
 
@@ -159,6 +173,91 @@ class SwarmState(TypedDict):
 
     # --- FE-GOV-003: i18n Bridge ---
     language: str | None
+
+
+class ScopedStateView:
+    """
+    [M5.1.1] Scoped State Sharing.
+    Defines and enforces which state fields are visible to specific agents.
+    Prevents 'Context Pollution' and accidental data leaks.
+    """
+
+    # Default visibility for any agent
+    DEFAULT_SCOPE = [
+        "messages",
+        "current_task",
+        "original_query",
+        "conversation_id",
+        "user_id",
+        "language",
+        "pinned_messages",
+    ]
+
+    # Specialized visibility for core nodes
+    AGENT_SCOPES = {
+        "supervisor": [
+            "messages",
+            "next_step",
+            "agent_outputs",
+            "uncertainty_level",
+            "original_query",
+            "context_data",
+            "kb_ids",
+            "conversation_id",
+            "user_id",
+            "auth_context",
+            "force_reasoning_tier",
+            "language",
+        ],
+        "rag": [
+            "messages",
+            "original_query",
+            "kb_ids",
+            "retrieval_trace",
+            "retrieved_docs",
+            "context_data",
+            "language",
+        ],
+        "sql": [
+            "messages",
+            "original_query",
+            "current_task",
+            "context_data",
+        ],
+        "code": [
+            "messages",
+            "original_query",
+            "current_task",
+            "context_data",
+            "reasoning_budget",
+            "execution_variant",
+        ],
+        "reflection": [
+            "messages",
+            "original_query",
+            "agent_outputs",
+            "uncertainty_level",
+            "current_task",
+            "reflection_count",
+            "context_data",
+        ],
+    }
+
+    @classmethod
+    def filter(cls, state: dict, agent_name: str) -> dict:
+        """Filters the global state to a subset allowed for the specific agent."""
+        # Normalize agent name (e.g. 'code_agent_1' -> 'code')
+        base_name = agent_name.split("_")[0].lower()
+        allowed_keys = cls.AGENT_SCOPES.get(base_name, cls.DEFAULT_SCOPE)
+
+        filtered = {k: v for k, v in state.items() if k in allowed_keys}
+
+        # Debug log for significant omissions (optional)
+        omitted = set(state.keys()) - set(allowed_keys)
+        if omitted:
+            logger.trace(f"🛡️ [ScopedState] {agent_name} view filtered. Omitted {len(omitted)} keys.")
+
+        return filtered
 
 
 
@@ -539,7 +638,8 @@ class SwarmOrchestrator:
         state["messages"] = await self._compact_messages(
             state["messages"],
             user_id=state.get("user_id"),
-            conversation_id=state.get("conversation_id")
+            conversation_id=state.get("conversation_id"),
+            pinned_messages=state.get("pinned_messages")
         )
 
         messages = state["messages"]
@@ -865,8 +965,11 @@ class SwarmOrchestrator:
         """Factory for agent execution nodes with tool calling capability."""
 
         async def agent_node(state: SwarmState) -> dict:
-            task = state.get("current_task", "")
-            conv_id = state.get("conversation_id", "")
+            # --- Scoped State Filtering (M5.1.1) ---
+            scoped_state = ScopedStateView.filter(state, agent_def.name)
+
+            task = scoped_state.get("current_task", "")
+            conv_id = scoped_state.get("conversation_id", "")
             logger.info(f"🤖 Agent [{agent_def.name}] working on: {task[:80]}")
 
             # --- Phase 5: Task Progress Tracking (Persistent) ---
@@ -971,7 +1074,8 @@ class SwarmOrchestrator:
             state["messages"] = await self._compact_messages(
                 state["messages"],
                 user_id=state.get("user_id"),
-                conversation_id=state.get("conversation_id")
+                conversation_id=state.get("conversation_id"),
+                pinned_messages=state.get("pinned_messages")
             )
 
             # 4. Invoke Engine — OPT-2 Streaming and Broadcasting
@@ -987,7 +1091,7 @@ class SwarmOrchestrator:
                 llm=llm,
                 available_tools=available_tools,
                 system_prompt=system_prompt,
-                state=state
+                state=scoped_state,  # Use scoped state for engine loop
             )
 
             # Extract results from engine update dict
@@ -1514,7 +1618,8 @@ class SwarmOrchestrator:
         self,
         messages: list[BaseMessage],
         user_id: str | None = None,
-        conversation_id: str | None = None
+        conversation_id: str | None = None,
+        pinned_messages: list[str] | None = None
     ) -> list[BaseMessage]:
         """
         CC-inspired Context Compaction (OPT-5).
@@ -1546,7 +1651,8 @@ class SwarmOrchestrator:
         # Pass to the specialized compactor
         return await self.compactor.compact_messages(
             messages,
-            on_compact_callback=episodic_callback
+            on_compact_callback=episodic_callback,
+            pinned_messages=pinned_messages
         )
 
     # ============================================================
@@ -1728,6 +1834,7 @@ class SwarmOrchestrator:
 
         messages.append(HumanMessage(content=augmented_message))
 
+        import uuid
         initial_state: SwarmState = {
             "messages": messages,
             "next_step": "pre_processor",
@@ -1735,6 +1842,7 @@ class SwarmOrchestrator:
             "uncertainty_level": 0.0,
             "current_task": user_message,
             "conversation_id": conversation_id,
+            "swarm_trace_id": str(uuid.uuid4()),  # 🔗 [M5.1.4]
             "reflection_count": 0,
             "original_query": user_message,
             "context_data": context.get("context_data", "") if context else "",
@@ -1744,6 +1852,8 @@ class SwarmOrchestrator:
             # A/B: execution_variant assigned by pre_processor; allow override from context
             "execution_variant": context.get("execution_variant", "") if context else "",
             "thinking_time_ms": [],
+            "tool_time_ms": [],
+            "pinned_messages": context.get("pinned_messages", []) if context else [],
             "last_node_id": "",
             "parallel_agents": [],
             "retrieved_docs": context.get("retrieved_docs", []) if context else [],

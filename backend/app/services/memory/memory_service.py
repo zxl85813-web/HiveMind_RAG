@@ -228,6 +228,18 @@ class MemoryService:
         from app.core.algorithms.memory_governance import memory_governance_service
 
         density = await memory_governance_service.evaluate_density(content)
+        # [M5.1.3] Semantic Deduplication (Similarity Check)
+        existing = memory_collection.query(
+            query_texts=[content],
+            n_results=1,
+            include=["distances"]
+        )
+        if existing["distances"] and existing["distances"][0]:
+            similarity = 1.0 - existing["distances"][0][0] # Assuming cosine distance
+            if similarity > 0.92:
+                logger.debug(f"⏭️ Skipping duplicate memory (sim={similarity:.2f})")
+                return
+
         meta.update({
             "value_score": density.score,
             "tier_target": density.tier_recommendation,

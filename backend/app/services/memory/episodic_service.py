@@ -142,8 +142,8 @@ class EpisodicMemoryService:
             f"topics={episode.topics}"
         )
 
-        # 4. 向量化写入 ChromaDB
-        asyncio.create_task(self._vectorize_episode(episode))
+        # 4. 向量化写入 ChromaDB (Phase 4 强化: 改为 await 以确保测试/基线的一致性)
+        await self._vectorize_episode(episode)
 
         return episode
 
@@ -312,7 +312,9 @@ Summary: {existing_summary}
             if results and results.get("metadatas") and results["metadatas"][0]:
                 return [m.get("episode_id", "") for m in results["metadatas"][0] if m.get("episode_id")]
         except Exception as e:
-            logger.warning(f"[EpisodicMemory] Vector recall failed: {e}")
+            # [M5.1.4] Robust Fallback: Continue with SQL-based retrieval if environment is broken
+            # Specifically handles the frequent 'onnxruntime' missing in diverse environments.
+            logger.warning(f"[EpisodicMemory] Vector recall failed: {e}. Falling back to SQL/Topic search.")
         return []
 
     async def _recall_by_topics(self, user_id: str, query: str, limit: int, min_temperature: float) -> list[EpisodicMemory]:
@@ -340,15 +342,13 @@ Summary: {existing_summary}
 
         for ep in candidates:
             # 计算主题重叠度 (支持同义词碰撞)
-            # 例如：query 含 "db", topic 含 "database" -> 命中
             score = 0
             for topic in ep.topics:
                 topic_lower = topic.lower()
                 if any(token in topic_lower or topic_lower in token for token in expanded_query_tokens):
                     score += 1
 
-            if score > 0 or len(scored) < limit:
-                scored.append((score, ep))
+            scored.append((score, ep))
 
         # 按重合得分、主题覆盖率排序
         scored.sort(key=lambda x: (x[0], x[1].topic_coverage), reverse=True)

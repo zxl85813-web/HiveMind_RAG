@@ -125,6 +125,20 @@ backend/start_data/chroma_db/
 test_daily_learning_cycle_gene*/
 
 # ==========================================
+# Diagnostic / Generation Artefacts (M5.1/M5.2 Cleanup)
+# ==========================================
+backend/exports/
+*.csv
+backend/scripts/debug_recall.py
+backend/scripts/generate_synthetic_dataset.py
+backend/scripts/re_test_single_bad_case.py
+backend/scripts/run_evaluation_v2.py
+backend/scripts/run_evolution_benchmark.py
+backend/scripts/test_*.py
+backend/scripts/verify_scoped_state.py
+tmp_bad_cases.py
+
+# ==========================================
 # Skills Development & Evaluation Noise
 # ==========================================
 # Keep core logic (SKILL.md, tools.py, scripts), ignore runtime debris

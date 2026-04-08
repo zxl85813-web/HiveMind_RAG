@@ -40,13 +40,15 @@ async def run_generation(request: GenerateRequest):
         if ctx.draft_content:
             draft_dict = ctx.draft_content.model_dump()
 
-        return GenerateResponse(
+        res = GenerateResponse(
             status="completed",
             message="Generation successful",
             artifact_path=ctx.final_artifact_path,
             step_logs=ctx.feedback_log,
             draft=draft_dict,
         )
+        ctx.cleanup()
+        return res
     except Exception as e:
         # In production, log error properly
         raise HTTPException(status_code=500, detail=str(e)) from e

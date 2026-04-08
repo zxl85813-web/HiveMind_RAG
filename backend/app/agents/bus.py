@@ -18,6 +18,7 @@ class BusMessage:
     topic: str
     sender: str
     payload: Any
+    trace_id: str | None = None # 🔗 [M5.1.4] Distributed Trace linkage
     recipient: str | None = None
     timestamp: float = field(default_factory=time.time)
 

@@ -27,12 +27,13 @@ class GenerationPipeline:
             ExcelExportStep(),
         ]
 
-    async def run(self, task_description: str, kb_ids: list[str]) -> GenerationContext:
+    async def run(self, task_description: str, kb_ids: list[str], user_id: str = "default_user", ctx: GenerationContext | None = None) -> GenerationContext:
         """
         Execute the generation pipeline.
         """
         logger.info(f"🚀 Starting generation pipeline for task: {task_description[:30]}...")
-        ctx = GenerationContext(task_description=task_description, kb_ids=kb_ids)
+        if not ctx:
+            ctx = GenerationContext(task_description=task_description, kb_ids=kb_ids, user_id=user_id)
 
         for step in self.steps:
             try:

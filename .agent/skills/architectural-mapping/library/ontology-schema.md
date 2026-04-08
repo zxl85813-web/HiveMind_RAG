@@ -23,6 +23,13 @@
   - `id`: 任务 ID
   - `title`: 任务标题
   - `status`: 状态 (Pending, In Progress, Completed)
+- **`Package`**: 表示代码依赖包或软件供应链组件。
+  - `name`: 依赖包名称 (e.g., fastapi)
+  - `version`: 当前版本
+- **`Bug`**: 表示系统中流转的缺陷或安全漏洞记录。
+  - `status`: Bug状态
+- **`Metric`**: 表示运行时性能、报错指标或覆盖率数据。
+- **`Container`**: 表示基础架构及部署拓扑节点。
 
 ## 2. 关系定义 (Relationships)
 
@@ -35,6 +42,9 @@
 - `(:Person)-[:CONTRIBUTED_TO]->(:Design)`: 人员参与了设计。
 - `(:Person)-[:ASSIGNED_TO]->(:Todo)`: 任务分配给某人。
 - `(:Todo)-[:RELATES_TO]->(:Requirement|Design)`: 任务关联到需求或设计。
+- `(:File)-[:IMPORTS]->(:Package)`: 文件导入/使用了特定的第三方依赖包。
+- `(:Bug)-[:AFFECTS]->(:File|:Function)`: 缺陷影响或导致了特定代码实体的变动。
+- `(:APIEndpoint|:Function)-[:HAS_METRIC]->(:Metric)`: 运行时产生并绑定的观测及覆盖率指标。
 
 ## 3. Cypher 常规查询模式
 

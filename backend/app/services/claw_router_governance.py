@@ -13,8 +13,8 @@ class ClawRouterGovernance:
     def __init__(self):
         # Routing thresholds
         self.thresholds = {
-            "premium": 0.75,
-            "balanced": 0.40,
+            "premium": 0.45,
+            "balanced": 0.15,
             "eco": 0.0
         }
         # Dimensions weights

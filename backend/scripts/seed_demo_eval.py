@@ -238,8 +238,17 @@ async def seed_eval_data():
         # ── 0. Check mock user ──
         user = await session.get(User, "mock-user-001")
         if not user:
-            t_logger.error("Mock user not found. Run init_base_data first.", action="seed_error")
-            return
+            t_logger.info("Mock user not found. Creating default 'mock-user-001'...")
+            user = User(
+                id="mock-user-001",
+                username="eval_judge",
+                email="eval@hivemind.ai",
+                hashed_password="fake_hash_for_test",
+                role="admin"
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
 
         # ── 1. Create Knowledge Bases ──
         kb_finance_id = "kb-demo-smart-finance"

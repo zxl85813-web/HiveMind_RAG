@@ -10,6 +10,7 @@ These are hard rules (HardBlock), not soft scoring opinions.
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from app.core.logging import get_trace_logger
 
@@ -75,11 +76,21 @@ def _context_is_empty(context: str) -> bool:
     return any(marker in lowered for marker in _EMPTY_CONTEXT_MARKERS)
 
 
-def _response_has_citations(response: str) -> bool:
+def _response_has_citations(response: Any) -> bool:
+    if not isinstance(response, str):
+        if hasattr(response, "model_dump_json"):
+            response = response.model_dump_json()
+        else:
+            response = str(response)
     return bool(_CITATION_PATTERN.search(response))
 
 
-def _response_acknowledges_not_found(response: str) -> bool:
+def _response_acknowledges_not_found(response: Any) -> bool:
+    if not isinstance(response, str):
+        if hasattr(response, "model_dump_json"):
+            response = response.model_dump_json()
+        else:
+            response = str(response)
     lowered = response.lower()
     return any(phrase in lowered for phrase in _NOT_FOUND_PHRASES)
 
@@ -93,13 +104,13 @@ class RagAssertionGrader:
     corresponding LLM grader aspects.
     """
 
-    def check(self, query: str, response: str, context: str = "") -> RagAssertionResult:
+    def check(self, query: str, response: Any, context: str = "") -> RagAssertionResult:
         """
         Run all RAG assertion checks and return violations list.
 
         Args:
             query:    The user's original query.
-            response: The AI assistant's response text.
+            response: The AI assistant's response text (or structured result).
             context:  The retrieved knowledge context injected into the prompt.
                       Empty string means the KB returned no results.
 
@@ -108,6 +119,15 @@ class RagAssertionGrader:
         """
         result = RagAssertionResult()
         empty_context = _context_is_empty(context)
+
+        # Normalize response for length check
+        resp_str = ""
+        if isinstance(response, str):
+            resp_str = response
+        elif hasattr(response, "model_dump_json"):
+            resp_str = response.model_dump_json()
+        else:
+            resp_str = str(response)
 
         # --- CITE-001: Must cite when KB results exist ---
         if not empty_context and not _response_has_citations(response):
@@ -121,7 +141,7 @@ class RagAssertionGrader:
         # --- CITE-002: Must NOT answer confidently when KB is empty ---
         if empty_context and not _response_acknowledges_not_found(response):
             # Only flag if the response is suspiciously long (not just a clarification)
-            if len(response.strip()) > 80:
+            if len(resp_str.strip()) > 80:
                 msg = (
                     "KB context was empty but response does not declare 'not found'. "
                     "This suggests the model is hallucinating from parametric memory "

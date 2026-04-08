@@ -192,6 +192,50 @@ class ArchitectureIndexer:
             SET f.path = $path, f.type = 'File'
             """, {"path": relative_path})
 
+    def index_dependencies(self):
+        logger.info("Indexing Package Dependencies (Supply Chain)...")
+        # 1. Backend: requirements.txt
+        req_file = BASE_DIR / "backend" / "requirements.txt"
+        if req_file.exists():
+            rel_path = str(req_file.relative_to(BASE_DIR)).replace("\\", "/")
+            with open(req_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        pkg_match = re.match(r"^([a-zA-Z0-9_\-]+)", line)
+                        if pkg_match:
+                            pkg_name = pkg_match.group(1).lower()
+                            self.run_query("""
+                            MERGE (p:ArchNode:Package {id: $pkg})
+                            SET p.name = $pkg, p.type = 'Package'
+                            WITH p
+                            MERGE (f:ArchNode:File {id: $path})
+                            SET f.path = $path, f.type = 'File'
+                            MERGE (f)-[:IMPORTS]->(p)
+                            """, {"pkg": pkg_name, "path": rel_path})
+
+        # 2. Frontend: package.json
+        pkg_json = BASE_DIR / "frontend" / "package.json"
+        if pkg_json.exists():
+            rel_path = str(pkg_json.relative_to(BASE_DIR)).replace("\\", "/")
+            try:
+                import json
+                with open(pkg_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
+                    for pkg_name, version in deps.items():
+                        self.run_query("""
+                        MERGE (p:ArchNode:Package {id: $pkg})
+                        SET p.name = $pkg, p.version = $version, p.type = 'Package'
+                        WITH p
+                        MERGE (f:ArchNode:File {id: $path})
+                        SET f.path = $path, f.type = 'File'
+                        MERGE (f)-[:IMPORTS]->(p)
+                        """, {"pkg": pkg_name, "version": str(version), "path": rel_path})
+            except Exception as e:
+                logger.warning(f"Failed to parse package.json: {e}")
+
+
 def main():
     # Load env for Neo4j
     from dotenv import load_dotenv
@@ -206,6 +250,7 @@ def main():
     indexer.index_requirements()
     indexer.index_designs()
     indexer.index_source_code()
+    indexer.index_dependencies()
     indexer.index_skills()
     indexer.link_files_to_skills()
     indexer.index_tests()

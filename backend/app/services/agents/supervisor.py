@@ -99,10 +99,33 @@ class SupervisorAgent:
         import json
         try:
             data = json.loads(response.content)
-            # 💉 Auto-Inject Validation: Ensure at least one reviewer exists for complex tasks
             plan = SwarmPlan(**data)
-            if len(plan.tasks) > 1 and not any(t.agent_name == "HVM-Reviewer" for t in plan.tasks):
-                logger.warning("🦅 [Policy Enforcement] Plan missing Peer Reviewer; injecting correction.")
+
+            # ====================================================================
+            # 🔒 POLICY ENFORCEMENT: Hard-inject HVM-Reviewer (Code-level guarantee)
+            # We NEVER rely on the LLM to self-police this rule.
+            # For any plan with more than 1 task, we inject a final audit pass.
+            # ====================================================================
+            has_reviewer = any(t.agent_name == "HVM-Reviewer" for t in plan.tasks)
+            if len(plan.tasks) > 1 and not has_reviewer:
+                all_ids = [t.id for t in plan.tasks]
+                injected_reviewer = SwarmTaskDef(
+                    id="t-audit",
+                    agent_name="HVM-Reviewer",
+                    instruction=(
+                        f"[AUTO-INJECTED AUDIT] Perform a full cross-viewpoint critique "
+                        f"of ALL task outputs for the objective: '{query}'. "
+                        "Identify logic gaps, missing edge cases, and any security risks. "
+                        "[Checkpoint: Must rate overall risk as Low/Medium/High and list specific concerns.]"
+                    ),
+                    depends_on=all_ids,  # Depends on ALL tasks → always runs last
+                )
+                plan.tasks.append(injected_reviewer)
+                logger.info(
+                    f"🛡️ [Policy Enforcement] HVM-Reviewer injected as 't-audit' "
+                    f"(depends on: {all_ids})"
+                )
+
             return plan
         except Exception as e:
             logger.error(f"Failed to parse Plan: {e}")
