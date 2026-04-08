@@ -9,6 +9,10 @@ export const specialCases: Record<string, Record<string, any>> = {
         status: 403,
         data: { success: false, message: 'Forbidden: Access Denied' }
     },
+    'AUTH_401': {
+        status: 401,
+        data: { success: false, message: 'Unauthorized: Session Expired' }
+    },
     'EMPTY_STATE': {
         status: 200,
         data: { success: true, data: [], message: 'No records found' }

@@ -9,6 +9,7 @@ import { monitor } from '../core/MonitorService';
 import { ErrorCode } from '../core/schema/error';
 import i18n from '../i18n/config';
 import { tokenVault } from '../core/auth/TokenVault';
+import { connectionManager } from '../core/ConnectionManager';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -83,6 +84,9 @@ api.interceptors.response.use(
 
         if (status === 401) {
             tokenVault.clear();
+            // 🛰️ [FE-GOV-005]: 401 故障级联 — 强制断开所有长连接
+            connectionManager.abortAll();
+            
             notification.warning({
                 message: '登录已过期',
                 description: '您的身份凭证已失效，请重新登录。',

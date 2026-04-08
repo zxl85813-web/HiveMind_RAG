@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { TEST_PERSONAS } from './data/mock_users';
 
 test.describe('HiveMind Security Governance (Final Audit)', () => {
@@ -24,9 +24,9 @@ test.describe('HiveMind Security Governance (Final Audit)', () => {
         
         const dbName = await page.evaluate(() => {
             const uid = sessionStorage.getItem('hm_active_user_id');
-            return HiveMind_Edge_Cache_ + uid;
+            return 'HiveMind_Edge_Cache_' + uid;
         });
-        expect(dbName).toBe(HiveMind_Edge_Cache_uid-admin-999);
+        expect(dbName).toBe('HiveMind_Edge_Cache_uid-admin-999');
     });
 
     test('T-OBS-001: Network Trace ID Consistency (FIXED)', async ({ page }) => {
