@@ -132,6 +132,38 @@ class CacheService:
         except Exception as e:
             logger.error(f"Failed to cache route: {e}")
 
+    # 🛰️ [M5.2.1] Intent Cache: Transient storage for prefetched results
+    _intent_cache: ClassVar[dict[str, Any]] = {}
+
+    @staticmethod
+    def set_intent_cache(session_id: str, data: Any, ttl_sec: int = 60):
+        """Store transient prefetched data for a session."""
+        CacheService._intent_cache[session_id] = {
+            "data": data,
+            "expiry": time.time() + ttl_sec
+        }
+        logger.debug(f"🛰️ [IntentCache] Stored prefetch for session {session_id}")
+
+    @staticmethod
+    def get_intent_cache(session_id: str) -> Any | None:
+        """Retrieve and clean up prefetched data."""
+        entry = CacheService._intent_cache.get(session_id)
+        if not entry:
+            return None
+        
+        if time.time() > entry["expiry"]:
+            del CacheService._intent_cache[session_id]
+            return None
+            
+        # Optional: Pop after read to ensure freshness? 
+        # For now, we keep it until message_final clears it.
+        return entry["data"]
+
+    @staticmethod
+    def clear_intent_cache(session_id: str):
+        """Manual cleanup of intent cache."""
+        CacheService._intent_cache.pop(session_id, None)
+
 
 
 try:

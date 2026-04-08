@@ -15,11 +15,11 @@
 
 | 维度 | Agent / 模块 | 核心待办 (Now / Next / Later) | 状态 |
 | :--- | :--- | :--- | :--- |
-| **路由层** | RAGGateway | ⬜ 检索策略 A/B 测试基线数据对接 `ArchitectureLabPage` | 🟡 进行中 |
+| **路由层** | RAGGateway | [x] 意图预取 (Intent Scaffolding) & 4 层路由 (Arachne) | ✅ 已完成 |
 | **执行层** | Workers | ⬜ 标签→Pipeline 动态分派系统 (M3.1.5) | ⬜ 未启动 |
-| **存储层** | Memory Agent | ⬜ 知识库 Gap-Insight 自动诊断 (M5.1.6) | ⬜ 未启动 |
+| **存储层** | Memory Agent | [x] 知识库 Gap-Insight 自动诊断 (Radar Integration) | ✅ 已完成 |
 | **治理层** | Governance Agent | ⬜ 自动审核规则引擎联调 (M2.3.3-M2.3.5) | 🟡 后端骨架在 |
-| **前端层** | AgentsPage | [x] Swarm Chat 联调与 DAG 追踪图谱展示 | ✅ 已完成 |
+| **前端层** | AgentsPage | [x] Layout Locking 与 意图脉冲 (Arachne UI) | ✅ 已完成 |
 | **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
 
 ---

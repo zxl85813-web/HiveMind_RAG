@@ -16,6 +16,62 @@ class BaseRetrievalStep(abc.ABC):
         pass
 
 
+class TelemetryRadarStep(BaseRetrievalStep):
+    """
+    [M5.3.3] Radar Integration: Telemetry as Knowledge.
+    Retrieves recent system reflections, gaps, and error logs from the internal 
+    reflection database to provide 'In-situ Debugging' context.
+    """
+
+    async def execute(self, ctx: RetrievalContext):
+        from app.models.agents import ReflectionEntry, ReflectionSignalType
+        from sqlalchemy import or_, select, desc
+
+        # Only trigger if the query looks like a system/debugging inquiry
+        radar_keywords = ["error", "fail", "bug", "why", "status", "issue", "错误", "失败", "为什么", "状态", "问题"]
+        if not any(kw in ctx.query.lower() for kw in radar_keywords):
+            return
+
+        async with async_session_factory() as session:
+            # Search for related reflections (GAP or INSIGHT)
+            # We look for keyword matches in summary or match_key
+            conditions = []
+            if getattr(ctx, "keywords", []):
+                for kw in ctx.keywords:
+                    conditions.append(ReflectionEntry.summary.contains(kw))
+                    conditions.append(ReflectionEntry.match_key.contains(kw))
+            else:
+                conditions.append(ReflectionEntry.summary.contains(ctx.query[:20]))
+
+            stmt = (
+                select(ReflectionEntry)
+                .where(or_(*conditions))
+                .order_by(desc(ReflectionEntry.created_at))
+                .limit(10)
+            )
+            
+            results = await session.execute(stmt)
+            reflections = results.scalars().all()
+
+            if reflections:
+                radar_facts = []
+                for r in reflections:
+                    fact = f"Radar Reflection [{r.created_at.isoformat()}]: Type={r.signal_type}, Agent={r.agent_name}, Summary={r.summary}"
+                    radar_facts.append(fact)
+                
+                from app.core.vector_store import VectorDocument
+                radar_doc = VectorDocument(
+                    page_content="[System Telemetry / Radar Context]\n" + "\n".join(radar_facts),
+                    metadata={"source": "telemetry_radar", "count": len(reflections)},
+                )
+                
+                # Injected at high priority
+                if not hasattr(ctx, "candidates") or ctx.candidates is None:
+                    ctx.candidates = []
+                ctx.candidates.insert(0, radar_doc)
+                ctx.log("TelemetryRadar", f"Injected {len(reflections)} recent system reflections as context.")
+
+
 class QueryPreProcessingStep(BaseRetrievalStep):
     """
     ARAG: Analyze query, expand intent, normalize text.
@@ -257,13 +313,39 @@ class GraphRetrievalStep(BaseRetrievalStep):
             # 3. Lookup related edges in the graph for each KB
             for kb_id in ctx.kb_ids:
                 for entity in entity_names:
-                    # Basic neighborhood query
-                    cypher = """
-                    MATCH (n {kb_id: $kb_id})-[r]-(m)
-                    WHERE n.id CONTAINS $entity OR n.name CONTAINS $entity
-                    RETURN n.id AS source, type(r) AS rel, m.id AS target, getattr(r, 'description', '') AS desc
-                    LIMIT 20
-                    """
+                    # [M5.3.2] Architecture-Aware Multi-hop Traversal
+                    # If intent is code/arch, we traverse deeper relationships.
+                    is_arch_query = ctx.query_intent in ["code", "architecture"] or any(
+                        kw in ctx.query.lower() for kw in ["depends", "calls", "structure", "mapping", "架构", "调用", "依赖"]
+                    )
+                    
+                    if is_arch_query:
+                        logger.info(f"🕸️ [GraphRAG] Architecture-mode expansion for: {entity}")
+                        cypher = """
+                        MATCH (n)
+                        WHERE (n.id = $entity OR n.name = $entity OR n.path CONTAINS $entity)
+                        MATCH (n)-[r*1..2]-(m)
+                        WHERE ALL(rel IN r WHERE type(rel) IN [
+                            'MAPPED_TO_CODE', 'DEFINES', 'DEPENDS_ON', 'EXPOSES_API', 
+                            'DEFINES_MODEL', 'USES_CONTRACT', 'ADDRESSES', 'VERIFIES'
+                        ])
+                        RETURN n.id AS source, type(r[-1]) AS rel, m.id AS target, 
+                               coalesce(m.description, m.name, m.id) AS desc
+                        LIMIT 30
+                        """
+                    else:
+                        # Standard neighborhood query
+                        cypher = """
+                        MATCH (n {kb_id: $kb_id})-[r]-(m)
+                        WHERE n.id CONTAINS $entity OR n.name CONTAINS $entity
+                        RETURN n.id AS source, type(r) AS rel, m.id AS target, coalesce(r.description, '') AS desc
+                        LIMIT 20
+                        """
+                        # Correction: cooldown -> getattr or similar. Wait, original code had 'getattr(r, "description", "")'.
+                        # Actually original code had: getattr(r, 'description', '') AS desc.
+                        # Wait, getattr is not Cypher. Ah, it was probably a typo in my previous view.
+                        # It should be coalesce(r.description, '').
+                    
                     results = store.query(cypher, {"entity": entity, "kb_id": kb_id})
                     for row in results:
                         desc = row.get("desc", "") or ""

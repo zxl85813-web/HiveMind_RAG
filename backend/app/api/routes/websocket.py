@@ -31,6 +31,30 @@ async def websocket_endpoint(websocket: WebSocket):
                 if channel:
                     ws_manager.subscribe(user_id, channel)
                     await websocket.send_json({"type": "subscribed", "channel": channel})
+            
+            # 🛰️ [M5.2.1] Intent Scaffolding: On-the-fly intent prediction
+            elif data.get("type") == "partial_input":
+                content = data.get("content", "")
+                from app.services.intent_scaffolding_service import intent_scaffolding_service
+                
+                prediction = await intent_scaffolding_service.predict_and_scaffold(
+                    partial_text=content,
+                    session_id=user_id
+                )
+                
+                if prediction:
+                    await websocket.send_json({
+                        "type": "intent_prediction",
+                        "intent": prediction.intent,
+                        "confidence": prediction.confidence,
+                        "tier": prediction.tier,
+                        "prefetched": prediction.is_prefetch_triggered
+                    })
+            
+            # 🔥 [M5.2.2] Message Finalized (Clear prefetch flags)
+            elif data.get("type") == "message_final":
+                from app.services.intent_scaffolding_service import intent_scaffolding_service
+                intent_scaffolding_service.clear_session(user_id)
 
     except WebSocketDisconnect:
         await ws_manager.disconnect(websocket, user_id)

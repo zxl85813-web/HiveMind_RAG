@@ -19,6 +19,7 @@ export type StreamTrack =
     | 'citation'        // 引用来源
     | 'metrics'         // 性能指标 (Token/Latency)
     | 'status'          // 状态更新 (中间状态)
+    | 'intent'          // 意图预判 (M5.2.1 Intent Scaffolding)
     | 'session_created' // 会话创建成功 (含 ID)
     | 'done'            // 完成
     | 'error';          // 错误

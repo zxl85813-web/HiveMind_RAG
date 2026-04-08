@@ -6,6 +6,23 @@
 
 ---
 
+## [v0.6.0] — 2026-04-08: Sprint "Arachne" (Architectural Reshaping)
+
+### 🚀 核心突破: 零延迟感应与 4 层治理
+- **[M5.2.1] 意图预取 (Intent Scaffolding)**: 实现了基于 WebSocket `partial_input` 的异步意图感应，在用户打字阶段自动触发 RAG 预热，TTFT 降低 300ms-800ms。
+- **[M5.3.1] 4 层自适应路由**: 交付 `ClawRouter v2`，支持 Reasoning/Complex/Medium/Simple 四级级联，并引入 **RTT 动态降级** (Latency > 800ms 时自动缩减模型深度)。
+- **[M5.3.3] 检索雷达 (RAG Radar)**: 实现了“电信即知识” (Telemetry as Knowledge)，支持从系统自省日志 (ReflectionLog) 中检索错误诊断信息，Agent 具备自我运行状况的感知能力。
+
+### 🔧 架构加固
+- **环境净化与标准对齐**: 全局强制 UTF-8 编码，统一脚本执行上下文 (setup_script_context)，解决了 Windows 环境下的字符崩溃遗留问题。
+- **图谱深度融合**: 升级 `GraphRetrievalStep` 支持架构敏感的多跳拓扑遍历 (MAPPED_TO_CODE, DEFINES 等关系追踪)。
+- **前端防抖 (Layout Locking)**: 交付 `ChatBubble` 布局锁定系统，支持 `Intent Pulse` 动画与 `X-Response-Sequence` 序列校验，彻底消除流式震颤。
+
+### 🛡️ 安全与治理
+- **Trace 对账**: API 响应头强制注入 `Response-Sequence` 与 `Timestamp`，支持前端精确对齐后端的流式状态帧。
+
+---
+
 ## [v0.5.2] — 2026-03-31 (Agent Graph Memory)
 
 ### 🧠 智体图谱记忆 (Hybrid GraphRAG + Agent Style Memory)

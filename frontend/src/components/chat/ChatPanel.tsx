@@ -196,11 +196,20 @@ export const ChatPanel: React.FC = () => {
 
                     const finalMessage = displayContent.trim();
                     
-                    // 使用最新的 currentId 确保更新正确的 Bubble
+                    // [Layout Locking]: Monotonic update only
                     setMessages(prev => prev.map((m: any) => m.id === currentId ? {
                         ...m,
                         message: finalMessage,
                         extraInfo: foundActions.length > 0 ? { actions: foundActions } : m.extraInfo
+                    } : m));
+                })
+                .on('intent', (intent: any) => {
+                    // 🛰️ [M5.2.1 Intent Scaffolding]
+                    // Display predicted intent before content starts
+                    setMessages(prev => prev.map((m: any) => (m.id === currentId && !m.message) ? {
+                        ...m,
+                        message: `🛰️ [正在预测意图: ${intent.intent || 'RAG'}] ...`,
+                        status: 'loading'
                     } : m));
                 })
                 .on('status', (status: string) => {
@@ -211,6 +220,8 @@ export const ChatPanel: React.FC = () => {
                         if (s.startsWith('<think>')) {
                             title = '🤔 内部思考';
                             content = s.replace(/<\/?think>/g, '').trim();
+                        } else if (s.includes('🛰️')) {
+                            title = '🏗️ 意图支架';
                         } else if (!s.includes('🤔') && !s.includes('💡')) {
                             title = `⚡ ${s}`;
                         }
@@ -219,6 +230,8 @@ export const ChatPanel: React.FC = () => {
 
                     setMessages(prev => prev.map((m: any) => m.id === currentId ? {
                         ...m,
+                        // Clear intent-pulse once actual thinking starts
+                        message: m.message?.startsWith('🛰️') ? '' : m.message,
                         metadata: { ...((m as any).metadata || {}), thoughtChain: thoughtChainItems }
                     } : m));
                 })

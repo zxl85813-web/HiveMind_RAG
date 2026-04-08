@@ -135,6 +135,38 @@ class RAGGateway:
             step_traces=all_step_traces
         )
 
+    async def prefetch(
+        self,
+        query: str,
+        kb_ids: list[str],
+        user_id: str | None = None
+    ) -> None:
+        """
+        [M5.2.1] Speculative Prefetch: Triggered by Intent Scaffolding.
+        Warms up caches and embedding services.
+        Results are stored in the transient intent cache.
+        """
+        logger.info(f"🛰️ [Prefetch] Initiating pre-warmup for query: '{query[:30]}...'")
+        
+        # Fire-and-forget background retrieval
+        try:
+            # For now, we perform a standard retrieve
+            result = await self.retrieve(query=query, kb_ids=kb_ids, top_k=5, user_id=user_id)
+            
+            # 🛰️ [M5.2.1] Link to IntentCache
+            from app.services.cache_service import CacheService
+            CacheService.set_intent_cache(
+                session_id=user_id or "default",
+                data={
+                   "context_data": "\n\n".join([f.content for f in result.fragments]),
+                   "retrieved_docs": [f.dict() for f in result.fragments],
+                   "retrieval_trace": result.step_traces
+                }
+            )
+            logger.debug(f"🛰️ [Prefetch] Warmup complete. Results cached in IntentCache.")
+        except Exception as e:
+            logger.warning(f"Prefetch failed (silent): {e}")
+
     async def retrieve_for_development(
         self,
         query: str,
@@ -142,98 +174,39 @@ class RAGGateway:
         top_k: int = 5,
         strategy: str = "hybrid",
         include_graph: bool = True,
+        user_id: str | None = None,
     ) -> KnowledgeResponse:
         """
-        Development-oriented retrieval interface for Agent workflows.
-        Aggregates vector retrieval and Hybrid GraphRAG contextual hints into one response.
+        [M5.3.1] Refined Development Retrieval Gateway.
+        Unified interface utilizing the RetrievalPipeline with specific variant.
         """
         start_time = time.time()
-        warnings: list[str] = []
-        merged_fragments: list[KnowledgeFragment] = []
-        vector_sources = []
-
-        if kb_ids:
-            vector_part = await self.retrieve(query=query, kb_ids=kb_ids, top_k=top_k, strategy=strategy)
-            merged_fragments.extend(vector_part.fragments)
-            warnings.extend(vector_part.warnings)
-
-            # Extract filenames/paths from vector chunks to guide Graph traversal
-            for frag in vector_part.fragments:
-                src = frag.metadata.get("source") or frag.metadata.get("filename") or frag.source_id
-                if src:
-                    # Clean up path to get just the filename
-                    basename = src.split("/")[-1].split("\\")[-1]
-                    vector_sources.append(basename)
-        else:
-            warnings.append("No kb_ids provided; vector retrieval skipped.")
-
-        if include_graph:
-            try:
-                from app.core.graph_store import get_graph_store
-
-                store = get_graph_store()
-                if store.driver:
-                    # Hybrid GraphRAG: Find nodes matching the query OR the vector matches, and expand 1 hop.
-                    cypher = """
-                    WITH $query AS q, $sources AS sources
-                    
-                    MATCH (n)
-                    WHERE toLower(coalesce(n.name, n.id, n.path, "")) CONTAINS toLower(q)
-                       OR coalesce(n.name, n.id, "") IN sources
-                       OR split(coalesce(n.path, ""), "/")[-1] IN sources
-                       OR split(coalesce(n.path, ""), "\\\\")[-1] IN sources
-                    
-                    MATCH (n)-[r]-(m)
-                    WHERE type(r) IN ['MAPPED_TO_CODE', 'DEFINES', 'DEPENDS_ON', 'EXPOSES_API', 
-                                      'DEFINES_MODEL', 'USES_CONTRACT', 'ADDRESSES', 'VERIFIES', 'DEFINES_CONTRACT']
-                    
-                    RETURN DISTINCT 
-                           coalesce(n.name, n.id, n.path, "") AS source,
-                           type(r) AS relation,
-                           coalesce(m.name, m.id, m.path, "") AS target,
-                           labels(n)[0] AS sourceLabel,
-                           labels(m)[0] AS targetLabel
-                    LIMIT $limit
-                    """
-                    records = await breaker_manager.execute(
-                        "neo4j",
-                        lambda: asyncio.to_thread(store.query, cypher, {"query": query, "sources": vector_sources, "limit": top_k * 3}),
-                    )
-
-                    for idx, rec in enumerate(records):
-                        src = rec.get("source") or "unknown"
-                        rel = rec.get("relation") or "RELATED"
-                        tgt = rec.get("target") or "unknown"
-                        src_label = rec.get("sourceLabel") or "Node"
-                        tgt_label = rec.get("targetLabel") or "Node"
-
-                        merged_fragments.append(
-                            KnowledgeFragment(
-                                content=f"[GraphRAG Context] {src_label}({src}) -[{rel}]-> {tgt_label}({tgt})",
-                                metadata={"source": "neo4j_hybrid_graphrag", "kind": "graph_hint"},
-                                score=0.95,  # High score to prioritize architecture hints
-                                kb_id="graph",
-                                source_id=f"graph:{src}->{tgt}",
-                                chunk_index=0,
-                            )
-                        )
-                else:
-                    warnings.append("Neo4j graph store is not available.")
-            except Exception as e:
-                logger.warning(f"[RAGGateway] Graph retrieval failed: {e}")
-                warnings.append(f"Graph retrieval failed: {e!s}")
-
-        merged_fragments.sort(key=lambda x: x.score, reverse=True)
-        # Cap the max items returned
-        max_items = max(top_k + (len(records) if 'records' in locals() else 0), top_k)
-
+        
+        # Use the pipeline!
+        variant = "default" if include_graph else "ab_no_graph"
+        
+        # 🧪 [Audit]: Injected trace context for development flows
+        logger.info(f"🛰️ [RAGGateway] Development retrieval for '{query[:20]}...' (graph={include_graph})")
+        
+        fragments, trace_log = await self.pipeline.run(
+            query=query,
+            collection_names=kb_ids,
+            top_k=top_k * 2, # Recall more for expansion
+            top_n=top_k,
+            search_type=strategy,
+            user_id=user_id,
+            variant=variant
+        )
+        
+        latency = (time.time() - start_time) * 1000
+        
         return KnowledgeResponse(
             query=query,
-            fragments=merged_fragments[:max_items],
-            total_found=len(merged_fragments),
-            processing_time_ms=(time.time() - start_time) * 1000,
-            retrieval_strategy="hybrid-graphrag",
-            warnings=warnings,
+            fragments=fragments,
+            total_found=len(fragments),
+            processing_time_ms=latency,
+            retrieval_strategy=f"pipeline-{variant}",
+            step_traces=trace_log
         )
 
     async def _retrieve_from_single_kb(self, query: str, kb_id: str, top_k: int) -> list[KnowledgeFragment]:

@@ -19,6 +19,7 @@ from .steps import (
     RerankingStep,
     RRFHybridStep,
     SearchSubagentsStep,
+    TelemetryRadarStep,
     TruthAlignmentStep,
 )
 
@@ -43,6 +44,7 @@ class RetrievalPipeline:
         self._default_steps: list[BaseRetrievalStep] = [
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
             GraphRetrievalStep(),           # Inject Graph Facts first
+            TelemetryRadarStep(),           # [M5.3.3] Radar Integration
             SqlSummaryFirstStep(),          # SQL 摘要优先检索（TASK-KV-006）
             SearchSubagentsStep(),          # 2.1H: parallel sub-query sub-agents
             RRFHybridStep(),                # 2.1H: BM25 + Vector + RRF fusion

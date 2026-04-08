@@ -6,13 +6,24 @@ import json
 import time
 from pathlib import Path
 
-# Paths
-backend_dir = Path(__file__).resolve().parent.parent / "backend"
-if not backend_dir.exists():
-    backend_dir = Path(__file__).resolve().parent.parent # if run from root
+# 🏗️ [Phase 1]: 统一路径注入与可观测性初始化
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from app.core.logging import setup_script_context, get_trace_logger
+setup_script_context("system_audit")
+t_logger = get_trace_logger("scripts.audit")
+
+# 🛰️ [Architecture-Fix]: Windows Console UTF-8 Force (inherited from logging.py but good to keep explicit for subprocess)
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, Exception):
+    pass
 
 def run_command(cmd, cwd=None):
-    print(f"Executing: {' '.join(cmd)}")
+    t_logger.info(f"Executing: {' '.join(cmd)}", action="subprocess_exec")
     start = time.time()
     try:
         process = subprocess.run(
@@ -31,10 +42,11 @@ def run_command(cmd, cwd=None):
             "duration": round(duration, 2)
         }
     except Exception as e:
+        t_logger.error(f"Execution failed: {e}", action="subprocess_error")
         return {"success": False, "stdout": "", "stderr": str(e), "duration": 0}
 
 async def perform_audit():
-    print("🏥 HVM-SYSTEM-HEALTH: Starting Multi-Angle Audit...")
+    t_logger.info("🏥 HVM-SYSTEM-HEALTH: Starting Multi-Angle Audit...", action="audit_start")
     
     report = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -42,7 +54,7 @@ async def perform_audit():
     }
 
     # 1. Regression & Intelligence (Pytest System Suite)
-    print("Section 1: Swarm Intelligence & Observability pytests...")
+    t_logger.info("Section 1: Swarm Intelligence & Observability pytests...", action="audit_section_start", meta={"section": 1})
     res_pytest = run_command(["pytest", "tests/system", "-v"], cwd=backend_dir)
     report["sections"].append({
         "name": "Intelligence & Observability (Unit/System)",
@@ -52,7 +64,7 @@ async def perform_audit():
     })
 
     # 2. Resilience & Governance (SG-007 Drill)
-    print("Section 2: Governance & Resilience Drills...")
+    t_logger.info("Section 2: Governance & Resilience Drills...", action="audit_section_start", meta={"section": 2})
     res_drill = run_command([sys.executable, "scripts/run_sg007_governance_drills.py", "--no-versioned"], cwd=backend_dir)
     report["sections"].append({
         "name": "Governance Resilience (Drills)",
@@ -61,8 +73,8 @@ async def perform_audit():
         "summary": "Circuit Breaker & Rate Throttling Verified" if res_drill["success"] else "Resilience Gate FAILED"
     })
 
-    # 3. Security Torture (ACL & Poisoning)
-    print("Section 3: Security Torture Tests...")
+    # 3. Security Hardening (ACL & Poisoning)
+    t_logger.info("Section 3: Security Hardening Tests...", action="audit_section_start", meta={"section": 3})
     res_acl = run_command([sys.executable, "scripts/torture_cascading_acl.py"], cwd=backend_dir)
     res_poison = run_command([sys.executable, "scripts/torture_poisoning_v1.py"], cwd=backend_dir)
     report["sections"].append({
@@ -73,7 +85,7 @@ async def perform_audit():
     })
 
     # 4. Swarm Logic Verification (M4.2 Intelligence)
-    print("Section 4: Swarm Intelligence Reality Check...")
+    t_logger.info("Section 4: Swarm Intelligence Reality Check...", action="audit_section_start", meta={"section": 4})
     res_swarm = run_command([sys.executable, "scripts/verify_swarm_intelligence.py"], cwd=backend_dir)
     report["sections"].append({
         "name": "Cognitive Workflow (Swarm Intelligence)",
@@ -99,14 +111,15 @@ async def perform_audit():
         md += "### 🔴 Failures Detected\n"
         for s in report["sections"]:
             if not s["success"]:
-                md += f"#### {s['name']}\n```text\n{res_pytest['stderr'] if s['name'].startswith('Intelligence') else ''}\n```\n"
+                 # Map relevant logs for failed sections
+                 md += f"#### {s['name']}\nReview full logs in `backend/logs/` for details.\n"
 
     audit_file = backend_dir / "logs" / "system_audit.md"
     audit_file.parent.mkdir(parents=True, exist_ok=True)
     audit_file.write_text(md, encoding="utf-8")
     
-    print(f"\n🏁 Audit Finished. Overall Status: {'PASS' if overall_success else 'FAIL'}")
-    print(f"📄 Report saved to: {audit_file}")
+    t_logger.info(f"🏁 Audit Finished. Overall Status: {'PASS' if overall_success else 'FAIL'}", action="audit_complete")
+    t_logger.success(f"📄 Report saved to: {audit_file}", action="report_saved")
 
 if __name__ == "__main__":
     asyncio.run(perform_audit())

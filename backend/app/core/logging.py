@@ -112,13 +112,15 @@ def setup_logging(debug: bool = True) -> None:
 
 def setup_script_context(script_name: str) -> None:
     """
-    为独立运行的脚本 (backend/scripts/*.py) 初始化可观测性上下文。
+    为独立运行的脚本 (backend/scripts/*.py) 初始化可观测性上下文与环境兼容性。
     
-    1. 自动从 GITHUB_RUN_ID 或环境变量注入 trace_id。
-    2. 设置 UnifiedLog 契约所需的模块名称。
+    1. 🛰️ 自动从 GITHUB_RUN_ID 或环境变量注入 trace_id。
+    2. 🛠️ 强制 Windows 控制台使用 UTF-8 编码，防止中文乱码。
+    3. 🏗️ 设置 UnifiedLog 契约所需的模块名称。
     """
     import os
     import uuid
+    import sys
 
     # 🛰️ 优先从环境变量获取由 CI 注入的 ID，或者本地随机
     raw_id = os.getenv("GITHUB_RUN_ID") or os.getenv("TRACE_ID")
@@ -127,8 +129,18 @@ def setup_script_context(script_name: str) -> None:
 
     trace_id_var.set(raw_id)
 
+    # 🛠️ [Architecture-Fix]: Windows Console UTF-8 Force
+    # 对齐 REQ-013 & REFLECTION_LOG 关于 Windows 环境净化的要求
+    try:
+        if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, Exception):
+        pass
+
     logger.info(
-         "Script context initialized: module={module}, trace_id={trace_id}",
+         "Script context initialized: module={module}, trace_id={trace_id} | Env: UTF-8 Hardened",
          module=f"scripts.{script_name}",
          trace_id=raw_id
     )

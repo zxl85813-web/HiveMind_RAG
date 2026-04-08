@@ -617,6 +617,24 @@ class SwarmOrchestrator:
         reasoning_budget = 4 if complexity_score < 4 else 8
         logger.info(f"🧠 [Adaptive Budget] Query Complexity={complexity_score} -> Budget={reasoning_budget}")
 
+        # --- 5. Intent Scaffolding Pickup (M5.2.1) ---
+        # Did we already prefetch results during user typing (WebSocket)?
+        user_id = state.get("user_id") or "default"
+        prefetched = CacheService.get_intent_cache(user_id)
+        
+        if prefetched:
+            logger.info(f"🛰️ [Phase 6] Intent Scaffolding Pickup Hit for session {user_id}!")
+            # Merge prefetched results and jump to supervisor
+            return {
+                "next_step": "supervisor",
+                "execution_variant": execution_variant,
+                "reasoning_budget": reasoning_budget,
+                "context_data": prefetched.get("context_data", ""),
+                "retrieved_docs": prefetched.get("retrieved_docs", []),
+                "retrieval_trace": prefetched.get("retrieval_trace", []),
+                "thought_log": "🛰️ 正在为您接入预取回的知识片段..."
+            }
+
         return {
             "next_step": "supervisor",
             "execution_variant": execution_variant,

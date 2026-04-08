@@ -104,21 +104,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # TODO: Cleanup resources
 
 
+import time
 import uuid
-
 from starlette.middleware.base import BaseHTTPMiddleware
-
 from app.core.logging import trace_id_var
-
 
 class TraceMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        # 🛰️ 链路追踪：优先从 Header 取，否则生成新的
+        # 🛰️ [Context Restoration]: Fetch from Headers or generate
         trace_id = request.headers.get("X-Trace-Id", str(uuid.uuid4()))
+        # 🔄 [Sequence Hardening]: Echo client's sequence or generate timestamp-based one
+        request_seq = request.headers.get("X-Request-Sequence") or str(int(time.time() * 1000))
+        
         token = trace_id_var.set(trace_id)
         try:
             response = await call_next(request)
+            
+            # 🛡️ [API Unification Headers]
             response.headers["X-Trace-Id"] = trace_id
+            response.headers["X-Response-Sequence"] = request_seq
+            response.headers["X-Response-Timestamp"] = str(int(time.time() * 1000))
+            
             return response
         finally:
             trace_id_var.reset(token)
