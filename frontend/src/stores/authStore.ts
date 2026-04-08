@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { AccessRequirement } from '../config/access';
 import { ROLE_PERMISSION_MAP } from '../config/access';
 import { authApi } from '../services/authApi';
+import { tokenVault } from '../core/auth/TokenVault';
+import { connectionManager } from '../core/ConnectionManager';
 
 export type UserRole = 'admin' | 'operator' | 'viewer';
 
@@ -75,7 +77,7 @@ function normalizeRemoteProfile(raw: Record<string, unknown>): UserProfile {
 }
 
 const initialRole = getInitialRole();
-const initialAuthenticated = true;
+const initialAuthenticated = !!tokenVault.getAccessToken();
 
 export const useAuthStore = create<AuthState>((set, get) => ({
     isAuthenticated: initialAuthenticated,
@@ -110,7 +112,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ profile: buildProfileByRole(role) });
     },
 
-    setAuthenticated: (value) => set({ isAuthenticated: value }),
+    setAuthenticated: (value) => {
+        if (!value) {
+            tokenVault.clear();
+            connectionManager.abortAll();
+        }
+        set({ isAuthenticated: value });
+    },
 
     hasAccess: (access) => {
         if (!access) {

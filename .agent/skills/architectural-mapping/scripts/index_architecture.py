@@ -201,7 +201,7 @@ class ArchitectureIndexer:
         (call_expression function: (identifier) @store_hook (#match? @store_hook "use.*Store")) @store_node
         (jsx_opening_element name: [(identifier) @jsx_tag (member_expression) @jsx_tag]) @jsx_node
         """
-        query = Query(TSX_LANGUAGE, query_string)
+        query = TSX_LANGUAGE.query(query_string)
         
         fe_dir = BASE_DIR / "frontend" / "src"
         if not fe_dir.exists(): return
@@ -209,10 +209,6 @@ class ArchitectureIndexer:
         for ts_file in fe_dir.rglob("*.tsx"):
             if "node_modules" in str(ts_file): continue
             rel_path = str(ts_file.relative_to(BASE_DIR)).replace("\\", "/")
-            
-            # Incremental: Only re-index if file was updated in Neo4j during index_all_code_files
-            # (or check hash again if not already tracked)
-            # For simplicity, we depend on index_all_code_files having been run first.
             
             try:
                 with open(ts_file, "r", encoding="utf-8", errors="ignore") as f:
@@ -222,7 +218,8 @@ class ArchitectureIndexer:
                 self.run_query("MATCH (:File {id: $id})-[:DEFINES_COMPONENT|CONTAINS]->(child) DETACH DELETE child", {"id": rel_path})
                 
                 tree = parser.parse(bytes(content, "utf8"))
-                captures = query.captures(tree.root_node)
+                cursor = QueryCursor()
+                captures = cursor.captures(query, tree.root_node)
                 
                 components = {}
                 states = []; stores = []; jsx_tags = []

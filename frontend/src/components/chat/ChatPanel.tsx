@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 
 import { useChatStore } from '../../stores/chatStore';
+import { useAuthStore } from '../../stores/authStore';
 import { ActionButton } from './ActionButton';
 import { intentManager } from '../../core/IntentManager';
 import { chatApi } from '../../services/chatApi';
@@ -50,8 +51,10 @@ export const ChatPanel: React.FC = () => {
         currentConversationId,
         setCurrentConversation,
         selectedKnowledgeBases,
+        setSelectedKnowledgeBases,
         startNewChat: resetStoreChat
     } = useChatStore();
+    const { profile, setAuthenticated } = useAuthStore();
 
     // === React Query Hooks ===
     const { data: conversations, refetch: refetchConversations } = useConversations();
@@ -336,6 +339,20 @@ export const ChatPanel: React.FC = () => {
                     <Tag icon={<EnvironmentOutlined />} color="processing">{context.pageTitle}</Tag>
                 </Flex>
                 <Space size={8}>
+                    <Tooltip title={`${profile.name} (${profile.roles[0]})`}>
+                        <Avatar 
+                            size="small" 
+                            src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${profile.id}`} 
+                            style={{ cursor: 'pointer', border: `1px solid ${token.colorBorderSecondary}` }}
+                            onClick={() => {
+                                Modal.confirm({
+                                    title: '退出登录',
+                                    content: `确定要退出当前账号 ${profile.name} 吗？`,
+                                    onOk: () => setAuthenticated(false)
+                                });
+                            }}
+                        />
+                    </Tooltip>
                     <Popover content={historyContent} title={t('chat.history')} trigger="click" placement="bottomRight">
                         <HistoryOutlined className={styles.headerAction} data-testid="history-button" />
                     </Popover>

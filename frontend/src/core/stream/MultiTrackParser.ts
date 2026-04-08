@@ -18,6 +18,7 @@ export type StreamTrack =
     | 'tool_call'       // 工具调用
     | 'citation'        // 引用来源
     | 'metrics'         // 性能指标 (Token/Latency)
+    | 'action'          // 结构化操作指令 (NEW)
     | 'status'          // 状态更新 (中间状态)
     | 'intent'          // 意图预判 (M5.2.1 Intent Scaffolding)
     | 'session_created' // 会话创建成功 (含 ID)
@@ -51,8 +52,8 @@ export class MultiTrackParser {
             
             // 2. 识别轨道 (兼容旧版 type 字段)
             const track: StreamTrack = (data.track || data.type) as StreamTrack;
-            // 🛰️ [Compatibility-Gate]: 兼容 delta, content, payload, message 多种字段
-            const payload = data.payload !== undefined ? data.payload : (data.content ?? data.delta ?? data.message); 
+            // 🛰️ [Architecture-Gate]: Action dispatching
+            const payload = track === 'action' ? (data.payload || data.action) : (data.payload !== undefined ? data.payload : (data.content ?? data.delta ?? data.message)); 
 
             if (!track) {
                 // 默认路由到 content

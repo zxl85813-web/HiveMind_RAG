@@ -66,15 +66,13 @@ class IntentManager {
                     }
                     break;
                 case 'ai_warmup':
-                    // 🆕 [Phase 4.1]: Proactive Backend Warming (AI Probe)
-                    if (options.message) {
-                        chatApi.streamChat({
-                            message: options.message,
-                            is_prefetch: true,
-                            onStatus: (status: any) => console.log(`🛰️ [Prefetch Status]: ${typeof status === 'string' ? status : JSON.stringify(status)}`),
-                            onFinish: () => console.log(`✅ [Prefetch Done]`)
-                        });
-                    }
+                    // 🛰️ [Cost-Gate]: Downgraded from Stream to Data Prefetch
+                    // Avoid triggering expensive LLM runs on mere hover.
+                    await this.queryClient.prefetchQuery({
+                        queryKey: ['conversations'],
+                        staleTime: 30000
+                    });
+                    console.log(`✅ [Prefetch Done] Data warmed, LLM costs conserved.`);
                     break;
                 case 'knowledge':
                     // 1. 预取知识库列表 (React Query Cache)

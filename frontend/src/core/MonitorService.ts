@@ -1,5 +1,6 @@
 import { UnifiedLogSchema, type UnifiedLog, type MonitorEvent } from './schema/monitoring';
 import type { AppError } from './AppError';
+import { tokenVault } from './auth/TokenVault';
 
 // 🚀 [Architecture-Optimization]: Sentry Lazy Loading
 // Use dynamic imports to keep Sentry out of the main bundle.
@@ -136,7 +137,7 @@ class MonitorService {
         const apiBase = import.meta.env.VITE_API_BASE_URL || '';
         const baseUrl = apiBase.replace(/\/+$/, '');
         const url = `${baseUrl}/telemetry`;
-        const token = localStorage.getItem('access_token');
+        const token = tokenVault.getAccessToken();
         
         const bodyContent = {
             type,

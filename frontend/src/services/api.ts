@@ -8,6 +8,7 @@ import { AppError } from '../core/AppError';
 import { monitor } from '../core/MonitorService';
 import { ErrorCode } from '../core/schema/error';
 import i18n from '../i18n/config';
+import { tokenVault } from '../core/auth/TokenVault';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -57,7 +58,7 @@ if (import.meta.env.VITE_USE_MOCK === 'true') {
 // 请求拦截器
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('access_token');
+        const token = tokenVault.getAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -81,16 +82,15 @@ api.interceptors.response.use(
         let errorCode: string = ErrorCode.API_NETWORK_ERROR;
 
         if (status === 401) {
-            errorCode = ErrorCode.API_UNAUTHORIZED;
+            tokenVault.clear();
             notification.warning({
                 message: '登录已过期',
                 description: '您的身份凭证已失效，请重新登录。',
                 placement: 'topRight',
             });
-            localStorage.removeItem('access_token');
             setTimeout(() => {
                 window.location.href = '/login';
-            }, 1500);
+            }, 1000);
         } else if (status === 403) {
             errorCode = ErrorCode.API_FORBIDDEN;
             notification.error({

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { connectionManager } from '../core/ConnectionManager';
 
 interface UseWebSocketOptions {
     url: string;
@@ -40,6 +41,7 @@ export function useWebSocket({
                 setError(null);
                 attemptsRef.current = 0;
                 setSocket(ws);
+                connectionManager.registerWS(ws);
                 onOpen?.(event);
             };
 
@@ -50,6 +52,7 @@ export function useWebSocket({
             ws.onclose = (event) => {
                 setIsConnected(false);
                 setSocket(null);
+                connectionManager.unregisterWS(ws);
                 onClose?.(event);
 
                 // Auto-reconnect

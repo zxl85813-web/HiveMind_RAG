@@ -3,6 +3,7 @@ import type { FetchEventSourceInit } from '@microsoft/fetch-event-source';
 import { MultiTrackParser, type StreamTrack, type TrackHandler } from './MultiTrackParser';
 import { llmMonitor } from './LLMHealthMonitor';
 import { monitor } from '../MonitorService';
+import { connectionManager } from '../ConnectionManager';
 
 /**
  * 🛰️ [HMER Phase 3] Stream Manager
@@ -46,6 +47,7 @@ export class StreamManager {
         this.startTime = performance.now();
         this.hasSentTTFT = false;
         this.abortController = new AbortController();
+        connectionManager.registerSSE(this);
         const { url, body, maxRetries = 5, ...fetchOptions } = this.options;
 
         // 🛰️ [断点续传协议]: 携带 last_chunk_index 告诉后端从哪继续
@@ -158,6 +160,7 @@ export class StreamManager {
     /** 彻底清理 (建议在组件卸载时调用) */
     destroy() {
         this.disconnect();
+        connectionManager.unregisterSSE(this);
         this.parser.clear();
     }
 }

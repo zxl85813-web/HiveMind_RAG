@@ -2,6 +2,8 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import api from './api';
 import i18n from '../i18n/config';
 import { StreamManager } from '../core/stream/StreamManager';
+import { tokenVault } from '../core/auth/TokenVault';
+import { monitor } from '../core/MonitorService';
 
 export interface ChatMessage {
     id: string;
@@ -55,12 +57,13 @@ export const chatApi = {
         const baseUrl = rawBase ? (rawBase.endsWith('/api/v1') ? rawBase : `${rawBase.replace(/\/$/, '')}/api/v1`) : '/api/v1';
 
         try {
-            const token = localStorage.getItem('access_token');
+            const token = tokenVault.getAccessToken();
             await fetchEventSource(`${baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept-Language': i18n.language || 'zh-CN',
+                    'X-Trace-Id': monitor.getTraceId(),
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                 },
                 body: JSON.stringify({
@@ -123,12 +126,13 @@ export const chatApi = {
     }): StreamManager {
         const rawBase = import.meta.env.VITE_API_BASE_URL || '';
         const baseUrl = rawBase ? (rawBase.endsWith('/api/v1') ? rawBase : `${rawBase.replace(/\/$/, '')}/api/v1`) : '/api/v1';
-        const token = localStorage.getItem('access_token');
+        const token = tokenVault.getAccessToken();
         
         return new StreamManager({
             url: `${baseUrl}/chat/completions`,
             headers: {
                 'Accept-Language': i18n.language || 'zh-CN',
+                'X-Trace-Id': monitor.getTraceId(),
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             },
             body: {

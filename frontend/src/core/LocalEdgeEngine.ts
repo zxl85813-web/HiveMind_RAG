@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import { tokenVault } from './auth/TokenVault';
 
 /**
  * 🛰️ [HMER Phase 2] Local Edge Engine
@@ -7,7 +8,10 @@ import { openDB, type IDBPDatabase } from 'idb';
  */
 class LocalEdgeEngine {
     private dbPromise: Promise<IDBPDatabase<any>> | null = null;
-    private DB_NAME = 'HiveMind_Edge_Cache';
+    private get DB_NAME() {
+        const uid = tokenVault.getActiveUserId() || 'anonymous';
+        return `HiveMind_Edge_Cache_${uid}`;
+    }
     private VERSION = 1;
 
     constructor() {
