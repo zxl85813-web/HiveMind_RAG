@@ -12,9 +12,9 @@ from typing import Any
 from loguru import logger
 
 from app.agents.memory import SharedMemoryManager
-from app.models.agents import ReflectionEntry, ReflectionSignalType
 from app.services.memory.episodic_service import episodic_memory_service
 from app.services.memory.memory_service import MemoryService
+from app.services.memory.social_graph_service import SocialGraphService, SocializedConsensus
 
 
 class SwarmMemoryBridge:
@@ -26,33 +26,61 @@ class SwarmMemoryBridge:
         self.episodic_svc = episodic_memory_service
         # Swarm Shared State (Reflections/TODOs)
         self.shared_mgr = SharedMemoryManager()
+        # L5 Socialized Knowledge Graph (Collective Unconsciousness)
+        self.social_graph = SocialGraphService()
 
-    async def load_historical_context(self, query: str) -> str:
+    async def load_historical_context(self, query: str) -> tuple[str, bool]:
         """
-        Recall multi-tier historical context before planning (M4.2.1).
-        Links current query to past episodes, graph nodes, and Reflection Gaps.
+        Recall multi-tier historical context before planning, and assess risk (M4.2.4).
+        Returns (context_string, is_high_risk).
         """
-        logger.info(f"🧠 [SwarmMemory] Loading historical context for query: {query}")
+        logger.info(f"[SwarmMemory] Loading historical context and assessing risk for: {query}")
+        is_high_risk = False
         try:
-            # 1. Standard L1-L5 Retrieval (Vector/Graph/Episodic)
+            # 1. Standard L1-L5 Retrieval
             context = await self.memory_svc.get_context(query)
 
-            # 2. Reflection Log Retrieval (Self-Correction Layer)
-            # Find relevant GAP/INSIGHT signals that might help the current planning
+            # 2. Reflection Log Retrieval
             reflections = await self.shared_mgr.get_reflections(limit=5)
             reflection_context = ""
+            directives = []
+
             for r in reflections:
-                # Simple semantic match for now (could be more advanced)
-                if any(kw in query.lower() for kw in r.topic.lower().split()):
-                    reflection_context += f"\n- [Past Reflection/{r.signal_type}] {r.summary}\n  Details: {r.action_taken}"
+                # Semantic/Topic Matching
+                if any(kw in query.lower() for kw in r.topic.lower().split()) or \
+                   any(kw in query.lower() for kw in r.match_key.lower().split()):
+                    
+                    reflection_context += f"\n- [Past Reflection/{r.signal_type}] {r.summary}"
+                    
+                    # RISK DETECTION: If past confidence was low or action is pending_todo, it's high risk
+                    if r.confidence_score < 0.6 or r.action_taken == "PENDING_TODO":
+                        is_high_risk = True
+
+                    # Extract L4 Cognitive Directive
+                    directive = r.details.get("analysis", {}).get("cognitive_directive") or r.details.get("directive")
+                    if directive:
+                        directives.append(directive)
+
+            # 3. L5 Collective Unconsciousness (Subconscious Recall)
+            wisdom = await self.social_graph.suggest_prior_wisdom(query)
+            wisdom_context = ""
+            for item in wisdom:
+                wisdom_context += f"\n- [Past Swarm Consensus] Requirement: {item['point']}\n  Solution: {item['solution']}\n  Rationale: {item['rationale']}"
+
+            if wisdom_context:
+                context += f"\n\n--- COLLECTIVE INTELLIGENCE FROM PAST DEBATES ---\n{wisdom_context}"
 
             if reflection_context:
-                context += f"\n\n--- 🪞 RELEVANT PAST REFLECTIONS ---\n{reflection_context}"
+                context += f"\n\n--- RELEVANT PAST REFLECTIONS ---\n{reflection_context}"
+            
+            if directives:
+                directive_block = "\n".join([f"!!! [SYSTEM DIRECTIVE] {d}" for d in directives])
+                context += f"\n\n--- HARD CONSTRAINTS FROM PAST FAILURES ---\n{directive_block}\n(You MUST adhere to these directives to pass the L4 Integrity Gate.)"
 
-            return context
+            return context, is_high_risk
         except Exception as e:
             logger.error(f"Failed to load historical context: {e}")
-            return ""
+            return "", False
 
     async def persist_successful_outcome(self, query: str, context: dict[str, Any], conversation_id: str | None = None):
         """
@@ -113,3 +141,16 @@ class SwarmMemoryBridge:
             }
         )
         await self.shared_mgr.add_reflection(entry)
+
+    async def solidify_swarm_consensus(self, query: str, consensus_plan: str, rationale: str, trace_id: str):
+        """
+        Elevates a swarm-level consensus to a global architectural pattern in the social graph.
+        """
+        logger.info(f"[SwarmMemory] Elevating consensus to Collective Wisdom.")
+        consensus = SocializedConsensus(
+            decision_point=query,
+            consensus_summary=consensus_plan,
+            rationale=rationale,
+            trace_id=trace_id
+        )
+        await self.social_graph.solidify_consensus(consensus)

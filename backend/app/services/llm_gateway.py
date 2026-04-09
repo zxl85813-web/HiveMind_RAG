@@ -25,9 +25,9 @@ class LLMGateway:
 
         # In a real app, tier determines the model.
         # Tier 3 = COMPLEX
-        model = settings.ARK_MODEL
-        api_key = settings.ARK_API_KEY or settings.LLM_API_KEY
-        base_url = settings.ARK_BASE_URL or settings.LLM_BASE_URL
+        model = settings.LLM_MODEL
+        api_key = settings.LLM_API_KEY
+        base_url = settings.LLM_BASE_URL
 
         if not api_key:
             logger.error("No LLM API Key configured.")
@@ -47,9 +47,11 @@ class LLMGateway:
                 model=model,
                 messages=messages,
                 temperature=0.2,
-                response_format=None,
-                timeout=60.0
+                response_format=response_format,
+                timeout=300.0
             )
+
+
             content = resp.choices[0].message.content or ""
             logger.debug(f"LLM Response [{model}]: {content[:200]}...")
             return GatewayResponse(content=content, metadata={"model": model, "tier": tier})

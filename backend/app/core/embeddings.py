@@ -4,7 +4,7 @@ Embeddings Service — Embed text using ZhipuAI.
 
 from zhipuai import ZhipuAI
 
-from app.core.config import settings
+from app.sdk.core import settings
 
 
 class BaseEmbeddingService:

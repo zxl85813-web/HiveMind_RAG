@@ -4,6 +4,28 @@
 
 ---
 
+## 🧬 智体进化阶梯 (Intelligence Evolution Layers)
+
+HiveMind 遵循严格的认知进化路径，每一层级都代表了自治度与治理深度的阶跃：
+
+| 层级 | 核心特征 (Core Features) | 治理机制 (Governance) | 状态 |
+| :--- | :--- | :--- | :--- |
+| **L1: 助手** | 专项原子智体 (Code, Research) | 手动 Prompt 驱动 | ✅ |
+| **L2: 协作** | 多代理蜂群 (Worker Swarm) | 共享黑板、Supervisor 编排 | ✅ |
+| **L3: 门禁** | 自动化质量门禁 (Quality Gates) | RAGAS 评估、代码合规审计 | ✅ |
+| **L4: 自愈** | **自主进化 (Autonomous)** | **失败自省、L4 过程完整性网关、异常隔离 DAG** | ✅ |
+| **L5: 协同** | **共生与对冲 (Synergy)** | **跨集群辩论 (Debate)、人机统帅 (HAT)、需求定界网关** | 🚀 **MVP** |
+
+---
+
+## 🏗️ 核心治理原则 (L5 Architecture Mandates)
+
+1.  **拒绝盲目讨论 (Anti-Blind Discussion)**：严禁在模糊环境下启动 Swarm。ScopingAgent 必须先进行“定界审计”，未确认背景前拒开工。
+2.  **人类统帅原则 (Human Steering)**：智体可以自治，但人类拥有“元帅令”级别的逻辑截断权，可随时将发散的学术讨论拉回工程轨道。
+3.  **对撞产生稳健 (Robustness via Debate)**：高阶决策必须经过并行 Swarm 的对冲与跨集群审计，由 Synthesizer 融合最终黄金路径。
+
+---
+
 ## 🧭 智体自愈阅读顺序 (Recommended Order)
 
 按 `L0 -> L4` 渐进式披露阅读，确保对“蜂巢架构”的深度理解：

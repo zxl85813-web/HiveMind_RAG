@@ -59,7 +59,7 @@ class ReviewerAgent(WorkerAgent):
             tier=3,  # Reasoning Tier
             prompt=task.instruction,
             system_prompt=system_prompt,
-            response_format={{"type": "json_object"}},
+            response_format={"type": "json_object"},
         )
 
         # 💡 Parse structured signal — no brittle string matching

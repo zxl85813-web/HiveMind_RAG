@@ -89,7 +89,7 @@ class ClawRouterGovernance:
             "tier": tier,
             "model": model,
             "score": round(score, 3),
-            "reason": f"CLAW_V2_SCORE_{tier.upper()}",
+            "reason_code": f"CLAW_V2_SCORE_{tier.upper()}",
             "evidence": {
                 "complexity": round(complexity, 2),
                 "is_code": is_code > 0,

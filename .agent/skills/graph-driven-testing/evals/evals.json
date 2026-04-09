@@ -1,0 +1,17 @@
+{
+  "skill_name": "graph-driven-testing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "查找本项目中目前没有任何测试用例关联的核心需求 (REQ) 节点，并给出治理建议。",
+      "expected_output": "报告中应包含 REQ-014 等缺失测试的需求，并推荐使用 hm_test.py 进行收割。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "如果我修改了 backend/app/sdk/core/token_service.py，请列出受影响的架构资产及其关联测试。",
+      "expected_output": "应列出 TokenService 及其依赖项，并定位到 tests/unit/sdk/test_token_service.py。",
+      "files": ["backend/app/sdk/core/token_service.py"]
+    }
+  ]
+}

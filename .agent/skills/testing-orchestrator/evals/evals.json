@@ -1,0 +1,17 @@
+{
+  "skill_name": "testing-orchestrator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "对目前的 SDK 核心组件运行一遍全量单元测试，覆盖率要求 60% 以上，并生成 html 报告。",
+      "expected_output": "应调用 hm_test.py unit --path tests/unit/sdk 并展示报告生成路径。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我觉得目前的测试用例质量不高，请帮我运行变异测试来评估一下它们的真实有效性。",
+      "expected_output": "应调用 hm_test.py mutate 并指定具体的测试文件进行变异得分分析。",
+      "files": []
+    }
+  ]
+}

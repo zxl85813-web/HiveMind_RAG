@@ -19,7 +19,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.core.config import settings
+from .config import settings
 
 # 🛰️ 链路追踪上下文变量 (Cross-Request Trace ID)
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="system-internal")

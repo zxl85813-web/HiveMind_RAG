@@ -1,0 +1,16 @@
+[
+  {
+    "decision_point": "Design a robust JWT blacklist using Redis for a high-concurrency app.",
+    "consensus_summary": "Use Redis SETEX with JWT JTI as key. Set TTL same as token expiry.",
+    "rationale": "O(1) lookup, automatic cleanup via TTL.",
+    "tags": [],
+    "trace_id": "GOV-LEARN-001"
+  },
+  {
+    "decision_point": "Design a robust JWT blacklist using Redis for a high-concurrency app.",
+    "consensus_summary": "Use Redis SETEX with JWT JTI as key. Set TTL same as token expiry.",
+    "rationale": "O(1) lookup, automatic cleanup via TTL.",
+    "tags": [],
+    "trace_id": "GOV-LEARN-001"
+  }
+]

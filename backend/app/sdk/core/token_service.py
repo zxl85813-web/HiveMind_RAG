@@ -64,24 +64,30 @@ class TokenService:
         Truncates content if it exceeds the token budget.
         Tries to truncate at newlines to maintain semantic readability.
         """
-        if cls.count_tokens(text, model_name) <= budget:
+        if not text or cls.count_tokens(text, model_name) <= budget:
             return text
 
         logger.info(f"📏 [TokenService] Truncating context to fit budget of {budget} tokens.")
         
+        suffix = "... [Truncated due to context budget] ..."
+        suffix_tokens = cls.count_tokens(suffix, model_name)
+        
+        # Adjust budget to make room for suffix
+        effective_budget = max(0, budget - suffix_tokens)
+        
         encoding = cls.get_encoding(model_name)
         tokens = encoding.encode(text)
         
-        # Binary search for cutting point or just take first budget tokens
-        truncated_tokens = tokens[:budget]
+        truncated_tokens = tokens[:effective_budget]
         raw_truncated_text = encoding.decode(truncated_tokens)
         
         # Refine: Cut at the last newline to avoid partial sentences
         last_newline = raw_truncated_text.rfind("\n")
+        # Only use newline cut if it doesn't discard too much (e.g. < 200 chars)
         if last_newline != -1 and len(raw_truncated_text) - last_newline < 200:
-            return raw_truncated_text[:last_newline] + "\n... [Truncated due to context budget] ..."
+            return raw_truncated_text[:last_newline] + "\n" + suffix
             
-        return raw_truncated_text + "... [Truncated due to context budget] ..."
+        return raw_truncated_text + suffix
 
     @classmethod
     def calculate_budget_plan(cls, total_window: int | None = None) -> dict:

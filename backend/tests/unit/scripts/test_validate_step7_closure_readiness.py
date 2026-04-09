@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.scripts import validate_step7_closure_readiness as mod
+from scripts import validate_step7_closure_readiness as mod
 
 
 def _write_json(path: Path, payload: dict) -> None:

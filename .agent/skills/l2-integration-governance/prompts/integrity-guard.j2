@@ -1,0 +1,14 @@
+# Integrity Guard Logic Template
+
+When generating L2 integration tests for HiveMind, you MUST include a logic probe for the following entities:
+
+{% if entity_type == 'Task' %}
+1. Verify `(Task {status: 'done'})-[:PRODUCED]->(Result)` exists in Neo4j.
+2. Verify PG record has a valid `output_vfs_path`.
+3. Check `integrity_prober.py --id {{ entity_id }}` for logical drift.
+{% elif entity_type == 'Document' %}
+1. Verify `(Doc)-[:HAS_CHUNKS]->(Chunk)` exists.
+2. Verify VectorStore has records for all chunk IDs.
+{% endif %}
+
+Acceptance: All cross-database invariants must pass before the integration test is considered 'GREEN'.

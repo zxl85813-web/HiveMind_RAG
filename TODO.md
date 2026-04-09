@@ -18,13 +18,27 @@
 | **路由层** | RAGGateway | [x] 意图预取 (Intent Scaffolding) & 4 层路由 (Arachne) | ✅ 已完成 |
 | **执行层** | Workers | ⬜ 标签→Pipeline 动态分派系统 (M3.1.5) | ⬜ 未启动 |
 | **存储层** | Memory Agent | [x] 知识库 Gap-Insight 自动诊断 (Radar Integration) | ✅ 已完成 |
-| **治理层** | Governance Agent | ⬜ 自动审核规则引擎联调 (M2.3.3-M2.3.5) | 🟡 后端骨架在 |
+| **治理层** | Governance Agent | [x] L4 过程审计网关 & 认知指令闭环修复 (M4.2.4~M4.2.7) | ✅ 已硬化 |
 | **前端层** | AgentsPage | [x] Layout Locking 与 意图脉冲 (Arachne UI) | ✅ 已完成 |
 | **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
+| **协同层** | DebateOrchestrator| [x] L5 需求定界、辩论引擎与人机统帅 (HAT) | 🚀 L5 MVP |
 
 ---
 
 ## ✅ 已完成归档 (最近 Sprint)
+
+### [2026-04-09] L5 智体协同与人机编队 (L5 Synergy & Human-Agent Teaming)
+- [x] **需求定界网关 (Scoping Gate)**: 落地 `ScopingAgent`，强制执行“前置确认”审计，拒绝模糊开工。
+- [x] **人机统帅接口 (Human Strategic Steering)**: 在 `SupervisorAgent` 中注入 `human_steer` 钩子，支持人类指令强行切断智体发散。
+- [x] **跨集群辩论引擎 (Inter-Swarm Debate)**: 实现 `DebateOrchestrator` 支持并行提案与红蓝互审逻辑。
+- [x] **L5 治理路线图固化**: 将 L5 核心治理原则写入 `docs/README.md` 与 `ROADMAP.md`。
+
+### [2026-04-09] L4 自主进化与红蓝对抗 (L4 Autonomous Evolution & Adversarial Governance)
+- [x] **L4 过程完整性网关**: 落地 `gate_l4_process_integrity.py`，支持思维链路审计与“认知不诚信”检测 (M4.2.4)
+- [x] **L4 闭环自愈修复**: 升级 `SelfLearningService` 生成 `Cognitive Directive`，实现基于教训的动态规则注入 (M4.2.3)
+- [x] **L4 行为熔断器**: 在 `SupervisorAgent` 中实现“知识真空”与“逻辑停滞”自动熔断保护 (M4.2.7)
+- [x] **L4 认知升阶路由**: 联动 `MemoryBridge` 实现高风险任务自动升级模型 Tier 与审计强度 (M4.2.4)
+- [x] **L4 红蓝对抗测试**: 交付 `AnarchyAgent` 模拟内鬼渗透，完成 3 轮治理鲁棒性演习并固化“安全治理宪法”
 
 ### [2026-03-31] 架构治理与 Code Vault (M7.1/M7.2 Architecture Resilience)
 
@@ -144,6 +158,9 @@
 - [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
 - [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
 - [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发“重写查询并二次召回”的逻辑 (M5.2.5)
+- [ ] **L3 智体能力测试 (Path A)**: 自动化 RAG 评分看板集成 (M5.3) 🚧
+- [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 与 `docs/evaluation/` 目录
+- [ ] **L3 质量门禁**: 实现 `gate_l3_intelligence.py` 准入校验
 - [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
 
 ---

@@ -1,7 +1,7 @@
 import os
 import json
 import pytest
-from backend.app.batch.checkpointer import JsonCheckpointer
+from app.batch.checkpointer import JsonCheckpointer
 from langchain_core.runnables import RunnableConfig
 
 @pytest.fixture

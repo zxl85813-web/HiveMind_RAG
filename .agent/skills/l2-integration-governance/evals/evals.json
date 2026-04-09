@@ -1,0 +1,17 @@
+{
+  "skill_name": "l2-integration-governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "在目前的环境中注入一个‘僵尸节点’赃数据，然后执行 API 契约审计，确认系统是否能正确识别该异常而不崩溃。",
+      "expected_output": "应显示 poison_injector 注入成功，且 contract_diff 或 integrity_prober 捕获到了逻辑不一致。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "对比当前开发环境的 OpenAPI 与 baseline 模板，列出所有破坏性的更改并生成报告。",
+      "expected_output": "报告中应清晰标注 REMOVED PATH 或 TYPE DRIFT 及其受影响的 API。",
+      "files": []
+    }
+  ]
+}

@@ -29,6 +29,7 @@ class SwarmTaskDef(BaseModel):
 class SwarmPlan(BaseModel):
     tasks: list[SwarmTaskDef] = Field(default_factory=list)
     reasoning: str = Field(default="No explicit reasoning provided.")
+    directive_compliance: Any = Field(default="N/A", description="How the plan adheres to L4 System Directives")
 
 
 class VerifyResult(BaseModel):
@@ -48,24 +49,45 @@ class SupervisorAgent:
         # 🧠 Memory integration (M4.2.1)
         self.memory_bridge = SwarmMemoryBridge(user_id=user_id)
 
-    async def _plan(self, query: str, feedback_history: str = "", historical_context: str = "") -> SwarmPlan:
+    async def _plan(self, query: str, feedback_history: str = "", historical_context: str = "", is_high_risk: bool = False, human_steer: str | None = None) -> SwarmPlan:
         """Analyze query and generate a DAG with mandatory Checkpoints and Cross-Review (M4.2.2)."""
+        
+        # 🛡️ L4/L5 Strategic Governance
+        risk_guidance = ""
+        target_tier = 3
+        if is_high_risk:
+            risk_guidance = "### 🚨 HIGH COGNITIVE RISK DETECTED: Use MAXIMALLY conservative planning."
+
+        # 👑 L5 Human Strategic Steering (HAT)
+        steer_guidance = ""
+        if human_steer:
+            steer_guidance = f"### 👑 HUMAN COMMANDER INTERVENTION: {human_steer}\nThis is your ABSOLUTE priority. Stop any diverging research and follow this direction NOW."
+
         system_prompt = f"""
         You are the HVM-Supervisor, an expert in 'Recursive Multi-Agent Coordination'.
-        Available agents: {self.available_agents}
         
-        Mandatory Swarm Protocol:
-        1.  CROSS-REVIEW: For any non-trivial Code or Research task, MANDATE a 'ReviewerAgent' task to critique the result.
+        {steer_guidance}
+        {risk_guidance}
+        
+        ### CONSTITUTIONAL GOVERNANCE (L4)
+        Reference: docs/governance/L4_GOVERNANCE_STATUTES.md
+        All plans MUST comply with the 3 Iron Rules:
+        1. Mandatory Adversarial Review
+        2. Strict Evidence Lineage
+        3. Cognitive Honesty Declaration
+        
+        {risk_guidance}
+        
+        Available agents: {self.available_agents}
         2.  VERIFICATION POINTS: Each instruction MUST include explicit success criteria (Checkpoints).
         3.  BLACKBOARD: Agents see previous context; use this to challenge assumptions.
         
-        Workflow Requirements:
-        - Research/Audit first.
-        - Execution second.
-        - Independent Audit/Critique third (Peer Review).
-        
-        ### LONG-TERM ARCHITECTURE CONTEXT
+        ### MANDATORY EVOLUTIONARY CONSTRAINTS (L4)
+        The following directives are derived from PAST FAILURES. 
+        FAILURE TO ADHERE TO THESE WILL TRIGGER AN L4 INTEGRITY REJECTION:
         {historical_context}
+        
+        Workflow Requirements:
         
         Previous feedback (if replan):
         {feedback_history}
@@ -73,6 +95,7 @@ class SupervisorAgent:
         Output JSON:
         {{
           "reasoning": "Strategy for the dual-viewpoint review",
+          "directive_compliance": "Explicitly state which SYSTEM DIRECTIVES from context were applied",
           "tasks": [
             {{
               "id": "t1",
@@ -90,7 +113,7 @@ class SupervisorAgent:
         }}
         """
         response = await llm_gateway.call_tier(
-            tier=3,
+            tier=target_tier,
             prompt=f"Objective: {query}",
             system_prompt=system_prompt,
             response_format={"type": "json_object"}
@@ -186,8 +209,21 @@ class SupervisorAgent:
             for task_id in batch:
                 task_def = G.nodes[task_id]['data']
                 agent = self.agents.get(task_def.agent_name)
+                
+                # 🛡️ Agent Discovery Hardening
                 if not agent:
-                    shared_blackboard[task_id] = f"Error: Agent {task_def.agent_name} not found."
+                    err_msg = f"CRITICAL: Agent {task_def.agent_name} not found in current Swarm."
+                    logger.error(err_msg)
+                    shared_blackboard[task_id] = err_msg
+                    # Ensure we record the failure in observability
+                    continue
+
+                # 🛡️ Dependency Gating: Skip if any parent failed
+                deps_failed = [d for d in task_def.depends_on if "ERROR:" in str(shared_blackboard.get(d, ""))]
+                if deps_failed:
+                    msg = f"SKIPPED: Dependency failure on tasks: {deps_failed}"
+                    logger.warning(f"⏩ {task_id} {msg}")
+                    shared_blackboard[task_id] = msg
                     continue
 
                 # 🧠 Swarm Advantage: Agents get DIRECT dependencies + FULL blackboard access
@@ -204,23 +240,24 @@ class SupervisorAgent:
                 tasks_to_run.append((task_id, agent.execute(agent_task)))
 
             if tasks_to_run:
-                # Parallel await
                 ids = [t[0] for t in tasks_to_run]
                 coros = [t[1] for t in tasks_to_run]
-                results = await asyncio.gather(*coros)
+                
+                # 🚀 L4 Hardened Parallel Execution: Isolation of failures
+                results = await asyncio.gather(*coros, return_exceptions=True)
 
                 for task_id, res in zip(ids, results, strict=False):
+                    if isinstance(res, Exception):
+                        logger.error(f"❌ [Swarm Fault] Task {task_id} crashed: {res}")
+                        shared_blackboard[task_id] = f"ERROR: Execution failure: {str(res)}"
+                        continue
+
                     shared_blackboard[task_id] = res.output
 
-                    # 💡 React to Intelligence Signals from the Swarm (M4.2.2)
+                    # 💡 Intelligence Signaling (M4.2.2)
                     if res.signal:
-                        logger.info(f"⚡ Received Signal from {task_id}: {res.signal}")
-
-                        # 🦾 Cross-Viewpoint Reactivity:
-                        # If a Reviewer signals a critical failure, stop the DAG and trigger REPLAN
                         if res.signal.get("requires_replan") or res.signal.get("critical_failure"):
                             logger.error(f"🚨 [Swarm Critique] {task_id} reported a blocker! Forcing Re-plan.")
-                            # Store the review as part of the context and exit early
                             return shared_blackboard
 
         return shared_blackboard
@@ -237,7 +274,7 @@ class SupervisorAgent:
             G_copy.remove_nodes_from(zero_in_degree)
         return batches
 
-    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None) -> dict[str, Any]:
+    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None, human_steer: str | None = None) -> dict[str, Any]:
         """Execute the Cognitive Loop: Plan -> Execute -> Verify -> Replans."""
         effective_user_id = user_id or self.user_id
         trace_id = await start_swarm_trace(query, user_id=effective_user_id)
@@ -247,15 +284,17 @@ class SupervisorAgent:
         final_context = {}
 
         # 🧠 PHASE 0: Context Hydration
-        historical_context = await self.memory_bridge.load_historical_context(query)
+        historical_context, is_high_risk = await self.memory_bridge.load_historical_context(query)
 
         try:
             while loop_count < self.max_loops:
                 loop_count += 1
                 logger.info(f"--- SWARM LOOP {loop_count}/{self.max_loops} ---")
+                if is_high_risk:
+                     logger.warning("⚠️ [L4 Cognitive Escalation] Planning with High-Risk context.")
 
                 # 1. PLAN
-                plan = await self._plan(query, feedback_history, historical_context)
+                plan = await self._plan(query, feedback_history, historical_context, is_high_risk, human_steer=human_steer)
                 await record_swarm_triage(trace_id, f"Loop {loop_count} Plan: {plan.reasoning}")
                 logger.info(f"Plan generated with {len(plan.tasks)} tasks.")
 
@@ -265,6 +304,14 @@ class SupervisorAgent:
 
                 # 2. EXECUTE (DAG)
                 final_context = await self._execute_dag(plan, trace_id, query)
+
+                # 🧠 L4 SENSORY: Cognitive Blocker Detection (M4.2.3)
+                # Check if the process is moving or just 'spinning wheels'
+                all_empty = all("No relevant information found" in str(v) for v in final_context.values())
+                if all_empty and len(final_context) > 0:
+                    logger.error("🚨 [L4 Circuit Breaker] Detection: Total Knowledge Vacuum. Halting.")
+                    await self.memory_bridge.record_failure_reflection(query, "COGNITIVE_BLOCKER: Knowledge base returned nothing across all tasks.")
+                    break
 
                 # 3. VERIFY
                 verify_res = await self._verify(query, final_context)
@@ -278,6 +325,11 @@ class SupervisorAgent:
                     )
                     break
                 else:
+                    # 🔍 L4 SENSORY: Stagnation Detection
+                    if verify_res.feedback in feedback_history:
+                        logger.error("🚨 [L4 Circuit Breaker] Detection: Logical Stagnation. Re-plan is failing to address gaps. Halting.")
+                        break
+
                     logger.warning("Objective incomplete. Preparing for replan...")
                     feedback_history += f"\nLoop {loop_count} Feedback: {verify_res.feedback}"
                     # 🪞 Record Reflection Gap
