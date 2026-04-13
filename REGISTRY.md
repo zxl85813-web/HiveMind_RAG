@@ -25,7 +25,7 @@
 | **可观测** | GET | `/observability/` | 检索质量 / 路由占比 / 成本监控 | `observability.py` | ✅ |
 | **可观测** | GET | `/observability/phase-gate/{phase}` | HMER 阶段准出审计报告 (Phase 0->1) | `observability.py` | ✅ |
 | **治理** | ALL | `/service-governance/` | 限流 / 熔断器 / 智能路由配置 | `settings.py` | ✅ |
-| **评估** | ALL | `/evaluation/` | RAG 质量评估系统 (6 指标版) | `evaluation.py` | ✅ |
+| **评估** | ALL | `/evaluation/` | RAG 质量评估系统 (独立 Grader v2) | `evaluation.py` | ✅ |
 | **流水线** | ALL | `/pipelines/` | Ingestion Pipeline 配置与监控 | `pipelines.py` | ✅ |
 | **审计** | GET | `/audit/` | 系统操作审计日志检索 | `audit.py` | ✅ |
 | **遥测** | POST | `/telemetry/` | 性能埋点与 Trace 数据上报 | `telemetry.py` | ✅ |
@@ -55,7 +55,7 @@
 | **治理/观测** | `Span`, `Trace`, `CircuitBreakerEvent`, `BaselineMetric` | `observability.py` | ✅ |
 | **搜索增强** | `SmartGrepExpansion`, `MatchResult` | `smart_grep.py` | ✅ |
 | **意图/缓存** | `IntentCache`, `PrefetchJob` | `intent.py` | ✅ |
-| **质量中心** | `EvaluationItem`, `Report`, `Metrics` | `evaluation.py` | ✅ |
+| **质量中心** | `EvaluationItem`, `Report`, `Metrics`, `BadCase` | `evaluation.py` | ✅ |
 | **治理中心** | `LLMMetric` | `observability.py` | ✅ |
 | **后台任务** | `PipelineJob`, `PipelineStageLog`, `SyncLog` | `pipeline_config.py` | ✅ |
 
@@ -82,6 +82,16 @@
 | 🆕 `AbstractIndexService` | **图谱索引抽象层**: 定义 `record_agent_preference` / `get_agent_preferences` 契约 | ✅ 已实现 |
 | 🆕 `BudgetService` | **成本治理中心**: LLM Token 预算统计与自动化超支熔断 (M7.1) | `app/services/governance/budget_service.py` | ✅ |
 | 🆕 `KnowledgeFreshnessService` | **知识新鲜度中心**: RAG 文档生命周期巡检与过期治理 (TASK-GOV-003) | `app/services/knowledge/freshness_service.py` | ✅ |
+| 🆕 `FaithfulnessGrader` | **忠实度评估器**: 逐句 claim 验证，检测幻觉 (Eval v2) | `app/services/evaluation/graders/faithfulness.py` | ✅ |
+| 🆕 `RelevanceGrader` | **相关性评估器**: 逆向问题生成 + 语义相似度 (Eval v2) | `app/services/evaluation/graders/relevance.py` | ✅ |
+| 🆕 `CorrectnessGrader` | **正确性评估器**: GT 事实对比 TP/FN/FP 计算 (Eval v2) | `app/services/evaluation/graders/correctness.py` | ✅ |
+| 🆕 `ContextPrecisionGrader` | **上下文精确度评估器**: 检索信噪比评估 (Eval v2) | `app/services/evaluation/graders/context.py` | ✅ |
+| 🆕 `ContextRecallGrader` | **上下文召回率评估器**: 信息覆盖度评估 (Eval v2) | `app/services/evaluation/graders/context.py` | ✅ |
+| 🆕 `BaseGrader` | **评估器基类**: CoT 推理 + 多次采样 + 置信度计算 (Eval v2) | `app/services/evaluation/graders/base.py` | ✅ |
+| 🆕 `RagAssertionGrader` | **硬规则断言层**: CITE-001/002 强制规则兜底 | `app/services/evaluation/rag_assertion_grader.py` | ✅ |
+| 🆕 `MultiGraderEval` | **多裁判评估器**: 6 维度独立评分 + 硬规则联动 | `app/services/evaluation/multi_grader.py` | ✅ |
+| 🆕 `ABTracker` | **A/B 实验追踪器**: 执行变体遥测采集与统计分析 | `app/services/evaluation/ab_tracker.py` | ✅ |
+| 🆕 `SelfLearningService` | **自进化服务**: 失败案例自动反思 + Todo 生成 (L4) | `app/services/evolution/self_learning.py` | ✅ |
 
 ---
 
@@ -167,6 +177,10 @@
 | 🆕 **动态提示恢复** | `verify_dynamic_prompt_recovery.py` | 验证长上下文动态 Prompt 恢复机制 | - | ✅ |
 | 🆕 **成本审计** | `audit_llm_costs.py` | 全系统 LLM 消耗金额统计与预警 | - | ✅ |
 | 🆕 **知识新鲜度审计** | `audit_knowledge_freshness.py` | 识别 RAG 知识库中过期的陈旧文档 | - | ✅ |
+| 🆕 **L3 能力看板同步** | `l3_dashboard_sync.py` | L3 智体能力自动化评测与看板生成 | GATE-L3 | ✅ |
+| 🆕 **L4 过程完整性审计** | `gate_l4_process_integrity.py` | 推理链结构完整性审计 (Evidence/Friction/Truth) | GATE-L4 | ✅ |
+| 🆕 **评测数据植入** | `ingest_eval_data.py` | 向评测向量库植入测试文档 | - | ✅ |
+| 🆕 **评估图谱同步** | `sync_evaluation_to_graph.py` | 将评估体系节点/关系同步至 Neo4j 图谱 | - | ✅ |
 | 🆕 **API 契约同步** | `export_openapi.py` / `sync-api.ps1` | **SSoT 驱动**: 将后端 Pydantic 模型同步至前端 TS 类型 | - | ✅ |
 | 🆕 **规约入图** | `sync_governance_to_graph.py` | 把 Markdown 规约同步至 Neo4j，实现动态治理 | - | ✅ |
 
@@ -184,6 +198,11 @@
 | **图谱治理** | `DEC-005-GRAPH_DRIVEN_GOVERNANCE.md` | **Graph-Driven**: 基于 Neo4j 的动态规约映射与自愈 |
 | **全量计划** | `MASTER_GOVERNANCE_PLAN.md` | **Final Logic**: 全量治理、规约进化与刚性拦截路线图 |
 | **验证体系** | `DES-002-TESTING_STRATEGY.md` | 全链路测试与质量保障策略 (整合版) |
+| **评估体系** | `docs/evaluation/RAG_EVALUATION_FRAMEWORK.md` | RAG 三层分层评测 + LLM-as-Judge 偏差治理 |
+| **评估体系** | `docs/evaluation/AGENT_EVALUATION_FRAMEWORK.md` | Agent 四层分层评测 (L1~L4) + 过程完整性审计 |
+| **评估体系** | `docs/evaluation/EVALUATION_SYSTEM_AUDIT.md` | 评估体系深度审计报告 + 7 缺陷改造路线图 |
+| **评估速查** | `docs/evaluation/METRICS_CHEATSHEET.md` | RAG 评测指标速查 + 诊断流程图 |
+| **评估速查** | `docs/evaluation/AGENT_METRICS_CHEATSHEET.md` | Agent 评测指标速查 + L4 审计解读 |
 | **设计系统** | `frontend-design` Skill | Cyber-Refined 赛博精致视觉规范 |
 
 ---

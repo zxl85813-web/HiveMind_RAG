@@ -70,7 +70,18 @@ backend/
     │   ├── chat_service.py    #   对话业务
     │   ├── kb_service.py      #   知识库业务
     │   ├── user_service.py    #   用户业务
-    │   └── ws_manager.py      #   WebSocket 管理
+    │   ├── ws_manager.py      #   WebSocket 管理
+    │   └── evaluation/        #   🆕 评估体系 (Eval v2)
+    │       ├── __init__.py    #     EvaluationService (L1/L2/L3 评测)
+    │       ├── graders/       #     独立评估器架构
+    │       │   ├── base.py    #       BaseGrader (CoT + 多采样 + 置信度)
+    │       │   ├── faithfulness.py  # 忠实度 (逐句 claim 验证)
+    │       │   ├── relevance.py     # 相关性 (逆向问题生成)
+    │       │   ├── correctness.py   # 正确性 (GT 事实对比)
+    │       │   └── context.py       # 上下文精确度 + 召回率
+    │       ├── multi_grader.py      # 多裁判评估器
+    │       ├── rag_assertion_grader.py  # 硬规则断言层
+    │       └── ab_tracker.py        # A/B 实验追踪器
     │
     │  ════════════════════════════════════════════
     │  第三层: Agent 蜂巢 (AI 核心)
@@ -300,6 +311,14 @@ docs/
 ├── architecture.md            # 系统架构总览
 ├── design/                    # 设计文档
 │   └── ai-first-frontend.md
+├── evaluation/                # 🆕 评估体系
+│   ├── RAG_EVALUATION_FRAMEWORK.md    # RAG 三层评测框架
+│   ├── AGENT_EVALUATION_FRAMEWORK.md  # Agent 四层评测框架
+│   ├── EVALUATION_SYSTEM_AUDIT.md     # 评估体系审计报告
+│   ├── METRICS_CHEATSHEET.md          # RAG 指标速查
+│   ├── AGENT_METRICS_CHEATSHEET.md    # Agent 指标速查
+│   ├── L3_QUALITY_BOARD.md            # L3 看板 (自动生成)
+│   └── L4_INTEGRITY_REPORT.md         # L4 报告 (自动生成)
 ├── requirements/              # 需求文档 (REQ-NNN-*.md)
 │   ├── REQ-001 ~ REQ-007
 │   └── ...

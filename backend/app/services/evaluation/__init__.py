@@ -1,5 +1,11 @@
 """
-Evaluation Service — Integrated RAGAS / DeepEval for quality metrics.
+Evaluation Service — Unified RAG & Agent Quality Assessment.
+
+Architecture (v2):
+  - 独立 Grader 体系: 每个维度独立评估，避免认知负荷过重
+  - 检索/生成解耦: 支持 L1 Retriever 独立评测 + L2 Generator 独立评测
+  - 硬规则断言: RagAssertionGrader 集成到主流程
+  - CoT 推理: 所有评分强制先推理再打分
 """
 
 import json
@@ -89,18 +95,36 @@ class EvaluationService:
     @staticmethod
     async def run_evaluation(db: AsyncSession, set_id: str, model_name: str | None = None) -> EvaluationReport:
         """
-        Runs the RAGAS evaluation pipeline.
-        M2.5 Multi-model: Generation uses the specified 'model_name'.
-        1. Retrieval: Get context for each question.
-        2. Generation: Get LLM response (Track latency/cost).
-        3. Scorer: Use RAGAS metrics to score.
+        Runs the RAGAS evaluation pipeline with independent graders (v2).
+
+        Architecture:
+          1. Retrieval: Get context for each question
+          2. Generation: Get LLM response
+          3. Independent Grading: Each dimension scored by its own specialized grader
+          4. Hard Rule Assertion: RagAssertionGrader caps scores on violations
+          5. Aggregate: Weighted composite score
+
+        Changes from v1:
+          - Each dimension uses an independent Grader with CoT reasoning
+          - RagAssertionGrader integrated into main scoring pipeline
+          - Grading results include reasoning and confidence
         """
+        import asyncio
         import time
+
+        from app.services.evaluation.graders import (
+            ContextPrecisionGrader,
+            ContextRecallGrader,
+            CorrectnessGrader,
+            FaithfulnessGrader,
+            RelevanceGrader,
+        )
+        from app.services.evaluation.rag_assertion_grader import rag_assertion_grader
 
         start_time = time.time()
 
         target_model = model_name or "gpt-3.5-turbo"
-        logger.info(f"🚀 Running evaluation for set {set_id} using model {target_model}")
+        logger.info(f"🚀 Running evaluation (v2) for set {set_id} using model {target_model}")
 
         eval_set = await db.get(EvaluationSet, set_id)
         if not eval_set:
@@ -131,23 +155,20 @@ class EvaluationService:
                     continue
 
                 pipeline = RetrievalPipeline()
-                docs = await pipeline.run(item.question, collection_names=[kb.vector_collection])
+                docs, _trace = await pipeline.run(item.question, collection_names=[kb.vector_collection])
                 contexts = [doc.page_content for doc in docs]
 
                 context_text = "\n\n".join(contexts)
                 gen_prompt = (
-                    "Use the context below to answer the question.\n"
+                    "Use the context below to answer the question. "
+                    "Cite sources using [1], [2] format.\n"
                     f"Context: {context_text}\n"
                     f"Question: {item.question}\n"
                     "Answer:"
                 )
 
-                # Perform Generation using the specific model when possible.
-                # For now, `model_name` is treated as a hint if the LLM service supports it.
-                # For MVP, we pass it as a hint or just use it to label the report
                 answer = await llm.chat_complete([{"role": "user", "content": gen_prompt}])
 
-                # Simulate token tracking
                 sent_tokens = len(gen_prompt) // 4
                 recv_tokens = len(answer) // 4
                 total_tokens += sent_tokens + recv_tokens
@@ -163,8 +184,14 @@ class EvaluationService:
             except Exception as e:
                 logger.error(f"Failed to run RAG for evaluation item {item.id}: {e}")
 
-        # 3. Score using LLM-as-a-judge
-        judge = llm
+        # 2. Initialize independent graders
+        faithfulness_grader = FaithfulnessGrader()
+        relevance_grader = RelevanceGrader()
+        correctness_grader = CorrectnessGrader()
+        ctx_precision_grader = ContextPrecisionGrader()
+        ctx_recall_grader = ContextRecallGrader()
+
+        # 3. Score each item with independent graders
         scored_details = []
         faith_scores = []
         relev_scores = []
@@ -173,33 +200,52 @@ class EvaluationService:
         correct_scores = []
         sim_scores = []
 
-        for res, _item in zip(results, items, strict=False):
+        for res_item in results:
             try:
-                # Optimized multi-judge prompt to save tokens (AI-First efficiency)
-                judge_prompt = (
-                    "Analyze the RAG result with 6 metrics:\n"
-                    f"Q: {res['question']}\n"
-                    f"GT: {res['ground_truth']}\n"
-                    f"AI: {res['answer']}\n"
-                    f"Context: {res['contexts'][:3]}\n\n"
-                    "Rate 0.0-1.0 for:\n"
-                    "f: Faithfulness (AI matches Context)\n"
-                    "r: Relevance (AI matches Q)\n"
-                    "p: Context Precision (Matches Q)\n"
-                    "rec: Context Recall (Contains GT)\n"
-                    "acc: Answer Correctness (AI matches GT facts)\n"
-                    "sim: Semantic Similarity (Meaning similar to GT)\n\n"
-                    'Return JSON only: {"f": 0.0, "r": 0.0, "p": 0.0, "rec": 0.0, "acc": 0.0, "sim": 0.0}'
-                )
-                j_resp = await judge.chat_complete([{"role": "user", "content": judge_prompt}], json_mode=True)
-                scores = json.loads(j_resp)
+                q = res_item["question"]
+                a = res_item["answer"]
+                gt = res_item["ground_truth"]
+                ctxs = res_item["contexts"]
 
-                f_s = scores.get("f", 0)
-                r_s = scores.get("r", 0)
-                p_s = scores.get("p", 0)
-                rec_s = scores.get("rec", 0)
-                acc_s = scores.get("acc", 0)
-                sim_s = scores.get("sim", 0)
+                # Run all graders in parallel for this item
+                grade_tasks = [
+                    faithfulness_grader.grade(question=q, answer=a, contexts=ctxs),
+                    relevance_grader.grade(question=q, answer=a),
+                    correctness_grader.grade(question=q, answer=a, ground_truth=gt),
+                    ctx_precision_grader.grade(question=q, answer=a, contexts=ctxs),
+                    ctx_recall_grader.grade(question=q, answer=a, ground_truth=gt, contexts=ctxs),
+                ]
+
+                grade_results = await asyncio.gather(*grade_tasks, return_exceptions=True)
+
+                # Extract scores, handling failures gracefully
+                f_result = grade_results[0] if not isinstance(grade_results[0], Exception) else None
+                r_result = grade_results[1] if not isinstance(grade_results[1], Exception) else None
+                acc_result = grade_results[2] if not isinstance(grade_results[2], Exception) else None
+                p_result = grade_results[3] if not isinstance(grade_results[3], Exception) else None
+                rec_result = grade_results[4] if not isinstance(grade_results[4], Exception) else None
+
+                f_s = f_result.score if f_result else 0.0
+                r_s = r_result.score if r_result else 0.0
+                acc_s = acc_result.score if acc_result else 0.0
+                p_s = p_result.score if p_result else 0.0
+                rec_s = rec_result.score if rec_result else 0.0
+
+                # Semantic similarity: use average of faithfulness and correctness as proxy
+                sim_s = round((f_s + acc_s) / 2, 3)
+
+                # 4. Hard Rule Assertion — cap scores on violations
+                context_text = "\n".join(ctxs) if ctxs else ""
+                assertion_result = rag_assertion_grader.check(q, a, context_text)
+
+                if not assertion_result.is_clean:
+                    for violation in assertion_result.violations:
+                        if violation.rule_id == "CITE-001":
+                            f_s = min(f_s, violation.penalty)
+                            logger.info(f"🚩 CITE-001: Faithfulness capped to {violation.penalty}")
+                        elif violation.rule_id == "CITE-002":
+                            acc_s = min(acc_s, violation.penalty)
+                            logger.info(f"🚩 CITE-002: Correctness capped to {violation.penalty}")
 
                 faith_scores.append(f_s)
                 relev_scores.append(r_s)
@@ -210,44 +256,61 @@ class EvaluationService:
 
                 scored_details.append(
                     {
-                        **res,
+                        **res_item,
                         "faithfulness": f_s,
                         "relevance": r_s,
                         "context_precision": p_s,
                         "context_recall": rec_s,
                         "answer_correctness": acc_s,
-                        "semantic_similarity": sim_s
+                        "semantic_similarity": sim_s,
+                        "assertion_violations": [
+                            {"rule": v.rule_id, "desc": v.description}
+                            for v in assertion_result.violations
+                        ],
+                        "grader_reasoning": {
+                            "faithfulness": f_result.reasoning if f_result else "grader failed",
+                            "relevance": r_result.reasoning if r_result else "grader failed",
+                            "correctness": acc_result.reasoning if acc_result else "grader failed",
+                            "context_precision": p_result.reasoning if p_result else "grader failed",
+                            "context_recall": rec_result.reasoning if rec_result else "grader failed",
+                        },
+                        "grader_confidence": {
+                            "faithfulness": f_result.confidence if f_result else "low",
+                            "relevance": r_result.confidence if r_result else "low",
+                            "correctness": acc_result.confidence if acc_result else "low",
+                            "context_precision": p_result.confidence if p_result else "low",
+                            "context_recall": rec_result.confidence if rec_result else "low",
+                        },
                     }
                 )
             except Exception as e:
-                logger.warning(f"Judge failed for item: {e}")
+                logger.warning(f"Grading failed for item: {e}")
 
-        # 4. Finalize Report with M2.5 Metrics
+        # 5. Finalize Report
         end_time = time.time()
         report.latency_ms = (end_time - start_time) * 1000
         report.token_usage = total_tokens
-        # Simple cost estimation: $0.002 per 1k tokens
         report.cost = (total_tokens / 1000) * 0.002
 
         if faith_scores:
-            report.faithfulness = sum(faith_scores) / len(faith_scores)
-            report.answer_relevance = sum(relev_scores) / len(relev_scores)
-            report.context_precision = sum(prec_scores) / len(prec_scores)
-            report.context_recall = sum(recall_scores) / len(recall_scores)
-            report.answer_correctness = sum(correct_scores) / len(correct_scores)
-            report.semantic_similarity = sum(sim_scores) / len(sim_scores)
+            report.faithfulness = round(sum(faith_scores) / len(faith_scores), 3)
+            report.answer_relevance = round(sum(relev_scores) / len(relev_scores), 3)
+            report.context_precision = round(sum(prec_scores) / len(prec_scores), 3)
+            report.context_recall = round(sum(recall_scores) / len(recall_scores), 3)
+            report.answer_correctness = round(sum(correct_scores) / len(correct_scores), 3)
+            report.semantic_similarity = round(sum(sim_scores) / len(sim_scores), 3)
 
-            # Weighted total_score (Answer Correctness and Faithfulness weighted slightly more)
-            report.total_score = (
+            report.total_score = round(
                 report.faithfulness * 0.2 +
                 report.answer_relevance * 0.1 +
                 report.context_precision * 0.1 +
                 report.context_recall * 0.1 +
                 report.answer_correctness * 0.3 +
-                report.semantic_similarity * 0.2
+                report.semantic_similarity * 0.2,
+                3,
             )
 
-        report.details_json = json.dumps(scored_details)
+        report.details_json = json.dumps(scored_details, ensure_ascii=False)
         report.status = "completed"
 
         db.add(report)
@@ -255,6 +318,182 @@ class EvaluationService:
         await db.refresh(report)
 
         logger.info(
-            f"✅ Evaluation complete for {target_model}: Score={report.total_score:.2f}, Cost=${report.cost:.4f}"
+            f"✅ Evaluation (v2) complete for {target_model}: "
+            f"Score={report.total_score:.3f}, Cost=${report.cost:.4f}"
         )
         return report
+
+    # ─── L1: Retriever 独立评测 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def evaluate_retriever(
+        db: AsyncSession,
+        set_id: str,
+        top_k: int = 10,
+    ) -> dict:
+        """
+        L1 Retriever 独立评测 — 脱离生成环节，单独压测召回能力。
+
+        需要 EvaluationItem 有 reference_context 字段作为黄金标注。
+        返回 Precision@K, Recall@K, MRR 指标。
+        """
+        from app.models.knowledge import KnowledgeBase
+        from app.services.retrieval.pipeline import RetrievalPipeline
+
+        logger.info(f"🔍 [L1] Running Retriever evaluation for set {set_id}")
+
+        eval_set = await db.get(EvaluationSet, set_id)
+        if not eval_set:
+            raise ValueError("Evaluation set not found")
+
+        stmt = select(EvaluationItem).where(EvaluationItem.set_id == set_id)
+        res = await db.execute(stmt)
+        items = res.scalars().all()
+
+        kb = await db.get(KnowledgeBase, eval_set.kb_id)
+        if not kb:
+            raise ValueError("Knowledge base not found")
+
+        pipeline = RetrievalPipeline()
+        precision_scores = []
+        recall_scores = []
+        mrr_scores = []
+
+        for item in items:
+            if not item.reference_context:
+                continue
+
+            try:
+                docs, _trace = await pipeline.run(
+                    item.question,
+                    collection_names=[kb.vector_collection],
+                    top_k=top_k,
+                )
+
+                # 简化的相关性判断: 检索结果是否包含参考上下文的关键内容
+                gold_keywords = set(item.reference_context.lower().split())
+                relevant_indices = []
+
+                for i, doc in enumerate(docs):
+                    doc_keywords = set(doc.page_content.lower().split())
+                    overlap = len(gold_keywords & doc_keywords) / max(len(gold_keywords), 1)
+                    if overlap > 0.3:  # 30% 关键词重叠视为相关
+                        relevant_indices.append(i)
+
+                # Precision@K
+                precision = len(relevant_indices) / min(top_k, len(docs)) if docs else 0.0
+                precision_scores.append(precision)
+
+                # Recall (简化: 是否至少找到一个相关文档)
+                recall = 1.0 if relevant_indices else 0.0
+                recall_scores.append(recall)
+
+                # MRR (首个相关结果的排名倒数)
+                mrr = 1.0 / (relevant_indices[0] + 1) if relevant_indices else 0.0
+                mrr_scores.append(mrr)
+
+            except Exception as e:
+                logger.error(f"[L1] Retriever eval failed for item {item.id}: {e}")
+
+        result = {
+            "level": "L1",
+            "type": "retriever",
+            "set_id": set_id,
+            "items_evaluated": len(precision_scores),
+            "precision_at_k": round(sum(precision_scores) / len(precision_scores), 3) if precision_scores else 0.0,
+            "recall_at_k": round(sum(recall_scores) / len(recall_scores), 3) if recall_scores else 0.0,
+            "mrr": round(sum(mrr_scores) / len(mrr_scores), 3) if mrr_scores else 0.0,
+            "top_k": top_k,
+        }
+
+        logger.info(
+            f"✅ [L1] Retriever eval complete: "
+            f"P@{top_k}={result['precision_at_k']}, "
+            f"R@{top_k}={result['recall_at_k']}, "
+            f"MRR={result['mrr']}"
+        )
+        return result
+
+    # ─── L2: Generator 独立评测 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def evaluate_generator(
+        db: AsyncSession,
+        set_id: str,
+    ) -> dict:
+        """
+        L2 Generator 独立评测 — 注入标准参考文档，消除检索噪音。
+
+        直接将 EvaluationItem.reference_context 作为上下文注入 LLM，
+        纯测 LLM 的语义总结与表达能力。
+        """
+        from app.services.evaluation.graders import (
+            CorrectnessGrader,
+            FaithfulnessGrader,
+        )
+
+        logger.info(f"✍️ [L2] Running Generator evaluation for set {set_id}")
+
+        eval_set = await db.get(EvaluationSet, set_id)
+        if not eval_set:
+            raise ValueError("Evaluation set not found")
+
+        stmt = select(EvaluationItem).where(EvaluationItem.set_id == set_id)
+        res = await db.execute(stmt)
+        items = res.scalars().all()
+
+        llm = get_llm_service()
+        faithfulness_grader = FaithfulnessGrader()
+        correctness_grader = CorrectnessGrader()
+
+        faith_scores = []
+        correct_scores = []
+
+        for item in items:
+            if not item.reference_context:
+                continue
+
+            try:
+                # 注入标准上下文（不经过检索）
+                gen_prompt = (
+                    "Use ONLY the context below to answer the question. "
+                    "Do not use any prior knowledge.\n"
+                    f"Context: {item.reference_context}\n"
+                    f"Question: {item.question}\n"
+                    "Answer:"
+                )
+                answer = await llm.chat_complete([{"role": "user", "content": gen_prompt}])
+
+                # 评估忠实度和正确性
+                f_result = await faithfulness_grader.grade(
+                    question=item.question,
+                    answer=answer,
+                    contexts=[item.reference_context],
+                )
+                acc_result = await correctness_grader.grade(
+                    question=item.question,
+                    answer=answer,
+                    ground_truth=item.ground_truth,
+                )
+
+                faith_scores.append(f_result.score)
+                correct_scores.append(acc_result.score)
+
+            except Exception as e:
+                logger.error(f"[L2] Generator eval failed for item {item.id}: {e}")
+
+        result = {
+            "level": "L2",
+            "type": "generator",
+            "set_id": set_id,
+            "items_evaluated": len(faith_scores),
+            "faithfulness": round(sum(faith_scores) / len(faith_scores), 3) if faith_scores else 0.0,
+            "answer_correctness": round(sum(correct_scores) / len(correct_scores), 3) if correct_scores else 0.0,
+        }
+
+        logger.info(
+            f"✅ [L2] Generator eval complete: "
+            f"Faithfulness={result['faithfulness']}, "
+            f"Correctness={result['answer_correctness']}"
+        )
+        return result
