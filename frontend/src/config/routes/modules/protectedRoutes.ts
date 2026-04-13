@@ -2,7 +2,7 @@ import type { AppRouteMeta } from '../../appRoutes';
 
 export const protectedRoutes: AppRouteMeta[] = [
     { key: 'audit', path: '/audit', labelKey: 'nav.audit', icon: 'SafetyCertificateOutlined', showInMenu: true, category: 'governance', access: { anyPermissions: ['audit:review'] } },
-    { key: 'devGovernance', path: '/governance/dev', labelKey: 'nav.devGovernance', icon: 'SafetyCertificateOutlined', showInMenu: true, category: 'governance', access: { anyPermissions: ['audit:review'] } },
+    { key: 'devGovernance', path: '/governance/dev', labelKey: 'nav.devGovernance', icon: 'SafetyCertificateOutlined', showInMenu: true, category: 'governance' },
     { key: 'security', path: '/security', labelKey: 'nav.security', icon: 'LockOutlined', showInMenu: true, category: 'governance', access: { anyPermissions: ['security:manage'] } },
     { key: 'evaluation', path: '/evaluation', labelKey: 'nav.evaluation', icon: 'LineChartOutlined', showInMenu: true, category: 'governance', access: { anyPermissions: ['evaluation:run'] } },
     { key: 'finetuning', path: '/finetuning', labelKey: 'nav.finetuning', icon: 'FolderOpenOutlined', showInMenu: true, category: 'governance', access: { anyPermissions: ['finetuning:manage'] } },
