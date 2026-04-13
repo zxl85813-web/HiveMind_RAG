@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Card, Row, Col, Statistic, List, Tag, Progress, Flex, Typography, Alert, Empty, Timeline } from 'antd';
+import { Card, Row, Col, Statistic, List, Tag, Progress, Flex, Typography, Alert, Empty } from 'antd';
 import { 
     SafetyCertificateOutlined, 
     HistoryOutlined, 
@@ -9,7 +9,8 @@ import {
     RocketOutlined,
     SecurityScanOutlined,
     BugOutlined,
-    ClockCircleOutlined,
+    NodeIndexOutlined,
+    PartitionOutlined,
     FileSearchOutlined
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +25,7 @@ export const DevGovernancePage: React.FC = () => {
             const res = await api.get('/governance/dev-stats');
             return res.data.data;
         },
-        refetchInterval: 10000 // 10秒自动刷新，保持治理视角实时性
+        refetchInterval: 10000 
     });
 
     return (
@@ -36,7 +37,7 @@ export const DevGovernancePage: React.FC = () => {
                     </div>
                     <div>
                         <Title level={2} style={{ color: '#fff', margin: 0 }}>研发治理中心</Title>
-                        <Text style={{ color: '#8c8c8c' }}>L5 级自主进化治理引擎 · 实时自省监控</Text>
+                        <Text style={{ color: '#8c8c8c' }}>L5 级自主进化治理引擎 · 智体图谱审计观测</Text>
                     </div>
                 </Flex>
 
@@ -44,17 +45,17 @@ export const DevGovernancePage: React.FC = () => {
                     <Col xs={24} sm={12} md={6}>
                         <Card bordered={false} style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}>
                             <Statistic
-                                title={<Text style={{ color: '#8c8c8c' }}>代码合规分 (Compliance)</Text>}
-                                value={stats?.compliance_score || 0}
+                                title={<Text style={{ color: '#8c8c8c' }}>需求映射覆盖率</Text>}
+                                value={stats?.graph_stats?.mapping_coverage || 0}
                                 precision={1}
-                                valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
-                                prefix={<CheckCircleOutlined />}
+                                valueStyle={{ color: '#06D6A0', fontWeight: 'bold' }}
+                                prefix={<PartitionOutlined />}
                                 suffix="%"
                             />
                             <Progress 
-                                percent={stats?.compliance_score} 
+                                percent={stats?.graph_stats?.mapping_coverage} 
                                 showInfo={false} 
-                                strokeColor="#52c41a"
+                                strokeColor="#06D6A0"
                                 trailColor="#262626"
                                 style={{ marginTop: 12 }}
                             />
@@ -63,41 +64,38 @@ export const DevGovernancePage: React.FC = () => {
                     <Col xs={24} sm={12} md={6}>
                         <Card bordered={false} style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}>
                             <Statistic
-                                title={<Text style={{ color: '#8c8c8c' }}>拦截架构事故 (Recent)</Text>}
+                                title={<Text style={{ color: '#8c8c8c' }}>图谱架构资产 (Nodes)</Text>}
+                                value={stats?.graph_stats?.total_assets || 0}
+                                valueStyle={{ color: '#118AB2' }}
+                                prefix={<NodeIndexOutlined />}
+                            />
+                            <Flex gap={8} style={{ marginTop: 12 }}>
+                                <Tag color="blue">Agents: {stats?.graph_stats?.node_distribution?.agents || 0}</Tag>
+                                <Tag color="cyan">Services: {stats?.graph_stats?.node_distribution?.services || 0}</Tag>
+                            </Flex>
+                        </Card>
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                        <Card bordered={false} style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}>
+                            <Statistic
+                                title={<Text style={{ color: '#8c8c8c' }}>已追踪规约事故</Text>}
                                 value={stats?.total_incidents || 0}
                                 valueStyle={{ color: '#faad14' }}
                                 prefix={<WarningOutlined />}
                             />
-                            <Progress 
-                                percent={stats?.total_incidents > 0 ? 100 : 0} 
-                                showInfo={false} 
-                                strokeColor="#faad14"
-                                trailColor="#262626"
-                                style={{ marginTop: 12 }}
-                            />
+                            <Text style={{ color: '#595959', fontSize: 12 }}>最近 24 小时产生</Text>
                         </Card>
                     </Col>
                     <Col xs={24} sm={12} md={6}>
                         <Card bordered={false} style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}>
                             <Statistic
-                                title={<Text style={{ color: '#8c8c8c' }}>智体治理项 (Active)</Text>}
-                                value={stats?.todo_stats?.active || 0}
-                                valueStyle={{ color: '#1890ff' }}
-                                prefix={<RocketOutlined />}
-                            />
-                            <Text style={{ color: '#595959', fontSize: 12 }}>已完成: {stats?.todo_stats?.done || 0}</Text>
-                        </Card>
-                    </Col>
-                    <Col xs={24} sm={12} md={6}>
-                        <Card bordered={false} style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}>
-                            <Statistic
-                                title={<Text style={{ color: '#8c8c8c' }}>RBAC 鉴权一致性</Text>}
-                                value={100}
-                                valueStyle={{ color: '#eb2f96' }}
-                                prefix={<SecurityScanOutlined />}
+                                title={<Text style={{ color: '#8c8c8c' }}>代码合规评分</Text>}
+                                value={stats?.compliance_score || 0}
+                                valueStyle={{ color: '#52c41a' }}
+                                prefix={<CheckCircleOutlined />}
                                 suffix="%"
                             />
-                            <Progress percent={100} showInfo={false} strokeColor="#eb2f96" trailColor="#262626" style={{ marginTop: 12 }} />
+                            <Progress percent={stats?.compliance_score} showInfo={false} strokeColor="#52c41a" trailColor="#262626" style={{ marginTop: 12 }} />
                         </Card>
                     </Col>
                 </Row>
@@ -105,9 +103,9 @@ export const DevGovernancePage: React.FC = () => {
                 <Row gutter={[16, 16]}>
                     <Col span={10}>
                         <Card 
-                            title={<span style={{ color: '#fff' }}><RocketOutlined /> 当前治理任务 (TODO Details)</span>}
+                            title={<span style={{ color: '#fff' }}><RocketOutlined /> 图谱驱动治理任务 (TODO)</span>}
                             bordered={false} 
-                            style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}
+                            style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030', height: '100%' }}
                         >
                             <List
                                 size="small"
@@ -115,8 +113,8 @@ export const DevGovernancePage: React.FC = () => {
                                 renderItem={(item: string) => (
                                     <List.Item style={{ borderColor: '#303030' }}>
                                         <Flex gap={8} align="center">
-                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1890ff' }} />
-                                            <Text style={{ color: '#d9d9d9' }}>{item}</Text>
+                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1890ff' }} />
+                                            <Text style={{ color: '#d9d9d9', fontSize: 13 }}>{item}</Text>
                                         </Flex>
                                     </List.Item>
                                 )}
@@ -126,7 +124,7 @@ export const DevGovernancePage: React.FC = () => {
                     </Col>
                     <Col span={14}>
                         <Card 
-                            title={<span style={{ color: '#fff' }}><HistoryOutlined /> 事故存根明细 (Incident Traces)</span>}
+                            title={<span style={{ color: '#fff' }}><HistoryOutlined /> 架构存根追踪 (Incident Traces)</span>}
                             bordered={false} 
                             style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}
                         >
@@ -137,7 +135,7 @@ export const DevGovernancePage: React.FC = () => {
                                         <List.Item.Meta
                                             avatar={<WarningOutlined style={{ color: incident.severity === 'high' ? '#f5222d' : '#faad14', fontSize: 20 }} />}
                                             title={<Text style={{ color: '#fff' }}>{incident.id}</Text>}
-                                            description={<Text style={{ color: '#8c8c8c' }}>{incident.time}</Text>}
+                                            description={<Text style={{ color: '#8c8c8c' }}>发现于: {incident.time}</Text>}
                                         />
                                         <Tag color={incident.severity === 'high' ? 'error' : 'warning'}>{incident.severity.toUpperCase()}</Tag>
                                     </List.Item>
@@ -149,33 +147,33 @@ export const DevGovernancePage: React.FC = () => {
                 </Row>
 
                 <Card 
-                    title={<span style={{ color: '#fff' }}><FileSearchOutlined /> 治理守卫实况 (Guard Sentinel)</span>}
+                    title={<span style={{ color: '#fff' }}><FileSearchOutlined /> 架构智体哨兵 (Architecture Sentinels)</span>}
                     bordered={false} 
                     style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030' }}
                 >
                     <Row gutter={[24, 24]}>
                         <Col span={8}>
                             <Flex vertical align="center" gap={12} style={{ background: '#1f1f1f', padding: 20, borderRadius: 12 }}>
-                                <SecurityScanOutlined style={{ fontSize: 32, color: '#52c41a' }} />
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Pre-commit Hook</Text>
-                                <Tag color="success">STATUS: HEALTHY</Tag>
-                                <Text type="secondary" style={{ fontSize: 12, textAlign: 'center' }}>拦截硬编码 Secret 与规约偏差</Text>
+                                <SecurityScanOutlined style={{ fontSize: 32, color: '#06D6A0' }} />
+                                <Text style={{ color: '#fff' }}>Code-to-Graph Sync</Text>
+                                <Tag color="success">STATUS: SYNCHRONIZED</Tag>
+                                <Text type="secondary" style={{ fontSize: 11, textAlign: 'center' }}>实时同步文件变更至 Neo4j 架构图谱</Text>
                             </Flex>
                         </Col>
                         <Col span={8}>
                             <Flex vertical align="center" gap={12} style={{ background: '#1f1f1f', padding: 20, borderRadius: 12 }}>
-                                <SafetyCertificateOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Contract Guard</Text>
+                                <PartitionOutlined style={{ fontSize: 32, color: '#1890ff' }} />
+                                <Text style={{ color: '#fff' }}>Semantic Guard</Text>
                                 <Tag color="processing">STATUS: ACTIVE</Tag>
-                                <Text type="secondary" style={{ fontSize: 12, textAlign: 'center' }}>实时校验前后端数据字段契约</Text>
+                                <Text type="secondary" style={{ fontSize: 11, textAlign: 'center' }}>校验代码实现与需求文档的语义一致性</Text>
                             </Flex>
                         </Col>
                         <Col span={8}>
                             <Flex vertical align="center" gap={12} style={{ background: '#1f1f1f', padding: 20, borderRadius: 12 }}>
                                 <BugOutlined style={{ fontSize: 32, color: '#faad14' }} />
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Security Scanner</Text>
-                                <Tag color="warning">STATUS: ARMED</Tag>
-                                <Text type="secondary" style={{ fontSize: 12, textAlign: 'center' }}>每日自动进行代码级漏洞扫描</Text>
+                                <Text style={{ color: '#fff' }}>Trace Oracle</Text>
+                                <Tag color="warning">STATUS: MONITORING</Tag>
+                                <Text type="secondary" style={{ fontSize: 11, textAlign: 'center' }}>全链路监控跨服务调用链路的健康度</Text>
                             </Flex>
                         </Col>
                     </Row>

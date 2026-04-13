@@ -6,6 +6,7 @@ from app.api.deps import get_current_admin
 from app.common.response import ApiResponse
 from app.models.chat import User
 from app.sdk.core import settings
+from app.sdk.graph.neo4j_store import Neo4jStore
 from pathlib import Path
 import os
 import time
@@ -13,6 +14,38 @@ import json
 from loguru import logger
 
 router = APIRouter()
+
+# --- 内部工具 ---
+
+def _get_graph_stats():
+    """从 Neo4j 提取图谱统计指标。"""
+    try:
+        # 🛡️ [Harden]: 使用绝对连接配置
+        store = Neo4jStore()
+        # 1. 统计资产节点总数 (Model, Agent, Service, API)
+        result = store.run_query("MATCH (n) WHERE n:Model OR n:Agent OR n:Service OR n:API RETURN count(n) as count")
+        total_assets = result[0]['count'] if result else 0
+        
+        # 2. 统计映射覆盖率 (REQ -> FILE)
+        mapped_result = store.run_query("MATCH (r:Requirement)-[:IMPLEMENTED_BY]->(f:File) RETURN count(DISTINCT r) as count")
+        mapped_reqs = mapped_result[0]['count'] if mapped_result else 0
+        
+        total_req_result = store.run_query("MATCH (r:Requirement) RETURN count(r) as count")
+        total_reqs = total_req_result[0]['count'] if total_req_result else 0
+        
+        coverage = (mapped_reqs / total_reqs * 100) if total_reqs > 0 else 0
+        
+        return {
+            "total_assets": total_assets,
+            "mapping_coverage": round(coverage, 1),
+            "node_distribution": {
+                "agents": store.run_query("MATCH (n:Agent) RETURN count(n) as count")[0]['count'],
+                "services": store.run_query("MATCH (n:Service) RETURN count(n) as count")[0]['count']
+            }
+        }
+    except Exception as e:
+        logger.error(f"Graph stats collection failed: {e}")
+        return {"total_assets": 0, "mapping_coverage": 0, "node_distribution": {"agents": 0, "services": 0}}
 
 # --- 数据模型 ---
 
@@ -141,6 +174,7 @@ async def get_development_governance_stats(
 
     return ApiResponse.ok(data={
         "compliance_score": 98.4, 
+        "graph_stats": _get_graph_stats(),
         "total_incidents": len(incident_list),
         "recent_incidents": incident_list,
         "todo_stats": {
