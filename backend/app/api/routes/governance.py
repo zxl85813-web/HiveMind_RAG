@@ -107,28 +107,45 @@ async def get_development_governance_stats(
     """
     base_dir = settings.STORAGE_DIR.parent
     
-    # 1. 扫描事故记录 (Incidents)
+    # 1. 扫描事故记录 (Incidents - 增加明细)
     incident_dir = base_dir / "docs" / "governance" / "incidents"
-    incident_count = 0
+    incident_list = []
     if incident_dir.exists():
-        incident_count = len([f for f in os.listdir(incident_dir) if f.endswith(".md")])
+        files = sorted(
+            [f for f in incident_dir.iterdir() if f.suffix == ".md"],
+            key=lambda x: x.stat().st_mtime,
+            reverse=True
+        )
+        for f in files[:5]: # 只取最近5个
+            incident_list.append({
+                "id": f.name,
+                "time": time.ctime(f.stat().st_mtime),
+                "severity": "high" if "CRITICAL" in f.read_text(encoding="utf-8") else "medium"
+            })
 
-    # 2. 扫描待办事项 (TODO Stats)
+    # 2. 扫描待办事项 (TODO - 增加明细)
     todo_file = base_dir / "TODO.md"
+    todos = []
     done_count = 0
     active_count = 0
     if todo_file.exists():
         with open(todo_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            done_count = content.count("[x]")
-            active_count = content.count("[ ]")
+            lines = f.readlines()
+            for line in lines:
+                if "[x]" in line: done_count += 1
+                if "[ ]" in line: 
+                    active_count += 1
+                    if len(todos) < 5: # 只取前5个待办用于展示
+                        todos.append(line.replace("- [ ]", "").strip())
 
     return ApiResponse.ok(data={
         "compliance_score": 98.4, 
-        "total_incidents": incident_count,
+        "total_incidents": len(incident_list),
+        "recent_incidents": incident_list,
         "todo_stats": {
             "done": done_count,
-            "active": active_count
+            "active": active_count,
+            "items": todos
         },
         "guard_status": {
             "pre_commit": "healthy",
