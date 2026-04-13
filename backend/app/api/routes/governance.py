@@ -20,31 +20,34 @@ router = APIRouter()
 async def _get_graph_stats():
     """从 Neo4j 提取图谱统计指标 (基于真实标签探测)。"""
     try:
-        # 🛡️ [Harden]: 使用异步存储接口
         store = Neo4jStore()
         
-        # 1. 统计架构资产总数 (基于探测结果，使用 ArchNode 作为基准)
-        # 探测结果显示存在大量 ['ArchNode', 'CodeEntity'], ['ArchNode', 'File'] 等
+        # 1. 统计架构资产总数
         result = await store.execute_query("MATCH (n:ArchNode) RETURN count(n) as count")
         total_assets = result[0]['count'] if result else 0
         
         # 2. 统计映射覆盖率 (Requirement -> File)
-        # 映射逻辑匹配: (r:Requirement)-[:IMPLEMENTED_BY]->(f:File)
         mapped_result = await store.execute_query("MATCH (r:Requirement)-[:IMPLEMENTED_BY]->(f:File) RETURN count(DISTINCT r) as count")
         mapped_reqs = mapped_result[0]['count'] if mapped_result else 0
-        
         total_req_result = await store.execute_query("MATCH (r:Requirement) RETURN count(r) as count")
         total_reqs = total_req_result[0]['count'] if total_req_result else 0
-        
         coverage = (mapped_reqs / total_reqs * 100) if total_reqs > 0 else 0
         
-        # 3. 统计关键节点分布
+        # 3. 抓取最近 5 个资产明细
+        assets_res = await store.execute_query("MATCH (n:ArchNode) RETURN n.name as name, labels(n) as labels ORDER BY n.created_at DESC LIMIT 5")
+        recent_assets = []
+        for row in assets_res:
+            label = [l for l in row['labels'] if l != 'ArchNode'][0] if len(row['labels']) > 1 else "Unknown"
+            recent_assets.append({"name": row['name'], "type": label})
+        
+        # 4. 统计关键节点分布
         logic_res = await store.execute_query("MATCH (n:CodeEntity) RETURN count(n) as count")
         doc_res = await store.execute_query("MATCH (n:Design) RETURN count(n) as count")
         
         return {
             "total_assets": total_assets,
             "mapping_coverage": round(coverage, 1),
+            "recent_assets": recent_assets,
             "node_distribution": {
                 "logic_entities": logic_res[0]['count'] if logic_res else 0,
                 "design_docs": doc_res[0]['count'] if doc_res else 0
@@ -52,7 +55,7 @@ async def _get_graph_stats():
         }
     except Exception as e:
         logger.error(f"Graph stats collection failed: {e}")
-        return {"total_assets": 0, "mapping_coverage": 0, "node_distribution": {"logic_entities": 0, "design_docs": 0}}
+        return {"total_assets": 0, "mapping_coverage": 0, "recent_assets": [], "node_distribution": {"logic_entities": 0, "design_docs": 0}}
 
 # --- 数据模型 ---
 
