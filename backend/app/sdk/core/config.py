@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # === App ===
     APP_NAME: str = "HiveMind RAG"
     APP_VERSION: str = "0.1.0"
+    BASE_DIR: Path = BASE_DIR
     DEBUG: bool = True
     ENV: str = "development"  # development | production | test
     

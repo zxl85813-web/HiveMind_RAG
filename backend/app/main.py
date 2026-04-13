@@ -29,6 +29,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize Agent Swarm
     from app.agents.swarm import AgentDefinition
+    from app.api.routes import (
+        agents,
+        auth,
+        chat,
+        generation,
+        governance,
+        health,
+        knowledge,
+        llm_config,
+        memory,
+        pipelines,
+        security,
+        settings,
+        audit,
+    )
     from app.api.routes.agents import _swarm
 
     # Registering default agents (MVP)
