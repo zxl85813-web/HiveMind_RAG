@@ -163,6 +163,9 @@ export const AppLayout: React.FC = () => {
         };
     }).filter(Boolean);
 
+    console.log('[AppLayout] Grouped Routes:', groupedRoutes);
+    console.log('[AppLayout] Final Nav Items:', navItems);
+
     const toggleLang = () => {
         const current = i18n.language;
         const next = current.startsWith('zh') ? 'en-US' : 'zh-CN';
