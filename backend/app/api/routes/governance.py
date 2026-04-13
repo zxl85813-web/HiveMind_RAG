@@ -105,7 +105,8 @@ async def get_development_governance_stats(
     """
     获取研发治理核心指标。
     """
-    base_dir = settings.STORAGE_DIR.parent
+    # 🛰️ [Path-Correct]: 透视到项目根目录 (aiproject/) 而非仅限后端目录
+    base_dir = settings.BASE_DIR.parent
     
     # 1. 扫描事故记录 (Incidents - 增加明细)
     incident_dir = base_dir / "docs" / "governance" / "incidents"
