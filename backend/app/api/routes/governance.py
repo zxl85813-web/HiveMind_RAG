@@ -26,8 +26,9 @@ async def _get_graph_stats():
         result = await store.execute_query("MATCH (n:ArchNode) RETURN count(n) as count")
         total_assets = result[0]['count'] if result else 0
         
-        # 2. 统计映射覆盖率 (Requirement -> File)
-        mapped_result = await store.execute_query("MATCH (r:Requirement)-[:IMPLEMENTED_BY]->(f:File) RETURN count(DISTINCT r) as count")
+        # 2. 统计映射覆盖率 (Requirement -> Any Implementation)
+        # 🛡️ [Harden]: 兼容 File, CodeEntity, ArchNode 三位一体结构
+        mapped_result = await store.execute_query("MATCH (r:Requirement)-[:IMPLEMENTED_BY]->(f) WHERE f:File OR f:CodeEntity OR f:ArchNode RETURN count(DISTINCT r) as count")
         mapped_reqs = mapped_result[0]['count'] if mapped_result else 0
         total_req_result = await store.execute_query("MATCH (r:Requirement) RETURN count(r) as count")
         total_reqs = total_req_result[0]['count'] if total_req_result else 0
