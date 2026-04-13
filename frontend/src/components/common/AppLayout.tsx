@@ -189,11 +189,6 @@ export const AppLayout: React.FC = () => {
         updateContext(location.pathname);
     }, [location.pathname, updateContext]);
 
-    /** 当前活跃路由 */
-    const activeKey = location.pathname === '/'
-        ? '/'
-        : '/' + (location.pathname.split('/')[1] || '');
-
     /** 处理退出登录 */
     const handleLogout = () => {
         useAuthStore.getState().setAuthenticated(false);
