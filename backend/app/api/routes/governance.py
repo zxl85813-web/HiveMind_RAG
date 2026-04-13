@@ -18,16 +18,18 @@ router = APIRouter()
 # --- 内部工具 ---
 
 async def _get_graph_stats():
-    """从 Neo4j 提取图谱统计指标 (异步版本)。"""
+    """从 Neo4j 提取图谱统计指标 (基于真实标签探测)。"""
     try:
         # 🛡️ [Harden]: 使用异步存储接口
         store = Neo4jStore()
         
-        # 1. 统计资产节点总数 (Model, Agent, Service, API)
-        result = await store.execute_query("MATCH (n) WHERE n:Model OR n:Agent OR n:Service OR n:API RETURN count(n) as count")
+        # 1. 统计架构资产总数 (基于探测结果，使用 ArchNode 作为基准)
+        # 探测结果显示存在大量 ['ArchNode', 'CodeEntity'], ['ArchNode', 'File'] 等
+        result = await store.execute_query("MATCH (n:ArchNode) RETURN count(n) as count")
         total_assets = result[0]['count'] if result else 0
         
-        # 2. 统计映射覆盖率 (REQ -> FILE)
+        # 2. 统计映射覆盖率 (Requirement -> File)
+        # 映射逻辑匹配: (r:Requirement)-[:IMPLEMENTED_BY]->(f:File)
         mapped_result = await store.execute_query("MATCH (r:Requirement)-[:IMPLEMENTED_BY]->(f:File) RETURN count(DISTINCT r) as count")
         mapped_reqs = mapped_result[0]['count'] if mapped_result else 0
         
@@ -36,21 +38,21 @@ async def _get_graph_stats():
         
         coverage = (mapped_reqs / total_reqs * 100) if total_reqs > 0 else 0
         
-        # 3. 统计节点分布
-        agents_res = await store.execute_query("MATCH (n:Agent) RETURN count(n) as count")
-        services_res = await store.execute_query("MATCH (n:Service) RETURN count(n) as count")
+        # 3. 统计关键节点分布
+        logic_res = await store.execute_query("MATCH (n:CodeEntity) RETURN count(n) as count")
+        doc_res = await store.execute_query("MATCH (n:Design) RETURN count(n) as count")
         
         return {
             "total_assets": total_assets,
             "mapping_coverage": round(coverage, 1),
             "node_distribution": {
-                "agents": agents_res[0]['count'] if agents_res else 0,
-                "services": services_res[0]['count'] if services_res else 0
+                "logic_entities": logic_res[0]['count'] if logic_res else 0,
+                "design_docs": doc_res[0]['count'] if doc_res else 0
             }
         }
     except Exception as e:
         logger.error(f"Graph stats collection failed: {e}")
-        return {"total_assets": 0, "mapping_coverage": 0, "node_distribution": {"agents": 0, "services": 0}}
+        return {"total_assets": 0, "mapping_coverage": 0, "node_distribution": {"logic_entities": 0, "design_docs": 0}}
 
 # --- 数据模型 ---
 

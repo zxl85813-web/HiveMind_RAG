@@ -70,8 +70,8 @@ export const DevGovernancePage: React.FC = () => {
                                 prefix={<NodeIndexOutlined />}
                             />
                             <Flex gap={8} style={{ marginTop: 12 }}>
-                                <Tag color="blue">Agents: {stats?.graph_stats?.node_distribution?.agents || 0}</Tag>
-                                <Tag color="cyan">Services: {stats?.graph_stats?.node_distribution?.services || 0}</Tag>
+                                <Tag color="blue">Logic: {stats?.graph_stats?.node_distribution?.logic_entities || 0}</Tag>
+                                <Tag color="cyan">Design: {stats?.graph_stats?.node_distribution?.design_docs || 0}</Tag>
                             </Flex>
                         </Card>
                     </Col>
