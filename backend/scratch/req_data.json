@@ -1,0 +1,47 @@
+[
+  {
+    "path": "docs\\requirements\\REQ-001-agent-swarm.md",
+    "last_sync": 1775642106862,
+    "last_seen": 1775641771121,
+    "name": "REQ-001-agent-swarm.md",
+    "id": "REQ-001",
+    "title": "Agent 蜂巢 / 集群架构",
+    "type": "Requirement"
+  },
+  {
+    "path": "docs\\requirements\\REQ-002-shared-memory.md",
+    "last_sync": 1775642107423,
+    "last_seen": 1775641771721,
+    "name": "REQ-002-shared-memory.md",
+    "id": "REQ-002",
+    "title": "共享记忆与自省机制",
+    "type": "Requirement"
+  },
+  {
+    "path": "docs\\requirements\\REQ-003-external-learning.md",
+    "last_sync": 1775642107964,
+    "last_seen": 1775641772261,
+    "name": "REQ-003-external-learning.md",
+    "id": "REQ-003",
+    "title": "对外学习机制",
+    "type": "Requirement"
+  },
+  {
+    "path": "docs\\requirements\\REQ-004-multi-llm.md",
+    "last_sync": 1775642108506,
+    "last_seen": 1775641772801,
+    "name": "REQ-004-multi-llm.md",
+    "id": "REQ-004",
+    "title": "多 LLM 路由",
+    "type": "Requirement"
+  },
+  {
+    "path": "docs\\requirements\\REQ-005-mcp-skills.md",
+    "last_sync": 1775642109047,
+    "last_seen": 1775641773339,
+    "name": "REQ-005-mcp-skills.md",
+    "id": "REQ-005",
+    "title": "MCP 与 Skills 系统",
+    "type": "Requirement"
+  }
+]
