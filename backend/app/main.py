@@ -3,6 +3,7 @@ HiveMind RAG Platform — FastAPI Application Entry Point
 """
 
 from collections.abc import AsyncGenerator
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from loguru import logger
 
 from app.api import router as api_router
 from app.core.config import settings
+from app.sdk.core.exceptions import register_exception_handlers
 
 
 @asynccontextmanager
@@ -64,41 +66,50 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             model_hint="reasoning",
         )
     )
+    _swarm.register_agent(
+        AgentDefinition(
+            name="critic",
+            description="Quality control and compliance agent. Reviews generated content for safety and accuracy.",
+            model_hint="reasoning",
+        )
+    )
 
-    logger.info("🐝 Agent Swarm initialized with 3 agents (rag, web, code)")
+    logger.info("🐝 Agent Swarm initialized with 5 agents (rag, web, code, eval_architect, critic)")
 
     # Start External Source Background Sync Service
     from app.services.sync_service import sync_service
 
     await sync_service.start()
 
-    # Start External Learning Crawler Scheduler (2.4 实际爬取引擎)
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    # 🌐 [Native Scheduler]: Replacement for APScheduler
+    async def run_learning_crawl_loop():
+        from app.services.learning_service import LearningService
+        from app.core.config import settings as _cfg
+        
+        interval = _cfg.LEARNING_FETCH_INTERVAL_HOURS * 3600
+        logger.info("🌐 Native Learning Crawler loop started (Interval: {} hours).", _cfg.LEARNING_FETCH_INTERVAL_HOURS)
+        
+        while True:
+            try:
+                await LearningService.run_external_crawl()
+            except Exception as e:
+                logger.error("❌ Scheduled crawl failed: {}", e)
+            
+            await asyncio.sleep(interval)
 
-    from app.core.config import settings as _cfg
-    from app.services.learning_service import LearningService
+    # Start External Source Background Sync Service
+    from app.services.sync_service import sync_service
+    await sync_service.start()
 
-    _scheduler = AsyncIOScheduler(timezone="UTC")
-    _scheduler.add_job(
-        LearningService.run_external_crawl,
-        trigger="interval",
-        hours=_cfg.LEARNING_FETCH_INTERVAL_HOURS,
-        id="external_learning_crawl",
-        replace_existing=True,
-        max_instances=1,
-    )
-    _scheduler.start()
-    logger.info(
-        "🌐 External Learning Crawler scheduled every {} hours.",
-        _cfg.LEARNING_FETCH_INTERVAL_HOURS,
-    )
+    # Start native crawler task
+    crawler_task = asyncio.create_task(run_learning_crawl_loop())
 
     # TODO: Initialize WebSocket manager
 
     yield
 
     logger.info("🐝 HiveMind RAG Platform shutting down...")
-    _scheduler.shutdown(wait=False)
+    crawler_task.cancel()
     await sync_service.stop()
     await close_db()
     # TODO: Cleanup resources
@@ -137,6 +148,7 @@ app = FastAPI(
 )
 
 app.add_middleware(TraceMiddleware)
+register_exception_handlers(app)
 
 # CORS Middleware
 app.add_middleware(

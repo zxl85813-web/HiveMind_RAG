@@ -28,7 +28,7 @@ from typing import NamedTuple
 
 from loguru import logger
 
-from app.agents.llm_router import ModelTier
+from app.agents.schemas import ModelTier
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Escalation policy

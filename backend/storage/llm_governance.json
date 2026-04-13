@@ -1,0 +1,111 @@
+{
+  "tier_mapping": {
+    "simple": "deepseek-ai/DeepSeek-V3",
+    "medium": "deepseek-ai/DeepSeek-V3",
+    "complex": "Pro/zai-org/GLM-5",
+    "reasoning": "deepseek-reasoner"
+  },
+  "model_registry": [
+    {
+      "id": "deepseek-ai/DeepSeek-V3",
+      "name": "DeepSeek V3",
+      "provider": "siliconflow",
+      "input_price_1m": 0.14,
+      "output_price_1m": 0.28,
+      "characteristics": [
+        "极速响应",
+        "高性价比",
+        "意向对齐强"
+      ],
+      "usage_scenarios": [
+        "日常对话",
+        "简单意图提取",
+        "内容翻译"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "Pro/zai-org/GLM-5",
+      "name": "GLM-5 Pro",
+      "provider": "siliconflow",
+      "input_price_1m": 0.6,
+      "output_price_1m": 1.2,
+      "characteristics": [
+        "架构理解",
+        "多模态原生",
+        "数学与逻辑增强"
+      ],
+      "usage_scenarios": [
+        "代码生成",
+        "复杂文档分析",
+        "跨智体计划生成"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "deepseek-reasoner",
+      "name": "DeepSeek R1 (Reasoner)",
+      "provider": "ark",
+      "input_price_1m": 2.0,
+      "output_price_1m": 8.0,
+      "characteristics": [
+        "深度思考",
+        "拒绝幻觉",
+        "长程推理"
+      ],
+      "usage_scenarios": [
+        "算法证明",
+        "审计分析",
+        "法律条文推演"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "provider": "openai",
+      "input_price_1m": 0.15,
+      "output_price_1m": 0.6,
+      "characteristics": [
+        "多模态支持",
+        "OpenAI 生态对齐",
+        "极低延迟"
+      ],
+      "usage_scenarios": [
+        "图片描述",
+        "函数调用探测",
+        "大规模轻量级分类"
+      ],
+      "status": "active"
+    }
+  ],
+  "priority_strategies": {
+    "1": {
+      "max_rounds": 1,
+      "diverse_models": false,
+      "tier": 1
+    },
+    "2": {
+      "max_rounds": 1,
+      "diverse_models": false,
+      "tier": 2
+    },
+    "3": {
+      "max_rounds": 2,
+      "diverse_models": true,
+      "tier": 3
+    },
+    "4": {
+      "max_rounds": 3,
+      "diverse_models": true,
+      "tier": 3
+    },
+    "5": {
+      "max_rounds": 5,
+      "diverse_models": true,
+      "tier": 3
+    }
+  },
+  "budget_daily_limit": 10.0,
+  "dialect_enabled": true
+}

@@ -2,9 +2,10 @@
 Agent management & monitoring endpoints.
 """
 
+import json
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -12,6 +13,8 @@ from app.agents.swarm import SwarmOrchestrator
 from app.batch.engine import JobManager
 from app.batch.models import TaskStep, TaskUnit
 from app.common.response import ApiResponse
+from app.api.deps import get_current_user
+from app.models.chat import User
 from app.models.agents import ReflectionSignalType
 from app.core.logging import get_trace_logger
 from app.services.rag_gateway import RAGGateway
@@ -34,6 +37,8 @@ def get_job_manager():
     if _job_manager_instance is None:
         _job_manager_instance = JobManager(swarm=get_swarm())
     return _job_manager_instance
+
+_swarm = get_swarm()
 
 
 # --- Request Models ---
@@ -143,7 +148,9 @@ async def get_swarm_reflection_matches(limit: int = 10):
 
 
 @router.get("/swarm/agents")
-async def get_swarm_agents():
+async def get_swarm_agents(
+    current_user: User = Depends(get_current_user)
+):
     """Get all registered agents in the swarm."""
     swarm = get_swarm()
     agents = swarm.get_agents()
@@ -154,6 +161,7 @@ async def get_swarm_agents():
                 "description": a.description,
                 "status": "idle",  # Default status for now
                 "icon": a.icon if hasattr(a, "icon") else "🤖",
+                "current_task": "Waiting for instructions...", # Placeholder or real task if available
             }
             for a in agents.values()
         ]
@@ -161,7 +169,9 @@ async def get_swarm_agents():
 
 
 @router.get("/swarm/stats")
-async def get_swarm_stats():
+async def get_swarm_stats(
+    current_user: User = Depends(get_current_user)
+):
     """Get high-level swarm statistics."""
     swarm = get_swarm()
     agents = swarm.get_agents()
@@ -185,7 +195,9 @@ async def get_swarm_stats():
 
 
 @router.get("/swarm/todos")
-async def get_swarm_todos():
+async def get_swarm_todos(
+    current_user: User = Depends(get_current_user)
+):
     """Get the communal TODO list from shared memory."""
     swarm = get_swarm()
     memory_manager = getattr(swarm, "memory", None)
@@ -196,7 +208,9 @@ async def get_swarm_todos():
 
 
 @router.get("/swarm/traces")
-async def get_swarm_traces():
+async def get_swarm_traces(
+    current_user: User = Depends(get_current_user)
+):
     """Get the live execution DAG trace."""
     swarm = get_swarm()
     memory_manager = getattr(swarm, "memory", None)

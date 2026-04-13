@@ -40,6 +40,8 @@ class ApiResponse(BaseModel, Generic[T]):
     success: bool = True
     data: T | None = None
     message: str = "OK"
+    error_code: str | None = None
+    detail: dict[str, Any] | None = None
 
     @classmethod
     def ok(cls, data: Any = None, message: str = "OK") -> "ApiResponse":

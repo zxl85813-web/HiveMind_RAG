@@ -188,10 +188,6 @@ class ArchitectureIndexer:
         self.cleanup_deleted_files(current_paths)
 
     def index_typescript_ast(self):
-        logger.info("Indexing TS/React AST (Incremental)...")
-        TSX_LANGUAGE = Language(ts_typescript.language_tsx())
-        parser = Parser(TSX_LANGUAGE)
-        
         query_string = """
         (function_declaration name: (identifier) @comp_name) @comp_node
         (variable_declarator name: (identifier) @comp_name 
@@ -201,7 +197,18 @@ class ArchitectureIndexer:
         (call_expression function: (identifier) @store_hook (#match? @store_hook "use.*Store")) @store_node
         (jsx_opening_element name: [(identifier) @jsx_tag (member_expression) @jsx_tag]) @jsx_node
         """
-        query = TSX_LANGUAGE.query(query_string)
+        try:
+            # Try new API (0.21.x+)
+            TSX_LANGUAGE = ts_typescript.language_tsx()
+            parser = Parser(TSX_LANGUAGE)
+            query = TSX_LANGUAGE.query(query_string)
+        except Exception:
+            # Fallback to old API (0.20.x)
+            from tree_sitter import Language, Query
+            TSX_LANGUAGE = Language(ts_typescript.language_tsx())
+            parser = Parser()
+            parser.set_language(TSX_LANGUAGE)
+            query = Query(TSX_LANGUAGE, query_string)
         
         fe_dir = BASE_DIR / "frontend" / "src"
         if not fe_dir.exists(): return

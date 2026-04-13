@@ -3,13 +3,14 @@
  */
 
 import axios from 'axios';
-import { notification } from 'antd';
+// import { notification } from 'antd'; // Removed static import
 import { AppError } from '../core/AppError';
 import { monitor } from '../core/MonitorService';
 import { ErrorCode } from '../core/schema/error';
 import i18n from '../i18n/config';
 import { tokenVault } from '../core/auth/TokenVault';
 import { connectionManager } from '../core/ConnectionManager';
+import antdStatic from '../core/antdStatic';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -39,7 +40,19 @@ if (import.meta.env.VITE_USE_MOCK === 'true') {
             return config;
         }
 
-        const pureUrl = config.url?.replace(config.baseURL || '', '').split('?')[0];
+        // 🛰️ [FE-GOV-FIX]: 增强 URL 剥离逻辑，支持绝对路径与相对路径的 Mock 命中
+        let pureUrl = config.url || '';
+        if (pureUrl.startsWith('http')) {
+            try {
+                pureUrl = new URL(pureUrl).pathname.replace(config.baseURL || '', '');
+            } catch {
+                pureUrl = pureUrl.replace(config.baseURL || '', '');
+            }
+        } else {
+            pureUrl = pureUrl.replace(config.baseURL || '', '');
+        }
+        pureUrl = pureUrl.split('?')[0];
+        
         const key = `${config.method?.toUpperCase()}:${pureUrl}`;
 
         if (mockHandlers[key]) {
@@ -62,6 +75,12 @@ api.interceptors.request.use(
         const token = tokenVault.getAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            // 🛡️ [Auth-Audit]: 如果是非公开接口但缺少 Token，记录警告
+            const isPublicTask = config.url?.includes('/auth/login') || config.url?.includes('/health');
+            if (!isPublicTask) {
+                console.warn(`[API] Missing token for protected route: ${config.url}`);
+            }
         }
         // 🛰️ [FE-GOV-003]: 将前端语言偏好同步至后端
         config.headers['Accept-Language'] = i18n.language || 'zh-CN';
@@ -83,33 +102,48 @@ api.interceptors.response.use(
         let errorCode: string = ErrorCode.API_NETWORK_ERROR;
 
         if (status === 401) {
-            tokenVault.clear();
-            // 🛰️ [FE-GOV-005]: 401 故障级联 — 强制断开所有长连接
-            connectionManager.abortAll();
+            // 🛡️ [Loop-Harden]: 增加单次 401 处理锁，防止并发请求失败导致的重定向死循环
+            if (window.isAuthRedirecting) return Promise.reject(error);
             
-            notification.warning({
-                message: '登录已过期',
-                description: '您的身份凭证已失效，请重新登录。',
-                placement: 'topRight',
-            });
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 1000);
-        } else if (status === 403) {
+            if (import.meta.env.VITE_USE_MOCK !== 'true') {
+                window.isAuthRedirecting = true;
+                tokenVault.clear();
+                connectionManager.abortAll();
+                
+                if (window.location.pathname === '/login') {
+                    console.error('[API Error] 401 Unauthorized captured on login page. Suppression active.');
+                    window.isAuthRedirecting = false;
+                    return Promise.reject(error);
+                }
+
+                antdStatic.notification?.warning({
+                    title: '登录已过期',
+                    description: '您的身份凭证已失效，请重新登录。',
+                    placement: 'topRight',
+                });
+                
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1000);
+            } else {
+                console.warn('[Mock Warning] Detected 401 error, but suppression is active to prevent redirect loops.');
+            }
+        }
+ else if (status === 403) {
             errorCode = ErrorCode.API_FORBIDDEN;
-            notification.error({
-                message: '权限不足',
+            antdStatic.notification?.error({
+                title: '权限不足',
                 description: msg,
             });
         } else if (status >= 500) {
             errorCode = ErrorCode.UNKNOWN_ERROR;
-            notification.error({
-                message: '服务器错误',
+            antdStatic.notification?.error({
+                title: '服务器错误',
                 description: msg || `后端服务响应异常 (${status})，请稍后重试。`,
             });
         } else if (!response) {
-            notification.error({
-                message: '连接失败',
+            antdStatic.notification?.error({
+                title: '连接失败',
                 description: '无法连接到远程服务器，请检查您的网络设置。',
             });
         }

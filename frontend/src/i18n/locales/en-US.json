@@ -14,18 +14,29 @@
     },
     "nav": {
         "dashboard": "Dashboard",
-        "knowledge": "Knowledge",
-        "agents": "Agents",
+        "knowledge": "Knowledge Base",
+        "agents": "Agents Hive",
         "studio": "Studio",
-        "learning": "Learning",
-        "audit": "Data Audit",
+        "learning": "Technology",
+        "audit": "Data Review",
         "security": "Security",
         "evaluation": "Evaluation",
         "finetuning": "Datasets",
         "pipelines": "Pipelines",
         "canvasLab": "Canvas Lab",
-        "batch": "Batch Jobs",
-        "settings": "Settings"
+        "batch": "Batch Schedule",
+        "settings": "System Settings",
+        "architectureLab": "Arch Lab",
+        "tokenDashboard": "Token Board",
+        "kbAnalytics": "KB Analytics",
+        "trace": "Network Trace",
+        "category": {
+            "insight": "Insight",
+            "cognitive": "Cognitive Core",
+            "studio": "Studio & Lab",
+            "governance": "Governance",
+            "system": "System & Infra"
+        }
     },
     "dashboard": {
         "welcome": "Welcome to HiveMind",
@@ -78,8 +89,29 @@
     "settings": {
         "title": "System Settings",
         "description": "Configure LLM models, Agent behaviors, and system preferences",
-        "llm": "LLM Model Configuration",
+        "llm": "LLM Governance",
         "agent": "Agent Behavior"
+    },
+    "governance": {
+        "title": "LLM Governance",
+        "description": "Monitor and manage global model routing and economic audit policies",
+        "push": "Push Rules",
+        "sync": "Sync Graph",
+        "tierMapping": "Tier Mapping",
+        "modelRegistry": "Model Registry",
+        "insights": "Governance Insights",
+        "strategies": "Priority Strategies",
+        "budget": "Daily Budget",
+        "dialect": "Dialect Optimization"
+    },
+    "model_registry": {
+        "id": "Model ID",
+        "name": "Display Name",
+        "provider": "Provider",
+        "input": "Input Price (1M)",
+        "output": "Output Price (1M)",
+        "characteristics": "Characteristics",
+        "usage": "Usage Scenarios"
     },
     "chat": {
         "title": "AI Assistant",

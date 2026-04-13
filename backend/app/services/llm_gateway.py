@@ -20,12 +20,13 @@ class LLMGateway:
         tier: int,
         prompt: str,
         system_prompt: str,
-        response_format: dict | None = None
+        response_format: dict | None = None,
+        model_override: str | None = None
     ) -> GatewayResponse:
 
         # In a real app, tier determines the model.
         # Tier 3 = COMPLEX
-        model = settings.LLM_MODEL
+        model = model_override or settings.LLM_MODEL
         api_key = settings.LLM_API_KEY
         base_url = settings.LLM_BASE_URL
 

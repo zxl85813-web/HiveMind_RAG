@@ -13,6 +13,9 @@ from typing import Any
 from loguru import logger
 
 from app.services.agents.protocol import AgentResponse, AgentStatus, AgentTask, BaseAgent
+from app.services.llm_gateway import llm_gateway
+from app.prompts.dialect import model_dialect
+from app.services.agents.review_governance import review_governance
 
 
 class WorkerAgent(BaseAgent):
@@ -31,6 +34,14 @@ class WorkerAgent(BaseAgent):
         start_time = time.time()
         self.status = AgentStatus.EXECUTING
         logger.info(f"Agent {self.name} executing task: {task.id}")
+
+        # 🏎️ L5 Adaptation: Apply Model-Specific Dialect to the instruction
+        # We determine the target model based on priority if not overridden
+        priority = task.context.get("priority", 2)
+        target_model_profile = review_governance.get_optimal_critic(priority)
+        target_model = target_model_profile.name.lower().replace(" ", "-")
+        
+        task.instruction = model_dialect.wrap_instruction(target_model, task.instruction)
 
         try:
             # 1. Logic Execution — now with Swarm Blackboard access
@@ -83,7 +94,52 @@ class WorkerAgent(BaseAgent):
         raise NotImplementedError("Subclasses must implement _run_logic.")
 
     async def _reflect(self, task: AgentTask, output: Any) -> None:
-        """Self-Correction / Verification phase."""
-        # Basic sanity check. Expanded in M4.1.4.
-        logger.debug(f"Agent {self.name} reflecting on output length: {len(str(output))}")
-        pass
+        """
+        L5 Node-Level Reflection: Self-Correction phase using a fast model.
+        Verifies if the output satisfies the original instruction checkpoints.
+        """
+        logger.debug(f"Agent {self.name} performing structured reflection on output...")
+        
+        # Use a Tier 1 (Fast) model for reflection to keep latency low
+        reflection_prompt = f"""
+        Review the following AI agent output against the given instruction.
+        
+        ### Instruction:
+        {task.instruction}
+        
+        ### Output to Check:
+        {str(output)[:2000]}
+        
+        Check if the output:
+        1. Correctly follows the instruction logic.
+        2. Maintains valid formatting (JSON/Code).
+        3. Doesn't contain 'hallucinated' errors or placeholders.
+        
+        Return ONLY valid JSON:
+        {{
+          "is_valid": true | false,
+          "reason": "summary of findings",
+          "improvement_suggestion": "optional"
+        }}
+        """
+        
+        try:
+            res = await llm_gateway.call_tier(
+                tier=1, 
+                prompt=reflection_prompt, 
+                system_prompt="You are a node-level quality critic.",
+                response_format={"type": "json_object"}
+            )
+            import json
+            critique = json.loads(res.content)
+            
+            if not critique.get("is_valid", True):
+                logger.warning(f"⚠️ Agent {self.name} node-reflection failed: {critique.get('reason')}")
+                # We could set a signal here for the Supervisor to see
+                task.context["node_reflection_failure"] = critique.get("reason")
+            else:
+                logger.info(f"✅ Agent {self.name} node-reflection passed.")
+        except Exception as e:
+            logger.error(f"Node reflection error for {self.name}: {e}")
+            # [SHELL: M4.1.4] Fail-safe placeholder for reflection errors to prevent deadlock. Full recovery required for Phase 5.
+            pass

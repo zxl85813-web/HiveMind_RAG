@@ -188,6 +188,7 @@ export const AgentsPage: React.FC = () => {
                             description={agent.description}
                             icon={agent.icon}
                             status={agent.status}
+                            current_task={agent.current_task}
                         />
                     </Col>
                 ))}

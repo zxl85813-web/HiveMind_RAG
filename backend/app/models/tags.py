@@ -48,5 +48,5 @@ class Tag(SQLModel, table=True):
 
     # Relationships
     category: TagCategory | None = Relationship(back_populates="tags")
-    documents: list["Document"] = Relationship(back_populates="tags", link_model=DocumentTagLink)
-    doc_links: list[DocumentTagLink] = Relationship(back_populates="tag")
+    documents: list["Document"] = Relationship(back_populates="tags", link_model=DocumentTagLink, sa_relationship_kwargs={"overlaps": "doc_links,tag,document"})
+    doc_links: list[DocumentTagLink] = Relationship(back_populates="tag", sa_relationship_kwargs={"overlaps": "documents,tag,document"})

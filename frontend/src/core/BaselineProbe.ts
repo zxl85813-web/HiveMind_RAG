@@ -93,9 +93,17 @@ class BaselineProbe {
         }
 
         try {
-            // 优先使用 api.post (走权限验证)，如果页面关闭可由于 api 的 axios 实例可能被销毁，
-            // 极端情况可用 navigator.sendBeacon
+            const { tokenVault } = await import('./auth/TokenVault');
+            const token = tokenVault.getAccessToken();
+            
+            if (!token) {
+                console.debug('[Baseline] Skipping sync: No active session/token.');
+                return;
+            }
+
+            // 优先使用 api.post (走权限验证)
             await api.post('/observability/baseline', payload);
+            console.debug(`[Baseline] Successfully synced ${payload.metrics.length} metrics.`);
         } catch (error) {
             console.warn('[Baseline] Failed to sync baseline to backend', error);
         }

@@ -278,6 +278,136 @@ export const SecurityPage: React.FC = () => {
         }
     ];
 
+    const tabItems = [
+        {
+            key: 'policies',
+            label: <span><SafetyCertificateOutlined /> 数据脱敏策略</span>,
+            children: (
+                <Row gutter={[16, 16]}>
+                    <Col span={24}>
+                        <Card title="脱敏策略管理" bordered={false}>
+                            <Table
+                                columns={columns}
+                                dataSource={policies}
+                                rowKey="id"
+                                loading={loading}
+                                pagination={false}
+                            />
+                        </Card>
+                    </Col>
+                    <Col span={24}>
+                        <Card title="原生敏感项检测器" bordered={false}>
+                            <Space size={[0, 8]} wrap>
+                                {detectors.map(d => (
+                                    <Tag key={d.type} color="blue">{d.type} - {d.description.trim()}</Tag>
+                                ))}
+                            </Space>
+                        </Card>
+                    </Col>
+                </Row>
+            )
+        },
+        {
+            key: 'audit',
+            label: <span><HistoryOutlined /> 安全审计日志 (Audit)</span>,
+            children: (
+                <Card title="全系统安全事件追踪" bordered={false}>
+                    <Table
+                        columns={auditColumns}
+                        dataSource={auditLogs}
+                        rowKey="id"
+                        loading={loading}
+                        pagination={{ pageSize: 15 }}
+                        locale={{ emptyText: "暂无审计记录" }}
+                    />
+                </Card>
+            )
+        },
+        {
+            key: 'acl',
+            label: <span><AuditOutlined /> 权限访问控制 (ACL)</span>,
+            children: (
+                <Card title="文档级权限概览" bordered={false}>
+                    <Text type="secondary">在此可以管理基于用户、角色或部门的文档访问权限。Admin 拥有所有文档的读写权。</Text>
+                    <div style={{ marginTop: 24, marginBottom: 16 }}>
+                        <Input.Search
+                            placeholder="输入文档 ID 查询权限设置"
+                            onSearch={handleSearchAcl}
+                            enterButton
+                            style={{ maxWidth: 400 }}
+                        />
+                    </div>
+                    {aclDocId && (
+                        <>
+                            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text strong>当前编辑文档: <Tag>{aclDocId}</Tag></Text>
+                                <PermissionButton
+                                    type="primary"
+                                    size="small"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => setIsAclModalOpen(true)}
+                                    access={{ anyPermissions: ['security:manage'] }}
+                                >
+                                    添加鉴权规则
+                                </PermissionButton>
+                            </div>
+                            <Table
+                                dataSource={aclPermissions}
+                                loading={aclLoading}
+                                rowKey="id"
+                                columns={[
+                                    {
+                                        title: '目标实体',
+                                        render: (_: unknown, r: any) => {
+                                            if (r.user_id) return <Tag color="blue">用户: {r.user_id}</Tag>;
+                                            if (r.role_id) return <Tag color="green">角色: {r.role_id}</Tag>;
+                                            if (r.department_id) return <Tag color="orange">部门: {r.department_id}</Tag>;
+                                            return <Tag>未知实体</Tag>;
+                                        }
+                                    },
+                                    {
+                                        title: '权限',
+                                        key: 'perms',
+                                        render: (_: unknown, r: any) => (
+                                            <Space>
+                                                <Tag color={r.can_read ? 'success' : 'default'}>读取</Tag>
+                                                <Tag color={r.can_write ? 'success' : 'default'}>写入 / 修改</Tag>
+                                            </Space>
+                                        )
+                                    },
+                                    {
+                                        title: '添加时间',
+                                        dataIndex: 'created_at',
+                                        key: 'created_at',
+                                        render: (t: string) => <Text type="secondary">{new Date(t).toLocaleString()}</Text>
+                                    },
+                                    {
+                                        title: '操作',
+                                        key: 'action',
+                                        render: (_: unknown, r: any) => (
+                                            <PermissionButton
+                                                size="small"
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => handleRevokeAcl(r.id)}
+                                                access={{ anyPermissions: ['security:manage'] }}
+                                            >
+                                                移除
+                                            </PermissionButton>
+                                        )
+                                    }
+                                ]}
+                                pagination={false}
+                                locale={{ emptyText: "当前文档暂无特殊权限规则 (继承默认权限)" }}
+                            />
+                        </>
+                    )}
+                </Card>
+            )
+        }
+    ];
+
     return (
         <PageContainer
             title="安全与治理中心"
@@ -293,125 +423,7 @@ export const SecurityPage: React.FC = () => {
                 </PermissionButton>
             }
         >
-            <Tabs defaultActiveKey="policies">
-                <TabPane tab={<span><SafetyCertificateOutlined /> 数据脱敏策略</span>} key="policies">
-                    <Row gutter={[16, 16]}>
-                        <Col span={24}>
-                            <Card title="脱敏策略管理" bordered={false}>
-                                <Table
-                                    columns={columns}
-                                    dataSource={policies}
-                                    rowKey="id"
-                                    loading={loading}
-                                    pagination={false}
-                                />
-                            </Card>
-                        </Col>
-                        <Col span={24}>
-                            <Card title="原生敏感项检测器" bordered={false}>
-                                <Space size={[0, 8]} wrap>
-                                    {detectors.map(d => (
-                                        <Tag key={d.type} color="blue">{d.type} - {d.description.trim()}</Tag>
-                                    ))}
-                                </Space>
-                            </Card>
-                        </Col>
-                    </Row>
-                </TabPane>
-
-                <TabPane tab={<span><HistoryOutlined /> 安全审计日志 (Audit)</span>} key="audit">
-                    <Card title="全系统安全事件追踪" bordered={false}>
-                        <Table
-                            columns={auditColumns}
-                            dataSource={auditLogs}
-                            rowKey="id"
-                            loading={loading}
-                            pagination={{ pageSize: 15 }}
-                            locale={{ emptyText: "暂无审计记录" }}
-                        />
-                    </Card>
-                </TabPane>
-
-                <TabPane tab={<span><AuditOutlined /> 权限访问控制 (ACL)</span>} key="acl">
-                    <Card title="文档级权限概览" bordered={false}>
-                        <Text type="secondary">在此可以管理基于用户、角色或部门的文档访问权限。Admin 拥有所有文档的读写权。</Text>
-                        <div style={{ marginTop: 24, marginBottom: 16 }}>
-                            <Input.Search
-                                placeholder="输入文档 ID 查询权限设置"
-                                onSearch={handleSearchAcl}
-                                enterButton
-                                style={{ maxWidth: 400 }}
-                            />
-                        </div>
-                        {aclDocId && (
-                            <>
-                                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Text strong>当前编辑文档: <Tag>{aclDocId}</Tag></Text>
-                                    <PermissionButton
-                                        type="primary"
-                                        size="small"
-                                        icon={<PlusOutlined />}
-                                        onClick={() => setIsAclModalOpen(true)}
-                                        access={{ anyPermissions: ['security:manage'] }}
-                                    >
-                                        添加鉴权规则
-                                    </PermissionButton>
-                                </div>
-                                <Table
-                                    dataSource={aclPermissions}
-                                    loading={aclLoading}
-                                    rowKey="id"
-                                    columns={[
-                                        {
-                                            title: '目标实体',
-                                            render: (_: unknown, r: any) => {
-                                                if (r.user_id) return <Tag color="blue">用户: {r.user_id}</Tag>;
-                                                if (r.role_id) return <Tag color="green">角色: {r.role_id}</Tag>;
-                                                if (r.department_id) return <Tag color="orange">部门: {r.department_id}</Tag>;
-                                                return <Tag>未知实体</Tag>;
-                                            }
-                                        },
-                                        {
-                                            title: '权限',
-                                            key: 'perms',
-                                            render: (_: unknown, r: any) => (
-                                                <Space>
-                                                    <Tag color={r.can_read ? 'success' : 'default'}>读取</Tag>
-                                                    <Tag color={r.can_write ? 'success' : 'default'}>写入 / 修改</Tag>
-                                                </Space>
-                                            )
-                                        },
-                                        {
-                                            title: '添加时间',
-                                            dataIndex: 'created_at',
-                                            key: 'created_at',
-                                            render: (t: string) => <Text type="secondary">{new Date(t).toLocaleString()}</Text>
-                                        },
-                                        {
-                                            title: '操作',
-                                            key: 'action',
-                                            render: (_: unknown, r: any) => (
-                                                <PermissionButton
-                                                    size="small"
-                                                    type="text"
-                                                    danger
-                                                    icon={<DeleteOutlined />}
-                                                    onClick={() => handleRevokeAcl(r.id)}
-                                                    access={{ anyPermissions: ['security:manage'] }}
-                                                >
-                                                    移除
-                                                </PermissionButton>
-                                            )
-                                        }
-                                    ]}
-                                    pagination={false}
-                                    locale={{ emptyText: "当前文档暂无特殊权限规则 (继承默认权限)" }}
-                                />
-                            </>
-                        )}
-                    </Card>
-                </TabPane>
-            </Tabs>
+            <Tabs defaultActiveKey="policies" items={tabItems} />
 
             <Modal
                 title="新建脱敏策略"

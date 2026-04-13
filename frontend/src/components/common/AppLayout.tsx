@@ -19,7 +19,13 @@ import {
     SisternodeOutlined,
     DeploymentUnitOutlined,
     RobotOutlined,
-    DesktopOutlined
+    DesktopOutlined,
+    ExperimentOutlined,
+    DashboardOutlined,
+    AreaChartOutlined,
+    NodeIndexOutlined,
+    SearchOutlined,
+    LogoutOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +57,13 @@ export const AppLayout: React.FC = () => {
     const hasAccess = useAuthStore((state) => state.hasAccess);
     const profile = useAuthStore((state) => state.profile);
 
+    const [collapsed, setCollapsed] = React.useState(false);
+
+    // 🔍 [Diagnostic]: Log profile to help debug permission issues
+    console.log('[AppLayout] Current Profile:', profile);
+    console.log('[AppLayout] Profile Roles:', profile.roles);
+    console.log('[AppLayout] Admin Status:', profile.roles.includes('admin'));
+
     const {
         viewMode,
         toggleViewMode,
@@ -77,12 +90,37 @@ export const AppLayout: React.FC = () => {
         FolderOpenOutlined: <FolderOpenOutlined />,
         SisternodeOutlined: <SisternodeOutlined />,
         DeploymentUnitOutlined: <DeploymentUnitOutlined />,
+        ExperimentOutlined: <ExperimentOutlined />,
+        DashboardOutlined: <DashboardOutlined />,
+        AreaChartOutlined: <AreaChartOutlined />,
+        NodeIndexOutlined: <NodeIndexOutlined />,
+        SearchOutlined: <SearchOutlined />,
     };
 
-    /** 导航项 (基于路由元数据 + 权限) */
-    const navItems = appRoutes
+    /** 
+     * 🛰️ [Nav-Hardening]: 菜单项归类重构 (DEC-260413-NAV)
+     * 将平铺的路由按照治理域进行聚合，提升系统可解释性。
+     */
+    const groupedRoutes = appRoutes
         .filter((route) => route.showInMenu && hasAccess(route.access))
-        .map((route) => {
+        .reduce((acc, route) => {
+            const cat = route.category || 'insight';
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(route);
+            return acc;
+        }, {} as Record<string, typeof appRoutes>);
+
+    const categoryOrder: Array<'insight' | 'cognitive' | 'studio' | 'governance' | 'system'> = [
+        'insight', 'cognitive', 'studio', 'governance', 'system'
+    ];
+
+    const navItems = categoryOrder.map(cat => {
+        const routes = groupedRoutes[cat];
+        if (!routes || routes.length === 0) return null;
+
+        // 如果该分类下只有一个项（如概览），则直接渲染为菜单项
+        if (cat === 'insight' && routes.length === 1) {
+            const route = routes[0];
             const intent = routeIntentMap[route.path];
             return {
                 key: route.path,
@@ -96,7 +134,34 @@ export const AppLayout: React.FC = () => {
                 ),
                 icon: iconMap[route.icon] || <AppstoreOutlined />,
             };
-        });
+        }
+
+        // 其他分类渲染为 SubMenu (可收缩文件夹)
+        return {
+            key: `cat-${cat}`,
+            label: t(`nav.category.${cat}`),
+            icon: cat === 'cognitive' ? <DatabaseOutlined /> : 
+                  cat === 'studio' ? <ExperimentOutlined /> :
+                  cat === 'governance' ? <SafetyCertificateOutlined /> :
+                  cat === 'system' ? <SettingOutlined /> : 
+                  <AppstoreOutlined />,
+            children: routes.map((route) => {
+                const intent = routeIntentMap[route.path];
+                return {
+                    key: route.path,
+                    label: (
+                        <div 
+                            onMouseEnter={intent ? () => intentManager.predict(intent) : undefined}
+                            onMouseLeave={intent ? () => intentManager.cancel(intent) : undefined}
+                        >
+                            {t(route.labelKey)}
+                        </div>
+                    ),
+                    icon: iconMap[route.icon] || <AppstoreOutlined />,
+                };
+            }),
+        };
+    }).filter(Boolean);
 
     const toggleLang = () => {
         const current = i18n.language;
@@ -113,6 +178,12 @@ export const AppLayout: React.FC = () => {
     const activeKey = location.pathname === '/'
         ? '/'
         : '/' + (location.pathname.split('/')[1] || '');
+
+    /** 处理退出登录 */
+    const handleLogout = () => {
+        useAuthStore.getState().setAuthenticated(false);
+        navigate('/login');
+    };
 
     /** 处理侧边栏导航 */
     const handleNavClick = ({ key }: { key: string }) => {
@@ -139,14 +210,21 @@ export const AppLayout: React.FC = () => {
     return (
         <Layout className={styles.layout}>
             {!isAIMode && (
-                <Sider width={240} className={styles.sider} theme="dark">
+                <Sider 
+                    width={240} 
+                    className={styles.sider} 
+                    theme="dark" 
+                    collapsible 
+                    collapsed={collapsed} 
+                    onCollapse={(value) => setCollapsed(value)}
+                >
                     <Flex vertical className={styles.siderInner}>
                         <div className={styles.logo} onClick={() => {
                             useChatStore.getState().setViewMode('ai');
                             navigate('/');
                         }}>
                             <span className={styles.logoMark}>⬡</span>
-                            <span className={styles.logoText}>HiveMind</span>
+                            {!collapsed && <span className={styles.logoText}>HiveMind</span>}
                         </div>
                         <Menu
                             mode="inline"
@@ -155,21 +233,32 @@ export const AppLayout: React.FC = () => {
                             items={navItems}
                             className={styles.nav}
                         />
-                        <Flex align="center" justify="space-between" className={styles.siderFooter}>
-                            <Flex gap={12}>
-                                <Tooltip title={t('common.language')} placement="top">
+                        <Flex 
+                            align="center" 
+                            justify={collapsed ? "center" : "space-between"} 
+                            className={styles.siderFooter}
+                            vertical={collapsed}
+                            gap={collapsed ? 16 : 0}
+                        >
+                            <Flex gap={12} vertical={collapsed} align="center">
+                                <Tooltip title={t('common.language')} placement="right">
                                     <span className={styles.siderAction} onClick={toggleLang}>
                                         {i18n.language.startsWith('zh') ? 'EN' : '中'}
                                     </span>
                                 </Tooltip>
-                                <Badge count={0} size="small">
+                                <Badge count={0} size="small" offset={[-4, 4]}>
                                     <BellOutlined className={styles.siderAction} />
                                 </Badge>
+                                <Tooltip title="退出登录" placement="right">
+                                    <LogoutOutlined className={styles.siderAction} onClick={handleLogout} />
+                                </Tooltip>
                             </Flex>
-                            <Flex align="center" gap={8}>
-                                <span className={styles.statusText}>{profile.roles[0]?.toUpperCase() || 'UNKNOWN'}</span>
-                                <div className={styles.statusDot} />
-                            </Flex>
+                            {!collapsed && (
+                                <Flex align="center" gap={8}>
+                                    <span className={styles.statusText}>{profile.roles[0]?.toUpperCase() || 'UNKNOWN'}</span>
+                                    <div className={styles.statusDot} />
+                                </Flex>
+                            )}
                         </Flex>
                     </Flex>
                 </Sider>

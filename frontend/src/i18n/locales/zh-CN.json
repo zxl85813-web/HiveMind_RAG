@@ -25,7 +25,18 @@
         "pipelines": "可视化编排",
         "canvasLab": "画布实验室",
         "batch": "批处理调度",
-        "settings": "系统设置"
+        "settings": "系统设置",
+        "architectureLab": "架构实验室",
+        "tokenDashboard": "Token 大屏",
+        "kbAnalytics": "知识库分析",
+        "trace": "全链路 Trace",
+        "category": {
+            "insight": "智能概览",
+            "cognitive": "认知核心",
+            "studio": "实验工坊",
+            "governance": "治理合规",
+            "system": "系统设置"
+        }
     },
     "dashboard": {
         "welcome": "欢迎使用 HiveMind",
@@ -78,8 +89,29 @@
     "settings": {
         "title": "系统设置",
         "description": "配置 LLM 模型、Agent 行为和系统偏好",
-        "llm": "LLM 模型设置",
+        "llm": "LLM 治理",
         "agent": "Agent 行为"
+    },
+    "governance": {
+        "title": "LLM 治理",
+        "description": "监控并管理全局大模型路由与经济审计策略",
+        "push": "推送治理规则",
+        "sync": "图谱脑图同步",
+        "tierMapping": "任务梯队映射",
+        "modelRegistry": "模型注册中心",
+        "insights": "治理洞察",
+        "strategies": "优先级策略",
+        "budget": "日消耗预算",
+        "dialect": "方言转换优化"
+    },
+    "model_registry": {
+        "id": "模型 ID",
+        "name": "显示名称",
+        "provider": "供应商",
+        "input": "输入价格 (1M)",
+        "output": "输出价格 (1M)",
+        "characteristics": "技术特性",
+        "usage": "推荐场景"
     },
     "chat": {
         "title": "AI 助手",

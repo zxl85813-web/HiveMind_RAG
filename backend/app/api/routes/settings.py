@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 from pydantic import BaseModel
 
+from app.common.response import ApiResponse
+
 router = APIRouter()
 
 # === YAML 文件路径 ===
@@ -74,18 +76,19 @@ def _reload_prompt_engine() -> None:
 # === API 端点 ===
 
 
-@router.get("/platform-knowledge", response_model=PlatformKnowledge)
+@router.get("/platform-knowledge", response_model=ApiResponse[PlatformKnowledge])
 async def get_platform_knowledge():
     """获取平台内置知识库内容"""
     data = _read_yaml()
-    return PlatformKnowledge(
+    content = PlatformKnowledge(
         overview=data.get("overview", ""),
         features=[PlatformFeature(**f) for f in data.get("features", [])],
         faq=[FAQItem(**f) for f in data.get("faq", [])],
     )
+    return ApiResponse.ok(data=content)
 
 
-@router.put("/platform-knowledge", response_model=PlatformKnowledge)
+@router.put("/platform-knowledge", response_model=ApiResponse[PlatformKnowledge])
 async def update_platform_knowledge(body: PlatformKnowledge):
     """更新平台内置知识库（整体覆盖 overview + features + faq）"""
     data = _read_yaml()
@@ -103,10 +106,10 @@ async def update_platform_knowledge(body: PlatformKnowledge):
     _write_yaml(new_data)
     _reload_prompt_engine()
 
-    return body
+    return ApiResponse.ok(data=body)
 
 
-@router.post("/platform-knowledge/features", response_model=PlatformFeature)
+@router.post("/platform-knowledge/features", response_model=ApiResponse[PlatformFeature])
 async def add_feature(feature: PlatformFeature):
     """添加一个功能模块"""
     data = _read_yaml()
@@ -115,10 +118,10 @@ async def add_feature(feature: PlatformFeature):
     data["features"] = features
     _write_yaml(data)
     _reload_prompt_engine()
-    return feature
+    return ApiResponse.ok(data=feature)
 
 
-@router.delete("/platform-knowledge/features/{feature_name}")
+@router.delete("/platform-knowledge/features/{feature_name}", response_model=ApiResponse)
 async def delete_feature(feature_name: str):
     """删除一个功能模块"""
     data = _read_yaml()
@@ -129,10 +132,10 @@ async def delete_feature(feature_name: str):
     data["features"] = new_features
     _write_yaml(data)
     _reload_prompt_engine()
-    return {"message": f"Feature '{feature_name}' deleted"}
+    return ApiResponse.ok(message=f"Feature '{feature_name}' deleted")
 
 
-@router.post("/platform-knowledge/faq", response_model=FAQItem)
+@router.post("/platform-knowledge/faq", response_model=ApiResponse[FAQItem])
 async def add_faq(faq: FAQItem):
     """添加一条 FAQ"""
     data = _read_yaml()
@@ -141,10 +144,10 @@ async def add_faq(faq: FAQItem):
     data["faq"] = faqs
     _write_yaml(data)
     _reload_prompt_engine()
-    return faq
+    return ApiResponse.ok(data=faq)
 
 
-@router.delete("/platform-knowledge/faq/{index}")
+@router.delete("/platform-knowledge/faq/{index}", response_model=ApiResponse)
 async def delete_faq(index: int):
     """删除一条 FAQ（按索引）"""
     data = _read_yaml()
@@ -155,4 +158,4 @@ async def delete_faq(index: int):
     data["faq"] = faqs
     _write_yaml(data)
     _reload_prompt_engine()
-    return {"message": "FAQ deleted", "removed": removed}
+    return ApiResponse.ok(message="FAQ deleted", data=removed)

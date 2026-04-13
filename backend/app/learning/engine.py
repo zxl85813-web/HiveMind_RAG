@@ -95,7 +95,7 @@ class ExternalLearningEngine:
 
     async def start(self) -> None:
         """Start the periodic fetch scheduler."""
-        # TODO: Implement with APScheduler
+        # TODO: Implement with Native Background Loop
         # scheduler.add_job(self.fetch_cycle, 'interval', hours=config.LEARNING_FETCH_INTERVAL_HOURS)
         pass
 

@@ -155,26 +155,40 @@ export const DashboardPage: React.FC = () => {
                 <Title level={5} className={styles.sectionTitle}>近期质量报告</Title>
                 <Card className={styles.activityCard} loading={loadingReports}>
                     {reports.length > 0 ? (
-                        <List
-                            itemLayout="horizontal"
-                            dataSource={reports}
-                            renderItem={(item) => (
-                                <List.Item
-                                    style={{ cursor: 'pointer' }}
+                        <Flex vertical gap={12}>
+                            {reports.map((item) => (
+                                <div 
+                                    key={item.id}
+                                    className={styles.reportItem}
                                     onClick={() => navigate('/evaluation')}
-                                    extra={<Tag color={item.total_score > 0.7 ? 'success' : item.total_score > 0.4 ? 'warning' : 'error'}>Score: {Math.round(item.total_score * 100)}%</Tag>}
                                 >
-                                    <List.Item.Meta
-                                        avatar={<LineChartOutlined style={{ fontSize: 24, color: 'var(--hm-color-brand)' }} />}
-                                        title={<Text strong>{item.kb_name || 'Knowledge Base Evaluation'}</Text>}
-                                        description={<Text type="secondary" style={{ fontSize: 12 }}>完成于 {new Date(item.created_at).toLocaleString()}</Text>}
-                                    />
-                                    <div style={{ width: 120 }}>
-                                        <Progress percent={Math.round(item.total_score * 100)} size="small" showInfo={false} strokeColor={item.total_score > 0.7 ? 'var(--hm-color-success)' : 'var(--hm-color-warning)'} />
-                                    </div>
-                                </List.Item>
-                            )}
-                        />
+                                    <Flex align="center" justify="space-between">
+                                        <Flex align="center" gap={12}>
+                                            <LineChartOutlined style={{ fontSize: 24, color: 'var(--hm-color-brand)' }} />
+                                            <div>
+                                                <Text strong style={{ display: 'block' }}>{item.kb_name || 'Knowledge Base Evaluation'}</Text>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                                    完成于 {new Date(item.created_at).toLocaleString()}
+                                                </Text>
+                                            </div>
+                                        </Flex>
+                                        <Flex align="center" gap={16}>
+                                            <div style={{ width: 100 }}>
+                                                <Progress 
+                                                    percent={Math.round(item.total_score * 100)} 
+                                                    size="small" 
+                                                    showInfo={false} 
+                                                    strokeColor={item.total_score > 0.7 ? 'var(--hm-color-success)' : 'var(--hm-color-warning)'} 
+                                                />
+                                            </div>
+                                            <Tag color={item.total_score > 0.7 ? 'success' : item.total_score > 0.4 ? 'warning' : 'error'}>
+                                                Score: {Math.round(item.total_score * 100)}%
+                                            </Tag>
+                                        </Flex>
+                                    </Flex>
+                                </div>
+                            ))}
+                        </Flex>
                     ) : (
                         <Flex align="center" justify="center" style={{ padding: 32 }}>
                             <Text type="secondary">暂无质量评估记录。建议前往「质量评估」模块生成测试集进行客观打分。</Text>

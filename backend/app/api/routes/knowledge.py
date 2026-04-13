@@ -18,6 +18,7 @@ from app.common.response import ApiResponse
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.vector_store import get_vector_store
 from app.models.chat import User
+from app.sdk.core import settings
 from app.models.knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
 from app.models.security import KnowledgeBasePermission
 from app.schemas.knowledge import DocumentResponse, KBPermissionInput, KnowledgeBaseCreate
@@ -267,13 +268,13 @@ async def upload_document_global(
             headers={"Retry-After": str(int(decision["retry_after_sec"]))},
         )
 
-    # 1. Save file to local storage (TODO: Use MinIO/S3 via StorageBackend)
-    upload_dir = "uploads"  # Should be configured in settings
-    os.makedirs(upload_dir, exist_ok=True)
-
+    # 1. Save file to centralized storage (Reference: settings.UPLOAD_DIR)
+    upload_dir = settings.UPLOAD_DIR
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
     # Generate unique filename to avoid collision
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = os.path.join(upload_dir, unique_filename)
+    file_path = str(upload_dir / unique_filename)
 
     # Write file by chunks to avoid OOM
     file_size = 0
@@ -455,7 +456,7 @@ async def get_knowledge_graph(
     OPTIONAL MATCH (n)-[r]->(m {kb_id: $kb_id})
     RETURN collect(DISTINCT n) as nodes, collect(DISTINCT r) as links
     """
-    results = store.query(cypher, {"kb_id": kb_id})
+    results = await store.execute_query(cypher, {"kb_id": kb_id})
 
     nodes = []
     links = []

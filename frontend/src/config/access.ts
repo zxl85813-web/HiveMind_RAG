@@ -15,7 +15,22 @@ export interface AccessRequirement {
 }
 
 export const ROLE_PERMISSION_MAP = {
-    admin: ['knowledge:manage', 'learning:manage', 'audit:review', 'security:manage', 'evaluation:run', 'finetuning:manage', 'pipeline:edit', 'batch:operate', 'settings:manage'],
-    operator: ['knowledge:manage', 'learning:manage', 'audit:review', 'evaluation:run', 'finetuning:manage', 'pipeline:edit', 'batch:operate'],
-    viewer: [],
+    admin: [
+        'knowledge:manage',
+        'learning:manage',
+        'audit:review',
+        'security:manage',
+        'evaluation:run',
+        'finetuning:manage',
+        'pipeline:edit',
+        'batch:operate',
+        'settings:manage'
+    ],
+    user: [
+        'knowledge:manage',
+        'learning:manage',
+        'evaluation:run',
+        'batch:operate'
+    ],
+    readonly: [],
 } as const;

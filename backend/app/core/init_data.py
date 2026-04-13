@@ -15,24 +15,54 @@ async def init_base_data() -> None:
     logger.info("Checking database seeding status...")
 
     async with async_session_factory() as session:
-        # 1. 确保 Mock 用户存在 (仅在 DEBUG 模式下)
+        # 1. 确保基础用户存在 (仅在 DEBUG 模式下)
         if settings.DEBUG:
-            mock_user_id = "mock-user-001"
-            user = await session.get(User, mock_user_id)
-            if not user:
-                logger.info(f"Seeding mock user: {mock_user_id}")
-                # 开发环境 mock 用户占位密码（非真实密钥，仅用于本地演示）
-                mock_user = User(
-                    id=mock_user_id,
-                    username="developer",
-                    email="dev@hivemind.local",
-                    hashed_password=settings.MOCK_USER_HASH,
-                    role="admin",
-                )
-                session.add(mock_user)
-                await session.commit()
-            else:
-                logger.debug(f"Mock user {mock_user_id} already exists.")
+            from app.auth.security import hash_password
+            
+            users_to_seed = [
+                {
+                    "id": "mock-user-001",
+                    "username": "developer",
+                    "email": "dev@hivemind.local",
+                    "password": "password",
+                    "role": "admin"
+                },
+                {
+                    "id": "admin-user",
+                    "username": "admin",
+                    "email": "admin@hivemind.local",
+                    "password": "admin123",
+                    "role": "admin"
+                }
+            ]
+            
+            from sqlalchemy import select
+            
+            for u_data in users_to_seed:
+                # Check by username instead of ID to avoid duplicate constraint violations
+                stmt = select(User).where(User.username == u_data["username"])
+                res = await session.execute(stmt)
+                user = res.scalars().first()
+                
+                if not user:
+                    logger.info(f"Seeding user: {u_data['username']}")
+                    new_user = User(
+                        id=u_data["id"],
+                        username=u_data["username"],
+                        email=u_data["email"],
+                        hashed_password=hash_password(u_data["password"]),
+                        role=u_data["role"],
+                    )
+                    session.add(new_user)
+                else:
+                    # 🛰️ [Harden]: Ensure role is correct even if user exists
+                    if user.role != u_data["role"]:
+                        logger.warning(f"Reconciling role for {u_data['username']}: {user.role} -> {u_data['role']}")
+                        user.role = u_data["role"]
+                        session.add(user)
+                    logger.debug(f"User {u_data['username']} already exists.")
+            
+            await session.commit()
 
         # 2. 确保 Swarm 初始数据存在 (仅在 DEBUG 模式下)
         if settings.DEBUG:

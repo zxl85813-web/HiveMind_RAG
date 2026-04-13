@@ -57,22 +57,18 @@ def require_permission(permission: Permission):
         async def create_kb(...):
             ...
     """
+    from app.api.deps import get_current_user
 
-    async def checker(current_user: User = Depends(get_current_user_local)):
+    async def checker(current_user: User = Depends(get_current_user)):
         # Role defaults to string since DB maps it. Here we safely check.
         if not has_permission(current_user.role, permission):
             raise ForbiddenError(
                 message=f"Missing permission: {permission.value}",
                 deny_reason="rbac_denied",
             )
+        return current_user
 
     return checker
-
-
-async def get_current_user_local(db: AsyncSession = Depends(get_db)):
-    from app.api.deps import get_current_user
-    # We pass None for credentials since we want the dep to handle it via its own security_scheme
-    return await get_current_user(None, db)
 
 
 async def has_document_permission(db: AsyncSession, user: User, doc_id: str, required_level: str = "read") -> bool:

@@ -6,6 +6,8 @@ from sqlmodel import select
 from app.core.database import get_db_session
 from app.models.pipeline_config import PipelineConfig
 
+from app.common.response import ApiResponse
+
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
 
@@ -17,29 +19,30 @@ class PipelineConfigRequest(BaseModel):
     execution_sequence_json: str = "[]"
 
 
-@router.get("", response_model=list[PipelineConfig])
+@router.get("", response_model=ApiResponse[list[PipelineConfig]])
 async def list_pipelines(session: AsyncSession = Depends(get_db_session)):
     stmt = select(PipelineConfig)
-    result = await session.exec(stmt)
-    return result.all()
+    result = await session.execute(stmt)
+    items = result.scalars().all()
+    return ApiResponse.ok(data=items)
 
 
-@router.post("", response_model=PipelineConfig)
+@router.post("", response_model=ApiResponse[PipelineConfig])
 async def create_pipeline(req: PipelineConfigRequest, session: AsyncSession = Depends(get_db_session)):
     cfg = PipelineConfig(**req.model_dump())
     session.add(cfg)
     await session.commit()
     await session.refresh(cfg)
-    return cfg
+    return ApiResponse.ok(data=cfg)
 
 
-@router.put("/{pipeline_id}", response_model=PipelineConfig)
+@router.put("/{pipeline_id}", response_model=ApiResponse[PipelineConfig])
 async def update_pipeline(
     pipeline_id: str, req: PipelineConfigRequest, session: AsyncSession = Depends(get_db_session)
 ):
     stmt = select(PipelineConfig).where(PipelineConfig.id == pipeline_id)
-    res = await session.exec(stmt)
-    cfg = res.first()
+    res = await session.execute(stmt)
+    cfg = res.scalars().first()
     if not cfg:
         raise HTTPException(status_code=404, detail="Pipeline info not found")
 
@@ -48,16 +51,16 @@ async def update_pipeline(
 
     await session.commit()
     await session.refresh(cfg)
-    return cfg
+    return ApiResponse.ok(data=cfg)
 
 
-@router.delete("/{pipeline_id}")
+@router.delete("/{pipeline_id}", response_model=ApiResponse)
 async def delete_pipeline(pipeline_id: str, session: AsyncSession = Depends(get_db_session)):
     stmt = select(PipelineConfig).where(PipelineConfig.id == pipeline_id)
-    res = await session.exec(stmt)
-    cfg = res.first()
+    res = await session.execute(stmt)
+    cfg = res.scalars().first()
     if not cfg:
         raise HTTPException(status_code=404, detail="Not found")
     await session.delete(cfg)
     await session.commit()
-    return {"status": "ok"}
+    return ApiResponse.ok(message="ok")

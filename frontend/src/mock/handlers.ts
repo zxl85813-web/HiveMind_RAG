@@ -232,6 +232,58 @@ export const mockHandlers: Record<string, any> = {
     'POST:/security/policies': {
         success: true, data: { id: 4, name: 'New Policy', is_active: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, message: 'Created'
     },
+
+    // LLM Governance
+    'GET:/settings/llm/llm-governance': {
+        success: true,
+        data: {
+            tier_mapping: {
+                simple: 'gpt-3.5-turbo',
+                medium: 'gpt-4o-mini',
+                complex: 'deepseek-v3',
+                reasoning: 'claude-3-5-sonnet'
+            }
+        },
+        message: 'Success'
+    },
+    'PUT:/settings/llm/llm-governance': {
+        success: true,
+        data: {},
+        message: 'Configuration updated'
+    },
+    'GET:/settings/llm/governance/tasks': {
+        success: true,
+        data: [
+            {
+                id: 'gov-task-001',
+                type: 'ESCALATION',
+                title: 'High Risk Prompt Detected',
+                status: 'PENDING',
+                risk_level: 'high',
+                snapshot_url: 'http://localhost:5173/docs/tasks/snap-001.md',
+                created_at: new Date().toISOString()
+            },
+            {
+                id: 'gov-task-002',
+                type: 'SYNC',
+                title: 'TODO.md out of sync with Neo4j',
+                status: 'RESOLVED',
+                risk_level: 'medium',
+                snapshot_url: null,
+                created_at: new Date(Date.now() - 3600000).toISOString()
+            }
+        ],
+        message: 'Success'
+    },
+    'POST:/settings/llm/governance/sync': {
+        success: true,
+        data: {
+            sync_id: 'sync-123',
+            status: 'success',
+            changes_count: 5
+        },
+        message: 'Graph synchronization completed successfully'
+    }
 };
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

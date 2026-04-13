@@ -160,6 +160,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content={
+                "success": False,
                 "error_code": exc.error_code,
                 "message": exc.message,
                 "detail": exc.detail,
@@ -173,6 +174,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
+                "success": False,
                 "error_code": "INTERNAL_ERROR",
                 "message": "An unexpected error occurred",
                 "detail": {},

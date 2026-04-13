@@ -20,7 +20,31 @@
 *   **故障点 3：库的黑盒默认行为 (onnxruntime 依赖僵局)**
     *   **现象**：ChromaDB/LangChain 在环境缺少 `onnxruntime` 时偷偷回退到受损状态或报错，导致语义检索层彻底失效，用户却感知不到（只觉得分数低）。
     *   **反思**：**严禁向第三方库传递原始文本 (Raw Text)**。所有的向量预处理必须在受控的 `EmbeddingService` 中显式执行。
-    *   **改进**：已实施 **ARAG-003 远程向量透传策略**，强行在调用 Chroma 之前注入远程向量，绕过本地推理劫持。
+    *   **改进**：已实施 **ARAG-003 远程向量透传策略**，强称在调用 Chroma 之前注入远程向量，绕过本地推理劫持。
+
+### [2026-04-13] 系统互联与权限孤岛：IPv6 陷阱与状态滞后
+*   **故障点 1：环境解析歧义 (localhost vs 127.0.0.1)**
+    *   **现象**：后端监听 `127.0.0.1`，但前端代理或浏览器在 Windows 下将 `localhost` 解析为 IPv6 的 `::1`，导致连接被拒 (`ERR_CONNECTION_REFUSED`)。
+    *   **反思**：**配置的模糊性是稳定性的敌人**。在混合使用 IPv4/IPv6 的现代 OS 中，绝对禁止在代理配置中使用 `localhost`，必须明确指定 IP 协议栈。
+    *   **改进**：全量修改 `vite.config.ts` 代理目标为 `127.0.0.1`；后端启动脚本强制绑定 `0.0.0.0` 以兼顾多网卡环境。
+*   **故障点 2：异步状态的“权限空窗期”**
+    *   **现象**：登录成功与 Profile 获取是分离的异步过程，导致用户在跳转瞬间看到的是权限受限的旧 UI，产生“菜单丢失”的假象。
+    *   **反思**：**关键状态必须原子化 (Atomic State Sync)**。不应依赖跳转后的二次请求来确定初始权限。
+    *   **改进**：重构登录接口，实现 **“登录即 Profile”** 的原子握手；增加 `AccessGuard` 的状态订阅，消灭权限判定死区。
+*   **故障点 3：React 属性强力污染 (Prop Pollution)**
+    *   **现象**：组件误传非法属性（如 `block`）触发 React 运行时警告。
+    *   **反思**：这是由于对第三方库（Ant Design）API 的“经验性猜测”而非“类型化检查”导致的。
+    *   **改进**：强制在 IDE 中启用严格类型推导，严禁使用 `any` 绕过 UI 组件的 Props 检查。
+
+---
+
+## 🛠️ 系统性补全方案 (Advanced Hardening Matrix - Updated)
+
+### 策略 D：状态原子化保障 —— “登录握手协议” (Atomic Auth Handshake)
+*   **工程标准**：
+    *   **Immediate Injection**：登录接口返回体必须包含用户的核心 Role 与 Permission 列表。
+    *   **Auth Store Guard**：`setAuthenticated` 必须同时接收并注入用户详情，阻塞导航直到 Profile 状态机完成首记映射。
+    *   **Navigation Reactivity**：侧边栏菜单生成函数必须强依赖于 `profile` 实例，确保状态变更时 UI 实时重新计算。
 
 ---
 
@@ -79,12 +103,14 @@
 
 ## 🛠️ 核心开发原则 (Golden Rules - Updated)
 
-1.  **NO MAGIC**：拒绝第三方库的黑盒默认。
+1.  **NO MAGIC & NO GUESS**：拒绝库的默认行为，亦拒绝凭经验猜测组件 Props。
 2.  **DIRECT ACCESS**：内存直连优先。
 3.  **STRICT RETRY & SEQUENCING**：外部 API 必须受控重试且按序接受。
-4.  **UI STABILITY FIRST**：宁可展示加载中的骨架屏（Skeleton），也绝不允许布局在运行中发生意外变形（No Layout Shift）。
-5.  **EVAL-DRIVEN**：分数下降即代码违约。
+4.  **UI STABILITY FIRST**：宁可显示骨架屏，绝不允许布局坍塌。
+5.  **ATOMIC OVER ASYNC**：核心状态（认证、权限、拓扑）必须在关键跳转前完成原子握手。
+6.  **ENV EXPLICITNESS**：配置文件中严禁使用 `localhost`，必须显式指定 `127.0.0.1` 或 `0.0.0.0`。
+7.  **EVAL-DRIVEN**：分数下降即代码违约。
 
 ---
 
-*最后更新日期: 2026-04-08*
+*最后更新日期: 2026-04-13*

@@ -31,39 +31,58 @@ class DebateOrchestrator:
     async def run_debate(self, query: str, max_rounds: int = 2, human_steer: str | None = None) -> DebateResult:
         logger.info(f"⚔️ [L5 Debate] Starting Inter-Swarm Debate for: {query}")
         
-        # 🕵️ L5 SCOPING GATE: Clarify BEFORE Discussing
+        # 🕵️ L5 SCOPING GATE: Clarify BEFORE Discussing + Determine Priority
         audit = await self.scoping_gate.audit_query(query)
+        
+        # 🚦 L5 PRIORITY STRATEGY
+        priority = audit.priority or 2
+        logger.info(f"🚦 [L5 Priority] Assigned Level: {priority} ({audit.priority_reasoning})")
+        
+        # Mapping Priority to Strategy
+        # Models can be overridden here if configured in settings, for now we use tiers but could inject specific strings
+        strategy = {
+            1: {"rounds": 1, "tier": 1, "use_diversity": False},
+            2: {"rounds": 2, "tier": 2, "use_diversity": False},
+            3: {"rounds": 3, "tier": 3, "use_diversity": False},
+            4: {"rounds": 4, "tier": 3, "use_diversity": True, "model_a": "gpt-4o", "model_b": "claude-3-opus-20240229"},
+            5: {"rounds": 5, "tier": 3, "use_diversity": True, "model_a": "gpt-4-turbo", "model_b": "gemini-1.5-pro"}
+        }.get(priority, {"rounds": 2, "tier": 2, "use_diversity": False})
+
+        rounds = strategy["rounds"]
+        tier = strategy["tier"]
+        model_a = strategy.get("model_a") if strategy["use_diversity"] else None
+        model_b = strategy.get("model_b") if strategy["use_diversity"] else None
+
         if not audit.is_clear:
             logger.warning(f"⚠️ [SCOPING ALERT] Blind discussion detected! Missing: {audit.missing_dimensions}")
             logger.warning(f"👉 MUST CLARIFY: {audit.critical_questions}")
-            # In a real HAT environment, we would await user input here.
-            # For this demo, we auto-inject the defaults to keep moving but log the warning.
         
         # ⚓ STRATEGIC ANCHOR: The 'Moderator' voice + Human Steer
         steer_prefix = f"### 👑 HUMAN STEER: {human_steer}\n" if human_steer else ""
-        moderator_voice = f"{steer_prefix}MODERATOR NOTICE: Stay focused on the ORIGINAL QUERY: '{query}'. Avoid pedantic depth. Focus on actionable architecture."
+        moderator_voice = f"{steer_prefix}MODERATOR NOTICE: Stay focused on the ORIGINAL QUERY: '{query}'. Importance Tier: {priority}. Avoid pedantic depth. Focus on actionable architecture."
 
         # 1. Generate parallel proposals (PHASE 1)
-        logger.info("PHASE 1: Generating competing proposals...")
-        task_a = self.swarm_a.run_swarm(f"{moderator_voice}\nPROPOSE A PERFORMANCE-FIRST SOLUTION.", human_steer=human_steer)
-        task_b = self.swarm_b.run_swarm(f"{moderator_voice}\nPROPOSE A SECURITY-FIRST SOLUTION.", human_steer=human_steer)
+        logger.info(f"PHASE 1: Generating competing proposals (Strategy: Tier {tier}, Diverse: {strategy['use_diversity']})...")
+        task_a = self.swarm_a.run_swarm(f"{moderator_voice}\nPROPOSE A PERFORMANCE-FIRST SOLUTION.", human_steer=human_steer, model_override=model_a, priority_override=priority)
+        task_b = self.swarm_b.run_swarm(f"{moderator_voice}\nPROPOSE A SECURITY-FIRST SOLUTION.", human_steer=human_steer, model_override=model_b, priority_override=priority)
         
         results = await asyncio.gather(task_a, task_b)
         res_a, res_b = results[0], results[1]
 
         # 2. Iterative Critique with Round Cap
-        logger.info(f"PHASE 2: Iterative Cross-Critique (Max {max_rounds} rounds)...")
+        logger.info(f"PHASE 2: Iterative Cross-Critique (Max {rounds} rounds)...")
         current_a = res_a
         current_b = res_b
         
-        for r in range(max_rounds):
-            logger.info(f"--- Debate Round {r+1}/{max_rounds} ---")
+        last_critique_a = "No critique yet."
+        last_critique_b = "No critique yet."
+
+        for r in range(rounds):
+            logger.info(f"--- Debate Round {r+1}/{rounds} ---")
             
-            # Cross-Critique
-            critique_a = await self.swarm_b.run_swarm(f"{moderator_voice}\nCRITIQUE PROPOSAL A based on Security: {current_a}", human_steer=human_steer)
-            critique_b = await self.swarm_a.run_swarm(f"{moderator_voice}\nCRITIQUE PROPOSAL B based on Performance: {current_b}", human_steer=human_steer)
-            
-            # If both agree or changes are minimal, we could break here (TODO: semantic similarity)
+            # Cross-Critique (Swarm B critiques A, Swarm A critiques B)
+            critique_a = await self.swarm_b.run_swarm(f"{moderator_voice}\nCRITIQUE PROPOSAL A based on Security Standards: {current_a}", human_steer=human_steer, model_override=model_b, priority_override=priority)
+            critique_b = await self.swarm_a.run_swarm(f"{moderator_voice}\nCRITIQUE PROPOSAL B based on Performance Metrics: {current_b}", human_steer=human_steer, model_override=model_a, priority_override=priority)
             
             # Just keep the last critiques for synthesis
             last_critique_a = critique_a
@@ -74,6 +93,7 @@ class DebateOrchestrator:
         synthesis_prompt = f"""
         You are the HVM-Synthesizer. You must resolve a high-level architectural debate.
         
+        OBJECTIVE PRIORITY: {priority} ({audit.priority_reasoning})
         QUERY: {query}
         
         SWARM A (PERFORMANCE) PROPOSAL: {res_a}
@@ -102,7 +122,7 @@ class DebateOrchestrator:
             query=query,
             consensus_plan=data.get("consensus_plan", ""),
             rationale=data.get("why_this_is_best", "Synthesized from multi-swarm debate."),
-            trace_id=res_a.get("trace_id", "L5-DEBATE")
+            trace_id=res_a.get("final_context", {}).get("trace_id", "L5-DEBATE")
         )
 
         # 🏗️ L5 SKILL SYNTHESIS: Industrialize Output (Autonomous Skill Factory)
@@ -117,8 +137,8 @@ class DebateOrchestrator:
             scoping_audit=audit,
             proposal_a=res_a,
             proposal_b=res_b,
-            critique_a_by_b=str(critique_a),
-            critique_b_by_a=str(critique_b),
+            critique_a_by_b=str(last_critique_a),
+            critique_b_by_a=str(last_critique_b),
             consensus_plan=data.get("consensus_plan", ""),
             winner_score_a=data.get("score_a", 0.5),
             winner_score_b=data.get("score_b", 0.5)

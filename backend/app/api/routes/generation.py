@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from app.services.generation import get_generation_service
 from app.services.generation.protocol import GenerationContext
 
+from app.common.response import ApiResponse
+
 router = APIRouter()
 
 
@@ -26,7 +28,7 @@ class GenerateResponse(BaseModel):
     draft: dict[str, Any] | None = None
 
 
-@router.post("/run", response_model=GenerateResponse)
+@router.post("/run", response_model=ApiResponse[GenerateResponse])
 async def run_generation(request: GenerateRequest):
     """
     Run the Generation Pipeline (Retrieval -> Draft -> Correct -> Export).
@@ -48,7 +50,7 @@ async def run_generation(request: GenerateRequest):
             draft=draft_dict,
         )
         ctx.cleanup()
-        return res
+        return ApiResponse.ok(data=res)
     except Exception as e:
         # In production, log error properly
         raise HTTPException(status_code=500, detail=str(e)) from e

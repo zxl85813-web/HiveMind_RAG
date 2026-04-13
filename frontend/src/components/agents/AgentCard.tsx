@@ -25,7 +25,7 @@ export interface AgentCardProps {
     /** 运行状态 */
     status: 'idle' | 'processing' | 'reflecting';
     /** 当前正在处理的任务 (可选) */
-    currentTask?: string;
+    current_task?: string;
 }
 
 export const AgentCard: React.FC<AgentCardProps> = ({
@@ -33,7 +33,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
     description,
     icon,
     status,
-    currentTask,
+    current_task,
 }) => {
     return (
         <Card hoverable className={styles.card}>
@@ -45,9 +45,9 @@ export const AgentCard: React.FC<AgentCardProps> = ({
                     <StatusTag status={status} />
                 </Flex>
                 <Text type="secondary" className={styles.desc}>{description}</Text>
-                {currentTask && (
+                {current_task && (
                     <Text type="secondary" className={styles.task}>
-                        📌 {currentTask}
+                        📌 {current_task}
                     </Text>
                 )}
             </Flex>

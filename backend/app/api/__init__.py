@@ -15,6 +15,7 @@ from app.api.routes import (
     health,
     knowledge,
     learning,
+    llm_config,
     memory,
     observability,
     pipelines,
@@ -23,6 +24,8 @@ from app.api.routes import (
     tags,
     telemetry,
     websocket,
+    auth,
+    governance,
 )
 
 router = APIRouter()
@@ -44,4 +47,7 @@ router.include_router(evaluation.router, prefix="/evaluation", tags=["RAG Evalua
 router.include_router(finetuning.router, prefix="/finetuning", tags=["Fine-tuning SFT Data"])
 router.include_router(pipelines.router, prefix="/pipelines", tags=["Pipelines"])
 router.include_router(settings.router, prefix="/settings", tags=["Platform Settings"])
+router.include_router(llm_config.router, prefix="/settings/llm", tags=["LLM Governance"])
 router.include_router(observability.router, prefix="/observability", tags=["Observability"])
+router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+router.include_router(governance.router, prefix="/governance", tags=["Internal Governance"])

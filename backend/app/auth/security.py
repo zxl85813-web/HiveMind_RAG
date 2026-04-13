@@ -13,24 +13,31 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from passlib.context import CryptContext
+import bcrypt
 
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.logging import logger
 
 # === Password Hashing ===
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
     """哈希密码。"""
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    # bcrypt expectations: password as bytes
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码。"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8")
+        )
+    except Exception:
+        return False
 
 
 # === JWT Token ===
@@ -82,5 +89,5 @@ def decode_access_token(token: str) -> dict[str, Any]:
         logger.warning("Token expired")
         raise AuthenticationError("Token has expired") from None
     except jwt.InvalidTokenError as e:
-        logger.warning("Invalid token: {}", e)
-        raise AuthenticationError("Invalid token") from e
+        logger.warning(f"Invalid token: {e} (Using SECRET_KEY starting with: {settings.SECRET_KEY[:4]}...)")
+        raise AuthenticationError(f"Invalid token: {str(e)}") from e

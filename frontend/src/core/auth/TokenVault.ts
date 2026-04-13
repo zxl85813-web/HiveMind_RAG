@@ -16,7 +16,7 @@ class TokenVault {
      * 优先从当前标签页会话获取，确保 Tab 间隔离。
      */
     getAccessToken(): string | null {
-        return sessionStorage.getItem(TokenVault.ACCESS_KEY);
+        return sessionStorage.getItem(TokenVault.ACCESS_KEY) || localStorage.getItem(TokenVault.ACCESS_KEY);
     }
 
     /** 
@@ -47,6 +47,7 @@ class TokenVault {
         sessionStorage.removeItem(TokenVault.ACCESS_KEY);
         sessionStorage.removeItem(TokenVault.REFRESH_KEY);
         sessionStorage.removeItem(TokenVault.USER_KEY);
+        localStorage.removeItem(TokenVault.ACCESS_KEY); // Also clear persistent recovery token
         // 不清除 LAST_USER, 允许离线预读取历史配置
     }
 

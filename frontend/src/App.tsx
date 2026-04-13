@@ -23,6 +23,7 @@ import { MockControl } from './components/common/MockControl';
 import { appRoutes } from './config/appRoutes';
 import { AuthGuard } from './guards/AuthGuard';
 import { AccessGuard } from './guards/AccessGuard';
+import { StaticHelperManager } from './components/common/StaticHelperManager';
 import { useAuthStore } from './stores/authStore';
 
 // 🚀 [Architecture-Gate]: 路由级代码分割 (Code Splitting)
@@ -43,6 +44,7 @@ const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ de
 const ArchitectureLabPage = lazy(() => import('./pages/ArchitectureLabPage'));
 const TokenDashboardPage = lazy(() => import('./pages/TokenDashboardPage').then(m => ({ default: m.TokenDashboardPage })));
 const KBAnalyticsPage = lazy(() => import('./pages/KBAnalyticsPage').then(m => ({ default: m.KBAnalyticsPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const TracePage = lazy(() => import('./pages/TracePage').then(m => ({ default: m.TracePage })));
 const ForbiddenPage = lazy(() => import('./pages/ForbiddenPage').then(m => ({ default: m.ForbiddenPage })));
 
@@ -64,6 +66,7 @@ const pageComponentMap = {
   tokenDashboard: TokenDashboardPage,
   kbAnalytics: KBAnalyticsPage,
   trace: TracePage,
+  login: LoginPage,
 } as const;
 
 /**
@@ -141,10 +144,12 @@ function App() {
     <XProvider>
       <ConfigProvider theme={appTheme} locale={zhCN}>
         <AntApp>
+          <StaticHelperManager />
           <ErrorBoundary>
             <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
               <Routes>
                 <Route path="/forbidden" element={<ForbiddenPage />} />
+                <Route path="/login" element={<LoginPage />} />
                 <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
                   {appRoutes.map((route) => {
                     const PageComponent = pageComponentMap[route.key as keyof typeof pageComponentMap];

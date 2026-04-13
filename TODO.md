@@ -16,19 +16,41 @@
 | 维度 | Agent / 模块 | 核心待办 (Now / Next / Later) | 状态 |
 | :--- | :--- | :--- | :--- |
 | **路由层** | RAGGateway | [x] 意图预取 (Intent Scaffolding) & 4 层路由 (Arachne) | ✅ 已完成 |
-| **执行层** | Workers | ⬜ 标签→Pipeline 动态分派系统 (M3.1.5) | ⬜ 未启动 |
+| **执行层** | Workers | ⬜ 标签→Pipeline 动态分派 system (M3.1.5) | ⚠️ 观察到后端重启后服务挂死 |
 | **存储层** | Memory Agent | [x] 知识库 Gap-Insight 自动诊断 (Radar Integration) | ✅ 已完成 |
-| **治理层** | Governance Agent | [x] L4 过程审计网关 & 认知指令闭环修复 (M4.2.4~M4.2.7) | ✅ 已硬化 |
+| **治理层** | Governance Agent | [x] 治理页面(Settings/Audit)渲染修复 (Import/CSS Fixes) | ✅ 已修复 |
 | **前端层** | AgentsPage | [x] Layout Locking 与 意图脉冲 (Arachne UI) | ✅ 已完成 |
 | **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
-| **协同层** | DebateOrchestrator| [x] L5 需求定界、辩论引擎与人机统帅 (HAT) | 🚀 L5 MVP |
+| **协同层** | DebateOrchestrator| [x] L5 需求定界、多模型辩论引擎与优先级策略 (Priority & Multi-AI) | ✅ 已硬化 |
+| **治理层** | GovernanceHook | [x] 强制事故上报系统 (Force Incident Recording) & 规约卫兵 (ContractGuard) | ✅ 已交付 |
 
 ---
 
 ## ✅ 已完成归档 (最近 Sprint)
 
-### [2026-04-09] L5 智体协同与人机编队 (L5 Synergy & Human-Agent Teaming)
-- [x] **需求定界网关 (Scoping Gate)**: 落地 `ScopingAgent`，强制执行“前置确认”审计，拒绝模糊开工。
+### [2026-04-10] 系统加固与治理修复 (System Hardening & Governance Fixes)
+- [x] **治理页面渲染修复**: 修复 `SettingsPage` 与 `AuditPage` 的缺失导入 (Flex, icon) 与 损毁 CSS 引用，恢复治理后台可用性。
+- [x] **API 类型声明冷修复**: 修正 `settingsApi.ts` 中非法的 `bool` 关键字为 `boolean`。
+- [x] **系统状态审计**: 诊断出后端服务在重启后未真正拉起，以及 SiliconFlow 模型 404 与 Token 段缺失 (JWT segments error) 等隐患。
+
+### [2026-04-13] 网络连通性与权限同步加固 (Connectivity & Permission Hardening)
+- [x] **跨域连接修复**: 修复 Windows 环境下 localhost 解析导致的 `ERR_CONNECTION_REFUSED`，通过绑定 `0.0.0.0` 及代理目标指向 `127.0.0.1` 解决。
+- [x] **权限同步秒级生效**: 解决登录后菜单显示滞后的问题，实现登录成功后的 Profile 即时填充与路由守卫状态订阅。
+- [x] **控制台警告清理**: 消除 `Typography.Text` 的非法 `block` 属性警告，并补全 PWA Meta 标签。
+
+### [2026-04-12] 基础架构稳定性加固 (Infrastructure Stabilization)
+- [x] **Swarm 核心方法回正**: 补全 `SwarmOrchestrator` 丢失的 `get_agents` 与 `invoke_stream` 方法，修复 500 崩溃。
+- [x] **全局异常处理治理**: 在 `main.py` 注册异常处理器，确保所有 5xx 错误返回合规 JSON 并解决 CORS 头丢失风险。
+- [x] **Ant Design v6 适配**: 迁移 `notification` 的 `message` 字段为 `title`，重构已弃用的 `List` 组件为 Flex 布局。
+- [x] **401 死循环拦截**: 在 API 拦截器注入路由锁，防止认证失效后的重定向风暴。
+
+- [x] **需求定界网关 (Scoping Gate)**: 落地 `ScopingAgent`，强制执行“前置确认”审计，并根据需求复杂度自动判定优先级 (Priority 1-5)。
+- [x] **多模型辩论演进 (Multi-AI Debate)**: 升级 `DebateOrchestrator`，支持高优先级任务通过 GPT-4o/Claude-3/Gemini 等异构模型进行红蓝对抗，增加博弈多样性。
+- [x] **模型方言适配 (Model Dialect Adaptation)**: 交付 `ModelDialect` 引擎，针对 Claude (XML)、DeepSeek (CoT) 等不同架构自动优化提示词结构与注意力锚点。
+- [x] **黄金链路收割 (Elite Trace Harvesting)**: 交付 `EliteTraceHarvester`，自动提取高价值智体执行链路，为后续的“以大带小”蒸馏 (Distillation) 与模型微调准备高质数据集。
+- [x] **智体评审经济学 (Agent Review Economics)**: 在 `ReviewerAgent` 中集成 `ReviewGovernance` 机制，依据任务优先级动态匹配评审模型（Elite/Balanced/Economy），并引入模型优劣势（Strengths/Weaknesses）与价格敏感型审计。
+- [x] **日志闭环自演化 (Self-Evolving Logs)**: 交付 `ExperienceLearner`，实现从系统日志中自动“提取教训”，并将其反哺至 `ReviewGovernance` 实现动态策略修正。
+- [x] **动态广度与时间配置**: 实现讨论轮数 (Rounds) 与 模型 Tier 随优先级自动阶梯化调整的治理策略。
 - [x] **人机统帅接口 (Human Strategic Steering)**: 在 `SupervisorAgent` 中注入 `human_steer` 钩子，支持人类指令强行切断智体发散。
 - [x] **跨集群辩论引擎 (Inter-Swarm Debate)**: 实现 `DebateOrchestrator` 支持并行提案与红蓝互审逻辑。
 - [x] **L5 治理路线图固化**: 将 L5 核心治理原则写入 `docs/README.md` 与 `ROADMAP.md`。
@@ -162,8 +184,21 @@
 - [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 与 `docs/evaluation/` 目录
 - [ ] **L3 质量门禁**: 实现 `gate_l3_intelligence.py` 准入校验
 - [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
+- [x] **REQ-015: L5 智体治理任务提报与图谱融合 (M6.1.4)** ✅ 已硬化
+    - [x] Phase 1: 任务格式标准化与 TODO.md 扩展
+    - [x] Phase 2: Neo4j Task 节点与关系定义
+    - [x] Phase 3: TODO <-> Graph 双向同步脚本
+    - [x] Phase 4: 前端治理任务展示面板 (已通过 E2E 稳定性加固)
 
 ---
+
+## 🤖 智体提报任务 (Agent-Escalated Tasks)
+- [x] **TASK-GOV-B6135DD5**: [治理演示] Neo4j 连接池耗尽风险预警 (Priority: P0) | [查看存根](docs\tasks\TASK-GOV-B6135DD5.snapshot.md)
+
+- [x] **TASK-GOV-05898911**: [治理演示] Neo4j 连接池耗尽风险预警 (Priority: P0) | [查看存根](docs\tasks\TASK-GOV-05898911.snapshot.md)
+
+- [ ] **TASK-GOV-BC6349A1**: [治理演示] Neo4j 连接池耗尽风险预警 (Priority: P0) | [查看存根](docs\tasks\TASK-GOV-BC6349A1.snapshot.md)
+
 
 ## 🐛 待修复 Bug / 风险追踪
 

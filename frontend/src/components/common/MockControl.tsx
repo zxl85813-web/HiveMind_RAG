@@ -79,8 +79,8 @@ export const MockControl: React.FC = () => {
                         >
                             <Space direction="vertical">
                                 <Radio value="admin"><Tag color="red">ADMIN</Tag> 拥有全部页面与权限</Radio>
-                                <Radio value="operator"><Tag color="blue">OPERATOR</Tag> 可访问审核/评估/编排</Radio>
-                                <Radio value="viewer"><Tag color="default">VIEWER</Tag> 仅可访问基础浏览页面</Radio>
+                                <Radio value="user"><Tag color="blue">USER</Tag> 标准用户权限 (协作/评估/批处理)</Radio>
+                                <Radio value="readonly"><Tag color="default">VIEWER</Tag> 仅可访问基础浏览页面</Radio>
                             </Space>
                         </Radio.Group>
                     </section>

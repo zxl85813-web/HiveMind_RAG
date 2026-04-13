@@ -32,7 +32,7 @@ export interface AgentInfo {
     description: string;
     status: 'idle' | 'processing' | 'reflecting';
     icon: string;
-    currentTask?: string;
+    current_task?: string;
 }
 
 export interface SwarmStats {

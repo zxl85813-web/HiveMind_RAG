@@ -131,6 +131,34 @@ class SharedMemoryManager:
             results = await session.execute(statement)
             return results.scalars().all()
 
+    async def get_traces(self, limit: int = 50) -> dict[str, Any]:
+        """[M4.1.4] Get high-level execution traces (nodes/links) for the swarm DAG."""
+        import uuid
+        from app.models.observability import SwarmTrace
+
+        try:
+            async with async_session_factory() as session:
+                # Get latest traces
+                stmt = select(SwarmTrace).order_by(desc(SwarmTrace.created_at)).limit(limit)
+                res = await session.execute(stmt)
+                traces = res.scalars().all()
+
+                nodes = []
+                links = []
+                for t in traces:
+                    query_text = str(getattr(t, "query", "Unknown"))
+                    nodes.append({
+                        "id": getattr(t, "id", str(uuid.uuid4())),
+                        "label": query_text[:20] + "...",
+                        "status": str(getattr(t, "status", "pending")),
+                        "type": "trace",
+                    })
+                
+                return {"nodes": nodes, "links": links}
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch traces from DB: {e}")
+            return {"nodes": [], "links": [], "error": str(e)}
+
     async def suggest_gap_matches(self, limit: int = 10) -> list[dict[str, Any]]:
         """Suggest GAP -> INSIGHT pairings by exact key first, then semantic overlap."""
         gaps = await self.get_reflections(limit=200, signal_type=ReflectionSignalType.GAP)

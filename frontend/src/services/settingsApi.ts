@@ -7,8 +7,13 @@
  */
 
 import api from './api';
+import type { ApiResponse } from '../types';
 
-// === 类型定义 ===
+export interface PlatformKnowledge {
+    overview: string;
+    features: PlatformFeature[];
+    faq: FAQItem[];
+}
 
 export interface PlatformFeature {
     name: string;
@@ -22,36 +27,61 @@ export interface FAQItem {
     a: string;
 }
 
-export interface PlatformKnowledge {
-    overview: string;
-    features: PlatformFeature[];
-    faq: FAQItem[];
+export interface ModelMetadata {
+    id: string;
+    name: string;
+    provider: string;
+    input_price_1m: number;
+    output_price_1m: number;
+    characteristics: string[];
+    usage_scenarios: string[];
+    status: string;
 }
 
-// === API 函数 ===
+export interface GovernanceInsight {
+    type: 'cost' | 'performance' | 'strategy';
+    title: string;
+    content: string;
+    priority: 'low' | 'medium' | 'high';
+}
+
+export interface LLMGovernanceConfig {
+    tier_mapping: {
+        simple: string;
+        medium: string;
+        complex: string;
+        reasoning: string;
+    };
+    model_registry: ModelMetadata[];
+    priority_strategies: Record<string, any>;
+    budget_daily_limit: number;
+    dialect_enabled: boolean;
+}
+
 
 export const settingsApi = {
     /** 获取平台知识库 */
     getPlatformKnowledge: () =>
-        api.get<PlatformKnowledge>('/settings/platform-knowledge'),
+        api.get<ApiResponse<PlatformKnowledge>>('/settings/platform-knowledge'),
 
     /** 整体更新平台知识库 */
     updatePlatformKnowledge: (data: PlatformKnowledge) =>
-        api.put<PlatformKnowledge>('/settings/platform-knowledge', data),
+        api.put<ApiResponse<PlatformKnowledge>>('/settings/platform-knowledge', data),
 
-    /** 添加功能模块 */
-    addFeature: (feature: PlatformFeature) =>
-        api.post<PlatformFeature>('/settings/platform-knowledge/features', feature),
+    /** 获取 LLM 治理配置 (L5) */
+    getLlmGovernance: () =>
+        api.get<ApiResponse<LLMGovernanceConfig>>('/settings/llm/llm-governance'),
 
-    /** 删除功能模块 */
-    deleteFeature: (name: string) =>
-        api.delete(`/settings/platform-knowledge/features/${encodeURIComponent(name)}`),
+    /** 更新 LLM 治理配置 (L5) */
+    updateLlmGovernance: (data: LLMGovernanceConfig) =>
+        api.put<ApiResponse<LLMGovernanceConfig>>('/settings/llm/llm-governance', data),
 
-    /** 添加 FAQ */
-    addFaq: (faq: FAQItem) =>
-        api.post<FAQItem>('/settings/platform-knowledge/faq', faq),
+    /** 获取治理洞察与建议 */
+    getAdaptiveInsights: () =>
+        api.get<ApiResponse<GovernanceInsight[]>>('/settings/llm/llm-governance/insights'),
 
-    /** 删除 FAQ */
-    deleteFaq: (index: number) =>
-        api.delete(`/settings/platform-knowledge/faq/${index}`),
+    /** 获取智体提报任务 (L5 Governance Tasks) */
+    getGovernanceTasks: () =>
+        api.get<ApiResponse<any[]>>('/settings/llm/governance/tasks'),
 };
+

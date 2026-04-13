@@ -15,5 +15,6 @@ export interface CurrentUserResponse {
 const profileEndpoint = import.meta.env.VITE_AUTH_PROFILE_ENDPOINT || '/auth/me';
 
 export const authApi = {
+    login: (payload: any) => api.post<ApiResponse<any>>('/auth/login', payload),
     getCurrentUser: () => api.get<ApiResponse<CurrentUserResponse> | CurrentUserResponse>(profileEndpoint),
 };

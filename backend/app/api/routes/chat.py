@@ -2,7 +2,7 @@
 Chat endpoints — SSE streaming for Q&A.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
@@ -14,36 +14,28 @@ from app.schemas.chat import ChatRequest, ConversationListItem
 from app.services.chat_service import ChatService
 from app.services.rate_limit_governance import rate_limit_governance_center
 
-router = APIRouter()
+from app.api.deps import get_current_user, get_db
+from app.models.chat import User
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# 临时模拟当前用户
-CURRENT_USER_ID = "mock-user-001"
+router = APIRouter()
 
 
 @router.post("/completions")
 async def chat_completions(
     request: Request,
     body: ChatRequest,
-    # TODO: current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     流式对话接口 (Server-Sent Events)。
-
-    请求:
-        POST /api/chat/completions
-        body: { "message": "你好", "conversation_id": null }
-
-    响应:
-        text/event-stream
-        data: {"type": "content", "delta": "你"}
-        ...
     """
-    logger.info(f"Stream request received: {body.message[:20]}...")
+    logger.info(f"Stream request received from {current_user.username}: {body.message[:20]}...")
 
     api_key = request.headers.get("x-api-key")
     decision = rate_limit_governance_center.check(
         route=str(request.url.path),
-        user_id=CURRENT_USER_ID,
+        user_id=current_user.id,
         api_key=api_key,
     )
     if not bool(decision["allowed"]):
@@ -62,7 +54,7 @@ async def chat_completions(
     accept_language = request.headers.get("accept-language")
 
     # 获取生成器
-    generator = ChatService.chat_stream(body, user_id=CURRENT_USER_ID, accept_language=accept_language)
+    generator = ChatService.chat_stream(body, user_id=current_user.id, accept_language=accept_language)
 
     return StreamingResponse(
         generator,
@@ -76,13 +68,17 @@ async def chat_completions(
 
 
 @router.get("/conversations", response_model=ApiResponse[list[ConversationListItem]])
-async def list_conversations(limit: int = 20, offset: int = 0):
+async def list_conversations(
+    limit: int = 20, 
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+):
     """获取会话列表。"""
     try:
-        conversations = await ChatService.get_conversations(user_id=CURRENT_USER_ID, limit=limit, offset=offset)
+        conversations = await ChatService.get_conversations(user_id=current_user.id, limit=limit, offset=offset)
         return ApiResponse.ok(data=conversations)
     except Exception as e:
-        logger.error(f"Failed to fetch conversations: {e}")
+        logger.error(f"Failed to fetch conversations for {current_user.username}: {e}")
         return ApiResponse.ok(data=[], message="Failed to load history")
 
 

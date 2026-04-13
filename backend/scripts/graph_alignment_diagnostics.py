@@ -29,8 +29,8 @@ class GraphAligner:
     🏗️ 图谱对齐诊断器 (Diagnostic Tool for Graph Integrity)
     """
     def __init__(self):
-        # Base on parent of scripts folder
-        self.root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Base on parent of backend folder
+        self.root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.store = get_graph_store()
         logger.remove()
         logger.add(sys.stderr, level="INFO")
@@ -43,16 +43,15 @@ class GraphAligner:
         except:
             return ""
 
-    def run_diagnostics(self):
-        logger.info("🕵️  正在启动 HiveMind 架构图谱全量对齐检查...")
+    async def run_diagnostics(self):
+        logger.info(f"🕵️  正在启动 HiveMind 架构图谱全量对齐检查... (Root: {self.root_path})")
         
         # 1. Physical Scan
         physical_files = {}
-        # Includes backend and docs
+        # Includes backend/app and root docs
         scan_targets = [
-            os.path.join(self.root_path, "app"), 
+            os.path.join(self.root_path, "backend", "app"), 
             os.path.join(self.root_path, "docs"),
-            os.path.abspath(os.path.join(self.root_path, "..", "docs"))
         ]
         
         for target in scan_targets:
@@ -62,6 +61,8 @@ class GraphAligner:
                 for file in files:
                     if file.endswith((".py", ".md")):
                         full_path = os.path.join(root, file)
+                        # We want the rel_path relative to the scan base or project root
+                        # Let's use rel_path from project root for consistent IDs
                         rel_path = os.path.relpath(full_path, self.root_path)
                         h = self._get_md5(full_path)
                         if h:
@@ -71,20 +72,30 @@ class GraphAligner:
         # Fetching CodeFile and Document nodes
         cypher = """
         MATCH (f) 
-        WHERE f:CodeFile OR f:Document OR f:CodeVault 
+        WHERE f:CodeFile OR f:Document OR f:CodeVault OR f:Requirement OR f:Design
         RETURN f.id AS id, f.hash AS hash, f.summary AS summary
         """
-        graph_nodes = {node['id']: node for node in self.store.query(cypher)}
+        records = await self.store.execute_query(cypher)
+        graph_nodes = {str(node['id']): node for node in records}
 
         # 3. Analyze Discrepancies
         missing, stale, hollow = [], [], []
         
         for rel_path, current_hash in physical_files.items():
-            # Normalized path ID (handling some relative prefixing)
-            node_id = rel_path.replace("\\", "/") # Graph usually uses forward slashes
+            # Normalized path ID (handling forward slashes and CASE-INSENSITIVITY)
+            # Project root relative path normalized to forward slashes is often the ID
+            node_id_norm = rel_path.replace("\\", "/").lower()
             
             # Find in graph
-            node = graph_nodes.get(node_id) or graph_nodes.get(rel_path)
+            # 1. Try exact match (rel_path with backslashes or forward slashes)
+            node = graph_nodes.get(rel_path) or graph_nodes.get(rel_path.replace("\\", "/"))
+            
+            # 2. Try case-insensitive search
+            if not node:
+                for gid, gdata in graph_nodes.items():
+                    if gid.replace("\\", "/").lower() == node_id_norm:
+                        node = gdata
+                        break
             
             if not node:
                 missing.append(rel_path)
@@ -95,13 +106,14 @@ class GraphAligner:
                     hollow.append(rel_path)
 
         # 4. Connectivity Depth (Islands - degree 0)
-        # Only check nodes that were supposed to be linked (CodeFile/Document)
         islands_cypher = """
         MATCH (n) 
-        WHERE (n:CodeFile OR n:Document) AND size((n)--()) = 0 
+        WHERE (n:CodeFile OR n:Document OR n:Requirement OR n:Design) 
+        AND COUNT { (n)--() } = 0 
         RETURN n.id AS id
         """
-        islands = [n['id'] for n in self.store.query(islands_cypher)]
+        island_records = await self.store.execute_query(islands_cypher)
+        islands = [n['id'] for n in island_records]
 
         # Output Report
         self._print_report(len(physical_files), missing, stale, hollow, islands)
@@ -136,5 +148,10 @@ class GraphAligner:
         print("═"*60 + "\n")
 
 if __name__ == "__main__":
-    aligner = GraphAligner()
-    aligner.run_diagnostics()
+    import asyncio
+    async def main():
+        aligner = GraphAligner()
+        await aligner.run_diagnostics()
+        await aligner.store.close()
+    
+    asyncio.run(main())

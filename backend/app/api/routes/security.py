@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, update
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, get_current_admin
 from app.common.response import ApiResponse
 from app.models.chat import User
 from app.models.security import (
@@ -30,10 +30,24 @@ from app.services.security_service import SecurityService
 
 router = APIRouter()
 
+"""
+安全与合规管理接口
+
+负责平台的数据脱敏策略、敏感项分析报告以及系统级的审计日志。
+它是保证平台在处理敏感信息时“既能利用知识资产，又能严防隐私泄露”的核心组件。
+"""
+
 
 @router.get("/policies", response_model=ApiResponse[list[DesensitizationPolicyRead]])
-async def list_policies(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """List all desensitization policies."""
+async def list_policies(
+    db: AsyncSession = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    列出所有数据脱敏策略。
+    
+    展示当前系统配置的所有敏感数据保护规则（如手机号脱敏、姓名匿名化等）。
+    """
     statement = select(DesensitizationPolicy).order_by(DesensitizationPolicy.id.desc())
     result = await db.execute(statement)
     policies = result.scalars().all()
@@ -44,7 +58,7 @@ async def list_policies(db: AsyncSession = Depends(get_db), current_user: User =
 async def create_policy(
     policy_in: DesensitizationPolicyCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     """Create a new policy."""
 
@@ -62,7 +76,7 @@ async def create_policy(
 
 @router.put("/policies/{policy_id}/activate", response_model=ApiResponse)
 async def activate_policy(
-    policy_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+    policy_id: int, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)
 ):
     """Activate a specific policy and deactivate others."""
     stmt = update(DesensitizationPolicy).values(is_active=False)
@@ -176,11 +190,9 @@ async def revoke_permission(
 
 @router.get("/audit/logs", response_model=ApiResponse[list[AuditLogRead]])
 async def list_audit_logs(
-    limit: int = 50, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+    limit: int = 50, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)
 ):
     """View system audit logs (Admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
 
     stmt = select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit)
     res = await db.execute(stmt)

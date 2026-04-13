@@ -7,9 +7,10 @@
  */
 
 .layout {
-    min-height: 100vh;
+    height: 100vh;
     background: var(--hm-color-bg-deepest);
     display: flex;
+    overflow: hidden; /* 防止整站级滚动 */
 }
 
 .headerAI {
@@ -79,6 +80,17 @@
     border-right: none !important;
     flex: 1;
     padding: 16px 8px;
+    overflow-y: auto;   /* 🛰️ [UI-Fix]: 侧边栏过长时局部滚动 */
+    overflow-x: hidden;
+}
+
+.nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
 }
 
 .nav :global(.ant-menu-item) {

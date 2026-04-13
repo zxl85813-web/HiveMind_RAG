@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "i18nextLng",
+          "value": "en-US"
+        }
+      ]
+    }
+  ]
+}

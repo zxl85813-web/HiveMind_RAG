@@ -18,7 +18,7 @@ taskkill /F /IM python.exe /T >nul 2>&1
 
 :: Start Backend
 echo [INFO] Starting Backend (Port 8000)...
-start "HiveMind-Backend" cmd /k "cd backend && ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+start "HiveMind-Backend" cmd /k "cd backend && ..\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: Start Frontend
 echo [INFO] Starting Frontend (Port 5173)...

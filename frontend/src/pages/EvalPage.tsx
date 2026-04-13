@@ -815,6 +815,56 @@ export const EvalPage: React.FC = () => {
         );
     };
 
+    const tabItems = [
+        {
+            key: 'arena',
+            label: <span><TrophyOutlined /> Model Arena (排行榜)</span>,
+            children: renderRagasBenchmark()
+        },
+        {
+            key: 'reports',
+            label: <span><LineChartOutlined /> 评估报告 (Reports)</span>,
+            children: (
+                <Table
+                    dataSource={reports}
+                    columns={reportColumns}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 10 }}
+                />
+            )
+        },
+        {
+            key: 'sets',
+            label: <span><DatabaseOutlined /> 测试集管理 (Testsets)</span>,
+            children: (
+                <Table
+                    dataSource={sets}
+                    columns={setColumns}
+                    rowKey="id"
+                    loading={loading}
+                />
+            )
+        },
+        {
+            key: 'badcases',
+            label: <span><BugOutlined /> Bad Cases</span>,
+            children: (
+                <Table
+                    dataSource={badCases}
+                    rowKey="id"
+                    columns={[
+                        { title: '时间', dataIndex: 'created_at', render: (t: string) => new Date(t).toLocaleString() },
+                        { title: '问题', dataIndex: 'question' },
+                        { title: '差评答案', dataIndex: 'bad_answer', ellipsis: true },
+                        { title: '原因', dataIndex: 'reason' },
+                        { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color="warning">{s.toUpperCase()}</Tag> }
+                    ]}
+                />
+            )
+        }
+    ];
+
     return (
         <PageContainer
             title="多模型协同与评估 (M2.5)"
@@ -842,44 +892,7 @@ export const EvalPage: React.FC = () => {
                 </Space>
             }
         >
-            <Tabs defaultActiveKey="arena" type="card">
-                <TabPane tab={<span><TrophyOutlined /> Model Arena (排行榜)</span>} key="arena">
-                    {renderRagasBenchmark()}
-                </TabPane>
-
-                <TabPane tab={<span><LineChartOutlined /> 评估报告 (Reports)</span>} key="reports">
-                    <Table
-                        dataSource={reports}
-                        columns={reportColumns}
-                        rowKey="id"
-                        loading={loading}
-                        pagination={{ pageSize: 10 }}
-                    />
-                </TabPane>
-
-                <TabPane tab={<span><DatabaseOutlined /> 测试集管理 (Testsets)</span>} key="sets">
-                    <Table
-                        dataSource={sets}
-                        columns={setColumns}
-                        rowKey="id"
-                        loading={loading}
-                    />
-                </TabPane>
-
-                <TabPane tab={<span><BugOutlined /> Bad Cases</span>} key="badcases">
-                    <Table
-                        dataSource={badCases}
-                        rowKey="id"
-                        columns={[
-                            { title: '时间', dataIndex: 'created_at', render: (t) => new Date(t).toLocaleString() },
-                            { title: '问题', dataIndex: 'question' },
-                            { title: '差评答案', dataIndex: 'bad_answer', ellipsis: true },
-                            { title: '原因', dataIndex: 'reason' },
-                            { title: '状态', dataIndex: 'status', render: (s) => <Tag color="warning">{s.toUpperCase()}</Tag> }
-                        ]}
-                    />
-                </TabPane>
-            </Tabs>
+            <Tabs defaultActiveKey="arena" type="card" items={tabItems} />
 
             <Modal
                 title="选择评估模型"

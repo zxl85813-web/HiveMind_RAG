@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select, desc
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_db
 from app.auth.permissions import Permission, require_permission
 from app.core.graph_store import get_graph_store
 from app.models.chat import User
+from app.models.episodic import EpisodicMemory
 from app.services.memory.memory_service import MemoryService, PersonalMemory, RoleMemory
+from app.common.response import ApiResponse
 
 router = APIRouter()
 
@@ -12,11 +16,7 @@ router = APIRouter()
 @router.get("/roles/{role_id}", dependencies=[Depends(require_permission(Permission.AGENT_VIEW))])
 async def get_role_memory(role_id: str):
     """获取角色的群体记忆 (ARM-P1-1)."""
-    # Use any valid user ID to initialize MemoryService just to load role memory
     mem_svc = MemoryService(user_id="system")
-    # Using internal method directly or we can make it public
-    # In earlier edits we didn't add the public get_role_memory, we'll access via _load_role_memory
-    # or just use the _load_role_memory directly.
     return mem_svc._load_role_memory(role_id)
 
 
@@ -47,6 +47,57 @@ async def update_personal_memory(memory: PersonalMemory, current_user: User = De
     return {"status": "success", "memory": memory}
 
 
+# ── Episodic Memory (EP-010) ──────────────────────────────────────────────
+
+@router.get("/episodes", response_model=ApiResponse[list[EpisodicMemory]])
+async def list_episodes(
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户的情节记忆列表。"""
+    stmt = (
+        select(EpisodicMemory)
+        .where(EpisodicMemory.user_id == str(current_user.id))
+        .order_by(desc(EpisodicMemory.created_at))
+        .limit(limit)
+        .offset(offset)
+    )
+    res = await db.execute(stmt)
+    memories = res.scalars().all()
+    return ApiResponse.ok(data=memories)
+
+
+@router.get("/episodes/{episode_id}", response_model=ApiResponse[EpisodicMemory])
+async def get_episode(
+    episode_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取单条情节记忆详情。"""
+    episode = await db.get(EpisodicMemory, episode_id)
+    if not episode or episode.user_id != str(current_user.id):
+        return ApiResponse.error(message="Memory not found", code=404)
+    return ApiResponse.ok(data=episode)
+
+
+@router.delete("/episodes/{episode_id}")
+async def delete_episode(
+    episode_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除指定情节记忆。"""
+    episode = await db.get(EpisodicMemory, episode_id)
+    if not episode or episode.user_id != str(current_user.id):
+        return ApiResponse.error(message="Memory not found", code=404)
+    
+    await db.delete(episode)
+    await db.commit()
+    return ApiResponse.ok(message="Episode deleted")
+
+
 @router.get("/graph")
 async def get_memory_graph(entities: list[str] = Query(None)):
     """
@@ -59,12 +110,10 @@ async def get_memory_graph(entities: list[str] = Query(None)):
     if not store or not store.driver:
         return {"nodes": [], "links": []}
 
-    # Clean entities
     safe_entities = [str(e).strip() for e in entities if e.strip()]
     if not safe_entities:
         return {"nodes": [], "links": []}
 
-    # Query Neo4j for nodes and relationships
     cypher = """
     MATCH (n)-[r]-(m)
      WHERE n.name IN $entities OR n.id IN $entities
@@ -75,7 +124,7 @@ async def get_memory_graph(entities: list[str] = Query(None)):
     LIMIT 50
     """
 
-    results = store.query(cypher, {"entities": safe_entities})
+    results = await store.execute_query(cypher, {"entities": safe_entities})
 
     nodes_map = {}
     links = []
@@ -85,8 +134,6 @@ async def get_memory_graph(entities: list[str] = Query(None)):
         t = item["target"]
         rel = item["rel"]
 
-        # Senders and receivers might be interchangeably retrieved depending on match
-        # We ensure they are in the nodes map
         s_id = s.get("id") or s.get("name")
         t_id = t.get("id") or t.get("name")
 

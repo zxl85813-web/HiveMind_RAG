@@ -29,10 +29,13 @@ export const conversationFetcher = async () => {
     // 2. 发起远程同步
     try {
         const res = await chatApi.getConversations();
-        const remoteData = res.data;
+        // 🛰️ [FE-GOV-FIX]: Backend wraps response in ApiResponse { data: [...] }
+        const remoteData = (res.data as any).data || [];
 
-        // 3. 异步刷入本地影子库
-        void edgeEngine.batchPut('conversations', remoteData);
+        // 3. 异步刷入本地影子库 (Batch Put requires an array)
+        if (Array.isArray(remoteData)) {
+            void edgeEngine.batchPut('conversations', remoteData);
+        }
 
         baseline.mark('conversations-end');
         baseline.measure('Conversation List Sync (Remote)', 'conversations-start', 'conversations-end');

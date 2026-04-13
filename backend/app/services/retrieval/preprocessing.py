@@ -8,7 +8,7 @@ Handles intent expansion, normalization, and context enrichment based on memory.
 
 from pydantic import BaseModel, Field
 
-from app.agents.llm_router import ModelTier
+from app.agents.schemas import ModelTier
 from app.services.retrieval.protocol import RetrievalContext
 from app.services.retrieval.steps import BaseRetrievalStep
 

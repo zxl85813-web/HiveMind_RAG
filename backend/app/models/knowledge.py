@@ -65,8 +65,8 @@ class Document(SQLModel, table=True):
         back_populates="documents", link_model=KnowledgeBaseDocumentLink
     )
     chunks: list["DocumentChunk"] = Relationship(back_populates="document")
-    tags: list[Tag] = Relationship(back_populates="documents", link_model=DocumentTagLink)
-    tag_links: list[DocumentTagLink] = Relationship(back_populates="document")
+    tags: list[Tag] = Relationship(back_populates="documents", link_model=DocumentTagLink, sa_relationship_kwargs={"overlaps": "tag_links,tag,document"})
+    tag_links: list[DocumentTagLink] = Relationship(back_populates="document", sa_relationship_kwargs={"overlaps": "tags,tag,document"})
 
 
 class DocumentChunk(SQLModel, table=True):

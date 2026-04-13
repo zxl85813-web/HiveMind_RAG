@@ -5,16 +5,29 @@ from app.api import deps
 from app.common.response import ApiResponse
 from app.schemas.audit import DocumentReviewRead, DocumentReviewUpdate
 from app.services.audit_service import AuditService
+from app.models.chat import User
+from app.api import deps
 
 router = APIRouter()
 
+"""
+审计管理接口
+
+提供对文档 RAG 入库前的“人工辅助审查”工作流。
+这是 HiveMind 质量门禁系统 (Quality Gate) 的一部分，确保进入知识库的信息是合规且高质量的。
+"""
 
 @router.get("/queue", response_model=ApiResponse[list[DocumentReviewRead]])
 async def get_review_queue(
     db: AsyncSession = Depends(deps.get_db),
-    # current_user = Depends(deps.get_current_admin) # TODO: Restricted to admins/reviewers
+    current_admin: User = Depends(deps.get_current_admin)
 ):
-    """Get the queue of documents pending manual review."""
+    """
+    获取待审计队列。
+    
+    列出所有处于 'pending_review' 状态、且尚未注入知识库的文档。
+    该接口受管理员权限保护，防止数据泄露。
+    """
     reviews = await AuditService.get_pending_reviews(db)
     return ApiResponse.ok(data=reviews)
 
@@ -32,6 +45,7 @@ async def approve_review(
     background_tasks: BackgroundTasks,
     comment: str = "Approved by admin",
     db: AsyncSession = Depends(deps.get_db),
+    current_admin: User = Depends(deps.get_current_admin)
 ):
     """Manually approve a document review and trigger re-indexing."""
     review = await AuditService.update_review_status(db, review_id, status="approved", comment=comment)
@@ -62,6 +76,7 @@ async def reject_review(
     review_id: str,
     comment: str = "Rejected by admin",
     db: AsyncSession = Depends(deps.get_db),
+    current_admin: User = Depends(deps.get_current_admin)
 ):
     """Manually reject a document review."""
     review = await AuditService.update_review_status(db, review_id, status="rejected", comment=comment)

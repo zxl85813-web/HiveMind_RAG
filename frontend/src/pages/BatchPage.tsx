@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Progress, Modal, Space, notification, Typography, Collapse } from 'antd';
+import { Card, Table, Tag, Button, Progress, Modal, Space, App as AntApp, Typography, Collapse } from 'antd';
 import { PlayCircleOutlined, StopOutlined, SyncOutlined, EyeOutlined } from '@ant-design/icons';
 import { PageContainer, PermissionButton } from '../components/common';
 import { batchApi, type BatchJob, type TaskUnit } from '../services/batchApi';
@@ -12,6 +12,7 @@ const { Panel } = Collapse;
 export const BatchPage: React.FC = () => {
     const hasAccess = useAuthStore((state) => state.hasAccess);
     const { track } = useMonitor();
+    const { notification } = AntApp.useApp();
     
     useEffect(() => {
         track('system', 'page_load', { page: 'BatchJobs' });
@@ -33,7 +34,7 @@ export const BatchPage: React.FC = () => {
                 setJobs(jobsData);
             }
         } catch {
-            notification.error({ message: 'Error loading batch jobs' });
+            notification.error({ title: 'Error loading batch jobs' });
         } finally {
             setLoading(false);
         }
@@ -47,7 +48,7 @@ export const BatchPage: React.FC = () => {
 
     const handleCreateMockJob = async () => {
         if (!hasAccess({ anyPermissions: ['batch:operate'] })) {
-            notification.warning({ message: '当前账号没有创建批处理任务权限' });
+            notification.warning({ title: '当前账号没有创建批处理任务权限' });
             return;
         }
 
@@ -62,10 +63,10 @@ export const BatchPage: React.FC = () => {
                     { id: "task_c", name: "Report Generation", depends_on: ["task_a", "task_b"], input_data: { prompt: "Generate full summary" } }
                 ]
             });
-            notification.success({ message: 'Demo Job Created successfully!' });
+            notification.success({ title: 'Demo Job Created successfully!' });
             fetchJobs();
         } catch {
-            notification.error({ message: 'Failed to create mock job' });
+            notification.error({ title: 'Failed to create mock job' });
         }
     };
 
@@ -77,10 +78,10 @@ export const BatchPage: React.FC = () => {
 
         try {
             await batchApi.cancelJob(jobId);
-            notification.success({ message: `Job ${jobId} cancelled` });
+            notification.success({ title: `Job ${jobId} cancelled` });
             fetchJobs();
         } catch {
-            notification.error({ message: 'Failed to cancel job' });
+            notification.error({ title: 'Failed to cancel job' });
         }
     };
 

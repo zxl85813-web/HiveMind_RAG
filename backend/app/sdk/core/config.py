@@ -1,8 +1,8 @@
-"""
-Application configuration — loaded from environment variables / .env file.
-"""
-
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+# 计算后端根目录 (C:\Users\... \aiproject\backend)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -13,8 +13,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
     ENV: str = "development"  # development | production | test
-    STORAGE_DIR: str = "storage"
-    CHECKPOINT_DB_PATH: str = "storage/swarm_checkpoints.sqlite"
+    
+    # 基于 BASE_DIR 的绝对存储路径
+    STORAGE_DIR: Path = BASE_DIR / "storage"
+    UPLOAD_DIR: Path = BASE_DIR / "uploads"
+    CHECKPOINT_DB_PATH: Path = BASE_DIR / "storage" / "swarm_checkpoints.sqlite"
 
     # === Token Governance (P0 Hardening) ===
     # Standard 32K context window budget (Reference: REQ-014)
@@ -144,7 +147,7 @@ class Settings(BaseSettings):
     GITHUB_REPO_NAME: str = "HiveMind_RAG"
     GITHUB_PROJECT_OWNER: str = ""
     GITHUB_PROJECT_NUMBER: int = 0
-    SELF_LEARNING_REPORT_DIR: str = "docs/learning/daily"
+    SELF_LEARNING_REPORT_DIR: Path = BASE_DIR / "docs" / "learning" / "daily"
     SELF_LEARNING_ISSUE_LIMIT: int = 20
     SELF_LEARNING_X_ACCOUNTS: str = "OpenAI,AnthropicAI,GoogleDeepMind,MetaAI,xai,QwenLM"
     SELF_LEARNING_AI_FEEDS: str = (

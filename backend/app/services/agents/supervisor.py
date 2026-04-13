@@ -16,6 +16,7 @@ from app.models.observability import TraceStatus as ObsStatus
 from app.services.agents.memory_bridge import SwarmMemoryBridge
 from app.services.agents.protocol import AgentTask
 from app.services.llm_gateway import llm_gateway
+from app.llm.guardrails import check_input
 from app.services.swarm_observability import finalize_swarm_trace, record_swarm_triage, start_swarm_trace
 
 
@@ -49,7 +50,7 @@ class SupervisorAgent:
         # 🧠 Memory integration (M4.2.1)
         self.memory_bridge = SwarmMemoryBridge(user_id=user_id)
 
-    async def _plan(self, query: str, feedback_history: str = "", historical_context: str = "", is_high_risk: bool = False, human_steer: str | None = None) -> SwarmPlan:
+    async def _plan(self, query: str, feedback_history: str = "", historical_context: str = "", is_high_risk: bool = False, human_steer: str | None = None, model_override: str | None = None) -> SwarmPlan:
         """Analyze query and generate a DAG with mandatory Checkpoints and Cross-Review (M4.2.2)."""
         
         # 🛡️ L4/L5 Strategic Governance
@@ -116,7 +117,8 @@ class SupervisorAgent:
             tier=target_tier,
             prompt=f"Objective: {query}",
             system_prompt=system_prompt,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            model_override=model_override
         )
 
         import json
@@ -154,7 +156,7 @@ class SupervisorAgent:
             logger.error(f"Failed to parse Plan: {e}")
             return SwarmPlan(reasoning=f"Error: {e}")
 
-    async def _verify(self, query: str, context: dict[str, Any]) -> VerifyResult:
+    async def _verify(self, query: str, context: dict[str, Any], model_override: str | None = None) -> VerifyResult:
         """Reflect on the swarm's collective output to determine if the goal is met."""
         system_prompt = f"""
         You are the HVM-Reviewer.
@@ -178,7 +180,8 @@ class SupervisorAgent:
             tier=3,
             prompt=f"Swarm Outputs:\n{context_str}",
             system_prompt=system_prompt,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            model_override=model_override
         )
 
         import json
@@ -234,7 +237,7 @@ class SupervisorAgent:
                     swarm_trace_id=trace_id,
                     description=f"Part of: {query}",
                     instruction=task_def.instruction,
-                    context=dep_context,
+                    context={**dep_context, "priority": shared_blackboard.get("__priority__", 2)},
                     blackboard=shared_blackboard # The BIG difference: peer visibility
                 )
                 tasks_to_run.append((task_id, agent.execute(agent_task)))
@@ -274,14 +277,20 @@ class SupervisorAgent:
             G_copy.remove_nodes_from(zero_in_degree)
         return batches
 
-    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None, human_steer: str | None = None) -> dict[str, Any]:
+    async def run_swarm(self, query: str, user_id: str | None = None, conversation_id: str | None = None, human_steer: str | None = None, model_override: str | None = None, priority_override: int | None = None) -> dict[str, Any]:
         """Execute the Cognitive Loop: Plan -> Execute -> Verify -> Replans."""
+        # 🛡️ P1 Guardrail: Verify input safety before planning
+        guard = check_input(query)
+        if not guard.safe:
+            logger.error(f"🚨 Swarm rejected due to safety risk: {guard.matched_rules}")
+            return {"status": "failed", "error": "Safety violation detected in query.", "risk_level": guard.risk_level}
+
         effective_user_id = user_id or self.user_id
         trace_id = await start_swarm_trace(query, user_id=effective_user_id)
 
         loop_count = 0
         feedback_history = ""
-        final_context = {}
+        final_context = {"__priority__": priority_override or 2} # Default or override priority
 
         # 🧠 PHASE 0: Context Hydration
         historical_context, is_high_risk = await self.memory_bridge.load_historical_context(query)
@@ -294,7 +303,7 @@ class SupervisorAgent:
                      logger.warning("⚠️ [L4 Cognitive Escalation] Planning with High-Risk context.")
 
                 # 1. PLAN
-                plan = await self._plan(query, feedback_history, historical_context, is_high_risk, human_steer=human_steer)
+                plan = await self._plan(query, feedback_history, historical_context, is_high_risk, human_steer=human_steer, model_override=model_override)
                 await record_swarm_triage(trace_id, f"Loop {loop_count} Plan: {plan.reasoning}")
                 logger.info(f"Plan generated with {len(plan.tasks)} tasks.")
 
@@ -314,7 +323,7 @@ class SupervisorAgent:
                     break
 
                 # 3. VERIFY
-                verify_res = await self._verify(query, final_context)
+                verify_res = await self._verify(query, final_context, model_override=model_override)
                 logger.info(f"Verification Result: Complete={verify_res.is_complete}, Feedback={verify_res.feedback}")
 
                 if verify_res.is_complete:

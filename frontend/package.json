@@ -11,6 +11,7 @@
     "theme:check:staged": "node scripts/theme-check.mjs --staged",
     "theme:check:all": "node scripts/theme-check.mjs --all",
     "theme:check:ci": "node scripts/theme-check.mjs --all",
+    "sync-api": "powershell -File scripts/sync-api.ps1",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --coverage",

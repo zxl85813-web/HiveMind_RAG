@@ -60,6 +60,34 @@ class SocialGraphService:
             logger.warning(f"Failed to update local wisdom cache: {e}")
             
         logger.info("🕸️ [SocialGraph] Consensus solidified successfully.")
+        
+    async def register_escalated_task(self, task_data: Any):
+        """
+        Registers an unresolved task in the Neo4j graph, establishing links 
+        between the problem (DecisionPoint) and the needed intervention (Task).
+        """
+        logger.info(f"🕸️ [SocialGraph] Registering escalated task: {task_data.task_id}")
+        
+        # 1. Neo4j Integration
+        # Link Task to the Trace and any DecisionPoints it originated from
+        query = (
+            "MERGE (t:Task {id: $task_id}) "
+            "ON CREATE SET t.created_at = timestamp() "
+            "SET t.title = $title, t.priority = $priority, t.status = $status, "
+            "    t.context_stub = $context_stub, t.suggested_action = $suggested_action, "
+            "    t.updated_at = timestamp() "
+            "WITH t "
+            # Optionally link to a DecisionPoint if the trace_id matches one
+            "OPTIONAL MATCH (d:DecisionPoint)-[:HAS_CONSENSUS]->(c:Consensus {trace_id: $trace_id}) "
+            "FOREACH (ignoreMe IN CASE WHEN d IS NOT NULL THEN [1] ELSE [] END | "
+            "    MERGE (d)-[:RESULTED_IN_TASK]->(t) "
+            ")"
+        )
+        
+        params = task_data.dict()
+        await self.store.execute_query(query, params)
+        
+        logger.info(f"🕸️ [SocialGraph] Task {task_data.task_id} successfully registered in Neo4j.")
 
     async def suggest_prior_wisdom(self, query: str) -> List[dict]:
         """

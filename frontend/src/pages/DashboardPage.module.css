@@ -97,3 +97,17 @@
 .activityCard {
     border: var(--hm-border-subtle);
 }
+
+.reportItem {
+    padding: var(--hm-space-md);
+    border-radius: var(--hm-radius-md);
+    border: 1px solid transparent;
+    transition: all var(--hm-duration-fast) var(--hm-ease-out);
+    cursor: pointer;
+}
+
+.reportItem:hover {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: var(--hm-color-border-hover);
+    box-shadow: var(--hm-shadow-sm);
+}

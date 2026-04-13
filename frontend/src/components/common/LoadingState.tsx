@@ -1,5 +1,4 @@
-import React from 'react';
-import { Spin, Typography, Space } from 'antd';
+import { Spin, Typography, Flex } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -28,10 +27,10 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
     );
 
     const content = (
-        <Space direction="vertical" align="center" size="middle">
+        <Flex vertical align="center" gap="middle">
             <Spin indicator={spinnerIcon} />
             {tip && <Text type="secondary" style={{ fontSize: '13px', letterSpacing: '0.5px' }}>{tip}</Text>}
-        </Space>
+        </Flex>
     );
 
     if (fullScreen) {

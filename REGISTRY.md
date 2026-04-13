@@ -167,6 +167,8 @@
 | 🆕 **动态提示恢复** | `verify_dynamic_prompt_recovery.py` | 验证长上下文动态 Prompt 恢复机制 | - | ✅ |
 | 🆕 **成本审计** | `audit_llm_costs.py` | 全系统 LLM 消耗金额统计与预警 | - | ✅ |
 | 🆕 **知识新鲜度审计** | `audit_knowledge_freshness.py` | 识别 RAG 知识库中过期的陈旧文档 | - | ✅ |
+| 🆕 **API 契约同步** | `export_openapi.py` / `sync-api.ps1` | **SSoT 驱动**: 将后端 Pydantic 模型同步至前端 TS 类型 | - | ✅ |
+| 🆕 **规约入图** | `sync_governance_to_graph.py` | 把 Markdown 规约同步至 Neo4j，实现动态治理 | - | ✅ |
 
 ---
 
@@ -178,6 +180,9 @@
 | **权限卫兵** | `AccessGuard.tsx` | 细粒度的页面/功能位级 RBAC 拦截 |
 | **统一响应** | `ApiResponse` (后端) | 遵循 `error_code / message / detail` 标准协议 |
 | **治理韧性** | `DES-001-FRONTEND_ARCHITECTURE.md` | 前端架构权威设计说明书 (整合版) |
+| **契约治理** | `DES-004-API_CONTRACT_GOVERNANCE.md` | **SSoT**: 前后端 Api 契约与类型治理规范 |
+| **图谱治理** | `DEC-005-GRAPH_DRIVEN_GOVERNANCE.md` | **Graph-Driven**: 基于 Neo4j 的动态规约映射与自愈 |
+| **全量计划** | `MASTER_GOVERNANCE_PLAN.md` | **Final Logic**: 全量治理、规约进化与刚性拦截路线图 |
 | **验证体系** | `DES-002-TESTING_STRATEGY.md` | 全链路测试与质量保障策略 (整合版) |
 | **设计系统** | `frontend-design` Skill | Cyber-Refined 赛博精致视觉规范 |
 

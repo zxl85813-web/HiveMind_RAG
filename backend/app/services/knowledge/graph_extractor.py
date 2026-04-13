@@ -28,15 +28,18 @@ Your task is to extract entities (nodes) and their relationships (edges) from th
 Output MUST be a valid JSON object in the exact following format:
 {
     "nodes": [
-        {"id": "EntityName_in_CamelCase", "label": "Concept|Person|Organization|Location|Event", "name": "Human Readable Name"}
+        {"id": "Entity_ID_or_snake_case", "label": "Concept|Person|Organization|Location|Event", "name": "Human Readable Name"}
     ],
     "edges": [
-        {"source": "EntityName_1", "target": "EntityName_2", "type": "RELATIONSHIP_IN_CAPS", "description": "Short explanation"}
+        {"source": "Source_ID", "target": "Target_ID", "type": "RELATIONSHIP_IN_CAPS", "description": "Short explanation"}
     ]
 }
 
 Rules:
-1. Every node must have a unique 'id' (no spaces, preferably CamelCase string).
+1. Every node must have a unique 'id'. 
+   - **CRITICAL**: Use the exact system ID if it appears in text (e.g., REQ-001, DES-010).
+   - Otherwise, use `snake_case` (e.g., "knowledge_graph", "agent_swarm"). 
+   - DO NOT use CamelCase for IDs unless it is an established class name.
 2. 'label' should be a categorical archetype (e.g., Person, Technology, Paper).
 3. 'type' for edges must be ALL CAPS with underscores (e.g., HAS_AUTHOR, DEPENDS_ON).
 4. Do not include introductory text. Only return the final JSON.

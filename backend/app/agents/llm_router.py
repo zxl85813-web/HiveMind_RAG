@@ -15,12 +15,7 @@ from app.core.algorithms.routing import Route, semantic_router
 from app.core.config import settings
 
 
-class ModelTier(StrEnum):
-    """Classification of models by capability and cost."""
-    SIMPLE = "simple"
-    MEDIUM = "medium"
-    COMPLEX = "complex"
-    REASONING = "reasoning"
+from app.agents.schemas import ModelTier
 
 
 class LLMRouter:

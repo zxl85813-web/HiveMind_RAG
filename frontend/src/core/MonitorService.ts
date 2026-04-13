@@ -116,7 +116,7 @@ class MonitorService {
         });
 
         // 确保 Sentry 已加载 (如果是错误上报，值得等待)
-        if (this.dsn) {
+        if (this.dsn && this.dsn !== 'https://placeholder@sentry.io/4500000000000000') {
             await this.ensureSentry();
             if (sentryInstance) {
                 sentryInstance.withScope((scope) => {

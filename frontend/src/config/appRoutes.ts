@@ -8,6 +8,7 @@ export interface AppRouteMeta {
     labelKey: string;
     icon: string;
     showInMenu: boolean;
+    category?: 'insight' | 'cognitive' | 'studio' | 'governance' | 'system';
     access?: AccessRequirement;
 }
 
