@@ -59,6 +59,7 @@ export const AppLayout: React.FC = () => {
 
     const [collapsed, setCollapsed] = React.useState(false);
     const [openKeys, setOpenKeys] = React.useState<string[]>([]);
+    const activeKey = location.pathname;
 
     useEffect(() => {
         const currentRoute = appRoutes.find(r => r.path === activeKey);
