@@ -108,9 +108,9 @@ async def get_current_admin(
     规约参考：
     - 🛰️ [RBAC-GOV]: 实现不区分大小写的角色匹配策略 (DEC-260413-003)。
     """
-    # 统一归一化角色列表进行比对
-    user_roles = [r.lower() for r in current_user.roles]
-    if "admin" not in user_roles:
+    # 🛡️ [RBAC-Harden]: 统一归一化角色进行比对 (兼容单数 role 字段)
+    user_role = current_user.role.lower() if hasattr(current_user, 'role') else ""
+    if user_role != "admin":
         logger.warning(f" 越权访问拦截: 用户 {current_user.name} 尝试访问管理员专属接口 ")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
