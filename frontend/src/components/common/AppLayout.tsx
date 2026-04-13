@@ -58,6 +58,17 @@ export const AppLayout: React.FC = () => {
     const profile = useAuthStore((state) => state.profile);
 
     const [collapsed, setCollapsed] = React.useState(false);
+    const [openKeys, setOpenKeys] = React.useState<string[]>([]);
+
+    useEffect(() => {
+        const currentRoute = appRoutes.find(r => r.path === activeKey);
+        if (currentRoute?.category) {
+            setOpenKeys(prev => {
+                const key = `cat-${currentRoute.category}`;
+                return prev.includes(key) ? prev : [...prev, key];
+            });
+        }
+    }, [activeKey]);
 
     // 🔍 [Diagnostic]: Log profile to help debug permission issues
     console.log('[AppLayout] Current Profile:', profile);
@@ -232,6 +243,8 @@ export const AppLayout: React.FC = () => {
                         <Menu
                             mode="inline"
                             selectedKeys={[activeKey]}
+                            openKeys={openKeys}
+                            onOpenChange={(keys) => setOpenKeys(keys)}
                             onClick={handleNavClick}
                             items={navItems}
                             className={styles.nav}
