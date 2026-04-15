@@ -20,6 +20,7 @@
         "learning": "技术动态",
         "audit": "数据审核",
         "devGovernance": "研发治理",
+        "agentGovernance": "智灵治理",
         "security": "安全管控",
         "evaluation": "评估专区",
         "finetuning": "数据集",
@@ -34,8 +35,10 @@
         "category": {
             "insight": "智能概览",
             "cognitive": "认知核心",
-            "studio": "实验工坊",
-            "governance": "治理合规",
+            "studio": "智创空间",
+            "lab": "性能实验室",
+            "observability": "可观测中枢",
+            "sovereign": "主权治理",
             "system": "系统设置"
         }
     },

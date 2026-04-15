@@ -122,8 +122,8 @@ export const AppLayout: React.FC = () => {
             return acc;
         }, {} as Record<string, typeof appRoutes>);
 
-    const categoryOrder: Array<'insight' | 'cognitive' | 'studio' | 'governance' | 'system'> = [
-        'insight', 'cognitive', 'studio', 'governance', 'system'
+    const categoryOrder: Array<'insight' | 'cognitive' | 'studio' | 'lab' | 'observability' | 'sovereign' | 'system'> = [
+        'insight', 'cognitive', 'studio', 'lab', 'observability', 'sovereign', 'system'
     ];
 
     const navItems = categoryOrder.map(cat => {
@@ -154,7 +154,9 @@ export const AppLayout: React.FC = () => {
             label: t(`nav.category.${cat}`),
             icon: cat === 'cognitive' ? <DatabaseOutlined /> : 
                   cat === 'studio' ? <ExperimentOutlined /> :
-                  cat === 'governance' ? <SafetyCertificateOutlined /> :
+                  cat === 'lab' ? <LineChartOutlined /> :
+                  cat === 'observability' ? <NodeIndexOutlined /> :
+                  cat === 'sovereign' ? <SafetyCertificateOutlined /> :
                   cat === 'system' ? <SettingOutlined /> : 
                   <AppstoreOutlined />,
             children: routes.map((route) => {

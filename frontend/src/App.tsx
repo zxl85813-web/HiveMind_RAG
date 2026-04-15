@@ -40,6 +40,8 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m.BatchPage })));
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const DevGovernancePage = lazy(() => import('./pages/DevGovernancePage').then(m => ({ default: m.DevGovernancePage })));
+const ArchitectureAssetsPage = lazy(() => import('./pages/ArchitectureAssetsPage').then(m => ({ default: m.ArchitectureAssetsPage })));
+const AgentGovernancePage = lazy(() => import('./pages/AgentGovernancePage').then(m => ({ default: m.AgentGovernancePage })));
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 const CanvasLabPage = lazy(() => import('./pages/CanvasLabPage').then(m => ({ default: m.CanvasLabPage })));
 const ArchitectureLabPage = lazy(() => import('./pages/ArchitectureLabPage'));
@@ -54,6 +56,8 @@ const pageComponentMap = {
   knowledge: KnowledgePage,
   audit: AuditPage,
   devGovernance: DevGovernancePage,
+  agentGovernance: AgentGovernancePage,
+  architectureAssets: ArchitectureAssetsPage,
   security: SecurityPage,
   evaluation: EvalPage,
   finetuning: FineTuningPage,

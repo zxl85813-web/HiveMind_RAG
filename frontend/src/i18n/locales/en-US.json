@@ -30,12 +30,15 @@
         "tokenDashboard": "Token Board",
         "kbAnalytics": "KB Analytics",
         "trace": "Network Trace",
+        "agentGovernance": "Agent Governance",
         "category": {
             "insight": "Insight",
             "cognitive": "Cognitive Core",
-            "studio": "Studio & Lab",
-            "governance": "Governance",
-            "system": "System & Infra"
+            "studio": "Studio",
+            "lab": "Performance Lab",
+            "observability": "Observability Hub",
+            "sovereign": "Sovereign Governance",
+            "system": "System Settings"
         }
     },
     "dashboard": {

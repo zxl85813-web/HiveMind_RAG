@@ -22,6 +22,8 @@ import {
     useSwarmTodos, 
     useSwarmTraces 
 } from '../hooks/queries/useSwarmQuery';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { SwarmChatPanel } from '../components/agents/SwarmChatPanel';
 import { useMonitor } from '../hooks/useMonitor';
 
@@ -73,7 +75,11 @@ export const AgentsPage: React.FC = () => {
                         }
                         description={
                             <div style={{ marginTop: 8 }}>
-                                <Paragraph type="secondary" style={{ marginBottom: 8, fontSize: '13px' }}>{item.description}</Paragraph>
+                                <div className="markdown-todo-desc" style={{ marginBottom: 8, fontSize: '13px', color: 'var(--hm-color-text-tertiary)' }}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {item.description}
+                                    </ReactMarkdown>
+                                </div>
                                 <Space size="middle" separator={<Text type="secondary" style={{ fontSize: '10px' }}>|</Text>} wrap>
                                     <Text type="secondary" style={{ fontSize: '11px' }}>
                                         <BulbOutlined /> <Tag variant="filled" style={{ fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>{item.created_by}</Tag>

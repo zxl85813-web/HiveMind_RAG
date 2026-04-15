@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Card, Row, Col, Statistic, List, Tag, Progress, Flex, Typography, Alert, Empty } from 'antd';
+import { Card, Row, Col, Statistic, List, Tag, Progress, Flex, Typography, Alert, Empty, Button } from 'antd';
 import { 
     SafetyCertificateOutlined, 
     HistoryOutlined, 
@@ -15,11 +15,14 @@ import {
     DatabaseOutlined
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import ReactMarkdown from 'react-markdown';
 
 const { Title, Text } = Typography;
 
 export const DevGovernancePage: React.FC = () => {
+    const navigate = useNavigate();
     const { data: stats, isLoading } = useQuery({
         queryKey: ['dev-governance-stats'],
         queryFn: async () => {
@@ -124,8 +127,17 @@ export const DevGovernancePage: React.FC = () => {
                                 size="small"
                                 dataSource={stats?.todo_stats?.items || []}
                                 renderItem={(item: string) => (
-                                    <List.Item style={{ borderColor: '#303030' }}>
-                                        <Text style={{ color: '#d9d9d9', fontSize: 12 }}>{item}</Text>
+                                    <List.Item style={{ borderColor: '#303030', padding: '8px 0' }}>
+                                        <div className="governance-todo-item" style={{ color: '#d9d9d9', fontSize: 12, width: '100%' }}>
+                                            <ReactMarkdown
+                                                components={{
+                                                    p: ({ node, ...props }) => <p style={{ margin: 0 }} {...props} />,
+                                                    strong: ({ node, ...props }) => <strong style={{ color: '#ffa940' }} {...props} />
+                                                }}
+                                            >
+                                                {item}
+                                            </ReactMarkdown>
+                                        </div>
                                     </List.Item>
                                 )}
                             />
@@ -134,6 +146,7 @@ export const DevGovernancePage: React.FC = () => {
                     <Col span={8}>
                         <Card 
                             title={<span style={{ color: '#fff' }}><DatabaseOutlined /> 资产发现流水 (Asset Feed)</span>}
+                            extra={<Button type="link" size="small" onClick={() => navigate('/governance/assets')}>查看全部</Button>}
                             bordered={false} 
                             style={{ background: '#141414', borderRadius: 12, border: '1px solid #303030', height: '100%' }}
                         >
@@ -184,22 +197,30 @@ export const DevGovernancePage: React.FC = () => {
                     <Row gutter={[16, 16]}>
                         <Col span={8}>
                             <Flex gap={12} align="center" style={{ background: '#1f1f1f', padding: '12px 16px', borderRadius: 8 }}>
-                                <SecurityScanOutlined style={{ fontSize: 24, color: '#06D6A0' }} />
+                                <SecurityScanOutlined style={{ fontSize: 24, color: stats?.guard_status?.sync_sentinel === 'healthy' ? '#06D6A0' : '#faad14' }} />
                                 <div style={{ flex: 1 }}>
                                     <Text block style={{ color: '#fff', fontSize: 13 }}>SyncSentinel</Text>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>图谱资产同步正常</Text>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        {stats?.guard_status?.sync_sentinel === 'healthy' ? '图谱资产同步正常' : `检测到 ${stats?.graph_stats?.islands || 0} 个孤岛节点`}
+                                    </Text>
                                 </div>
-                                <Tag color="success">OK</Tag>
+                                <Tag color={stats?.guard_status?.sync_sentinel === 'healthy' ? 'success' : 'warning'}>
+                                    {stats?.guard_status?.sync_sentinel === 'healthy' ? 'OK' : 'WARN'}
+                                </Tag>
                             </Flex>
                         </Col>
                         <Col span={8}>
                             <Flex gap={12} align="center" style={{ background: '#1f1f1f', padding: '12px 16px', borderRadius: 8 }}>
-                                <PartitionOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+                                <PartitionOutlined style={{ fontSize: 24, color: stats?.guard_status?.mapping_guard === 'active' ? '#1890ff' : '#faad14' }} />
                                 <div style={{ flex: 1 }}>
                                     <Text block style={{ color: '#fff', fontSize: 13 }}>MappingGuard</Text>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>检测到语义链路缺失</Text>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        {stats?.guard_status?.mapping_guard === 'active' ? '全链路映射已对齐' : '检测到语义链路缺失'}
+                                    </Text>
                                 </div>
-                                <Tag color="warning">DRFT</Tag>
+                                <Tag color={stats?.guard_status?.mapping_guard === 'active' ? "success" : "warning"}>
+                                    {stats?.guard_status?.mapping_guard === 'active' ? "SYNC" : "DRFT"}
+                                </Tag>
                             </Flex>
                         </Col>
                         <Col span={8}>
@@ -207,9 +228,13 @@ export const DevGovernancePage: React.FC = () => {
                                 <BugOutlined style={{ fontSize: 24, color: '#faad14' }} />
                                 <div style={{ flex: 1 }}>
                                     <Text block style={{ color: '#fff', fontSize: 13 }}>TraceOracle</Text>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>正在监控核心链路</Text>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        {stats?.guard_status?.trace_oracle === 'armed' ? '正在监控核心链路' : '审计引擎离线'}
+                                    </Text>
                                 </div>
-                                <Tag color="processing">RUN</Tag>
+                                <Tag color={stats?.guard_status?.trace_oracle === 'armed' ? "processing" : "default"}>
+                                    {stats?.guard_status?.trace_oracle === 'armed' ? "RUN" : "OFF"}
+                                </Tag>
                             </Flex>
                         </Col>
                     </Row>

@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Graph, Line, register, ExtensionCategory } from '@antv/g6';
-import { theme } from 'antd';
+import { theme, Checkbox, Space, Typography } from 'antd';
+
+const { Text } = Typography;
 
 /**
  * 自定义流动边 (Streaming Edge)
@@ -42,13 +44,47 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const { token } = theme.useToken();
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+
+  // 0. 提取可用类型 (Labels)
+  const availableTypes = useMemo(() => {
+    if (!data?.nodes) return [];
+    const types = new Set<string>();
+    data.nodes.forEach(n => {
+        const label = (Array.isArray(n.labels) ? n.labels[0] : n.type) || 'Unknown';
+        types.add(label);
+    });
+    return Array.from(types);
+  }, [data]);
+
+  // 初始化全选
+  useEffect(() => {
+    if (availableTypes.length > 0 && selectedTypes.length === 0) {
+        setSelectedTypes(availableTypes);
+    }
+  }, [availableTypes]);
+
+  // 计算过滤后的数据
+  const filteredData = useMemo(() => {
+    if (!data || selectedTypes.length === 0) return data;
+    const nodes = data.nodes.filter(n => {
+        const label = (Array.isArray(n.labels) ? n.labels[0] : n.type) || 'Unknown';
+        return selectedTypes.includes(label);
+    });
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const links = data.links.filter(l => 
+        nodeIds.has(typeof l.source === 'object' ? (l.source as any).id : l.source) && 
+        nodeIds.has(typeof l.target === 'object' ? (l.target as any).id : l.target)
+    );
+    return { nodes, links };
+  }, [data, selectedTypes]);
 
   useEffect(() => {
-    if (!containerRef.current || !data) return;
+    if (!containerRef.current || !filteredData) return;
 
     // 1. 数据转换
     const g6Data = {
-      nodes: data.nodes.map(n => ({
+      nodes: filteredData.nodes.map(n => ({
         id: n.id,
         data: {
           label: n.name || n.id,
@@ -61,7 +97,7 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           lineWidth: 1,
         }
       })),
-      edges: data.links.map((l, i) => ({
+      edges: filteredData.edges?.map((l, i) => ({
         id: `edge-${i}`,
         source: typeof l.source === 'object' ? (l.source as any).id : l.source,
         target: typeof l.target === 'object' ? (l.target as any).id : l.target,
@@ -72,7 +108,7 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           stroke: 'rgba(255, 255, 255, 0.15)',
           lineWidth: 1,
         }
-      }))
+      })) || []
     };
 
     // 2. 初始化图实例 (G6 v5.0)
@@ -140,19 +176,31 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
     return () => {
       graph.destroy();
     };
-  }, [data, width, height, token, onNodeClick]);
+  }, [filteredData, width, height, token, onNodeClick]);
 
   return (
-    <div 
-      ref={containerRef} 
-      className="g6-graph-container"
-      style={{ 
-        width: '100%', 
-        height: '100%', 
-        minHeight: 400, 
-        background: 'transparent',
-        overflow: 'hidden'
-      }} 
-    />
+    <div className="g6-graph-wrapper" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="g6-graph-controls" style={{ padding: '8px 16px', background: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Space size="middle">
+          <Text type="secondary" style={{ fontSize: '12px' }}>显示节点类型:</Text>
+          <Checkbox.Group 
+            options={availableTypes} 
+            value={selectedTypes} 
+            onChange={(vals) => setSelectedTypes(vals as string[])} 
+          />
+        </Space>
+      </div>
+      <div 
+        ref={containerRef} 
+        className="g6-graph-container"
+        style={{ 
+          flex: 1,
+          width: '100%', 
+          minHeight: 400, 
+          background: 'transparent',
+          overflow: 'hidden'
+        }} 
+      />
+    </div>
   );
 };
