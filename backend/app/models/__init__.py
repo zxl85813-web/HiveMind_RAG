@@ -2,12 +2,16 @@
 from .agents import ReflectionEntry, TodoItem
 from .chat import Conversation, Message, User
 from .episodic import EpisodicMemory
-from .evaluation import EvaluationItem, EvaluationReport, EvaluationSet
+from .evaluation import BadCase, EvaluationItem, EvaluationReport, EvaluationSet
+from .evolution import CognitiveDirective
 from .finetuning import FineTuningItem
+from .governance import PromptDefinition, PromptStatus
+from .intent import IntentCache
 from .knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
-from .observability import AgentSpan, FileTrace, IngestionBatch
+from .observability import AgentSpan, FileTrace, HITLTask, IngestionBatch
 from .pipeline_config import PipelineConfig
 from .security import (
+    AuditLog,
     DesensitizationPolicy,
     DesensitizationReport,
     DocumentPermission,
@@ -20,6 +24,9 @@ from .tags import DocumentTagLink, Tag, TagCategory
 
 __all__ = [
     "AgentSpan",
+    "AuditLog",
+    "BadCase",
+    "CognitiveDirective",
     "Conversation",
     "DesensitizationPolicy",
     "DesensitizationReport",
@@ -33,12 +40,16 @@ __all__ = [
     "EvaluationSet",
     "FileTrace",
     "FineTuningItem",
+    "HITLTask",
     "IngestionBatch",
+    "IntentCache",
     "KnowledgeBase",
     "KnowledgeBaseDocumentLink",
     "KnowledgeBasePermission",
     "Message",
     "PipelineConfig",
+    "PromptDefinition",
+    "PromptStatus",
     "ReflectionEntry",
     "SensitiveItem",
     "SyncTask",
@@ -47,3 +58,4 @@ __all__ = [
     "TodoItem",
     "User",
 ]
+

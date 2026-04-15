@@ -21,9 +21,11 @@ class GraderOpinion(BaseModel):
 
 class FinalEvaluation(BaseModel):
     composite_score: float
+    confidence_score: float = Field(default=1.0, description="1.0 - std_deviation. Higher is more stable.")
     opinions: list[GraderOpinion]
     verdict: str = Field(description="FAIL | PASS | EXCELLENT")
     summary: str
+    is_robust: bool = False
 
 
 class MultiGraderEval:
@@ -43,11 +45,55 @@ class MultiGraderEval:
     def __init__(self):
         self.llm = get_llm_service()
 
-    async def evaluate(self, query: str, response: str, context: str = "") -> FinalEvaluation:
-        logger.info("🧪 [MultiGrader] Starting evaluation...")
+    async def evaluate(self, query: str, response: str, context: str = "", n: int = 1) -> FinalEvaluation:
+        """
+        Evaluate a response across multiple criteria.
+        If n > 1, performs multi-sampling to ensure stability and returns a confidence score.
+        """
+        logger.info(f"🧪 [MultiGrader] Starting evaluation (n={n})...")
 
+        if n <= 1:
+            return await self._run_single_evaluation(query, response, context)
+
+        # Multi-sampling loop
+        all_evals = []
+        for i in range(n):
+            logger.info(f"   Sample {i+1}/{n}...")
+            # Use slightly different temperatures or seeds if the LLM provider supports it
+            # Here we just rely on natural variance if temperature > 0, 
+            # or consistency if temperature=0
+            eval_res = await self._run_single_evaluation(query, response, context)
+            all_evals.append(eval_res)
+
+        # Aggregate results
+        avg_score = sum(e.composite_score for e in all_evals) / n
+        
+        # Calculate consistency (Inversely proportional to variance)
+        import statistics
+        scores = [e.composite_score for e in all_evals]
+        std_dev = statistics.stdev(scores) if len(scores) > 1 else 0.0
+        confidence = max(0.0, 1.0 - (std_dev * 2)) # Heuristic: 0.1 std_dev -> 0.8 confidence
+
+        # Pick the most representative opinion set (closest to average)
+        best_eval = min(all_evals, key=lambda x: abs(x.composite_score - avg_score))
+
+        verdict = "PASS"
+        if avg_score < 0.5:
+            verdict = "FAIL"
+        elif avg_score > 0.9:
+            verdict = "EXCELLENT"
+
+        return FinalEvaluation(
+            composite_score=round(avg_score, 2),
+            confidence_score=round(confidence, 2),
+            opinions=best_eval.opinions,
+            verdict=verdict,
+            summary=f"Robust evaluation completed (n={n}) with avg score {avg_score:.2f} and confidence {confidence:.2f}.",
+            is_robust=True
+        )
+
+    async def _run_single_evaluation(self, query: str, response: str, context: str) -> FinalEvaluation:
         opinions = []
-        # In a real high-throughput system, we'd run these in parallel
         for aspect, guideline in self.CRITERIA.items():
             opinion = await self._get_grader_opinion(aspect, guideline, query, response, context)
             opinions.append(opinion)

@@ -21,6 +21,7 @@ from .faithfulness import FaithfulnessGrader
 from .relevance import RelevanceGrader
 from .correctness import CorrectnessGrader
 from .context import ContextPrecisionGrader, ContextRecallGrader
+from .instruction import InstructionFollowingGrader
 
 __all__ = [
     "BaseGrader",
@@ -30,4 +31,5 @@ __all__ = [
     "CorrectnessGrader",
     "ContextPrecisionGrader",
     "ContextRecallGrader",
+    "InstructionFollowingGrader",
 ]

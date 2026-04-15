@@ -137,7 +137,7 @@ class SwarmOrchestrator:
             "REFLECTION": "reflection", "FINISH": END, "supervisor": "supervisor"
         })
         
-        workflow.add_conditional_edges("reflection", self._route_after_reflection, {"supervisor": "supervisor", "FINISH": END})
+        workflow.add_conditional_edges("reflection", self._route_after_reflection, {"supervisor": "supervisor", "FINISH": END, "retrieval": "retrieval"})
         workflow.add_edge("parallel_worker", "consensus")
         workflow.add_edge("consensus", "reflection_decision")
 
@@ -181,9 +181,12 @@ class SwarmOrchestrator:
     
     def _create_agent_node(self, agent_def: AgentDefinition): return create_agent_node(self, agent_def)
     
-    def _route_after_reflection(self, state: SwarmState) -> Literal["supervisor", "FINISH"]:
+    def _route_after_reflection(self, state: SwarmState) -> Literal["supervisor", "FINISH", "retrieval"]:
         if state.get("reflection_count", 0) > 5: return "FINISH"
-        return state.get("next_step", "supervisor") if state.get("next_step") == "FINISH" else "supervisor"
+        step = state.get("next_step")
+        if step in ["FINISH", "retrieval", "supervisor"]:
+            return step
+        return "supervisor"
 
     async def invoke(self, user_message: str, conversation_id: str = "default") -> dict:
         await self.ensure_initialized()

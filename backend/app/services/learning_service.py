@@ -87,16 +87,90 @@ class LearningService:
     ]
 
     @staticmethod
-    async def get_subscriptions():
-        return LearningService._mock_subscriptions
+    async def record_feedback(message_id: str, rating: int, comment: str | None = None):
+        """Record user feedback into the database."""
+        async with async_session_factory() as session:
+            stmt = select(Message).where(Message.id == message_id)
+            res = await session.execute(stmt)
+            message = res.scalars().one_or_none()
+            if not message:
+                logger.warning(f"Message {message_id} not found for feedback.")
+                return
+
+            message.rating = rating
+            message.feedback_comment = comment
+            session.add(message)
+            await session.commit()
+            logger.info(f"✅ Feedback recorded for message {message_id}: {rating}")
 
     @staticmethod
-    async def add_subscription(topic: str):
-        import uuid
+    async def learn_from_feedback(message_id: str):
+        """
+        L4 Learning: Convert a negative feedback case into a Cognitive Directive.
+        """
+        async with async_session_factory() as session:
+            stmt = select(Message).where(Message.id == message_id)
+            res = await session.execute(stmt)
+            msg = res.scalars().one_or_none()
+            if not msg or msg.rating != -1:
+                return
 
-        new_sub = {"id": f"sub_{uuid.uuid4().hex[:6]}", "topic": topic, "is_active": True, "created_at": datetime.now()}
-        LearningService._mock_subscriptions.append(new_sub)
-        return new_sub
+            # Find the question (HumanMessage before this AIMessage)
+            from app.models.chat import Conversation
+            conv_stmt = select(Message).where(Message.conversation_id == msg.conversation_id).order_by(Message.created_at.desc())
+            c_res = await session.execute(conv_stmt)
+            msgs = c_res.scalars().all()
+            
+            question = ""
+            for i, m in enumerate(msgs):
+                if m.id == message_id and i + 1 < len(msgs):
+                    question = msgs[i+1].content
+                    break
+
+            if not question:
+                return
+
+            # Trigger ExperienceLearner
+            from app.models.evaluation import BadCase
+            # Create a virtual BadCase for the learner
+            case = BadCase(
+                question=question,
+                bad_answer=msg.content,
+                reason=msg.feedback_comment or "User negative feedback"
+            )
+            session.add(case)
+            await session.commit()
+            await session.refresh(case)
+
+            from app.services.evolution.experience_learner import experience_learner
+            await experience_learner.learn_from_correction(session, case.id)
+            logger.info(f"🧠 [Evolution] Learned from feedback on message {message_id}")
+
+    @staticmethod
+    async def learn_from_evaluation(report_id: str):
+        """
+        Automated Self-Improvement: Analyze failed items in an evaluation report.
+        """
+        from app.models.evaluation import EvaluationReport, BadCase
+        from app.services.evolution.experience_learner import experience_learner
+
+        async with async_session_factory() as session:
+            report = await session.get(EvaluationReport, report_id)
+            if not report: return
+
+            # Find all bad cases linked to this report that aren't yet handled
+            stmt = select(BadCase).where(BadCase.report_id == report_id, BadCase.status == "pending")
+            res = await session.execute(stmt)
+            cases = res.scalars().all()
+
+            for case in cases:
+                # If it has an expected answer (human corrected), learn deeply
+                if case.expected_answer:
+                    await experience_learner.learn_from_correction(session, case.id)
+                    case.status = "reviewed"
+                    session.add(case)
+            
+            await session.commit()
 
     @staticmethod
     async def delete_subscription(sub_id: str):
