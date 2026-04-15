@@ -43,6 +43,11 @@
 - [x] **全局异常处理治理**: 在 `main.py` 注册异常处理器，确保所有 5xx 错误返回合规 JSON 并解决 CORS 头丢失风险。
 - [x] **Ant Design v6 适配**: 迁移 `notification` 的 `message` 字段为 `title`，重构已弃用的 `List` 组件为 Flex 布局。
 - [x] **401 死循环拦截**: 在 API 拦截器注入路由锁，防止认证失效后的重定向风暴。
+- [x] **架构元数据完整性 (P0)**: 完成图谱全量增量索引，解决资产节点路径显示为 "Unknown" 的问题。
+- [x] **治理可观测性加固 (P1)**: 
+    - [x] 成功执行 `cleanup_junk_data.py` 清理测试污染数据。
+    - [x] `AgentsPage` 任务列表实现 Markdown 渲染支持。
+    - [x] `G6GraphVisualizer` 落地节点类型过滤 (Labels Filter) 功能。
 
 - [x] **需求定界网关 (Scoping Gate)**: 落地 `ScopingAgent`，强制执行“前置确认”审计，并根据需求复杂度自动判定优先级 (Priority 1-5)。
 - [x] **多模型辩论演进 (Multi-AI Debate)**: 升级 `DebateOrchestrator`，支持高优先级任务通过 GPT-4o/Claude-3/Gemini 等异构模型进行红蓝对抗，增加博弈多样性。
@@ -61,6 +66,8 @@
 - [x] **L4 行为熔断器**: 在 `SupervisorAgent` 中实现“知识真空”与“逻辑停滞”自动熔断保护 (M4.2.7)
 - [x] **L4 认知升阶路由**: 联动 `MemoryBridge` 实现高风险任务自动升级模型 Tier 与审计强度 (M4.2.4)
 - [x] **L4 红蓝对抗测试**: 交付 `AnarchyAgent` 模拟内鬼渗透，完成 3 轮治理鲁棒性演习并固化“安全治理宪法”
+- [x] **自动化红队压测框架**: 交付 `RedTeamCampaign` 系统，支持自动化攻击场景模拟、拦截率评估与前端历史报告面板 (M4.2.8)
+- [x] **治理中心可视化升级**: 在 `AgentGovernancePage` 实现“自主进化”与“对抗性压测”双看板，支持一键启动红队演习。
 
 ### [2026-03-31] 架构治理与 Code Vault (M7.1/M7.2 Architecture Resilience)
 

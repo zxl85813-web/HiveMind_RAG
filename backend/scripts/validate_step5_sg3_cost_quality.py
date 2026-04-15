@@ -118,7 +118,7 @@ def _build_prompt(i: int, rng: random.Random) -> tuple[str, int, int]:
     return expanded, token_in, token_out
 
 
-def evaluate_cost_quality(args: argparse.Namespace) -> dict[str, Any]:
+async def evaluate_cost_quality(args: argparse.Namespace) -> dict[str, Any]:
     rng = random.Random(args.seed)
     router = ClawRouterGovernance()
 
@@ -136,8 +136,10 @@ def evaluate_cost_quality(args: argparse.Namespace) -> dict[str, Any]:
         baseline_total_cost += _estimate_cost(token_in, token_out, tier=baseline_tier, args=args)
         baseline_quality_scores.append(_quality_score(baseline_tier, required_tier))
 
-        decision = router.decide([{"role": "user", "content": prompt}])
+        decision = await router.decide([{"role": "user", "content": prompt}])
         router_tier = str(decision["tier"])
+        if router_tier not in tier_counts:
+            tier_counts[router_tier] = 0
         tier_counts[router_tier] += 1
         router_total_cost += _estimate_cost(token_in, token_out, tier=router_tier, args=args)
         router_quality_scores.append(_quality_score(router_tier, required_tier))
@@ -220,12 +222,12 @@ def render_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
+async def main() -> None:
     args = _build_parser().parse_args()
     run_key = _build_run_key()
 
     t_logger.info(f"Starting Cost-Quality validation with {args.samples} samples", action="audit_start", meta={"samples": args.samples})
-    report = evaluate_cost_quality(args)
+    report = await evaluate_cost_quality(args)
     report["run_key"] = run_key
 
     output_json = backend_dir / args.output_json
@@ -254,4 +256,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

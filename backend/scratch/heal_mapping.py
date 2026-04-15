@@ -1,7 +1,13 @@
 
 import asyncio
 import os
+import sys
 from pathlib import Path
+
+# 🏗️ [Path Fix]: Ensure backend is in sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT_DIR / "backend"))
+
 from app.sdk.core.graph_store import Neo4jStore
 
 async def heal():

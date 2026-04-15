@@ -24,6 +24,11 @@
 - **结果**: ✅ 已验证。控制台警告归零，符合 PWA 规范。
 
 ### 3. 登录权限秒级同步 (Auth & Permission Synchronization)
+### 4. 治理可观测性恢复与加固 (Observability Resumption)
+- **中断恢复**: 成功从系统重启中恢复 P1 进度。
+- **元数据对齐 (P0)**: 全量刷新架构图谱索引，确保 250+ 节点元数据完整。
+- **UI/UX 增强 (P1)**: 为 `AgentsPage` 注入 Markdown 渲染器，并为 `G6GraphVisualizer` 注入动态 Checkbox 过滤引擎。
+- **数据修剪 (P1)**: 纯净化 Neo4j 数据库，移除历史残留的 'Torture Chamber' 脏节点。
 - **问题**: 登录后菜单项缺失或闪烁（Lagging），原因为 `initProfile` 异步滞后且 `AccessGuard` 缺少状态订阅。
 - **动作**: 
   - 重构 `authStore.ts` 支持在 `setAuthenticated` 时立即注入 `user` 对象。
