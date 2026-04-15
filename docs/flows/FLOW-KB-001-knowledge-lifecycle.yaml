@@ -1,0 +1,233 @@
+# 知识库全生命周期 — 业务流程定义
+# 来源: Neo4j Knowledge Graph 自动生成 + 人工校准
+# 状态: APPROVED
+
+id: FLOW-KB-001
+name: 知识库全生命周期
+description: 从创建知识库容器到文档可被检索的完整闭环流程，包含创建、上传、索引、审核、检索五个核心阶段。
+module: knowledge
+page: /knowledge
+generated_from: Neo4j Knowledge Graph (auto-generated + human-reviewed)
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 创建知识库
+    page: /knowledge
+    action: 点击"新建"按钮，填写表单，确认
+    api: POST /api/v1/knowledge
+    handler: create_knowledge_base
+    request:
+      name: "项目研发规范库"        # 必填
+      description: "存放项目技术文档"  # 可选，默认空
+      embedding_model: "text-embedding-3-small"  # 默认值
+      chunking_strategy: "recursive"  # recursive | parent_child | table_aware
+      is_public: false
+      vector_collection: "default_collection"  # 后端会自动生成 kb_{uuid8}
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空（UUID）"
+        - "data.name == 请求中的 name"
+        - "data.version == 1"
+        - "data.owner_id == 当前用户 ID"
+    db_writes:
+      - table: knowledge_bases
+        assert: "新增一行，owner_id=当前用户"
+      - table: kb_permissions
+        assert: "新增一行，user_id=owner_id, can_read=true, can_write=true, can_manage=true"
+    permissions: [kb:create]
+    precondition: 用户已登录且拥有 kb:create 权限
+    output_variables:
+      kb_id: "data.id"
+
+  - seq: 2
+    name: 上传文档到全局文档库
+    page: /knowledge
+    action: 在知识库详情抽屉中拖拽文件到上传区域
+    api: POST /api/v1/knowledge/documents
+    handler: upload_document_global
+    request:
+      file: "test_spec.pdf"  # multipart/form-data
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空（UUID）"
+        - "data.status == 'pending'"
+        - "data.filename == 上传的文件名"
+        - "data.file_size > 0"
+    db_writes:
+      - table: documents
+        assert: "新增一行，status='pending', file_type 从文件名推断"
+    events:
+      - channel: WriteEventBus
+        type: document_uploaded
+        payload: "{filename, file_type}"
+    permissions: [kb:upload]
+    precondition: "step 1 完成，用户在知识库详情页"
+    output_variables:
+      doc_id: "data.id"
+
+  - seq: 3
+    name: 关联文档到知识库（触发索引）
+    page: /knowledge
+    action: 前端在上传成功后自动调用此接口
+    api: POST /api/v1/knowledge/{kb_id}/documents/{doc_id}
+    handler: link_document
+    request:
+      kb_id: "{step_1.kb_id}"
+      doc_id: "{step_2.doc_id}"
+    response:
+      status_code: 200
+      assert:
+        - "data.status == 'pending'"
+        - "data.knowledge_base_id == kb_id"
+        - "data.document_id == doc_id"
+    db_writes:
+      - table: knowledge_base_documents
+        assert: "新增一行，status='pending'"
+        status_field: status
+        initial_status: pending
+    state_transitions:
+      - entity: KnowledgeBaseDocumentLink
+        from: pending
+        to: processing
+        trigger: "后台 index_document_task 被调度"
+    events:
+      - channel: WriteEventBus
+        type: document_linked
+        payload: "{action: 'index_requested'}"
+    permissions: [kb:upload]
+    precondition: "step 1 和 step 2 都完成，kb_id 和 doc_id 有效"
+    side_effects:
+      - "BackgroundTask: index_document_task(kb_id, doc_id) 被触发"
+      - "knowledge_bases.version += 1"
+
+  - seq: 4
+    name: 等待异步索引完成
+    type: async_wait
+    description: "后台 Celery worker 执行文档解析和向量化，前端轮询状态"
+    poll_api: GET /api/v1/knowledge/{kb_id}/documents
+    poll_condition: "knowledge_base_documents.status != 'processing'"
+    timeout: 60s
+    state_transitions:
+      - entity: KnowledgeBaseDocumentLink
+        from: processing
+        to: indexed
+        trigger: "Swarm 索引成功，confidence >= 0.8"
+        condition: "正常路径"
+      - entity: KnowledgeBaseDocumentLink
+        from: processing
+        to: pending_review
+        trigger: "低置信度 (confidence < 0.8) 或被 Swarm 标记"
+        condition: "异常路径 → 需要人工审核"
+      - entity: KnowledgeBaseDocumentLink
+        from: processing
+        to: failed
+        trigger: "Swarm 处理异常"
+        condition: "错误路径"
+    db_writes:
+      - table: obs_ingestion_batches
+        assert: "新增一行，total_files=1"
+      - table: obs_file_traces
+        assert: "新增一行，status 从 pending → running → success/pending_review/failed"
+      - table: document_chunks
+        assert: "索引成功时新增多行（每个 chunk 一行）"
+    precondition: "step 3 完成，后台任务已入队"
+
+  - seq: 5
+    name: 检索验证
+    page: /knowledge
+    action: 在知识库详情的"检索测试"Tab 中输入关键词搜索
+    api: POST /api/v1/knowledge/{kb_id}/search
+    handler: search_knowledge_base
+    request:
+      query: "项目研发规范"
+      top_k: 5
+      strategy: "hybrid"
+    response:
+      status_code: 200
+      assert:
+        - "data.results 不为空（list[dict]）"
+        - "data.results 中至少一条包含上传文档的内容片段"
+        - "data.context_log 记录了检索链路各步骤"
+    permissions: [kb:view]
+    precondition: "step 4 完成且 status == 'indexed'"
+
+error_paths:
+  - name: 权限不足 — 创建知识库
+    at_step: 1
+    trigger: "用户角色为 readonly，无 kb:create 权限"
+    expected: "403 Forbidden"
+    state_impact: "无数据变更"
+
+  - name: 权限不足 — 上传文档
+    at_step: 2
+    trigger: "用户无 kb:upload 权限"
+    expected: "403 Forbidden"
+
+  - name: 文档不存在 — 关联
+    at_step: 3
+    trigger: "doc_id 无效或已被删除"
+    expected: "404 Not Found"
+    state_impact: "knowledge_base_documents 不新增"
+
+  - name: 知识库不存在 — 关联
+    at_step: 3
+    trigger: "kb_id 无效"
+    expected: "404 Not Found"
+
+  - name: 无写权限 — 关联
+    at_step: 3
+    trigger: "用户对该 KB 无 write 权限（ACL 校验）"
+    expected: "403 Forbidden"
+
+  - name: 低置信度 — 需要人工审核
+    at_step: 4
+    trigger: "Swarm 解析置信度 < 0.8"
+    expected: "knowledge_base_documents.status = 'pending_review'"
+    recovery:
+      - "人工在 /audit 页面审核"
+      - "通过: status → indexed"
+      - "拒绝: status → failed"
+    db_impact:
+      - "obs_hitl_tasks 新增一行"
+
+  - name: 索引失败 — Swarm 异常
+    at_step: 4
+    trigger: "文档解析过程中抛出异常"
+    expected: "knowledge_base_documents.status = 'failed'"
+    recovery: "可重新触发 link_document 重试"
+
+  - name: 熔断器打开 — Swarm 过载
+    at_step: 4
+    trigger: "该 KB 连续 20 次索引失败，SwarmCircuitBreaker 进入 OPEN 状态"
+    expected: "索引请求被拒绝，返回错误"
+    recovery: "等待 300 秒（5 分钟）后自动进入 HALF-OPEN，下一次成功则恢复 CLOSED"
+
+  - name: 检索无结果
+    at_step: 5
+    trigger: "文档未成功索引（status != indexed）"
+    expected: "data.results 为空"
+    diagnosis: "检查 step 4 的状态，确认文档是否完成索引"
+
+  - name: 限流 — 上传频率过高
+    at_step: 2
+    trigger: "超过 Upload Rate Limiter (10 req/min)"
+    expected: "429 Too Many Requests, Retry-After header"
+
+events:
+  - channel: WriteEventBus
+    event_type: document_uploaded
+    triggered_at_step: 2
+    description: "文件上传到全局库后触发，用于缓存失效"
+
+  - channel: WriteEventBus
+    event_type: document_linked
+    triggered_at_step: 3
+    description: "文档关联到 KB 后触发，通知读服务同步索引"
+
+  - channel: WriteEventBus
+    event_type: document_unlinked
+    triggered_at_step: "(删除文档时触发，不在主流程中)"
+    description: "文档从 KB 移除后触发，清理向量存储"

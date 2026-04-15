@@ -1,0 +1,52 @@
+# Prompt 治理流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-GOV-001
+name: Prompt 治理与架构治理流程
+description: 上报架构事件 → 架构 Oracle 诊断 → 查看治理资产 → 查看开发统计的治理闭环。
+module: governance
+page: /governance/dev
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 上报架构事件
+    api: POST /api/v1/governance/incidents
+    handler: report_incident
+    request:
+      title: "检测到 API 响应延迟异常"
+      severity: "warning"
+      description: "P95 延迟超过 2s"
+    response:
+      status_code: 200
+    precondition: 用户已登录
+
+  - seq: 2
+    name: 架构 Oracle 诊断
+    api: POST /api/v1/governance/oracle
+    handler: architecture_oracle
+    request:
+      query: "当前系统的性能瓶颈在哪里？"
+    response:
+      status_code: 200
+      assert:
+        - "返回 AI 生成的架构诊断报告"
+    precondition: "有足够的可观测性数据"
+
+  - seq: 3
+    name: 查看治理资产
+    type: verification
+    apis:
+      - GET /api/v1/governance/assets
+      - GET /api/v1/governance/dev-stats
+      - GET /api/v1/governance/graph
+    assert:
+      - "assets 返回架构资产列表（节点、关系统计）"
+      - "dev-stats 返回开发治理统计"
+      - "graph 返回图谱可视化数据"
+
+error_paths:
+  - name: Oracle 无数据
+    at_step: 2
+    trigger: "可观测性表为空"
+    expected: "返回 'INSUFFICIENT_DATA' 状态"

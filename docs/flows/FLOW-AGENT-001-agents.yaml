@@ -1,0 +1,96 @@
+# Agent Swarm 协作流程 — 业务流程定义
+# 来源: Neo4j Knowledge Graph + 人工校准
+# 状态: APPROVED
+
+id: FLOW-AGENT-001
+name: Agent Swarm 协作流程
+description: 创建批量任务 → Swarm 执行 → 监控状态 → 查看反思日志 → 取消任务的 Agent 管理闭环。
+module: agents
+page: /agents
+generated_from: Neo4j Knowledge Graph (auto-generated + human-reviewed)
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 发起 Swarm 对话
+    page: /agents
+    action: 在 Agent 监控页面发起 Swarm 对话
+    api: POST /api/v1/agents/swarm/chat
+    handler: swarm_chat_stream
+    request:
+      message: "分析这个项目的架构"
+      conversation_id: "{可选}"
+    response:
+      type: SSE
+      assert:
+        - "返回流式 Agent 执行事件"
+        - "包含 supervisor 路由决策"
+    db_writes:
+      - table: obs_swarm_traces
+        assert: "新增一行，status=pending → running → success"
+      - table: obs_swarm_spans
+        assert: "每个参与的 Agent 新增一行"
+    events:
+      - channel: AgentMessageBus
+        type: agent_coordination
+      - channel: WebSocket
+        type: agent_stream_event
+    precondition: 用户已登录
+
+  - seq: 2
+    name: 创建批量任务
+    api: POST /api/v1/agents/batch/jobs
+    handler: create_batch_job
+    request:
+      name: "文档批量解析"
+      tasks: [{name: "parse_doc_1", skill: "ingestion"}]
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空（job_id）"
+        - "data.status == 'created'"
+    precondition: 用户已登录
+    output_variables:
+      job_id: "data.id"
+
+  - seq: 3
+    name: 监控任务状态
+    type: verification
+    api: GET /api/v1/agents/batch/jobs/{job_id}
+    assert:
+      - "data.status 为 created/running/completed/failed 之一"
+      - "data.tasks 列表不为空"
+
+  - seq: 4
+    name: 取消任务
+    api: POST /api/v1/agents/batch/jobs/{job_id}/cancel
+    handler: cancel_batch_job
+    request:
+      job_id: "{step_2.job_id}"
+    response:
+      status_code: 200
+      assert:
+        - "data.status == 'cancelled'"
+    precondition: "step 2 完成，任务处于 running 状态"
+
+  - seq: 5
+    name: 查看 Swarm 反思日志
+    type: verification
+    apis:
+      - GET /api/v1/agents/swarm/reflections
+      - GET /api/v1/agents/swarm/todos
+      - GET /api/v1/agents/swarm/traces
+    assert:
+      - "reflections 列表包含 step 1 产生的反思记录"
+      - "traces 列表包含 step 1 的执行追踪"
+
+error_paths:
+  - name: 任务不存在
+    at_step: 4
+    trigger: "job_id 无效"
+    expected: "404 Not Found"
+
+  - name: 重复取消
+    at_step: 4
+    trigger: "任务已经是 cancelled 状态"
+    expected: "幂等处理或 400"

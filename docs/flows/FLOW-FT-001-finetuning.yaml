@@ -1,0 +1,85 @@
+# Fine-tuning 数据管理流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-FT-001
+name: Fine-tuning 数据管理流程
+description: 创建训练数据对 → 人工验证 → 批量导出的 SFT 数据管理闭环。
+module: finetuning
+page: /finetuning
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 创建训练数据对
+    api: POST /api/v1/finetuning/items
+    handler: create_item
+    request:
+      instruction: "什么是向量数据库？"
+      output: "向量数据库是专门用于存储和检索高维向量的数据库系统..."
+      source_type: "manual"
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空"
+        - "data.status == 'pending_review'"
+    db_writes:
+      - table: finetuning_items
+        assert: "新增一行，status='pending_review'"
+        initial_status: pending_review
+    state_transitions:
+      - entity: FineTuningItem
+        from: pending_review
+        to: verified
+        trigger: "人工验证通过"
+    permissions: [finetuning:manage]
+    precondition: 用户已登录且有 finetuning:manage 权限
+    output_variables:
+      item_id: "data.id"
+
+  - seq: 2
+    name: 验证数据质量
+    description: "人工检查 instruction/output 对的质量，标记为 verified"
+    note: "此步骤可能通过前端 UI 操作或批量 API 完成"
+    expected_state_after: "finetuning_items.status == 'verified'"
+    state_transitions:
+      - entity: FineTuningItem
+        from: pending_review
+        to: verified
+        trigger: "人工验证通过"
+
+  - seq: 3
+    name: 查看训练数据列表
+    type: verification
+    api: GET /api/v1/finetuning/items
+    assert:
+      - "列表中包含 step 1 创建的数据对"
+      - "status 为 pending_review 或 verified"
+
+  - seq: 4
+    name: 删除训练数据
+    api: DELETE /api/v1/finetuning/items/{item_id}
+    handler: delete_item
+    request:
+      item_id: "{step_1.item_id}"
+    response:
+      status_code: 200
+    db_writes:
+      - table: finetuning_items
+        assert: "该行被删除"
+    precondition: "step 1 完成"
+
+error_paths:
+  - name: 权限不足
+    at_step: 1
+    trigger: "用户无 finetuning:manage 权限"
+    expected: "403 Forbidden"
+
+  - name: 删除已导出的数据
+    at_step: 4
+    trigger: "item.status == 'exported'"
+    expected: "应阻止删除或给出警告（已被训练集引用）"
+
+  - name: 重复创建
+    at_step: 1
+    trigger: "相同的 instruction 已存在"
+    expected: "允许（不做去重）或 409 Conflict"

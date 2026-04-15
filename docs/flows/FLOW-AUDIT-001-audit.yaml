@@ -1,0 +1,96 @@
+# 数据质量审核流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-AUDIT-001
+name: 数据质量审核流程
+description: 查看审核队列 → 审核文档 → 通过/拒绝/修改 → 验证状态变更的质量审核闭环。
+module: audit
+page: /audit
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 查看审核队列
+    type: verification
+    api: GET /api/v1/audit/queue
+    assert:
+      - "返回待审核的 DocumentReview 列表"
+      - "每条记录有 document_id, quality_score, status"
+    permissions: [audit:review]
+    precondition: "有文档处于 pending 审核状态"
+
+  - seq: 2
+    name: 通过审核
+    api: POST /api/v1/audit/{review_id}/approve
+    handler: approve_review
+    request:
+      review_id: "{从 step 1 队列中获取}"
+    response:
+      status_code: 200
+      assert:
+        - "review.status == 'approved'"
+    db_writes:
+      - table: DocumentReview
+        assert: "status 从 pending → approved"
+    state_transitions:
+      - entity: DocumentReview
+        from: pending
+        to: approved
+        trigger: "审核员点击通过"
+    permissions: [audit:review]
+    precondition: "step 1 完成，选择了一条待审核记录"
+
+  - seq: 3
+    name: 拒绝审核
+    api: POST /api/v1/audit/{review_id}/reject
+    handler: reject_review
+    request:
+      review_id: "{另一条待审核记录}"
+      comment: "内容质量不达标"
+    response:
+      status_code: 200
+      assert:
+        - "review.status == 'rejected'"
+    db_writes:
+      - table: DocumentReview
+        assert: "status 从 pending → rejected"
+    state_transitions:
+      - entity: DocumentReview
+        from: pending
+        to: rejected
+        trigger: "审核员点击拒绝"
+    permissions: [audit:review]
+
+  - seq: 4
+    name: 修改审核意见
+    api: PUT /api/v1/audit/{review_id}
+    handler: update_review
+    request:
+      review_id: "{step 2 或 step 3 的 review_id}"
+      reviewer_comment: "补充审核意见"
+    response:
+      status_code: 200
+
+  - seq: 5
+    name: 验证文档状态
+    type: verification
+    api: GET /api/v1/audit/document/{document_id}
+    assert:
+      - "返回该文档的所有审核记录"
+      - "最新记录的 status 与 step 2/3 的操作一致"
+
+error_paths:
+  - name: 权限不足
+    at_step: 2
+    trigger: "用户无 audit:review 权限"
+    expected: "403 Forbidden"
+
+  - name: 审核记录不存在
+    at_step: 2
+    trigger: "review_id 无效"
+    expected: "404 Not Found"
+
+  - name: 重复审核
+    at_step: 2
+    trigger: "review 已经是 approved 状态"
+    expected: "幂等处理或 400"

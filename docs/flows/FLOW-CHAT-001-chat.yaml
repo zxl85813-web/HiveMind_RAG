@@ -1,0 +1,100 @@
+# 对话交互流程 — 业务流程定义
+# 来源: Neo4j Knowledge Graph + 人工校准
+# 状态: APPROVED
+
+id: FLOW-CHAT-001
+name: 对话交互流程
+description: 用户发起对话 → Swarm 处理 → 流式响应 → 反馈评分 → 会话管理的完整交互闭环。
+module: chat
+page: /
+generated_from: Neo4j Knowledge Graph (auto-generated + human-reviewed)
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 发起对话（流式）
+    page: /
+    action: 在 ChatPanel 输入问题并发送
+    api: POST /api/v1/chat/completions
+    handler: chat_completions
+    request:
+      message: "什么是 RAG？"
+      conversation_id: "{可选，不传则自动创建}"
+      kb_ids: ["{已有知识库 ID}"]
+    response:
+      type: SSE (Server-Sent Events)
+      assert:
+        - "返回 text/event-stream 流"
+        - "流中包含 agent 思考过程和最终回答"
+        - "conversations 表自动创建会话（如果是新对话）"
+    db_writes:
+      - table: conversations
+        assert: "新对话时新增一行"
+      - table: messages
+        assert: "新增 user 消息 + assistant 消息各一行"
+    events:
+      - channel: WebSocket
+        type: agent_stream_event
+        description: "实时推送 Agent 执行状态到前端"
+    precondition: 用户已登录
+    output_variables:
+      conversation_id: "响应中的 conversation_id"
+      message_id: "assistant 消息的 id"
+
+  - seq: 2
+    name: 提交反馈评分
+    page: /
+    action: 点击消息旁的点赞/点踩按钮
+    api: POST /api/v1/chat/messages/{message_id}/feedback
+    handler: submit_feedback
+    request:
+      message_id: "{step_1.message_id}"
+      rating: 1
+      comment: "回答准确"
+    response:
+      status_code: 200
+    db_writes:
+      - table: messages
+        assert: "更新 rating 字段"
+      - table: bad_cases
+        assert: "rating 为负时自动创建 bad_case 记录"
+    precondition: "step 1 完成，有 message_id"
+
+  - seq: 3
+    name: 查看会话历史
+    type: verification
+    api: GET /api/v1/chat/conversations
+    assert:
+      - "列表中包含 step 1 创建的会话"
+      - "会话的 last_message_preview 不为空"
+
+  - seq: 4
+    name: 删除会话
+    api: DELETE /api/v1/chat/conversations/{conversation_id}
+    handler: delete_conversation
+    request:
+      conversation_id: "{step_1.conversation_id}"
+    response:
+      status_code: 200
+    db_writes:
+      - table: conversations
+        assert: "该行被删除"
+      - table: messages
+        assert: "关联的消息被级联删除"
+    precondition: "step 1 完成"
+
+error_paths:
+  - name: 空消息
+    at_step: 1
+    trigger: "message 为空字符串"
+    expected: "400 Bad Request"
+
+  - name: 知识库不存在
+    at_step: 1
+    trigger: "kb_ids 中包含无效 ID"
+    expected: "检索阶段返回空结果，但不报错（降级处理）"
+
+  - name: 会话不存在
+    at_step: 4
+    trigger: "conversation_id 无效"
+    expected: "404 Not Found"
