@@ -1,1 +1,14 @@
-{"mcpServers": {"test_server": {"command": "python", "args": ["dummy_mcp_server.py"], "type": "stdio"}}}
+{
+  "mcpServers": {
+    "test_server": {
+      "command": "python",
+      "args": ["dummy_mcp_server.py"],
+      "type": "stdio"
+    },
+    "commerce-server": {
+      "command": "python",
+      "args": ["../mcp-servers/commerce-server/server.py"],
+      "type": "stdio"
+    }
+  }
+}

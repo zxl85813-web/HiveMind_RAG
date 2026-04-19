@@ -168,6 +168,7 @@
 - [x] **Token 实时大屏**: 基于 `TokenUsage` 独立表的实时成本监控大屏 (`M5.2.1`)
 - [x] **知识库使用分析看板**: 热门查询/冷门文档/使用趋势前端 (`M5.2.4`)
 - [x] **并行协作 (Debate Mode)**: 实现 Supervisor 触发多智体并行工作与共识合成 (`M4.2.5`)
+- [x] **REQ-028: 智能电商 (Order & Logistics)**: 交付 Commerce MCP Server 与 2 个独立 Skill (M7.4.3)
 - [ ] **Swarm 策略 A/B 测试**: 支持在 `EvalPage` 直接对比不同 Swarm 策略的跑分结果
 
 ### 其他待办
@@ -187,9 +188,20 @@
 - [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
 - [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
 - [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发“重写查询并二次召回”的逻辑 (M5.2.5)
-- [ ] **L3 智体能力测试 (Path A)**: 自动化 RAG 评分看板集成 (M5.3) 🚧
-- [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 与 `docs/evaluation/` 目录
-- [ ] **L3 质量门禁**: 实现 `gate_l3_intelligence.py` 准入校验
+| **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
+| **观测层** | SwarmTrace | [x] DAG 链路追踪可视化修复 (Nodes+Spans Linking) | ✅ 已修复 |
+| **治理层** | Governance | [x] L3 评测流水线 JSON 解析加固与 12 阶段索引同步 | 🚧 运行中 |
+| **协同层** | DebateOrchestrator| [x] L5 需求定界、多模型辩论引擎与优先级策略 (Priority & Multi-AI) | ✅ 已硬化 |
+
+---
+
+## ✅ 已完成归档 (最近 Sprint)
+ ...
+- [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 鲁棒解析版
+- [x] **Swarm DAG 可视化**: 修复 `get_traces` 逻辑，支持 Trace -> Span 链路渲染
+- [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
+- [ ] **L3 质量门禁**: 验证 `gate_l3_intelligence.py` 在真实跑分下的准入表现
+- [ ] **12阶段架构图谱**: 等待 `index_architecture.py` 完成全量索引 (Phase 1-12)
 - [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
 - [x] **REQ-015: L5 智体治理任务提报与图谱融合 (M6.1.4)** ✅ 已硬化
     - [x] Phase 1: 任务格式标准化与 TODO.md 扩展

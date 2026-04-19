@@ -35,6 +35,7 @@
 | **微调** | ALL | `/finetuning/` | 模型微调任务管理接口 | `finetuning.py` | 🟡 骨架 |
 | **生成** | ALL | `/generation/` | 内容生成与资产输出接口 | `generation.py` | 🟡 骨架 |
 | **审计V3** | GET | `/audit/v3/` | 升级版审计链路查询接口 | `audit_v3.py` | 🟡 骨架 |
+| **电商** | ALL | `/mcp/commerce/` | 订单与物流查询接口 (Proxy to MCP) | `mcp_manager.py` | ✅ |
 
 ### 核心解耦协议 (Schemas)
 
@@ -81,6 +82,7 @@
 | 🆕 `ClawRouterGovernance` | **智能分流引擎**: 15 维动态评分决策中心 (M7.1) | `claw_router_governance.py` | ✅ |
 | 🆕 `AbstractIndexService` | **图谱索引抽象层**: 定义 `record_agent_preference` / `get_agent_preferences` 契约 | ✅ 已实现 |
 | 🆕 `BudgetService` | **成本治理中心**: LLM Token 预算统计与自动化超支熔断 (M7.1) | `app/services/governance/budget_service.py` | ✅ |
+| 🆕 `CommerceService` | **电商能力中心**: 路由与调度订单/物流查询 (REQ-028) | `app/services/commerce/` | ✅ |
 | 🆕 `KnowledgeFreshnessService` | **知识新鲜度中心**: RAG 文档生命周期巡检与过期治理 (TASK-GOV-003) | `app/services/knowledge/freshness_service.py` | ✅ |
 | 🆕 `FaithfulnessGrader` | **忠实度评估器**: 逐句 claim 验证，检测幻觉 (Eval v2) | `app/services/evaluation/graders/faithfulness.py` | ✅ |
 | 🆕 `RelevanceGrader` | **相关性评估器**: 逆向问题生成 + 语义相似度 (Eval v2) | `app/services/evaluation/graders/relevance.py` | ✅ |
