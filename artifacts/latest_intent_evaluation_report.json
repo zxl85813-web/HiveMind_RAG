@@ -1,0 +1,129 @@
+{
+  "metrics": {
+    "total": 10,
+    "intent_accuracy": 70.0,
+    "level_accuracy": 80.0
+  },
+  "details": [
+    {
+      "input": "Where is my delta 2? Order number EFUS-121453",
+      "expected": {
+        "intent": "logistics_inquiry",
+        "level": "L1"
+      },
+      "actual": {
+        "intent": "logistics_inquiry",
+        "level": "L1"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "I want to change my shipping address for order 112-9710404-9205034. It should be 123 Main St.",
+      "expected": {
+        "intent": "address_change",
+        "level": "L2"
+      },
+      "actual": {
+        "intent": "address_change",
+        "level": "L2"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "Please cancel my order #45446. I changed my mind.",
+      "expected": {
+        "intent": "order_cancel",
+        "level": "L2"
+      },
+      "actual": {
+        "intent": "order_cancel",
+        "level": "L2"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "My product is broken. How do I get a warranty replacement?",
+      "expected": {
+        "intent": "after_sales",
+        "level": "L3"
+      },
+      "actual": {
+        "intent": "after_sales",
+        "level": "L3"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "Hi, I just want to say your solar panels are great!",
+      "expected": {
+        "intent": "chitchat",
+        "level": "L5"
+      },
+      "actual": {
+        "intent": "product_usage",
+        "level": "L3"
+      },
+      "status": "FAIL"
+    },
+    {
+      "input": "Urgent: My package SF178822930 says delivered but I don't see it!",
+      "expected": {
+        "intent": "logistics_issue",
+        "level": "L1"
+      },
+      "actual": {
+        "intent": "logistics_inquiry",
+        "level": "L1"
+      },
+      "status": "FAIL"
+    },
+    {
+      "input": "Can I use the River 2 with a third-party solar panel?",
+      "expected": {
+        "intent": "product_usage",
+        "level": "L3"
+      },
+      "actual": {
+        "intent": "product_usage",
+        "level": "L3"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "I paid twice for order EFUS-999999 by mistake. Refund me!",
+      "expected": {
+        "intent": "payment_issue",
+        "level": "L2"
+      },
+      "actual": {
+        "intent": "payment_issue",
+        "level": "L2"
+      },
+      "status": "PASS"
+    },
+    {
+      "input": "eBay order 15-11602-80891: When will it be shipped?",
+      "expected": {
+        "intent": "logistics_inquiry",
+        "level": "L1"
+      },
+      "actual": {
+        "intent": "general",
+        "level": "L5"
+      },
+      "status": "FAIL"
+    },
+    {
+      "input": "I am Nancy. I want to check my VIP rights.",
+      "expected": {
+        "intent": "membership_inquiry",
+        "level": "L3"
+      },
+      "actual": {
+        "intent": "membership_inquiry",
+        "level": "L3"
+      },
+      "status": "PASS"
+    }
+  ]
+}

@@ -24,7 +24,7 @@ class Dynamics365Client:
     def __init__(self):
         self.access_token = None
         self.token_expiry = 0
-        self.app = PublicClientApplication(D365_CLIENT_ID, authority="https://login.microsoftonline.com/common")
+        self.app = PublicClientApplication(D365_CLIENT_ID, authority="https://login.microsoftonline.com/organizations")
 
     async def get_token(self):
         if self.access_token and self.token_expiry > datetime.now().timestamp():
@@ -160,6 +160,75 @@ def validate_support_id(val: str) -> str:
     # eBay: 2-5-5
     if re.match(r'^\d{2}-\d{5}-\d{5}$', val): return "EBAY_ORDER"
     return "UNKNOWN"
+
+# --- Email Reply Tools (Ref: DOCX v1.1) ---
+
+@mcp.tool()
+def analyze_incoming_email(content: str) -> dict:
+    """
+    Formal AI Classifier for incoming emails.
+    Categorizes into L1-L5 and identifies specific business intents.
+    """
+    # In production, this would call an LLM with the following prompt:
+    # "Classify this email based on: [L1: Logistics, L2: Lifecycle, L3: Product, L4: Security, L5: Others]"
+    
+    content_lower = content.lower()
+    
+    # Advanced logic (Simulation of LLM reasoning)
+    intent_map = {
+        "logistics_inquiry": (["where", "track", "delivery", "shipping", "receive", "status", "package"], "L1"),
+        "order_cancel": (["cancel", "stop", "don't want"], "L2"),
+        "address_change": (["address", "location", "ship to"], "L2"),
+        "payment_issue": (["pay", "refund", "twice", "money", "cost", "charge"], "L2"),
+        "after_sales": (["warranty", "broken", "repair", "replace", "damage"], "L3"),
+        "product_usage": (["how to", "river", "delta", "solar", "panel", "connect", "use"], "L3"),
+        "membership_inquiry": (["vip", "member", "point", "reward", "rights"], "L3"),
+        "chitchat": (["great", "good", "thanks", "love"], "L5"),
+    }
+    
+    best_intent = "general"
+    best_level = "L5"
+    max_matches = 0
+    
+    for intent, (keywords, level) in intent_map.items():
+        matches = sum(1 for kw in keywords if kw in content_lower)
+        if matches > max_matches:
+            max_matches = matches
+            best_intent = intent
+            best_level = level
+    
+    # Manual overrides for conflicting terms (Simulation of priority-based reasoning)
+    if "cancel" in content_lower: best_intent, best_level = "order_cancel", "L2"
+    elif "address" in content_lower: best_intent, best_level = "address_change", "L2"
+    elif "track" in content_lower or "where" in content_lower: 
+        if "broke" in content_lower or "warranty" in content_lower:
+            best_intent, best_level = "after_sales", "L3"
+        else:
+            best_intent, best_level = "logistics_inquiry", "L1"
+    elif "delivered" in content_lower and "not" in content_lower:
+        best_intent, best_level = "logistics_issue", "L1"
+    
+    return {
+        "scoring_level": best_level,
+        "intent": best_intent,
+        "confidence": 0.85 + (0.1 if max_matches > 1 else 0),
+        "reasoning": f"Detected keywords related to {best_intent}. Priority mapped to {best_level}.",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@mcp.tool()
+def generate_email_draft(email_context: dict) -> str:
+    """Generate an AI email draft based on CRM data and intent."""
+    intent = email_context.get("intent", "general")
+    customer = email_context.get("customer_name", "Valued Customer")
+    order_id = email_context.get("order_id", "N/A")
+    
+    res = f"--- DRAFT EMAIL ({intent.upper()}) ---\n"
+    res += f"Subject: Regarding your order {order_id} update\n\n"
+    res += f"Dear {customer},\n\nWe are processing your request. "
+    res += f"Current Status: {email_context.get('status', 'Checking...')}\n"
+    res += "\nBest regards,\nEcoFlow Support Team\n--- END ---"
+    return res
 
 if __name__ == "__main__":
     mcp.run()
