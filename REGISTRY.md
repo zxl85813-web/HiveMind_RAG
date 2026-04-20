@@ -36,6 +36,7 @@
 | **生成** | ALL | `/generation/` | 内容生成与资产输出接口 | `generation.py` | 🟡 骨架 |
 | **审计V3** | GET | `/audit/v3/` | 升级版审计链路查询接口 | `audit_v3.py` | 🟡 骨架 |
 | **电商** | ALL | `/mcp/commerce/` | 订单与物流查询接口 (Proxy to MCP) | `mcp_manager.py` | ✅ |
+| **邮件** | ALL | `/mcp/email/` | AI 邮件分级与首回草稿生成 | `mcp_manager.py` | ✅ |
 
 ### 核心解耦协议 (Schemas)
 

@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 import asyncio
 from contextlib import asynccontextmanager
 
+# @covers REQ-014
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -83,13 +84,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     _swarm.register_agent(
         AgentDefinition(
-            name="critic",
-            description="Quality control and compliance agent. Reviews generated content for safety and accuracy.",
+            name="commerce_expert",
+            description=(
+                "电商业务专家。专门处理订单查询(01)、物流轨迹(02)、订单取消(03)和地址变更(04)。"
+                "能够识别 EFXX, Amazon, eBay 等单号格式，并执行登录状态校验逻辑。"
+            ),
+            model_hint="balanced",
+        )
+    )
+    _swarm.register_agent(
+        AgentDefinition(
+            name="email_expert",
+            description=(
+                "邮件客服专家。负责邮件分级 (L1-L5)、首回草稿生成和风控审核。"
+                "擅长套用多语言模板，并能结合知识库和订单背景提供人性化回复。"
+            ),
             model_hint="reasoning",
         )
     )
 
-    logger.info("🐝 Agent Swarm initialized with 5 agents (rag, web, code, eval_architect, critic)")
+    logger.info("🐝 Agent Swarm initialized with 7 agents (rag, web, code, eval_architect, critic, commerce_expert, email_expert)")
 
     # Start External Source Background Sync Service
     from app.services.sync_service import sync_service

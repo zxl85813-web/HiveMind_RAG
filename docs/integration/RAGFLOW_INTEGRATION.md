@@ -29,6 +29,18 @@ HiveMind 的 `SKILL.md` 文件是为 Agent 提供的“操作指南”。在 RAG
 ## 3. 单号识别优化
 建议在 RAGFlow 的输入预处理环节增加正则校验节点（使用 REQ-028 中定义的正则表达式），可以大幅提升识别单号的准确率，避免 Token 浪费。
 
+## 4. 多 Agent 协作与平滑切换 (PDF Page 3)
+在 RAGFlow 中模拟 HiveMind 的多智体协作：
+- **节点路由**: 在 Canvas 中使用一个“意图分类”节点。若识别到 `order`, `logistics`, `cancel`, `address` 关键词，路由至「电商专家」节点。
+- **上下文共享**: 
+  - RAGFlow 的 Session 变量应包含 `last_agent`: 记录上一次服务的 Agent 名称。
+  - **切回通用 Agent**: 当「电商专家」检测到非本领域问题时（如："你们公司在哪？"），输出一个特定的 Signal（如 `[MODE: GENERAL]`），触发 RAGFlow 路由回到通用知识库节点。
+
+## 5. 前端交互：触发登录弹窗 (PDF Page 4)
+HiveMind 工具已支持返回 **UI_ACTION** 信号。
+- **协议约定**: 当工具返回包含 `[UI_ACTION: TRIGGER_LOGIN_POPUP]` 的字符串时，前端监听器应捕获该信号并不展示文本，而是直接弹出官网登录对话框。
+- **流程闭环**: 登录成功后，前端应刷新 `is_logged_in` 参数并自动重发最后一条查询请求。
+
 ---
-## 4. 后期合并计划
+## 6. 后期合并计划
 当该独立功能稳定后，可以通过 HiveMind 的 `RAGGateway` 直接合并入主 RAG 流程，实现“通用问答 + 实时订单查询”的无缝切换。

@@ -169,6 +169,7 @@
 - [x] **知识库使用分析看板**: 热门查询/冷门文档/使用趋势前端 (`M5.2.4`)
 - [x] **并行协作 (Debate Mode)**: 实现 Supervisor 触发多智体并行工作与共识合成 (`M4.2.5`)
 - [x] **REQ-028: 智能电商 (Order & Logistics)**: 交付 Commerce MCP Server 与 2 个独立 Skill (M7.4.3)
+- [x] **REQ-029: 邮件首回 (Email First Reply)**: 实现 L1-L5 分级与 RAG 草稿生成逻辑 (M7.4.4)
 - [ ] **Swarm 策略 A/B 测试**: 支持在 `EvalPage` 直接对比不同 Swarm 策略的跑分结果
 
 ### 其他待办
