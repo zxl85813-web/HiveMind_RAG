@@ -165,3 +165,6 @@ skills/xlsx/scripts/office/schemas/
 # External Projects / Submodules
 # ==========================================
 claude-code-main/
+
+# Deployment Exports
+export/
