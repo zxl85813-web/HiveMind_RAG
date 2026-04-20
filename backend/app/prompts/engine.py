@@ -1,17 +1,24 @@
 """
-Prompt Engine — 四层 Prompt 组合引擎。
+Prompt Engine — 四层 Prompt 组合引擎 (v2.0)。
 
 职责:
     1. 加载 YAML 配置 (Layer 1: Base, Layer 2: Role)
     2. 渲染 Jinja2 模板 (Layer 3: Task)
     3. 注入运行时上下文 (Layer 4: Context)
     4. 缓存和版本管理
+    5. 静态/动态分离 + Prompt Cache 优化 (v2.0 新增)
 
 架构:
     Layer 1 (Base)     → base/system.yaml, base/output_schemas.yaml
+    Layer 1.5 (Eng)    → base/defensive_engineering.yaml
     Layer 2 (Role)     → agents/<agent_name>.yaml
     Layer 3 (Task)     → templates/<task_type>.j2
     Layer 4 (Context)  → 运行时注入 (messages, RAG results, memory)
+
+Cache 优化 (借鉴 Claude Code):
+    - 静态部分 (身份、安全、角色、工程约束) 在 CACHE_BOUNDARY 之前
+    - 动态部分 (RAG 上下文、记忆、环境信息) 在 CACHE_BOUNDARY 之后
+    - 静态部分的 hash 不变时可跨请求复用 prefix cache, 节省 15-25% token
 
 使用:
     engine = PromptEngine()
@@ -22,12 +29,13 @@ Prompt Engine — 四层 Prompt 组合引擎。
         memory_context="用户之前问过..."
     )
 
-    # 生成 Agent 执行 Prompt
+    # 生成 Agent 执行 Prompt (带 cache 分离)
     prompt = engine.build_agent_prompt(
         agent_name="rag_agent",
         task="查找关于机器学习的文档",
         rag_context="[Document 1] ...",
     )
+    static, dynamic = engine.split_prompt_for_cache(prompt)
 """
 
 import hashlib
@@ -39,6 +47,9 @@ from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
 PROMPT_DIR = Path(__file__).parent
+
+# 静态/动态分离标记 — 此标记之前的内容可跨请求缓存
+PROMPT_CACHE_BOUNDARY = "__HIVEMIND_PROMPT_CACHE_BOUNDARY__"
 
 
 class PromptEngine:
@@ -67,8 +78,9 @@ class PromptEngine:
         self._base = self._load_yaml("base", "system")
         self._schemas = self._load_yaml("base", "output_schemas")
         self._platform_kb = self._load_yaml("base", "platform_knowledge")
+        self._defensive = self._load_yaml("base", "defensive_engineering")
 
-        logger.info(f"PromptEngine initialized (dir={prompt_dir})")
+        logger.info(f"PromptEngine v2.0 initialized (dir={prompt_dir})")
 
     # ============================================================
     #  公开 API — 构建各类 Prompt
@@ -141,6 +153,7 @@ class PromptEngine:
             role=role,
             schemas=self._schemas,
             platform_kb=self._platform_kb,
+            defensive=self._defensive,
             task=task,
             rag_context=rag_context,
             memory_context=memory_context,
@@ -218,11 +231,51 @@ class PromptEngine:
     #  热更新
     # ============================================================
 
+    # ============================================================
+    #  Prompt Cache 优化 (v2.0 新增)
+    # ============================================================
+
+    def split_prompt_for_cache(self, prompt: str) -> tuple[str, str]:
+        """
+        将完整 prompt 按 CACHE_BOUNDARY 分割为静态和动态两部分。
+
+        静态部分 (身份、安全、角色、工程约束) 可跨请求缓存。
+        动态部分 (RAG 上下文、记忆、环境信息) 每次重算。
+
+        Returns:
+            (static_prefix, dynamic_suffix)
+
+        用法 (在 API 调用时):
+            static, dynamic = engine.split_prompt_for_cache(prompt)
+            # 用 static 的 hash 做 cache key
+            # 只有 dynamic 部分需要每次发送完整内容
+        """
+        boundary = self._base.get("cache_boundary", PROMPT_CACHE_BOUNDARY)
+        if boundary in prompt:
+            parts = prompt.split(boundary, 1)
+            return parts[0].rstrip(), parts[1].lstrip()
+        return prompt, ""
+
+    def get_static_prompt_hash(self, prompt: str) -> str:
+        """
+        计算静态部分的 hash, 用于 prefix cache 命中判断。
+
+        如果 hash 不变, 说明静态部分没有变化, 可以复用缓存。
+        """
+        static, _ = self.split_prompt_for_cache(prompt)
+        return hashlib.blake2b(static.encode(), digest_size=16).hexdigest()
+
+    # ============================================================
+    #  热更新
+    # ============================================================
+
     def reload(self) -> None:
         """清除缓存，强制重新加载所有配置。"""
         self._config_cache.clear()
         self._base = self._load_yaml("base", "system")
         self._schemas = self._load_yaml("base", "output_schemas")
+        self._platform_kb = self._load_yaml("base", "platform_knowledge")
+        self._defensive = self._load_yaml("base", "defensive_engineering")
         # 重新初始化 Jinja2 环境 (刷新模板缓存)
         self._jinja_env = Environment(
             loader=FileSystemLoader(str(self._prompt_dir / "templates")),

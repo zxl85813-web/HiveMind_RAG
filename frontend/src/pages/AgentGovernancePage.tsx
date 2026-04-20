@@ -1,4 +1,9 @@
 
+/**
+ * Agent Governance Page - Cognitive Directives Audit & Red Team Campaign monitoring.
+ * 
+ * @covers REQ-007
+ */
 import React, { useState } from 'react';
 import { Card, Row, Col, Statistic, List, Tag, Flex, Typography, Badge, Descriptions, Empty, Space, Button, Tabs, Table, message, Progress, Skeleton } from 'antd';
 import { 

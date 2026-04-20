@@ -1,5 +1,7 @@
 """
 Tag & Category Endpoints.
+
+@covers REQ-008
 """
 
 from fastapi import APIRouter, Depends

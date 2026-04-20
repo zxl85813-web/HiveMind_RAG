@@ -1,5 +1,7 @@
 """
 Fine-tuning API — Manage SFT dataset items.
+
+@covers REQ-027
 """
 
 from fastapi import APIRouter, Depends, HTTPException

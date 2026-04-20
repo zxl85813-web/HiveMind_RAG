@@ -13,6 +13,8 @@ from app.core.token_service import TokenService
 from app.core.config import settings
 from app.agents.agentic_search import SEARCH_TOOLS
 from app.agents.tools import NATIVE_TOOLS
+from app.services.swarm_observability import record_swarm_span
+from app.models.observability import TraceStatus
 
 def create_agent_node(orchestrator, agent_def: AgentDefinition):
     """Factory for agent execution nodes with tool calling capability."""
@@ -131,6 +133,26 @@ def create_agent_node(orchestrator, agent_def: AgentDefinition):
                 if todo.source_conversation_id == conv_id and todo.assigned_to == agent_def.name:
                     await orchestrator.memory.update_todo(todo.id, status=TodoStatus.COMPLETED)
                     logger.info(f"✅ Task '{todo.title}' marked as COMPLETED by {agent_def.name}")
+
+        # --- 🔒 RECORD TRACE SPAN ---
+        trace_id = state.get("swarm_trace_id")
+        if trace_id:
+            logger.debug(f"🛰️ Recording SwarmSpan for {agent_def.name} on trace {trace_id}")
+            # Add retrieval trace if this agent performed retrieval (or just related memories)
+            asyncio.create_task(record_swarm_span(
+                trace_id=trace_id,
+                agent_name=agent_def.name,
+                instruction=task,
+                output=str(final_content),
+                latency_ms=sum(session_thinking_times) + sum(session_tool_times),
+                status=TraceStatus.SUCCESS,
+                details={
+                    "thinking_time_ms": session_thinking_times,
+                    "tool_time_ms": session_tool_times,
+                    "num_tool_calls": len(session_tool_times),
+                    "execution_variant": execution_variant
+                }
+            ))
 
         return {
             "messages": new_messages,

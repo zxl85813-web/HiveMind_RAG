@@ -14,6 +14,7 @@ Architecture:
             -> Worker Node (Async Execution)
 """
 
+# @covers REQ-001
 import asyncio
 import inspect
 from datetime import datetime

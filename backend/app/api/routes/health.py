@@ -1,5 +1,7 @@
 """
 Health check endpoints.
+
+@covers REQ-014
 """
 
 from fastapi import APIRouter

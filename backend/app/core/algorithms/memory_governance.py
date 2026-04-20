@@ -1,6 +1,8 @@
 """
 记忆治理：价值密度评估引擎 (Memory Value Density Engine)
 用于识别高价值记忆（入图谱、入摘要）与低价值记忆（仅入向量）。
+
+@covers REQ-002
 """
 
 from loguru import logger

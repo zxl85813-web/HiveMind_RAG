@@ -168,6 +168,7 @@ class SwarmTrace(SQLModel, table=True):
     # Quality feedback from Reflection
     quality_score: float | None = Field(default=None)
 
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
@@ -192,6 +193,7 @@ class SwarmSpan(SQLModel, table=True):
     tokens: int = Field(default=0)
     latency_ms: float = Field(default=0.0)
 
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 

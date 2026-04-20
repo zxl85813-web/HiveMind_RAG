@@ -12,6 +12,8 @@ from typing import Any
 from langchain_core.messages import SystemMessage, ToolMessage
 from loguru import logger
 
+from app.utils.env_context import get_env_context
+
 
 @dataclass
 class AgentEvent:
@@ -56,7 +58,10 @@ class AgentEngine:
             AgentEvent for real-time tracking.
         """
         agent_name = agent_def.name
-        messages = [SystemMessage(content=system_prompt)]
+        env_context = get_env_context()
+        full_system_prompt = f"{system_prompt}\n\n{env_context}"
+        
+        messages = [SystemMessage(content=full_system_prompt)]
         messages.extend(state.get("messages", []))
 
         # Adaptive budget

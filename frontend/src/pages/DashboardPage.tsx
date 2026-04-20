@@ -8,6 +8,8 @@ import {
     ArrowRightOutlined,
     RocketOutlined,
     LineChartOutlined,
+    SafetyCertificateOutlined,
+    AuditOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -148,6 +150,45 @@ export const DashboardPage: React.FC = () => {
                         </Col>
                     ))}
                 </Row>
+            </div>
+
+            {/* === 系统硬化进度 === */}
+            <div style={{ marginTop: 24 }}>
+                <Flex align="center" justify="space-between" className={styles.sectionTitle}>
+                    <Title level={5} style={{ margin: 0 }}>系统工程化进度 (System Hardening)</Title>
+                    <Tag icon={<SafetyCertificateOutlined />} color="cyan">治理指数: {stats?.hardening_score ?? 0}%</Tag>
+                </Flex>
+                <Card className={styles.hardeningCard}>
+                    <Row gutter={32} align="center">
+                        <Col xs={24} md={16}>
+                            <Paragraph>
+                                HiveMind 正在从 <b>Mock/Stub 验证态</b> 迁移至 <b>生产高可用态</b>。目前的指标基于治理图谱中的真实代码实体与技术债节点比例计算。
+                            </Paragraph>
+                            <Progress 
+                                percent={stats?.hardening_score ?? 0} 
+                                status="active" 
+                                strokeColor={{
+                                    '0%': 'var(--hm-color-brand)',
+                                    '100%': 'var(--hm-color-success)',
+                                }}
+                                strokeWidth={12}
+                            />
+                            <div style={{ marginTop: 16 }}>
+                                <Space size="large">
+                                    <Badge color="green" text={`正式组件: ${stats?.logic_entities ?? stats?.active_agents ?? 0}`} />
+                                    <Badge color="red" text={`剩余技术债: ${stats?.debt_count ?? 0}`} />
+                                </Space>
+                            </div>
+                        </Col>
+                        <Col xs={24} md={8}>
+                            <div style={{ textAlign: 'center', padding: '20px', borderLeft: '1px solid var(--hm-border-subtle)' }}>
+                                <AuditOutlined style={{ fontSize: 48, color: 'var(--hm-color-brand-dim)', marginBottom: 12 }} />
+                                <Title level={4} style={{ margin: 0 }}>{stats?.hardening_score > 90 ? '卓越' : stats?.hardening_score > 70 ? '良好' : '演进中'}</Title>
+                                <Text type="secondary">架构可追溯性评价</Text>
+                            </div>
+                        </Col>
+                    </Row>
+                </Card>
             </div>
 
             {/* === 近期活动 === */}

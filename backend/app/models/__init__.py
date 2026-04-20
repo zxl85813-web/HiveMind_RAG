@@ -1,5 +1,5 @@
 # Database models (SQLModel)
-from .agents import ReflectionEntry, TodoItem
+from .agents import ReflectionEntry, SwarmEpisode, SwarmKnowledge, TodoItem
 from .chat import Conversation, Message, User
 from .episodic import EpisodicMemory
 from .evaluation import BadCase, EvaluationItem, EvaluationReport, EvaluationSet
@@ -8,6 +8,7 @@ from .finetuning import FineTuningItem
 from .governance import PromptDefinition, PromptStatus
 from .intent import IntentCache
 from .knowledge import Document, KnowledgeBase, KnowledgeBaseDocumentLink
+from .learning import TechDiscovery, TechSubscription
 from .observability import AgentSpan, FileTrace, HITLTask, IngestionBatch
 from .pipeline_config import PipelineConfig
 from .security import (
@@ -52,9 +53,13 @@ __all__ = [
     "PromptStatus",
     "ReflectionEntry",
     "SensitiveItem",
+    "SwarmEpisode",
+    "SwarmKnowledge",
     "SyncTask",
     "Tag",
     "TagCategory",
+    "TechDiscovery",
+    "TechSubscription",
     "TodoItem",
     "User",
 ]

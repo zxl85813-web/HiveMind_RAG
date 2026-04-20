@@ -15,6 +15,7 @@ export interface TechDiscovery {
     url: string;
     category: string;
     relevance_score: number;
+    status: 'new' | 'ingested' | 'rejected';
     discovered_at: string;
 }
 
@@ -64,6 +65,9 @@ export const learningApi = {
         return api.get<ApiResponse<DailyReportContent>>('/learning/daily-report-content', {
             params: { report_path: reportPath }
         });
+    },
+    ingestDiscovery: (id: string) => {
+        return api.post<ApiResponse<void>>(`/learning/discoveries/${id}/ingest`);
     },
     submitFeedback: (params: { message_id: string; rating: number; comment?: string }) => {
         return api.post<ApiResponse<void>>('/learning/feedback', params);

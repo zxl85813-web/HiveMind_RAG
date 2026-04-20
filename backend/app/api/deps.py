@@ -6,6 +6,8 @@ API 依赖注入系统
 1. 数据库会话管理 (PostgreSQL / SQLAlchemy)
 2. 身份认证与安全 (JWT /Bearer Token)
 3. 角色权限控制 (RBAC)
+
+@covers REQ-014
 """
 
 from fastapi import Depends, HTTPException, status

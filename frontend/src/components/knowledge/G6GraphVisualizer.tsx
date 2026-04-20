@@ -38,9 +38,16 @@ interface Props {
   width?: number;
   height?: number;
   onNodeClick?: (node: any) => void;
+  onImpactComplete?: () => void;
 }
 
-export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNodeClick }) => {
+export interface G6GraphVisualizerHandle {
+  zoomToNode: (nodeId: string) => void;
+  resetZoom: () => void;
+  rippleImpact: (originId: string, impactNodeIds: string[]) => void;
+}
+
+export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props>(({ data, width, height, onNodeClick, onImpactComplete }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const { token } = theme.useToken();
@@ -118,13 +125,12 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
       height: height || containerRef.current.clientHeight || 600,
       data: g6Data,
       layout: {
-        type: 'gForce',
+        type: 'force',
         gpuEnabled: true,
         workerEnabled: true,
-        linkDistance: 120,
-        nodeStrength: 1000,
-        nodeSize: 30,
-        preventOverlap: true,
+        linkDistance: 150,
+        nodeStrength: -200,
+        edgeStrength: 0.5,
       },
       plugins: [
         {
@@ -151,6 +157,24 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           endArrow: true,
           strokeOpacity: 0.2,
           lineDash: [4, 4], // 开启虚线模式
+        },
+        state: {
+          'impacted-edge': {
+            stroke: token.colorError,
+            strokeOpacity: 1,
+            lineWidth: 2,
+          }
+        }
+      },
+      node: {
+        state: {
+          'impacted': {
+            fill: token.colorError,
+            stroke: token.colorError,
+            lineWidth: 3,
+            shadowBlur: 10,
+            shadowColor: token.colorError,
+          }
         }
       }
     });
@@ -178,6 +202,48 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
     };
   }, [filteredData, width, height, token, onNodeClick]);
 
+  // --- [曝露方法给外部调用] ---
+  React.useImperativeHandle(ref, () => ({
+    zoomToNode: (nodeId: string) => {
+      if (!graphRef.current) return;
+      graphRef.current.zoomTo(1.5, { duration: 500 });
+      graphRef.current.focusElement(nodeId, { duration: 500 });
+    },
+    resetZoom: () => {
+      if (!graphRef.current) return;
+      graphRef.current.fitView({ duration: 500 });
+    },
+    rippleImpact: (originId: string, impactNodeIds: string[]) => {
+      if (!graphRef.current) return;
+      const graph = graphRef.current;
+      
+      // 1. 先重置所有样式
+      graph.setElementState(graph.getAllNodes().map(n => n.id), 'default');
+      graph.setElementState(graph.getAllEdges().map(e => e.id), 'default');
+
+      // 2. 聚焦起点
+      graph.focusElement(originId, { duration: 800 });
+      graph.zoomTo(1.2, { duration: 800 });
+
+      // 3. 逐层涟漪点亮 (Mock Sequential Delay)
+      // 真实场景通常按图谱距离排序，这里简单按索引分段
+      impactNodeIds.forEach((id, idx) => {
+        setTimeout(() => {
+          graph.setElementState(id, 'impacted');
+          // 同时点亮入边 (指向该节点的边)
+          const edges = graph.getRelatedEdgesData(id, 'in');
+          if (edges) {
+            edges.forEach(e => graph.setElementState(e.id as string, 'impacted-edge'));
+          }
+        }, idx * 150); // 每 150ms 下一波
+      });
+
+      if (onImpactComplete) {
+        setTimeout(onImpactComplete, impactNodeIds.length * 150 + 1000);
+      }
+    }
+  }));
+
   return (
     <div className="g6-graph-wrapper" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div className="g6-graph-controls" style={{ padding: '8px 16px', background: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
@@ -203,4 +269,4 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
       />
     </div>
   );
-};
+});

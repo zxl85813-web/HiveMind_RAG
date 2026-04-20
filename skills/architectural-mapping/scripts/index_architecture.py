@@ -2178,9 +2178,9 @@ def main():
     indexer.index_github_prs()
     indexer.index_github_releases()
 
-    # Phase 3: Derived Intelligence
-    indexer.index_code_similarity()
-    indexer.build_developer_profiles()
+    # Phase 3: Derived Intelligence (Skipped for performance in this run)
+    # indexer.index_code_similarity()
+    # indexer.build_developer_profiles()
 
     # Phase 4: Business Flow Graph
     indexer.index_page_routes()

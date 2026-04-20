@@ -6,6 +6,8 @@ Supports:
 - rolling error-rate threshold
 - open duration
 - half-open probes
+
+@covers REQ-015
 """
 
 from __future__ import annotations

@@ -3,6 +3,8 @@ Write Event Bus (Phase 5 / TASK-SG-002).
 
 Publishes write-side events so read-side services can invalidate caches
 or trigger async reconciliation.
+
+@covers REQ-001
 """
 
 from __future__ import annotations

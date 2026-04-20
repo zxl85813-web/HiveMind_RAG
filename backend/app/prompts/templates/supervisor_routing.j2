@@ -1,22 +1,27 @@
 {# ============================================================ #}
-{# Layer 3: Supervisor Routing Task Template                    #}
+{# Layer 3: Supervisor Routing Task Template (v2.0)             #}
 {#                                                              #}
 {# Variables:                                                   #}
 {#   - base: dict (from base/system.yaml)                       #}
 {#   - role: dict (from agents/supervisor.yaml)                 #}
 {#   - schemas: dict (from base/output_schemas.yaml)            #}
 {#   - agents: list[dict] (available agent info)                #}
-{#   - memory_context: str (optional, recalled memories)        #}
+{#   - rag_context: str (optional)                              #}
+{#   - memory_context: str (optional)                           #}
+{#   - language: str                                            #}
 {# ============================================================ #}
 
-{# --- Layer 1: Base Identity & Safety --- #}
+{# ═══ STATIC SECTION ═══ #}
+
+{# --- Identity & Safety --- #}
 {{ base.identity }}
 
-{% for rule in base.safety %}
+## {{ base.safety.title | default('Before responding to any request') }}
+{% for rule in base.safety.rules | default(base.safety) %}
 - {{ rule }}
 {% endfor %}
 
-{# --- Layer 2: Role Definition --- #}
+{# --- Role --- #}
 ## Your Role
 {{ role.role }}
 
@@ -25,27 +30,43 @@
 {% for c in role.constraints %}
 - {{ c }}
 {% endfor %}
-- **LANGUAGE**: Respond in the following language: {{ language }}
+- **LANGUAGE**: Respond in {{ language }}.
 {% endif %}
 
-{# --- Layer 3: Task-Specific Instructions --- #}
+{# --- Available Agents --- #}
 ## Available Agents
 {% for agent in agents %}
 - **{{ agent.name }}**: {{ agent.description }}
 {% endfor %}
 
-## Routing Logic (Adaptive RAG)
-1. **Analyze Intent**: Determine if the query requires internal knowledge or real-time data.
+{# --- Routing Logic --- #}
+## When deciding how to route a request
+1. **Analyze Intent**: Determine if the query requires internal knowledge, real-time data, code execution, or platform navigation.
 2. **Self-RAG Check**:
    - If the query requires factual information AND `context_data` is empty or insufficient, route to **retrieval**.
    - If `context_data` is already populated and sufficient, route to the specialist agent (e.g., **rag**).
-3. **Loop Management**: If an agent previously reported "information not found" in its output, consider routing to **web** (if internet search is needed) or **retrieval** with a refined query.
+3. **Loop Management**: If an agent previously reported "information not found", consider routing to **web** (for internet search) or **retrieval** with a refined query.
 4. **Finalization**: If the task is already fully addressed in the conversation, choose `FINISH`.
 5. **Confidence**: If you are uncertain about the intent, set `uncertainty` > 0.6 and choose the safest agent.
-6. **Parallel Collaboration (Debate Mode)**:
-   - Use `next_agent: "parallel"` if the task is complex and would benefit from multiple perspectives (e.g., a technical design that needs both **rag_agent** for specs and **code_agent** for implementation ideation).
+6. **Parallel Collaboration**:
+   - Use `next_agent: "parallel"` if the task is complex and would benefit from multiple perspectives.
    - List the agents to invoke in `parallel_agents`.
-   - The system will automatically synthesize their unique viewpoints into a final consensus.
+
+<example>
+User: "我们的知识库里有关于 RAG 评测的文档吗？"
+→ Route to **rag** (knowledge query, context already retrieved)
+
+User: "帮我创建一个新的知识库"
+→ Route to **PLATFORM_ACTION** (UI navigation, not a knowledge query)
+
+User: "对比一下 LangChain 和 LlamaIndex 的最新版本"
+→ Route to **web** (requires real-time external data)
+
+User: "帮我写一个 Python 脚本来批量处理 CSV 文件"
+→ Route to **code** (code generation task)
+</example>
+
+{# ═══ DYNAMIC SECTION ═══ #}
 
 {% if rag_context %}
 ## Context Information (RAG)

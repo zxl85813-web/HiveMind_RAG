@@ -71,6 +71,10 @@ CHEATSHEET_PATH = Path(r"c:\Users\linkage\Desktop\aiproject\docs\evaluation\AGEN
 
 def clean_json_response(text: str) -> dict:
     """Robustly extract JSON from potentially messy LLM output."""
+    if not text or not isinstance(text, str):
+        logger.error(f"Invalid input to clean_json_response: {type(text)}")
+        return {"f": 0.0, "r": 0.0, "c": 0.0, "s": 0.0, "summary": "Input error"}
+
     try:
         # Try direct parse
         return json.loads(text)
@@ -88,8 +92,8 @@ def clean_json_response(text: str) -> dict:
         try:
             return json.loads(clean_text)
         except json.JSONDecodeError:
-            logger.error(f"Failed to parse JSON even after cleaning. Original: {text[:200]}")
-            raise
+            logger.error(f"Failed to parse JSON: {text[:200]}...")
+            return {"f": 0.0, "r": 0.0, "c": 0.0, "s": 0.0, "summary": f"Parse error: {text[:100]}"}
 
 async def sync_l3_dashboard():
     logger.info("📡 [L3-SYNC] Starting L3 Agent Capacity Automation (Fixed Parsing Edition)...")

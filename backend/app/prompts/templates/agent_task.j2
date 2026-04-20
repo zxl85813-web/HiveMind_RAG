@@ -1,48 +1,113 @@
 {# ============================================================ #}
-{# Layer 3: Agent Execution Task Template                       #}
+{# Layer 3: Agent Execution Task Template (v2.0)               #}
+{#                                                              #}
+{# 设计原则 (借鉴 Claude Code):                                  #}
+{#   - 静态部分在前 (可缓存), 动态部分在后                         #}
+{#   - 标题用行动触发器                                           #}
+{#   - 用 <example> 标签给精确模板                                #}
+{#   - 关键规则给独立 section, 不埋在列表里                        #}
 {#                                                              #}
 {# Variables:                                                   #}
 {#   - base: dict (from base/system.yaml)                       #}
 {#   - role: dict (from agents/<agent_name>.yaml)               #}
 {#   - schemas: dict (from base/output_schemas.yaml)            #}
+{#   - defensive: dict (from base/defensive_engineering.yaml)   #}
+{#   - platform_kb: dict (from base/platform_knowledge.yaml)    #}
 {#   - task: str (refined task from Supervisor)                 #}
 {#   - rag_context: str (optional, retrieved documents)         #}
 {#   - memory_context: str (optional, recalled memories)        #}
 {#   - tools_available: list[str] (optional, available tools)   #}
+{#   - prompt_variant: str (optional, A/B test variant)         #}
+{#   - language: str (response language)                        #}
 {# ============================================================ #}
 
-{# --- Layer 1: Base --- #}
+{# ═══ STATIC SECTION (cacheable across requests) ═══ #}
+
+{# --- Identity & Safety --- #}
 {{ base.identity }}
 
-{% for rule in base.safety %}
+## {{ base.safety.title | default('Before responding to any request') }}
+{% for rule in base.safety.rules | default(base.safety) %}
 - {{ rule }}
 {% endfor %}
 
-{# --- Layer 2: Role --- #}
+{# --- Role Definition --- #}
 ## Your Role
 {{ role.role }}
 
 {% if role.constraints %}
-## Constraints
+## {{ 'Constraints' }}
 {% for c in role.constraints %}
 - {{ c }}
 {% endfor %}
-- **LANGUAGE**: Respond in the following language: {{ language }}
 {% endif %}
 
-{# --- Layer 3: Task --- #}
-## Your Current Task
-{{ task }}
+{# --- Engineering Principles (独立 section, 不埋在列表里) --- #}
+{% if defensive %}
+{% if defensive.execution_principles is mapping %}
+## {{ defensive.execution_principles.title }}
+{% for p in defensive.execution_principles.rules %}
+- {{ p }}
+{% endfor %}
+{% else %}
+## Engineering Principles
+{% for p in defensive.execution_principles %}
+- {{ p }}
+{% endfor %}
+{% endif %}
 
+{% if defensive.faithful_reporting is mapping %}
+## {{ defensive.faithful_reporting.title }}
+{% for r in defensive.faithful_reporting.rules %}
+- {{ r }}
+{% endfor %}
+{% else %}
+## Faithful Reporting
+{% for r in defensive.faithful_reporting %}
+- {{ r }}
+{% endfor %}
+{% endif %}
+
+{% if defensive.blast_radius is mapping %}
+## {{ defensive.blast_radius.title }}
+{% for b in defensive.blast_radius.rules %}
+- {{ b }}
+{% endfor %}
+{% else %}
+## Risk & Blast Radius
+{% for b in defensive.blast_radius %}
+- {{ b }}
+{% endfor %}
+{% endif %}
+
+{% if defensive.completion_verification is mapping %}
+## {{ defensive.completion_verification.title }}
+{% for v in defensive.completion_verification.rules %}
+- {{ v }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{# --- Output Rules --- #}
+## {{ base.output_rules.title | default('When producing any output') }}
+{% for rule in base.output_rules.rules | default([]) %}
+- {{ rule }}
+{% endfor %}
+- **LANGUAGE**: Respond in {{ language }}.
+
+{# --- Tools --- #}
 {% if tools_available %}
-## Available Tools
+## When using tools
 You have access to the following tools:
 {% for tool in tools_available %}
 - `{{ tool }}`
 {% endfor %}
-Use tools when they help you accomplish the task more accurately.
+- Use dedicated tools when available instead of generic alternatives.
+- If you intend to call multiple tools and there are no dependencies between them, make all independent calls in parallel.
+- If some calls depend on previous results, run them sequentially.
 {% endif %}
 
+{# --- Platform Knowledge --- #}
 {% if platform_kb %}
 ## Platform Knowledge (Built-in)
 {{ platform_kb.overview | default('') }}
@@ -58,25 +123,46 @@ Use tools when they help you accomplish the task more accurately.
 {% endfor %}
 {% endif %}
 
-{# --- Layer 4: Runtime Context (injected at call time) --- #}
+{# ═══ DYNAMIC SECTION (recomputed per request) ═══ #}
+{# --- Cache Boundary --- #}
+{# Everything below changes per request and cannot be cached #}
+
+{# --- Task --- #}
+## Your Current Task
+{{ task }}
+
+{# --- RAG Context --- #}
 {% if rag_context %}
 ## Retrieved Knowledge
 The following documents were retrieved from the knowledge base.
-Use them as your PRIMARY source of information. 
-IMPORTANT: When you use information from these documents, you MUST append citations in the format `[idx]` (e.g. `[1]`, `[2]`) at the end of the sentence.
+Use them as your PRIMARY source of information.
+
+IMPORTANT: Cite every claim with `[Source N]` at the end of the sentence. If the retrieved context does not contain the answer, explicitly state: "Based on the knowledge base, I found no information regarding this query." Do NOT guess.
+
+<example>
+The system uses a three-tier architecture for data processing [Source 1]. Each tier handles a specific stage of the pipeline, from ingestion through to serving [Source 2].
+</example>
 
 {{ rag_context }}
 {% endif %}
 
+{# --- Memory --- #}
 {% if memory_context %}
-## Relevant Memory
+## Before recommending from memory
+A memory record is a claim about what was true WHEN it was written. It may be outdated. Before acting on a memory:
+- If it names a file path: verify the file still exists.
+- If it names a function or config: search for it first.
+- If the user is about to act on your recommendation: verify before suggesting.
+
 {{ memory_context }}
 {% endif %}
 
+{# --- Output Format --- #}
 ## Output Format
 {{ schemas.agent_response }}
 
-## Final Guardrails (Tail Anchor)
+{# --- Tail Anchor (final guardrails, high compliance position) --- #}
+## Final Checks
 {% if prompt_variant == "head_tail_v1" %}
 - Re-check the task goal before answering; keep the answer scoped to the user's actual question.
 - Treat retrieved knowledge as the primary evidence. If evidence is insufficient, explicitly say so.
@@ -85,4 +171,5 @@ IMPORTANT: When you use information from these documents, you MUST append citati
 {% else %}
 - Follow system safety and role constraints strictly.
 - Use retrieved context when available and avoid unsupported claims.
+- If you cannot complete the task, state what you cannot do and why.
 {% endif %}

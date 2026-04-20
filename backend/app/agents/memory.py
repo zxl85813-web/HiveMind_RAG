@@ -6,28 +6,33 @@ Memory Layers:
 2. Episodic Memory (mid-term)   — recent interactions, conversation summaries
 3. Semantic Memory (long-term)  — extracted knowledge, learned patterns, user preferences
 4. Shared TODO List             — collective task queue for the swarm
+5. Classified Memory (v2.0)     — user/feedback/project/reference 四分类
 
 Storage Backends:
 - Working Memory  → in-memory / Redis
 - Episodic Memory → PostgreSQL + Vector Store
 - Semantic Memory → Vector Store (persistent)
 - TODO List       → PostgreSQL
+- Classified Mem  → in-memory (TODO: migrate to PostgreSQL)
 """
 
 import re
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from loguru import logger
 from sqlalchemy import desc, select
 
 from app.core.database import async_session_factory
+from app.memory.manager import MemoryEntry, MemoryType, MEMORY_EXCLUSION_PATTERNS
 from app.models.agents import (
     ReflectionEntry,
     ReflectionSignalType,
     TodoItem,
     TodoStatus,
+    SwarmEpisode,
+    SwarmKnowledge,
 )
 
 
@@ -41,7 +46,102 @@ class SharedMemoryManager:
 
     def __init__(self) -> None:
         self._working_memory: dict[str, Any] = {}
-        logger.info("🧠 SharedMemoryManager initialized")
+        self._classified_memories: list[MemoryEntry] = []  # v2.0: four-type classification
+        logger.info("🧠 SharedMemoryManager v2.0 initialized")
+
+    # --- Classified Memory (v2.0, 借鉴 Claude Code 四分类法) ---
+
+    async def store_classified_memory(self, entry: MemoryEntry) -> bool:
+        """
+        Store a classified memory entry (user/feedback/project/reference).
+
+        Returns False if the memory was rejected (matches exclusion patterns
+        or duplicates an existing memory).
+        """
+        content_lower = entry.content.lower()
+        for pattern in MEMORY_EXCLUSION_PATTERNS:
+            if pattern in content_lower:
+                logger.info(f"🚫 Memory rejected (matches exclusion '{pattern}'): {entry.name}")
+                return False
+
+        # Check for duplicates (same type + same name → update)
+        for existing in self._classified_memories:
+            if existing.type == entry.type and existing.name == entry.name:
+                existing.content = entry.content
+                existing.why = entry.why or existing.why
+                existing.how_to_apply = entry.how_to_apply or existing.how_to_apply
+                existing.updated_at = datetime.utcnow()
+                logger.info(f"🔄 Memory updated: [{entry.type}] {entry.name}")
+                return True
+
+        self._classified_memories.append(entry)
+        logger.info(f"💾 Memory stored: [{entry.type}] {entry.name}")
+        return True
+
+    async def recall_classified_memories(
+        self,
+        query: str = "",
+        memory_type: MemoryType | None = None,
+        limit: int = 10,
+    ) -> list[MemoryEntry]:
+        """Recall classified memories, optionally filtered by type."""
+        now = datetime.utcnow()
+        results = []
+        for mem in self._classified_memories:
+            if memory_type and mem.type != memory_type:
+                continue
+            if mem.expires_at and mem.expires_at < now:
+                continue
+            if query and query.lower() not in (mem.content + mem.name + mem.description).lower():
+                continue
+            results.append(mem)
+        results.sort(key=lambda m: m.updated_at, reverse=True)
+        return results[:limit]
+
+    async def format_memory_context(self, query: str = "", limit: int = 10) -> str:
+        """Format classified memories into a string for Prompt injection."""
+        memories = await self.recall_classified_memories(query=query, limit=limit)
+        if not memories:
+            return ""
+
+        sections: dict[str, list[str]] = {}
+        type_labels = {
+            MemoryType.USER: "User Preferences",
+            MemoryType.FEEDBACK: "Past Feedback",
+            MemoryType.PROJECT: "Project Context",
+            MemoryType.REFERENCE: "External References",
+        }
+        for mem in memories:
+            label = type_labels.get(mem.type, "Other")
+            if label not in sections:
+                sections[label] = []
+            entry = f"- **{mem.name}**: {mem.content}"
+            if mem.why:
+                entry += f" (Why: {mem.why})"
+            if mem.how_to_apply:
+                entry += f" → {mem.how_to_apply}"
+            if not mem.is_verified:
+                entry += " ⚠️ [unverified — may be outdated]"
+            sections[label].append(entry)
+
+        lines = []
+        for section_name, entries in sections.items():
+            lines.append(f"### {section_name}")
+            lines.extend(entries)
+            lines.append("")
+        return "\n".join(lines)
+
+    async def invalidate_stale_memories(self, max_age_days: int = 30) -> int:
+        """Mark memories older than max_age_days as unverified."""
+        cutoff = datetime.utcnow() - timedelta(days=max_age_days)
+        count = 0
+        for mem in self._classified_memories:
+            if mem.is_verified and mem.updated_at < cutoff:
+                mem.is_verified = False
+                count += 1
+        if count:
+            logger.info(f"⏰ Marked {count} memories as unverified (older than {max_age_days} days)")
+        return count
 
     # --- Working Memory (Session-scoped) ---
 
@@ -131,29 +231,56 @@ class SharedMemoryManager:
             results = await session.execute(statement)
             return results.scalars().all()
 
-    async def get_traces(self, limit: int = 50) -> dict[str, Any]:
+    async def get_traces(self, limit: int = 5) -> dict[str, Any]:
         """[M4.1.4] Get high-level execution traces (nodes/links) for the swarm DAG."""
-        import uuid
-        from app.models.observability import SwarmTrace
+        from app.models.observability import SwarmSpan, SwarmTrace
 
         try:
             async with async_session_factory() as session:
-                # Get latest traces
+                # 1. Get the latest N traces
                 stmt = select(SwarmTrace).order_by(desc(SwarmTrace.created_at)).limit(limit)
                 res = await session.execute(stmt)
                 traces = res.scalars().all()
 
                 nodes = []
                 links = []
+
                 for t in traces:
-                    query_text = str(getattr(t, "query", "Unknown"))
+                    root_id = f"trace_{t.id}"
                     nodes.append({
-                        "id": getattr(t, "id", str(uuid.uuid4())),
-                        "label": query_text[:20] + "...",
-                        "status": str(getattr(t, "status", "pending")),
-                        "type": "trace",
+                        "id": root_id,
+                        "label": (t.query[:30] + "...") if t.query else "Swarm Request",
+                        "agent": "supervisor",
+                        "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+                        "details": t.details or {}
                     })
-                
+
+                    # 2. Get spans for each trace
+                    span_stmt = select(SwarmSpan).where(SwarmSpan.swarm_trace_id == t.id)
+                    span_res = await session.execute(span_stmt)
+                    spans = span_res.scalars().all()
+
+                    for s in spans:
+                        span_node_id = f"span_{s.id}"
+                        nodes.append({
+                            "id": span_node_id,
+                            "label": s.agent_name,
+                            "agent": s.agent_name,
+                            "status": s.status.value if hasattr(s.status, "value") else str(s.status),
+                            "duration": f"{s.latency_ms:.0f}ms",
+                            "details": {
+                                "instruction": s.instruction,
+                                "output": s.output,
+                                **(s.details or {})
+                            }
+                        })
+                        # Link span to its trace root
+                        links.append({
+                            "source": root_id,
+                            "target": span_node_id,
+                            "label": "dispatched"
+                        })
+
                 return {"nodes": nodes, "links": links}
         except Exception as e:
             logger.error(f"❌ Failed to fetch traces from DB: {e}")
@@ -282,23 +409,61 @@ class SharedMemoryManager:
         return len(inter) / len(union)
 
     # --- Future Memory Layers (Episodic/Semantic) ---
+    # Now implemented as persistent DB layers for Phase 4 completion.
 
     async def store_episode(self, conversation_id: str, summary: str, metadata: dict) -> None:
-        """Placeholder for Episodic Memory (Vector-based interaction logs)."""
-        pass
+        """Record an interaction episode (mid-term episodic memory)."""
+        try:
+            async with async_session_factory() as session:
+                episode = SwarmEpisode(
+                    conversation_id=conversation_id,
+                    summary=summary,
+                    metadata=metadata,
+                    tokens_used=metadata.get("tokens", 0)
+                )
+                session.add(episode)
+                await session.commit()
+                logger.debug(f"📼 Episode recorded for {conversation_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to store episode: {e}")
 
-    async def recall_episodes(self, query: str, limit: int = 5) -> list[dict]:
-        """Placeholder for recalling past interaction episodes."""
-        return []
+    async def recall_episodes(self, query: str, limit: int = 5) -> list[SwarmEpisode]:
+        """Recall past interaction episodes by basic keyword search for now."""
+        # TODO: Upgrade to vector search for episodic recall in Phase 6
+        async with async_session_factory() as session:
+            stmt = select(SwarmEpisode).where(
+                SwarmEpisode.summary.contains(query)
+            ).order_by(desc(SwarmEpisode.created_at)).limit(limit)
+            res = await session.execute(stmt)
+            return res.scalars().all()
 
     async def learn(self, knowledge: str, source: str, category: str = "general") -> None:
-        """Placeholder for extracted knowledge (Semantic Memory)."""
-        pass
+        """Extract and store semantic knowledge (long-term memory)."""
+        try:
+            async with async_session_factory() as session:
+                entry = SwarmKnowledge(
+                    knowledge=knowledge,
+                    source=source,
+                    category=category
+                )
+                session.add(entry)
+                await session.commit()
+                logger.info(f"💡 New knowledge internalized: {knowledge[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ Failed to learn: {e}")
 
-    async def recall_knowledge(self, query: str, category: str | None = None, limit: int = 10) -> list[dict]:
-        """Placeholder for recalling long-term semantic knowledge."""
-        return []
+    async def recall_knowledge(self, query: str, category: str | None = None, limit: int = 10) -> list[SwarmKnowledge]:
+        """Recall long-term semantic knowledge."""
+        async with async_session_factory() as session:
+            stmt = select(SwarmKnowledge).order_by(desc(SwarmKnowledge.created_at))
+            if category:
+                stmt = stmt.where(SwarmKnowledge.category == category)
+            # Basic keyword filter for MVP
+            stmt = stmt.where(SwarmKnowledge.knowledge.contains(query)).limit(limit)
+            res = await session.execute(stmt)
+            return res.scalars().all()
 
     async def decay_old_memories(self) -> None:
-        """Placeholder for memory decay/summarization strategy."""
+        """decay/summarization strategy - Placeholder for periodic cleanup."""
+        logger.info("🍂 Running memory decay (summarization) - Stub for now")
         pass

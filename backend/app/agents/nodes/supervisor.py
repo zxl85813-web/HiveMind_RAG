@@ -10,6 +10,8 @@ from langchain_core.messages import SystemMessage
 from app.agents.schemas import SwarmState, ModelTier
 from app.services.cache_service import CacheService
 from app.core.algorithms.routing import vector_agent_router
+from app.services.swarm_observability import record_swarm_span
+from app.models.observability import TraceStatus
 
 async def supervisor_node(orchestrator, state: SwarmState) -> dict:
     """
@@ -92,10 +94,29 @@ async def supervisor_node(orchestrator, state: SwarmState) -> dict:
     response = await llm.ainvoke(final_prompt)
     decision = orchestrator._parse_routing_decision(response.content)
 
-    return {
+    result = {
         "next_step": decision.next_agent,
         "uncertainty_level": decision.uncertainty,
         "current_task": decision.reasoning,
         "thought_log": f"👨‍✈️ 决策路径: {decision.reasoning}",
         "parallel_agents": decision.parallel_agents,
     }
+    
+    # --- 🔒 RECORD TRACE SPAN ---
+    trace_id = state.get("swarm_trace_id")
+    if trace_id:
+        import asyncio
+        asyncio.create_task(record_swarm_span(
+            trace_id=trace_id,
+            agent_name="supervisor",
+            instruction=user_query,
+            output=f"Routing to {decision.next_agent}",
+            latency_ms=0.0, # TODO
+            status=TraceStatus.SUCCESS,
+            details={
+                "decision": decision.model_dump(),
+                "uncertainty": decision.uncertainty
+            }
+        ))
+
+    return result

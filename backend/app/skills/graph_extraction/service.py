@@ -65,6 +65,13 @@ async def extract_graph_from_image(image_url: str, context_id: str = "default") 
     # 1. Store in Knowledge Graph (Neo4j)
     graph = get_graph_store()
     if graph:
+        # 🛡️ [P0-Hardening]: 注入元数据
+        import time
+        current_ts = int(time.time() * 1000)
+        for n in nodes:
+            if 'path' not in n: n['path'] = image_url
+            if 'created_at' not in n: n['created_at'] = current_ts
+            
         print(f"🕸️ Importing {len(nodes)} nodes and {len(edges)} edges to Neo4j...")
         graph.import_subgraph(nodes, edges)
     else:

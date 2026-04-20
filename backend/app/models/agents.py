@@ -71,3 +71,32 @@ class ReflectionEntry(SQLModel, table=True):
     confidence_score: float = 0.0
     action_taken: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SwarmEpisode(SQLModel, table=True):
+    """
+    [M4.1.2] Episodic Memory: Records of past swarm interactions/summaries.
+    """
+    __tablename__ = "swarm_episodes"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    conversation_id: str = Field(index=True)
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    tokens_used: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SwarmKnowledge(SQLModel, table=True):
+    """
+    [M4.1.3] Semantic Memory: Extracted knowledge or learned patterns.
+    """
+    __tablename__ = "swarm_knowledge"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    knowledge: str
+    source: str = ""
+    category: str = Field(default="general", index=True)
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    embedding_id: str | None = Field(default=None, index=True)

@@ -1,11 +1,15 @@
 """
 RAG Gateway - High-level Microservice Governance for Knowledge Retrieval.
 Implements Circuit Breaker, Unified Entry, and Strategy Routing.
+
+@covers REQ-008
 """
 
+# @covers REQ-001
 import asyncio
 import time
-from typing import ClassVar
+# @covers REQ-008
+from typing import List, Optional, ClassVar
 
 from app.core.logging import get_trace_logger
 

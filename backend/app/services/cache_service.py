@@ -1,6 +1,8 @@
 """
 Semantic Cache Service (P2).
 Uses Vector Search to find similar answered questions.
+
+@covers REQ-002
 """
 
 import time

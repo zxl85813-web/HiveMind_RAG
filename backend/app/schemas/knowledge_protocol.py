@@ -1,6 +1,8 @@
 """
 Unified Knowledge Retrieval Protocol
 Defines the contract between retrieval services and consumers (Agents/UI).
+
+@covers REQ-008
 """
 
 from typing import Any

@@ -54,14 +54,33 @@ async def _get_graph_stats():
         """)
         islands = island_res[0]['count'] if island_res else 0
 
+        # 6. 统计技术债 (Stub/Mock 节点)与硬化进度评价
+        debt_res = await store.execute_query("""
+            MATCH (n:ArchNode) 
+            WHERE n.id STARTS WITH 'DEBT:' 
+            OR toLower(n.name) CONTAINS 'stub' 
+            OR toLower(n.name) CONTAINS 'mock' 
+            OR toLower(n.summary) CONTAINS 'TODO'
+            RETURN count(n) as count
+        """)
+        debt_count = debt_res[0]['count'] if debt_res else 0
+        
+        prod_res = await store.execute_query("MATCH (n:CodeEntity) WHERE NOT (toLower(n.name) CONTAINS 'mock' OR toLower(n.name) CONTAINS 'stub') RETURN count(n) as count")
+        prod_count = prod_res[0]['count'] if prod_res else 0
+        
+        hardening_score = round((prod_count / (prod_count + debt_count) * 100), 1) if (prod_count + debt_count) > 0 else 100.0
+
         return {
             "total_assets": total_assets,
             "mapping_coverage": round(coverage, 1),
             "recent_assets": recent_assets,
             "islands": islands,
+            "hardening_score": hardening_score,
+            "debt_count": debt_count,
             "node_distribution": {
-                "logic_entities": logic_res[0]['count'] if logic_res else 0,
-                "design_docs": doc_res[0]['count'] if doc_res else 0
+                "logic_entities": prod_count,
+                "design_docs": doc_res[0]['count'] if doc_res else 0,
+                "debt_nodes": debt_count
             }
         }
     except Exception as e:
@@ -412,3 +431,63 @@ async def report_incident(
     """
     background_tasks.add_task(_archive_incident_task, incident, x_trace_id or "unknown")
     return ApiResponse.ok(message="Incident captured and archived for analysis.")
+
+@router.get("/evolution-data", response_model=ApiResponse[dict])
+async def get_evolution_data(
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    获取数字孪生进化数据：软件包、覆盖率热图、PII 风险统计。
+    """
+    try:
+        store = Neo4jStore()
+        
+        # 1. 获取所有软件包 (Package)
+        pkg_query = "MATCH (p:Package) RETURN p.name as name, p.version as version, p.ecosystem as ecosystem ORDER BY p.name"
+        pkgs = await store.execute_query(pkg_query)
+        
+        # 2. 获取高风险文件 (PII + Low Coverage)
+        risk_query = """
+        MATCH (f:File)
+        WHERE f.is_pii = true OR (f.coverage IS NOT NULL AND f.coverage < 0.5)
+        RETURN f.id as id, f.name as name, f.path as path, f.coverage as coverage, 
+               f.is_pii as is_pii, f.pii_keywords as pii_keywords
+        ORDER BY f.coverage ASC
+        LIMIT 20
+        """
+        risks_raw = await store.execute_query(risk_query)
+        risks = []
+        for r in risks_raw:
+            risks.append({
+                "id": r['id'],
+                "name": r['name'],
+                "path": r['path'],
+                "coverage": round((r['coverage'] or 0) * 100, 1),
+                "is_pii": r['is_pii'],
+                "pii_keywords": r['pii_keywords']
+            })
+        
+        # 3. 统计摘要
+        stats_query = """
+        MATCH (f:File)
+        RETURN count(f) as total_files, 
+               avg(f.coverage) as avg_coverage,
+               sum(case when f.is_pii = true then 1 else 0 end) as pii_count,
+               sum(case when f.coverage < 0.5 then 1 else 0 end) as low_cov_count
+        """
+        stats_res = await store.execute_query(stats_query)
+        stats = stats_res[0] if stats_res else {}
+
+        return ApiResponse.ok(data={
+            "packages": pkgs,
+            "risks": risks,
+            "stats": {
+                "total_files": stats.get('total_files', 0),
+                "avg_coverage": round((stats.get('avg_coverage', 0) or 0) * 100, 1),
+                "pii_count": stats.get('pii_count', 0),
+                "low_cov_count": stats.get('low_cov_count', 0)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Failed to fetch evolution data: {e}")
+        return ApiResponse.error(message="Failed to fetch evolution data")

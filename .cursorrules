@@ -60,5 +60,17 @@
 5. 本文件（`.cursorrules`）
 
 ### 8. Issue 关联约定
-- 团队协作目标是：提交与 PR 均应关联 Issue（例如 `Resolves #123` 或 `Closes #123`）。
 - 当前本地 `commit-msg` Hook 对 Issue 关联采取“警告不阻断”；但在协作流程中仍应视为强要求执行。
+ 
+### 9. 🤖 Claude Code 模式与防御式工程 (Claude Code Inspired)
+1. **防御式执行 (Defensive Execution)**: 
+   - **禁止过度工程 (No Gold-Plating)**: 不要添加超出要求的特性，不要为了修复一个 Bug 而重构周围的代码。
+   - **诚实汇报 (Faithful Reporting)**: 永远不要谎称测试通过。如果报错，如实展示。如果无法验证，直接告诉用户。
+   - **风险评估 (Blast Radius/Reversibility)**: 在执行删除文件、数据库操作、推送代码等“高风险/不可逆”操作前，必须在 Prompt 中显式提及并确认。
+2. **输出效率 (Output Efficiency)**: 
+   - **倒金字塔结构**: 先说结论/行动，再说过程。
+   - **禁用废话**: 移除所有客套话、转折词。如果一句话能说完，不要用三句。
+   - **定位导航**: 引用代码时，必须使用 `file_path:line_number` 格式。
+3. **上下文解耦**: 
+   - 系统 Prompt 必须分为“静态/全局约束”和“动态/环境上下文”。
+   - 运行时注入 OS、Git、CWD 信息，确保 Agent 具备时空感知能力。

@@ -27,6 +27,7 @@ from app.api.routes import (
     auth,
     governance,
     red_team,
+    logs,
 )
 
 router = APIRouter()
@@ -53,3 +54,4 @@ router.include_router(observability.router, prefix="/observability", tags=["Obse
 router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(governance.router, prefix="/governance", tags=["Internal Governance"])
 router.include_router(red_team.router, prefix="/red-team", tags=["Red Team"])
+router.include_router(logs.router, prefix="/logs", tags=["Logs Ingestion"])

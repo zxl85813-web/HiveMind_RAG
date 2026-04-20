@@ -396,3 +396,19 @@ async def get_llm_performance_metrics(
 
     metrics = await get_llm_metrics_summary(db, days=days)
     return ApiResponse.ok(data=metrics)
+
+
+@router.get(
+    "/impact-analysis",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[奇思妙想] 代码“爆炸半径”分析",
+)
+async def get_impact_analysis(
+    node_id: str = Query(..., description="起始节点 ID (File path 或 Entity ID)"),
+    depth: int = Query(default=3, ge=1, le=5),
+):
+    """基于 Neo4j 图谱推演代码变更的影响范围。"""
+    from app.services.memory.tier.graph_index import graph_index
+    result = await graph_index.get_impact_radius(node_id, depth)
+    return ApiResponse.ok(data=result)

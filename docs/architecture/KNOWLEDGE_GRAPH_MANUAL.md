@@ -36,7 +36,9 @@ Phase 6: Agent+Pipeline — Swarm Topology, Tools, Skills, LLM Tiers, Artifacts
 Phase 7: 可观测性+事件   — Trace Types, Event Channels
 Phase 8: 状态机         — 14 State Machines, 76 Transitions
 Phase 9: 运维+治理+测试  — Config, External Services, Migrations, Gates, Tests
-Phase 10: 测试完备性    — E2E Test Flows, API Schemas ← NEW
+Phase 10: 测试完备性    — E2E Test Flows, API Schemas
+Phase 11: 业务流定义    — Business Flow Definitions (YAML), Error Paths
+Phase 12: 技术债识别    — Tech Debt (Mocks, Stubs, TODOs)
 ```
 
 ### 2.2 节点类型总览（~45 种）
@@ -56,6 +58,8 @@ Phase 10: 测试完备性    — E2E Test Flows, API Schemas ← NEW
 | **运维** | `ConfigKey`, `ExternalService`, `Migration` | 配置和外部依赖 |
 | **治理** | `GateRule` | 权限、熔断器、限流器、质量门禁 |
 | **测试** | `TestFile`, `TestFlow`, `TestStep` | 测试文件、E2E 流程和检查点 |
+| **业务流** | `BusinessFlow`, `FlowStep`, `ErrorPath` | 从 YAML 定义的业务流程 |
+| **技术债** | `TechDebt` | 扫描到的 Mock、Stub 和待办项 |
 
 ### 2.3 关系类型总览（~60 种）
 
@@ -77,7 +81,9 @@ Phase 10: 测试完备性    — E2E Test Flows, API Schemas ← NEW
 | 状态机 | `HAS_STATE_MACHINE`, `HAS_STATE`, `INITIAL_STATE`, `TRANSITIONS_TO` | DBTable/StateMachine/EntityState |
 | 运维 | `DEPENDS_ON_CONFIG`, `CONFIGURED_BY`, `HOSTED_ON`, `DEPENDS_ON_MIGRATION`, `MODIFIES_TABLE` | File/ConfigKey/ExternalService |
 | 治理 | `PROTECTS`, `IMPLEMENTS_GATE` | GateRule/ExternalService/File |
-| 测试 | `COVERS_ENDPOINT`, `COVERS_PAGE`, `TESTS_STATE`, `IS_TEST` | TestFile/APIEndpoint/Page |
+| **测试** | `COVERS_ENDPOINT`, `COVERS_PAGE`, `TESTS_STATE`, `IS_TEST` | TestFile/APIEndpoint/Page |
+| **业务流** | `CONTAINS_STEP`, `HAS_ERROR_PATH` | BusinessFlow 组成部分 |
+| **技术债** | `HAS_DEBT`, `AFFECTED_BY_DEBT` | File/API/Flow 与 TechDebt 关联 |
 
 </details>
 
