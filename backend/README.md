@@ -12,31 +12,33 @@
 
 ```mermaid
 graph TD
-    User((User)) <--> Frontend["⚛️ React Frontend<br>(AI-First UI/ChatPanel)"]
+    User((User))
+    Frontend["⚛️ React Frontend\n(AI-First UI/ChatPanel)"]
+    User --- Frontend
     
     subgraph "Backend (FastAPI)"
-        API["🌐 API Gateway<br>(Routes + Deps)"]
+        API["🌐 API Gateway\n(Routes + Deps)"]
         
         subgraph "Application Layer"
-            Service["💼 Business Services<br>(User/Chat/KB)"]
-            Auth["🔐 Auth & Audit<br>(RBAC/Log/Sanitizer)"]
+            Service["💼 Business Services\n(User/Chat/KB)"]
+            Auth["🔐 Auth & Audit\n(RBAC/Log/Sanitizer)"]
         end
         
         subgraph "Intelligence Layer (Agent Swarm)"
-            Supervisor["🧠 Manager Agent<br>(Router)"]
-            Workers["👷 Worker Agents<br>(RAG/Code/Web/Reflection)"]
-            Memory["💾 Shared Memory<br>(Redis/Vector)"]
+            Supervisor["🧠 Manager Agent\n(Router)"]
+            Workers["👷 Worker Agents\n(RAG/Code/Web/Reflection)"]
+            Memory["💾 Shared Memory\n(Redis/Vector)"]
         end
         
         subgraph "Infrastructure Layer"
-            Core["⚙️ Core Infra<br>(Config/DB/Log)"]
-            LLM["🧠 LLM Gateway<br>(Router/Guardrails)"]
-            Tools["🛠️ Tools<br>(MCP/Skills/Learning)"]
+            Core["⚙️ Core Infra\n(Config/DB/Log)"]
+            LLM["🧠 LLM Gateway\n(Router/Guardrails)"]
+            Tools["🛠️ Tools\n(MCP/Skills/Learning)"]
         end
     end
 
-    Frontend <-->|"SSE Stream"| API
-    Frontend <-->|"WebSocket"| API
+    Frontend --> API
+    API --> Frontend
     API --> Service
     Service --> Supervisor
     Supervisor --> Workers

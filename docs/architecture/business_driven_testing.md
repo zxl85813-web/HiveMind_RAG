@@ -48,9 +48,9 @@
 ### 🕸️ 联动模型
 ```mermaid
 graph TD
-    Test[ArchNode:Test: test_swarm_logic]
-    DES[ArchNode:Design: DES-005_Recursive_Loop]
-    Code[CodePrimitive: supervisor.py]
+    Test["ArchNode:Test: test_swarm_logic"]
+    DES["ArchNode:Design: DES-005_Recursive_Loop"]
+    Code["CodePrimitive: supervisor.py"]
     
     Test -- "[:VALIDATES_DESIGN]" --> DES
     Test -- "[:VERIFIES]" --> Code

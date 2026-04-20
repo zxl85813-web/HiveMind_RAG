@@ -97,7 +97,8 @@ graph TD
         Supervisor --> RAG["📚 RAG Agent"]
         Supervisor --> Code["💻 Code Agent"]
         Supervisor --> Web["🌐 Web Agent"]
-        RAG & Code --> Reflection["🪞 Reflection Agent\n质量评审 & 自省纠错"]
+        RAG --> Reflection["🪞 Reflection Agent\n质量评审 & 自省纠错"]
+        Code --> Reflection
     end
 
     subgraph "📡 观测与神经中枢"

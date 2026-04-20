@@ -37,16 +37,16 @@
 ```mermaid
 graph TD
     %% Assets to Code
-    REQ[CognitiveAsset: REQ-001] -- "[:DEFINES]" --> DES[CognitiveAsset: DES-001]
-    DES -- "[:MAPPED_TO_CODE]" --> Hook[CodePrimitive: useChatHook]
+    REQ["CognitiveAsset: REQ-001"] -- "[:DEFINES]" --> DES["CognitiveAsset: DES-001"]
+    DES -- "[:MAPPED_TO_CODE]" --> Hook["CodePrimitive: useChatHook"]
     
     %% Intelligence to Code
-    Agent[IntelligenceNode: ChatWorker] -- "[:EXECUTES]" --> Hook
-    Agent -- "[:REQUIRES_SKILL]" --> Crypto[IntelligenceNode: Skill-Crypto]
+    Agent["IntelligenceNode: ChatWorker"] -- "[:EXECUTES]" --> Hook
+    Agent -- "[:REQUIRES_SKILL]" --> Crypto["IntelligenceNode: Skill-Crypto"]
     
     %% Quality Feedback
-    HMER[MetricNode: HMER-Score] -- "[:AUDITS]" --> DES
-    HMER -- "[:REPORTS_TO]" --> Dashboard[IntelligenceNode: GovernanceAgent]
+    HMER["MetricNode: HMER-Score"] -- "[:AUDITS]" --> DES
+    HMER -- "[:REPORTS_TO]" --> Dashboard["IntelligenceNode: GovernanceAgent"]
 ```
 
 ---
