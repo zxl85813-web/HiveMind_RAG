@@ -128,6 +128,9 @@ class RAGQueryTrace(SQLModel, table=True):
     # Per-step trace log from RetrievalContext.trace_log
     step_traces: list[str] = Field(default_factory=list, sa_type=JSON)
 
+    # [AEC-G1] Quality Monitoring
+    quality_tier: str | None = Field(default=None, index=True) # EXCELLENT, GOOD, LOW_RELEVANCE, FAIL
+
     # Phase 1: Predictive Prefetching & Latency Governance
     prefetch_hit: bool = Field(default=False, index=True)
     intent_predicted: str | None = Field(default=None, index=True)
