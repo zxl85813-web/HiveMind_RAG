@@ -203,7 +203,8 @@
 - [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
 - [ ] **L3 质量门禁**: 验证 `gate_l3_intelligence.py` 在真实跑分下的准入表现
 - [ ] **12阶段架构图谱**: 等待 `index_architecture.py` 完成全量索引 (Phase 1-12)
-- [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
+- [x] **容器化发布验证 (GitHub Actions)**: 针对本地虚拟机无法安装 Docker 的限制，建立云端全量构建与冒烟测试流水线 (Smoke Test)，覆盖前后端镜像、多服务协作与 API 健康检查。
+- [ ] **Next Milestone**: 自动化回归测试与多环境部署验证 (生产环境连通性)
 - [x] **REQ-015: L5 智体治理任务提报与图谱融合 (M6.1.4)** ✅ 已硬化
     - [x] Phase 1: 任务格式标准化与 TODO.md 扩展
     - [x] Phase 2: Neo4j Task 节点与关系定义

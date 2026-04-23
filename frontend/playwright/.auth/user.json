@@ -7,6 +7,14 @@
         {
           "name": "i18nextLng",
           "value": "en-US"
+        },
+        {
+          "name": "hm_last_user_id",
+          "value": "5c571685-38f1-4751-9f12-7649a32807d6"
+        },
+        {
+          "name": "hm-chat-storage",
+          "value": "{\"state\":{\"viewMode\":\"ai\"},\"version\":0}"
         }
       ]
     }
