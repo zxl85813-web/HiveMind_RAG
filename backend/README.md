@@ -137,6 +137,12 @@ alembic upgrade head
 - **Tier 2 - 知识图谱层 (Overview Graph)**: 基于 **Neo4j** 构建实体关系网。当命中线索时，系统顺藤摸瓜拉取图谱邻居，赋予 Agent 类似人类大脑的关联能力，洞悉隐式关系。
 - **Tier 3 - 向量细节层 (Deep Detail)**: 基于 Vector/Elastic 本地数据库执行深层匹配。在明确目标后精准捞取原始长文本与代码切块兜底，交由 LLM 生成精确答案。
 
+### 4. 主动进化架构 (Active Evolution Cycle - AEC)
+独创的“感知-决策-实验”闭环自进化体系，解决 RAG 系统上线后难以持续优化的痛点：
+- **感知层 (Perception)**: `RAGGateway` 实时对每一笔检索产出 `KnowledgeQuality` 评分 (EXCELLENT -> FAIL)，实现检索效果的原子级监控。
+- **决策层 (Governance)**: `QualityGovernanceService` 充当“主治医生”，根据质量指标动态决定应对措施（如自动触发 HyDE 改写、多路径扩展或图谱拓扑注入）。
+- **实验层 (Lab)**: `RefinementLab` 自动化实验室。它能从 `BadCase` 中提取样本进行“锦标赛”对比实验，量化不同优化策略的提升效果，为系统进化提供数据支撑。
+
 ---
 
 ## 🧠 批处理与调度引擎 (Batch & Scheduling Engine)
