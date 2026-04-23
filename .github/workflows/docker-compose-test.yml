@@ -1,16 +1,16 @@
-name: Docker Compose Release Test
+name: Containerized Release Test
 
 on:
   push:
-    branches: [ master, main, feature/* ]
+    branches: [ master, main, feature/*, feat/* ]
   pull_request:
     branches: [ master, main ]
-  workflow_dispatch: # 允许手动点击触发
+  workflow_dispatch:
 
 jobs:
   test-container-release:
     runs-on: ubuntu-latest
-    name: 🐳 Containerized Release Test
+    name: Containerized Release Test
     
     steps:
       - name: Checkout Code
@@ -18,12 +18,8 @@ jobs:
 
       - name: Setup Dummy Environment
         run: |
-          # 准备后端生产环境变量
           cp backend/.env.example backend/.env.production
-          # 可以在这里注入一些 CI 特有的环境变量
           echo "DATABASE_URL=postgresql+asyncpg://postgres:root@postgres:5432/hivemind" >> backend/.env.production
-          
-          # 准备前端生产环境变量
           if [ -f "frontend/.env.production" ]; then
             echo "Environment exists"
           else
@@ -37,20 +33,14 @@ jobs:
       - name: Wait for Backend Health Check
         run: |
           echo "Waiting for services to be healthy..."
-          # 使用 docker compose ps --format json 来检查状态 (Docker V2)
-          # 我们给 backend 设置了 10 retries * 10s = 100s 的容忍度
           timeout 120s bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} hivemind-backend-prod)" == "healthy" ]; do sleep 5; done'
           
       - name: Verify Services
         run: |
           echo "--- Checking Frontend (Nginx) ---"
           curl -f http://localhost:80 || exit 1
-          
           echo "--- Checking Backend API ---"
-          # 注意：前端 Nginx 配置应该把 /api 转发给 backend:8888
-          # 我们直接验证后端 API
           docker compose -f docker-compose.prod.yml exec -T backend curl -f http://localhost:8888/api/v1/health/ || exit 1
-          
           echo "--- Container Release Test Passed! ---"
 
       - name: Show Container Logs on Failure
