@@ -13,9 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Install project dependencies (will reuse the already-installed CPU torch)
-COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+# Install project dependencies
+COPY pyproject.toml README.md ./
+RUN mkdir app && touch app/__init__.py && \
+    pip install --no-cache-dir . && \
+    rm -rf app
 
 # --- Runtime Stage ---
 FROM python:3.11-slim
