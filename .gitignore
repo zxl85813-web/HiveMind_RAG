@@ -61,6 +61,8 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 frontend/debug_symbols/
+frontend/report*.json
+frontend/playwright/.auth/
 query_db.py
 scenario_f_log*.txt
 tmp_report.txt
