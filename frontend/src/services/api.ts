@@ -11,6 +11,12 @@ import i18n from '../i18n/config';
 import { tokenVault } from '../core/auth/TokenVault';
 import { connectionManager } from '../core/ConnectionManager';
 import antdStatic from '../core/antdStatic';
+ 
+declare global {
+  interface Window {
+    isAuthRedirecting?: boolean;
+  }
+}
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',

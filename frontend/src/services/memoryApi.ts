@@ -1,5 +1,5 @@
 import api from './api';
-import { ApiResponse } from '../types';
+import type { ApiResponse } from '../types';
 
 export interface GraphNode {
     id: string;
