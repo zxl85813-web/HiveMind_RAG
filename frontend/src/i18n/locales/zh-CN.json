@@ -32,6 +32,7 @@
         "tokenDashboard": "Token 大屏",
         "kbAnalytics": "知识库分析",
         "trace": "全链路 Trace",
+        "performanceLab": "数据库性能实验室",
         "category": {
             "insight": "智能概览",
             "cognitive": "认知核心",

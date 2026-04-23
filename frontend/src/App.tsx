@@ -49,6 +49,7 @@ const TokenDashboardPage = lazy(() => import('./pages/TokenDashboardPage').then(
 const KBAnalyticsPage = lazy(() => import('./pages/KBAnalyticsPage').then(m => ({ default: m.KBAnalyticsPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const TracePage = lazy(() => import('./pages/TracePage').then(m => ({ default: m.TracePage })));
+const PerformanceLab = lazy(() => import('./pages/PerformanceLab'));
 const ForbiddenPage = lazy(() => import('./pages/ForbiddenPage').then(m => ({ default: m.ForbiddenPage })));
 
 const pageComponentMap = {
@@ -72,6 +73,7 @@ const pageComponentMap = {
   tokenDashboard: TokenDashboardPage,
   kbAnalytics: KBAnalyticsPage,
   trace: TracePage,
+  performanceLab: PerformanceLab,
   login: LoginPage,
 } as const;
 

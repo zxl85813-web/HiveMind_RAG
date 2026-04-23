@@ -70,6 +70,7 @@ class WorkerAgent(BaseAgent):
                     }
                 ))
 
+            return AgentResponse(
                 task_id=task.id,
                 output=str(output),
                 new_knowledge=knowledge or {},

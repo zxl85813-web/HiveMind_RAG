@@ -16,4 +16,5 @@ export const protectedRoutes: AppRouteMeta[] = [
     { key: 'tokenDashboard', path: '/token-dashboard', labelKey: 'nav.tokenDashboard', icon: 'DashboardOutlined', showInMenu: true, category: 'observability', access: { anyPermissions: ['settings:manage'] } },
     { key: 'kbAnalytics', path: '/kb-analytics', labelKey: 'nav.kbAnalytics', icon: 'AreaChartOutlined', showInMenu: true, category: 'lab', access: { anyPermissions: ['settings:manage'] } },
     { key: 'trace', path: '/trace', labelKey: 'nav.trace', icon: 'NodeIndexOutlined', showInMenu: true, category: 'observability', access: { anyPermissions: ['settings:manage'] } },
+    { key: 'performanceLab', path: '/performance-lab', labelKey: 'nav.performanceLab', icon: 'DashboardOutlined', showInMenu: true, category: 'system', access: { anyPermissions: ['settings:manage'] } },
 ];

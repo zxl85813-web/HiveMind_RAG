@@ -8,6 +8,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from app.sdk.core.logging import get_trace_logger
 
 from app.agents.swarm import SwarmOrchestrator
 from app.batch.engine import JobManager

@@ -29,7 +29,8 @@
         "architectureLab": "Arch Lab",
         "tokenDashboard": "Token Board",
         "kbAnalytics": "KB Analytics",
-        "trace": "Network Trace",
+        "trace": "System Trace",
+        "performanceLab": "DB Performance Lab",
         "agentGovernance": "Agent Governance",
         "category": {
             "insight": "Insight",

@@ -10,6 +10,20 @@ export interface LogEntry {
   data?: any;
 }
 
+// 🛡️ [Harden]: Safe JSON stringification to prevent circular structure crashes (TASK-FE-GOV-001)
+function safeStringify(obj: any): string {
+  const cache = new Set();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (cache.has(value)) {
+        return '[Circular]';
+      }
+      cache.add(value);
+    }
+    return value;
+  });
+}
+
 class LoggingService {
   private queue: LogEntry[] = [];
   private flushInterval: number = 5000; // 5 seconds
@@ -36,8 +50,7 @@ class LoggingService {
     try {
       await axios.post(`${API_BASE}/logs/ingest`, { batch });
     } catch (error) {
-      console.error('Failed to ingest logs to backend:', error);
-      // Put them back if critical? No, let's avoid infinite loops
+      // Don't log to console here to avoid recursion if console is intercepted
     }
   }
 
@@ -55,7 +68,13 @@ class LoggingService {
       this.log({
         level: 'info',
         module: 'console',
-        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '),
+        message: args.map(a => {
+            try {
+                return typeof a === 'object' ? safeStringify(a) : String(a);
+            } catch {
+                return '[Serialization Error]';
+            }
+        }).join(' '),
       });
     };
 
@@ -64,7 +83,13 @@ class LoggingService {
       this.log({
         level: 'error',
         module: 'console-error',
-        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '),
+        message: args.map(a => {
+            try {
+                return typeof a === 'object' ? safeStringify(a) : String(a);
+            } catch {
+                return '[Serialization Error]';
+            }
+        }).join(' '),
       });
     };
 
@@ -73,7 +98,13 @@ class LoggingService {
       this.log({
         level: 'warning',
         module: 'console-warn',
-        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '),
+        message: args.map(a => {
+            try {
+                return typeof a === 'object' ? safeStringify(a) : String(a);
+            } catch {
+                return '[Serialization Error]';
+            }
+        }).join(' '),
       });
     };
   }
