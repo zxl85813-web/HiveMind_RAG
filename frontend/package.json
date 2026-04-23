@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/post-build.js",
+    "build": "tsc -p tsconfig.app.json && vite build && node scripts/post-build.js",
     "lint": "eslint .",
     "theme:check": "node scripts/theme-check.mjs --changed",
     "theme:check:staged": "node scripts/theme-check.mjs --staged",
@@ -70,6 +70,7 @@
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.11.0",
     "jsdom": "^26.1.0",
+    "@types/jsdom": "^21.1.7",
     "rollup-plugin-visualizer": "^5.12.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
