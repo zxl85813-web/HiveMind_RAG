@@ -593,8 +593,8 @@ export const EvalPage: React.FC = () => {
             key: 'retrieval',
             render: (_: any, record: any) => (
                 <Space direction="vertical" size={0}>
-                    <Text size="small" type="secondary">MRR: {(record.mrr || 0).toFixed(2)}</Text>
-                    <Text size="small" type="secondary">NDCG: {(record.ndcg || 0).toFixed(2)}</Text>
+                    <Text style={{ fontSize: '12px' }} type="secondary">MRR: {(record.mrr || 0).toFixed(2)}</Text>
+                    <Text style={{ fontSize: '12px' }} type="secondary">NDCG: {(record.ndcg || 0).toFixed(2)}</Text>
                 </Space>
             )
         },
@@ -999,7 +999,7 @@ export const EvalPage: React.FC = () => {
                             title: '系统诊断 (AI Insight)', 
                             dataIndex: 'ai_insight', 
                             width: 200,
-                            render: (v: string) => <Text type="secondary" size="small" italic>{v || '无诊断建议'}</Text>
+                            render: (v: string) => <Text type="secondary" style={{ fontSize: '12px' }} italic>{v || '无诊断建议'}</Text>
                         },
                         {
                             title: '协作进化',
@@ -1009,7 +1009,7 @@ export const EvalPage: React.FC = () => {
                                 <Space>
                                     <Popover 
                                         title="证据溯源 (Context Snapshot)" 
-                                        content={<div style={{ maxWidth: 400, maxHeight: 300, overflowY: 'auto' }}><Text size="small">{record.context_snapshot || '未记录上下文'}</Text></div>}
+                                        content={<div style={{ maxWidth: 400, maxHeight: 300, overflowY: 'auto' }}><Text style={{ fontSize: '12px' }}>{record.context_snapshot || '未记录上下文'}</Text></div>}
                                     >
                                         <Button size="small" icon={<FileSearchOutlined />}>证据</Button>
                                     </Popover>
@@ -1060,8 +1060,8 @@ export const EvalPage: React.FC = () => {
                                 >
                                     <Text strong style={{ fontSize: '15px' }}>{item.directive}</Text>
                                     <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
-                                        <Text size="small" type="secondary">信度: {(item.confidence_score * 100).toFixed(1)}%</Text>
-                                        <Text size="small" type="secondary">更新: {new Date(item.updated_at).toLocaleDateString()}</Text>
+                                        <Text style={{ fontSize: '12px' }} type="secondary">信度: {(item.confidence_score * 100).toFixed(1)}%</Text>
+                                        <Text style={{ fontSize: '12px' }} type="secondary">更新: {new Date(item.updated_at).toLocaleDateString()}</Text>
                                     </div>
                                 </Card>
                             </List.Item>
@@ -1235,7 +1235,7 @@ export const EvalPage: React.FC = () => {
 
                             {smeClaims.length > 0 && (
                                 <div style={{ marginBottom: '20px', padding: '12px', background: 'rgba(114, 46, 209, 0.05)', borderRadius: '8px' }}>
-                                    <Text type="secondary" size="small">评测基准 Checklist:</Text>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>评测基准 Checklist:</Text>
                                     <div style={{ marginTop: '8px' }}>
                                         {smeClaims.map((c, i) => <Checkbox key={i} checked style={{ display: 'block', marginBottom: '4px' }}>{c}</Checkbox>)}
                                     </div>
