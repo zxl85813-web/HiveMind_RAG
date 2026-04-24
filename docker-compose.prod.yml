@@ -10,7 +10,6 @@ services:
       POSTGRES_DB: hivemind
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    # No ports exposed to host to avoid conflicts
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +23,6 @@ services:
     image: redis:7-alpine
     container_name: hivemind-redis-prod
     restart: always
-    # No ports exposed to host
     volumes:
       - redis_data_prod:/data
 
@@ -33,7 +31,6 @@ services:
     image: chromadb/chroma:latest
     container_name: hivemind-chroma-prod
     restart: always
-    # No ports exposed to host
     volumes:
       - chroma_data_prod:/chroma/chroma
 
@@ -47,7 +44,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9010:9000" # Keep MinIO access if needed for management
+      - "9010:9000"
       - "9011:9011"
     volumes:
       - minio_data_prod:/data
@@ -68,13 +65,9 @@ services:
         condition: service_started
       minio:
         condition: service_started
-    # Remove ports for background access, now proxied by frontend
-    # env_file:
-    #   - ./backend/.env.production
     environment:
       ENV: production
       DEBUG: "false"
-      # DB Connection
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       REDIS_URL: redis://redis:6379/0
       POSTGRES_SERVER: postgres
@@ -82,37 +75,34 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hivemind
-      # Security (P0 Hardening)
       SECRET_KEY: ${SECRET_KEY:-hivemind-prod-secret-fallback-888}
-      # Vector Store
       VECTOR_STORE_TYPE: chroma
       CHROMA_HOST: chroma
-      # Embedding
       EMBEDDING_PROVIDER: zhipu
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-      # LLM
       LLM_PROVIDER: siliconflow
       LLM_API_KEY: ${LLM_API_KEY:-}
-      # Path
       PYTHONPATH: /app
     volumes:
       - ./logs/backend:/app/logs
       - ./storage:/app/storage
     command: >
-      sh -c "echo '--- HiveMind Backend: Starting Network Probe ---' &&
+      sh -c "echo '--- Starting Backend Diagnostics ---' &&
+             mkdir -p storage uploads logs &&
+             echo 'Checking connection to postgres:5432...' &&
              until nc -z postgres 5432; do
-               echo 'Waiting for postgres container to accept connections...';
+               echo 'Waiting for postgres...';
                sleep 2;
              done &&
-             echo '--- HiveMind Backend: Network Ready, Running Migrations ---' &&
-             python -m alembic upgrade head --raiseerr &&
-             echo '--- HiveMind Backend: Migrations Success, Starting Application ---' &&
+             echo 'Database is reachable. Running migrations...' &&
+             python -m alembic upgrade head &&
+             echo 'Migrations finished successfully. Starting Uvicorn...' &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/v1/health/ || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 10
       start_period: 120s
 
   # === Frontend (React / Vite / Nginx) ===
@@ -124,7 +114,6 @@ services:
     restart: always
     ports:
       - "80:80"
-    # 等待 backend 健康检查通过后才启动，确保 Nginx 能解析到 backend 主机名
     depends_on:
       backend:
         condition: service_healthy
