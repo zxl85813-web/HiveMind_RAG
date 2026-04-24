@@ -72,29 +72,47 @@ services:
     # env_file:
     #   - ./backend/.env.production
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       REDIS_URL: redis://redis:6379/0
+      ENV: production
+      DEBUG: "false"
+      # DB Connection
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       POSTGRES_SERVER: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hivemind
-      APP_ENV: production
-      DEBUG: "false"
+      # Security (P0 Hardening)
+      SECRET_KEY: ${SECRET_KEY:-hivemind-prod-secret-fallback-888}
+      # Vector Store
       VECTOR_STORE_TYPE: chroma
       CHROMA_HOST: chroma
+      # Embedding
+      EMBEDDING_PROVIDER: zhipu
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      # LLM
+      LLM_PROVIDER: siliconflow
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      # Path
       PYTHONPATH: .
-      SECRET_KEY: ${SECRET_KEY:-hivemind_production_secret_key_change_me}
     command: >
-      sh -c "mkdir -p storage uploads && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8888"
-    # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
-    # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
+      sh -c "echo 'Starting Backend Init...' && 
+             mkdir -p storage uploads logs && 
+             echo 'Running Migrations...' && 
+             python -m alembic upgrade head || { echo 'Migration failed'; exit 1; } && 
+             echo 'Starting Uvicorn...' && 
+             uvicorn app.main:app --host 0.0.0.0 --port 8888 --log-level info"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health/')" ]
-      interval: 10s
-      timeout: 5s
+      test: [ "CMD", "python", "-c", "import urllib.request; import sys; 
+        try: 
+          res = urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health/'); 
+          sys.exit(0 if res.status == 200 else 1)
+        except Exception as e: 
+          print(e); sys.exit(1)" ]
+      interval: 15s
+      timeout: 10s
       retries: 20
-      start_period: 120s
+      start_period: 180s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
