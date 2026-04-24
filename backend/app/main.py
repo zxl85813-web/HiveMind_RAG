@@ -35,74 +35,58 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 2. Agent Swarm Initialization
     from app.api.routes.agents import _swarm
-    from app.agents.swarm import AgentDefinition
+    from app.agents.schemas import AgentDefinition
     
     logger.info("🐝 Registering Swarm Agents...")
 
-    # Registering default agents (MVP)
-    _swarm.register_agent(
+    agents_to_register = [
         AgentDefinition(
             name="rag",
-            description=(
-                "Knowledge Expert. Use this for factual questions, knowledge-base lookups, "
-                "or internal documentation queries with citations."
-            ),
+            description="Knowledge Expert. Use this for factual questions, knowledge-base lookups, or internal documentation queries with citations.",
+            icon="📚",
             model_hint="balanced",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="web",
             description="Able to search the internet for the most up-to-date information.",
+            icon="🌐",
             model_hint="fast",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="code",
             description="Specialized in writing, debugging, and explaining code in various programming languages.",
+            icon="💻",
             model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="eval_architect",
-            description=(
-                "Expert in RAG evaluation systems. Helps design testsets, expand data with AI, "
-                "and diagnose quality issues."
-            ),
+            description="Expert in RAG evaluation systems. Helps design testsets, expand data with AI, and diagnose quality issues.",
+            icon="📐",
             model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(
-        AgentDefinition(
-            name="commerce_expert",
-            description=(
-                "电商业务专家。专门处理订单查询(01)、物流轨迹(02)、订单取消(03)和地址变更(04)。"
-                "能够识别 EFXX, Amazon, eBay 等单号格式，并执行登录状态校验逻辑。"
-            ),
-            model_hint="balanced",
-        )
-    )
-    _swarm.register_agent(
-        AgentDefinition(
-            name="email_expert",
-            description=(
-                "邮件客服专家。负责邮件分级 (L1-L5)、首回草稿生成和风控审核。"
-                "擅长套用多语言模板，并能结合知识库和订单背景提供人性化回复。"
-            ),
-            model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="critic",
             description="Audits agent responses for logic, safety, and hallucination risks.",
             icon="⚖️",
             model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(AgentDefinition(name="Supervisor", description="Coordinator of the swarm", icon="👑"))
+        ),
+        AgentDefinition(
+            name="commerce_expert",
+            description="电商业务专家。专门处理订单查询、物流轨迹、订单取消和地址变更。",
+            icon="🛍️",
+            model_hint="balanced",
+        ),
+        AgentDefinition(
+            name="email_expert",
+            description="邮件客服专家。负责邮件分级、首回草稿生成和风控审核。",
+            icon="📧",
+            model_hint="reasoning",
+        ),
+        AgentDefinition(name="Supervisor", description="Coordinator of the swarm", icon="👑")
+    ]
+
+    for agent_def in agents_to_register:
+        _swarm.register_agent(agent_def)
 
     logger.info(f"✅ Swarm initialized with {len(_swarm.get_agents())} agents.")
 

@@ -15,8 +15,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Install project dependencies
 COPY pyproject.toml README.md ./
+# Create dummy app to install dependencies first (caching)
 RUN mkdir app && touch app/__init__.py && \
     pip install --no-cache-dir . && \
+    pip uninstall -y hivemind-rag && \
     rm -rf app
 
 # --- Runtime Stage ---
