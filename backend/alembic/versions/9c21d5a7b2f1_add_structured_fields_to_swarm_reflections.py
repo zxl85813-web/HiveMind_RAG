@@ -20,37 +20,24 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "swarm_reflections",
-        sa.Column("signal_type", sa.String(), nullable=False, server_default="insight"),
-    )
-    op.add_column(
-        "swarm_reflections",
-        sa.Column("topic", sa.String(), nullable=False, server_default=""),
-    )
-    op.add_column(
-        "swarm_reflections",
-        sa.Column("match_key", sa.String(), nullable=False, server_default=""),
-    )
-    op.add_column(
-        "swarm_reflections",
-        sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"),
-    )
-    op.add_column(
-        "swarm_reflections",
-        sa.Column("source_task_id", sa.String(), nullable=False, server_default=""),
-    )
+    with op.batch_alter_table("swarm_reflections") as batch_op:
+        batch_op.add_column(sa.Column("signal_type", sa.String(), nullable=False, server_default="insight"))
+        batch_op.add_column(sa.Column("topic", sa.String(), nullable=False, server_default=""))
+        batch_op.add_column(sa.Column("match_key", sa.String(), nullable=False, server_default=""))
+        batch_op.add_column(sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"))
+        batch_op.add_column(sa.Column("source_task_id", sa.String(), nullable=False, server_default=""))
 
     op.create_index(op.f("ix_swarm_reflections_signal_type"), "swarm_reflections", ["signal_type"], unique=False)
     op.create_index(op.f("ix_swarm_reflections_topic"), "swarm_reflections", ["topic"], unique=False)
     op.create_index(op.f("ix_swarm_reflections_match_key"), "swarm_reflections", ["match_key"], unique=False)
     op.create_index(op.f("ix_swarm_reflections_source_task_id"), "swarm_reflections", ["source_task_id"], unique=False)
 
-    op.alter_column("swarm_reflections", "signal_type", server_default=None)
-    op.alter_column("swarm_reflections", "topic", server_default=None)
-    op.alter_column("swarm_reflections", "match_key", server_default=None)
-    op.alter_column("swarm_reflections", "tags", server_default=None)
-    op.alter_column("swarm_reflections", "source_task_id", server_default=None)
+    with op.batch_alter_table("swarm_reflections") as batch_op:
+        batch_op.alter_column("signal_type", server_default=None)
+        batch_op.alter_column("topic", server_default=None)
+        batch_op.alter_column("match_key", server_default=None)
+        batch_op.alter_column("tags", server_default=None)
+        batch_op.alter_column("source_task_id", server_default=None)
 
 
 def downgrade() -> None:

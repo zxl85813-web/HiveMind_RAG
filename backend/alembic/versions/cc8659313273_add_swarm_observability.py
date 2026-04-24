@@ -52,10 +52,18 @@ def upgrade() -> None:
     op.create_index(op.f('ix_obs_swarm_spans_agent_name'), 'obs_swarm_spans', ['agent_name'], unique=False)
     op.create_index(op.f('ix_obs_swarm_spans_created_at'), 'obs_swarm_spans', ['created_at'], unique=False)
     op.create_index(op.f('ix_obs_swarm_spans_swarm_trace_id'), 'obs_swarm_spans', ['swarm_trace_id'], unique=False)
-    op.drop_index('idx_obs_rag_h_integrity', table_name='obs_rag_query_traces')
-    op.drop_index('idx_obs_rag_p_hash', table_name='obs_rag_query_traces')
-    op.create_index(op.f('ix_obs_rag_query_traces_h_integrity'), 'obs_rag_query_traces', ['h_integrity'], unique=False)
-    op.create_index(op.f('ix_obs_rag_query_traces_p_hash'), 'obs_rag_query_traces', ['p_hash'], unique=False)
+    with op.batch_alter_table('obs_rag_query_traces') as batch_op:
+        batch_op.add_column(sa.Column('quality_tier', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+        batch_op.add_column(sa.Column('p_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+        batch_op.add_column(sa.Column('h_integrity', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+        
+        # 注释掉不存在的索引删除指令，防止迁移中断
+        # batch_op.drop_index('idx_obs_rag_h_integrity')
+        # batch_op.drop_index('idx_obs_rag_p_hash')
+        
+        batch_op.create_index(op.f('ix_obs_rag_query_traces_h_integrity'), ['h_integrity'], unique=False)
+        batch_op.create_index(op.f('ix_obs_rag_query_traces_p_hash'), ['p_hash'], unique=False)
+        batch_op.create_index(op.f('ix_obs_rag_query_traces_quality_tier'), ['quality_tier'], unique=False)
     # ### end Alembic commands ###
 
 

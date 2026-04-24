@@ -76,6 +76,7 @@ services:
       DEBUG: "false"
       # DB Connection
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
+      REDIS_URL: redis://redis:6379/0
       POSTGRES_SERVER: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
