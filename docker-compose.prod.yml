@@ -82,12 +82,14 @@ services:
       APP_ENV: production
       DEBUG: "false"
       VECTOR_STORE_TYPE: chroma
+      CHROMA_HOST: chroma
+      PYTHONPATH: .
     command: >
-      sh -c "until alembic upgrade head; do echo 'Waiting for DB migrations...'; sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8888"
+      sh -c "python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8888"
     # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
     # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/api/v1/health')" ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health')" ]
       interval: 10s
       timeout: 5s
       retries: 10
