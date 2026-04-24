@@ -7,9 +7,9 @@ services:
     container_name: hivemind-postgres-prod
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-hivemind}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: hivemind
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     # No ports exposed to host to avoid conflicts
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
@@ -85,7 +85,7 @@ services:
       CHROMA_HOST: chroma
       PYTHONPATH: .
     command: >
-      sh -c "python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8888"
+      sh -c "mkdir -p storage uploads && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8888"
     # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
     # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
     healthcheck:
