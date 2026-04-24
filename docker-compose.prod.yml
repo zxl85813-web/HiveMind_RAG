@@ -88,14 +88,19 @@ services:
       - ./logs/backend:/app/logs
       - ./storage:/app/storage
     command: >
-      sh -c "python -m alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
+      sh -c "echo '--- Diagnostic Startup ---' &&
+             echo '1. Waiting for postgres port 5432...' &&
+             until nc -z postgres 5432; do sleep 1; done &&
+             echo '2. Database port is open. Running migrations...' &&
+             python -m alembic upgrade head || (echo '❌ Migrations failed!' && exit 1) &&
+             echo '3. Migrations successful. Starting server...' &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
