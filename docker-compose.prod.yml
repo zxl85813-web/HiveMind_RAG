@@ -14,10 +14,10 @@ services:
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hivemind"]
+      test: ["CMD-SHELL", "psql -U postgres -d hivemind -c 'SELECT 1'"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
 
   # === Cache (Redis) ===
   redis:
@@ -69,8 +69,8 @@ services:
       minio:
         condition: service_started
     # Remove ports for background access, now proxied by frontend
-    env_file:
-      - ./backend/.env.production
+    # env_file:
+    #   - ./backend/.env.production
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       REDIS_URL: redis://redis:6379/0
@@ -84,16 +84,17 @@ services:
       VECTOR_STORE_TYPE: chroma
       CHROMA_HOST: chroma
       PYTHONPATH: .
+      SECRET_KEY: ${SECRET_KEY:-hivemind_production_secret_key_change_me}
     command: >
       sh -c "mkdir -p storage uploads && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8888"
     # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
     # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health')" ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health/')" ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 20
+      start_period: 120s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
