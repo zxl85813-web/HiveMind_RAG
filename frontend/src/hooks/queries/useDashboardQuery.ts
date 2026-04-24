@@ -4,6 +4,7 @@ import { knowledgeApi } from '../../services/knowledgeApi';
 import { evalApi } from '../../services/evalApi';
 import { observabilityApi } from '../../services/observabilityApi';
 import { useMonitor } from '../useMonitor';
+import type { DashboardStats } from '../../types';
 
 /**
  * 🛰️ [FE-GOV-001]: Dashboard 概览数据管理 Hook
@@ -19,7 +20,7 @@ export const DASHBOARD_KEYS = {
 export function useDashboardStats() {
     const { track } = useMonitor();
 
-    return useQuery({
+    return useQuery<DashboardStats>({
         queryKey: DASHBOARD_KEYS.STATS,
         queryFn: async () => {
             track('system', 'fetch_start', { resource: 'dashboard_stats' });
@@ -31,7 +32,7 @@ export function useDashboardStats() {
             const data = {
                 ...statsRes.data.data,
                 total_kbs: kbRes.data.data.length
-            };
+            } as DashboardStats;
             track('system', 'fetch_success', { resource: 'dashboard_stats' });
             return data;
         },

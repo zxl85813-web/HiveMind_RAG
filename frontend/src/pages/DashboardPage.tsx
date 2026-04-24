@@ -1,5 +1,5 @@
 import React from 'react';
-import { Row, Col, Card, Typography, Flex, Tag, List, Progress } from 'antd';
+import { Row, Col, Card, Typography, Flex, Tag, List, Progress, Space, Badge } from 'antd';
 import {
     DatabaseOutlined,
     ClusterOutlined,
@@ -159,7 +159,7 @@ export const DashboardPage: React.FC = () => {
                     <Tag icon={<SafetyCertificateOutlined />} color="cyan">治理指数: {stats?.hardening_score ?? 0}%</Tag>
                 </Flex>
                 <Card className={styles.hardeningCard}>
-                    <Row gutter={32} align="center">
+                    <Row gutter={32} align="middle">
                         <Col xs={24} md={16}>
                             <Paragraph>
                                 HiveMind 正在从 <b>Mock/Stub 验证态</b> 迁移至 <b>生产高可用态</b>。目前的指标基于治理图谱中的真实代码实体与技术债节点比例计算。

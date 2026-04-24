@@ -9,7 +9,9 @@ const { Text } = Typography;
  * 基于 G6 v5.0 的动画系统实现“蚂蚁线”流动效果
  */
 class FlowingEdge extends Line {
+  // @ts-ignore
   onCreate() {
+    // @ts-ignore
     super.onCreate();
     this.animate(
       [
@@ -104,7 +106,7 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
           lineWidth: 1,
         }
       })),
-      edges: filteredData.edges?.map((l, i) => ({
+      edges: filteredData.links?.map((l: any, i: number) => ({
         id: `edge-${i}`,
         source: typeof l.source === 'object' ? (l.source as any).id : l.source,
         target: typeof l.target === 'object' ? (l.target as any).id : l.target,
@@ -149,6 +151,15 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
           labelText: (d: any) => d.data.label,
           labelFontSize: 12,
           labelFill: token.colorText,
+        },
+        state: {
+          'impacted': {
+            fill: token.colorError,
+            stroke: token.colorError,
+            lineWidth: 3,
+            shadowBlur: 10,
+            shadowColor: token.colorError,
+          }
         }
       },
       edge: {
@@ -165,17 +176,6 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
             lineWidth: 2,
           }
         }
-      },
-      node: {
-        state: {
-          'impacted': {
-            fill: token.colorError,
-            stroke: token.colorError,
-            lineWidth: 3,
-            shadowBlur: 10,
-            shadowColor: token.colorError,
-          }
-        }
       }
     });
 
@@ -184,8 +184,7 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
 
     // 3. 事件绑定
     graph.on('node:click', (evt: any) => {
-      const { target } = evt;
-      const nodeId = target.id;
+      const nodeId = evt.target.id;
       
       if (onNodeClick) {
           const nodeData = data.nodes.find(n => n.id === nodeId);
@@ -200,7 +199,7 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
     return () => {
       graph.destroy();
     };
-  }, [filteredData, width, height, token, onNodeClick]);
+  }, [filteredData, width, height, token, onNodeClick, data.nodes]);
 
   // --- [曝露方法给外部调用] ---
   React.useImperativeHandle(ref, () => ({
@@ -211,31 +210,33 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
     },
     resetZoom: () => {
       if (!graphRef.current) return;
-      graphRef.current.fitView({ duration: 500 });
+      // G6 v5 fitView doesn't take animation options in first arg
+      graphRef.current.fitView();
     },
     rippleImpact: (originId: string, impactNodeIds: string[]) => {
       if (!graphRef.current) return;
       const graph = graphRef.current;
       
       // 1. 先重置所有样式
-      graph.setElementState(graph.getAllNodes().map(n => n.id), 'default');
-      graph.setElementState(graph.getAllEdges().map(e => e.id), 'default');
+      const nodes = graph.getData().nodes || [];
+      const edges = graph.getData().edges || [];
+      graph.setElementState(nodes.map((n: any) => n.id), 'default');
+      graph.setElementState(edges.map((e: any) => e.id), 'default');
 
       // 2. 聚焦起点
       graph.focusElement(originId, { duration: 800 });
       graph.zoomTo(1.2, { duration: 800 });
 
       // 3. 逐层涟漪点亮 (Mock Sequential Delay)
-      // 真实场景通常按图谱距离排序，这里简单按索引分段
       impactNodeIds.forEach((id, idx) => {
         setTimeout(() => {
           graph.setElementState(id, 'impacted');
           // 同时点亮入边 (指向该节点的边)
-          const edges = graph.getRelatedEdgesData(id, 'in');
-          if (edges) {
-            edges.forEach(e => graph.setElementState(e.id as string, 'impacted-edge'));
-          }
-        }, idx * 150); // 每 150ms 下一波
+          // In v5, we might need a different way to get related edges
+          // For now, let's keep it simple or use graph.getNeighbors
+          const relatedEdges = edges.filter((e: any) => e.target === id);
+          relatedEdges.forEach((e: any) => graph.setElementState(e.id, 'impacted-edge'));
+        }, idx * 150);
       });
 
       if (onImpactComplete) {

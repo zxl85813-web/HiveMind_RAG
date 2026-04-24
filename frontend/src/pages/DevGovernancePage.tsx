@@ -199,7 +199,7 @@ export const DevGovernancePage: React.FC = () => {
                             <Flex gap={12} align="center" style={{ background: '#1f1f1f', padding: '12px 16px', borderRadius: 8 }}>
                                 <SecurityScanOutlined style={{ fontSize: 24, color: stats?.guard_status?.sync_sentinel === 'healthy' ? '#06D6A0' : '#faad14' }} />
                                 <div style={{ flex: 1 }}>
-                                    <Text block style={{ color: '#fff', fontSize: 13 }}>SyncSentinel</Text>
+                                    <Text style={{ color: '#fff', fontSize: 13, display: 'block' }}>SyncSentinel</Text>
                                     <Text type="secondary" style={{ fontSize: 11 }}>
                                         {stats?.guard_status?.sync_sentinel === 'healthy' ? '图谱资产同步正常' : `检测到 ${stats?.graph_stats?.islands || 0} 个孤岛节点`}
                                     </Text>
@@ -213,7 +213,7 @@ export const DevGovernancePage: React.FC = () => {
                             <Flex gap={12} align="center" style={{ background: '#1f1f1f', padding: '12px 16px', borderRadius: 8 }}>
                                 <PartitionOutlined style={{ fontSize: 24, color: stats?.guard_status?.mapping_guard === 'active' ? '#1890ff' : '#faad14' }} />
                                 <div style={{ flex: 1 }}>
-                                    <Text block style={{ color: '#fff', fontSize: 13 }}>MappingGuard</Text>
+                                    <Text style={{ color: '#fff', fontSize: 13, display: 'block' }}>MappingGuard</Text>
                                     <Text type="secondary" style={{ fontSize: 11 }}>
                                         {stats?.guard_status?.mapping_guard === 'active' ? '全链路映射已对齐' : '检测到语义链路缺失'}
                                     </Text>
@@ -227,7 +227,7 @@ export const DevGovernancePage: React.FC = () => {
                             <Flex gap={12} align="center" style={{ background: '#1f1f1f', padding: '12px 16px', borderRadius: 8 }}>
                                 <BugOutlined style={{ fontSize: 24, color: '#faad14' }} />
                                 <div style={{ flex: 1 }}>
-                                    <Text block style={{ color: '#fff', fontSize: 13 }}>TraceOracle</Text>
+                                    <Text style={{ color: '#fff', fontSize: 13, display: 'block' }}>TraceOracle</Text>
                                     <Text type="secondary" style={{ fontSize: 11 }}>
                                         {stats?.guard_status?.trace_oracle === 'armed' ? '正在监控核心链路' : '审计引擎离线'}
                                     </Text>

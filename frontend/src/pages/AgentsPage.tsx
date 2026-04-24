@@ -322,7 +322,7 @@ export const AgentsPage: React.FC = () => {
                             </div>
                         )}
 
-                        <Divider orientation="left" style={{ margin: '8px 0' }}><BulbOutlined /> 决策逻辑 (Reasoning)</Divider>
+                        <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><BulbOutlined /> 决策逻辑 (Reasoning)</Divider>
                         <div style={{ background: 'var(--hm-color-bg-elevated)', padding: '12px', borderRadius: '8px', border: '1px solid var(--hm-border-subtle)' }}>
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {selectedTraceNode.details?.reasoning || selectedTraceNode.details?.thought_log || "暂无内部思考详情"}
@@ -331,7 +331,7 @@ export const AgentsPage: React.FC = () => {
 
                         {selectedTraceNode.details?.instruction && (
                             <>
-                                <Divider orientation="left" style={{ margin: '8px 0' }}><MessageOutlined /> 任务指令 (Instruction)</Divider>
+                                <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><MessageOutlined /> 任务指令 (Instruction)</Divider>
                                 <div style={{ fontSize: '12px', color: 'var(--hm-color-text-secondary)' }}>
                                     {selectedTraceNode.details.instruction}
                                 </div>
@@ -340,7 +340,7 @@ export const AgentsPage: React.FC = () => {
 
                         {selectedTraceNode.details?.tool_calls && selectedTraceNode.details.tool_calls.length > 0 && (
                             <>
-                                <Divider orientation="left" style={{ margin: '8px 0' }}><ToolOutlined /> 工具调用 (Tool Calls)</Divider>
+                                <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><ToolOutlined /> 工具调用 (Tool Calls)</Divider>
                                 <Timeline
                                     mode="left"
                                     items={selectedTraceNode.details.tool_calls.map((tc: any, idx: number) => ({
@@ -361,7 +361,7 @@ export const AgentsPage: React.FC = () => {
                             </>
                         )}
 
-                        <Divider orientation="left" style={{ margin: '8px 0' }}><DatabaseOutlined /> 原始元数据 (Raw JSON)</Divider>
+                        <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><DatabaseOutlined /> 原始元数据 (Raw JSON)</Divider>
                         <div style={{ maxHeight: '200px', overflow: 'auto' }}>
                              <pre style={{ fontSize: '10px', background: 'var(--hm-color-bg-elevated)', padding: '10px', borderRadius: '4px' }}>
                                  {JSON.stringify(selectedTraceNode.details, null, 2)}
