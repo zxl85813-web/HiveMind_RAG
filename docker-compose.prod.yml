@@ -72,7 +72,6 @@ services:
     # env_file:
     #   - ./backend/.env.production
     environment:
-      REDIS_URL: redis://redis:6379/0
       ENV: production
       DEBUG: "false"
       # DB Connection
@@ -95,16 +94,21 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       # Path
       PYTHONPATH: /app
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./storage:/app/storage
     command: >
       sh -c "echo '--- Starting Backend Init ---' && 
              echo 'PYTHONPATH: '$PYTHONPATH && 
              mkdir -p storage uploads logs && 
-             echo 'Waiting for DB connectivity...' && 
-             sleep 10 && 
+             echo 'Waiting for DB connectivity (20s)...' && 
+             sleep 20 && 
+             echo 'Current Migration History:' && 
+             python -m alembic history && 
              echo 'Running Migrations...' && 
              python -m alembic --raiseerr upgrade head || { echo '❌ Migration failed'; exit 1; } && 
              echo '--- Starting Uvicorn ---' && 
-             uvicorn app.main:app --host 0.0.0.0 --port 8888 --log-level info"
+             uvicorn app.main:app --host 0.0.0.0 --port 8888 --log-level debug"
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8888/api/v1/health/\")'"]
       interval: 15s
