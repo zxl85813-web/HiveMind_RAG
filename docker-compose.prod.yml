@@ -99,23 +99,21 @@ services:
       - ./logs/backend:/app/logs
       - ./storage:/app/storage
     command: >
-      sh -c "echo '--- Starting Backend Init ---' && 
-             echo 'PYTHONPATH: '$PYTHONPATH && 
-             mkdir -p storage uploads logs && 
-             echo 'Waiting for DB connectivity (20s)...' && 
-             sleep 20 && 
-             echo 'Current Migration History:' && 
-             python -m alembic history && 
-             echo 'Running Migrations...' && 
-             python -m alembic --raiseerr upgrade head || { echo '❌ Migration failed'; exit 1; } && 
-             echo '--- Starting Uvicorn ---' && 
-             uvicorn app.main:app --host 0.0.0.0 --port 8888 --log-level debug"
+      sh -c "echo '--- HiveMind Backend: Starting Network Probe ---' &&
+             until nc -z postgres 5432; do
+               echo 'Waiting for postgres container to accept connections...';
+               sleep 2;
+             done &&
+             echo '--- HiveMind Backend: Network Ready, Running Migrations ---' &&
+             python -m alembic upgrade head --raiseerr &&
+             echo '--- HiveMind Backend: Migrations Success, Starting Application ---' &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8888/api/v1/health/\")'"]
-      interval: 15s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
+      interval: 30s
       timeout: 10s
-      retries: 20
-      start_period: 180s
+      retries: 5
+      start_period: 120s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
