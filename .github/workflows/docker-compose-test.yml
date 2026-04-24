@@ -40,10 +40,21 @@ jobs:
           echo "--- Checking Frontend (Nginx) ---"
           curl -f http://localhost:80 || exit 1
           echo "--- Checking Backend API ---"
-          docker compose -f docker-compose.prod.yml exec -T backend curl -f http://localhost:8888/api/v1/health/ || exit 1
+          docker compose -f docker-compose.prod.yml exec -T backend curl -f http://localhost:8000/api/v1/health/ || exit 1
           echo "--- Container Release Test Passed! ---"
 
       - name: Show Container Logs on Failure
         if: failure()
         run: |
-          docker compose -f docker-compose.prod.yml logs
+          docker compose -f docker-compose.prod.yml logs --tail=200
+
+      - name: Upload Logs as Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hivemind-system-logs
+          path: |
+            logs/
+            backend/logs/
+            frontend/logs/
+          if-no-files-found: ignore

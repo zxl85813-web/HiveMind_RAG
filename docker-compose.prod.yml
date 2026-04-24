@@ -83,23 +83,15 @@ services:
       LLM_PROVIDER: siliconflow
       LLM_API_KEY: ${LLM_API_KEY:-}
       PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./logs/backend:/app/logs
       - ./storage:/app/storage
     command: >
-      sh -c "echo '--- Starting Backend Diagnostics ---' &&
-             mkdir -p storage uploads logs &&
-             echo 'Checking connection to postgres:5432...' &&
-             until nc -z postgres 5432; do
-               echo 'Waiting for postgres...';
-               sleep 2;
-             done &&
-             echo 'Database is reachable. Running migrations...' &&
-             python -m alembic upgrade head &&
-             echo 'Migrations finished successfully. Starting Uvicorn...' &&
+      sh -c "python -m alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/v1/health/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
