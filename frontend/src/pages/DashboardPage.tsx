@@ -183,7 +183,7 @@ export const DashboardPage: React.FC = () => {
                         <Col xs={24} md={8}>
                             <div style={{ textAlign: 'center', padding: '20px', borderLeft: '1px solid var(--hm-border-subtle)' }}>
                                 <AuditOutlined style={{ fontSize: 48, color: 'var(--hm-color-brand-dim)', marginBottom: 12 }} />
-                                <Title level={4} style={{ margin: 0 }}>{stats?.hardening_score > 90 ? '卓越' : stats?.hardening_score > 70 ? '良好' : '演进中'}</Title>
+                                <Title level={4} style={{ margin: 0 }}>{(stats?.hardening_score ?? 0) > 90 ? '卓越' : (stats?.hardening_score ?? 0) > 70 ? '良好' : '演进中'}</Title>
                                 <Text type="secondary">架构可追溯性评价</Text>
                             </div>
                         </Col>

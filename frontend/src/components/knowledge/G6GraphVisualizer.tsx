@@ -220,8 +220,8 @@ export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props
       // 1. 先重置所有样式
       const nodes = graph.getData().nodes || [];
       const edges = graph.getData().edges || [];
-      graph.setElementState(nodes.map((n: any) => n.id), 'default');
-      graph.setElementState(edges.map((e: any) => e.id), 'default');
+      nodes.forEach((n: any) => graph.setElementState(n.id, 'default'));
+      edges.forEach((e: any) => graph.setElementState(e.id, 'default'));
 
       // 2. 聚焦起点
       graph.focusElement(originId, { duration: 800 });
