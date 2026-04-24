@@ -94,17 +94,19 @@ services:
       LLM_PROVIDER: siliconflow
       LLM_API_KEY: ${LLM_API_KEY:-}
       # Path
-      PYTHONPATH: .
+      PYTHONPATH: /app
     command: >
-      sh -c "echo '--- Startup Diagnostics ---' && 
-             python -c 'import app; print(f\"[DEBUG] App module path: {app.__file__}\")' && 
+      sh -c "echo '--- Starting Backend Init ---' && 
+             echo 'PYTHONPATH: '$PYTHONPATH && 
              mkdir -p storage uploads logs && 
-             echo '--- Running Migrations ---' && 
-             python -m alembic upgrade head || { echo '❌ Migration failed'; exit 1; } && 
+             echo 'Waiting for DB connectivity...' && 
+             sleep 10 && 
+             echo 'Running Migrations...' && 
+             python -m alembic --raiseerr upgrade head || { echo '❌ Migration failed'; exit 1; } && 
              echo '--- Starting Uvicorn ---' && 
              uvicorn app.main:app --host 0.0.0.0 --port 8888 --log-level info"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; import sys; try: res = urllib.request.urlopen('http://127.0.0.1:8888/api/v1/health/'); sys.exit(0 if res.status == 200 else 1); except Exception as e: print(e); sys.exit(1)"]
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8888/api/v1/health/\")'"]
       interval: 15s
       timeout: 10s
       retries: 20
