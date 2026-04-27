@@ -98,9 +98,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
