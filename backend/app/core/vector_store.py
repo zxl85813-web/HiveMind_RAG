@@ -57,7 +57,9 @@ class BaseVectorStore(abc.ABC):
         """Delete documents from the vector store based on metadata."""
         pass
 
-    async def similarity_search(self, query: str, k: int = 30, collection_name: str = "default") -> list[VectorDocument]:
+    async def similarity_search(
+        self, query: str, k: int = 30, collection_name: str = "default"
+    ) -> list[VectorDocument]:
         """Legacy method for vector search."""
         return await self.search(query, SearchType.VECTOR, k, collection_name)
 
@@ -238,16 +240,24 @@ class ElasticVectorStore(BaseVectorStore):
 
 
 class ChromaVectorStore(BaseVectorStore):
-    """Local Vector Store using ChromaDB."""
+    """Vector Store using ChromaDB — 支持本地和远程两种模式。"""
 
     def __init__(self):
         import chromadb
 
-        path = os.path.join(os.getcwd(), "data", "chroma")
-        os.makedirs(path, exist_ok=True)
+        chroma_host = getattr(settings, "CHROMA_HOST", None)
+        chroma_port = getattr(settings, "CHROMA_PORT", 8000)
 
-        self.client = chromadb.PersistentClient(path=path)
-        logger.info(f"💾 Connected to ChromaDB at {path}")
+        if chroma_host:
+            # 生产环境：连接远程 Chroma 容器
+            self.client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+            logger.info(f"🔌 Connected to remote ChromaDB at {chroma_host}:{chroma_port}")
+        else:
+            # 本地开发：使用持久化本地存储
+            path = os.path.join(os.getcwd(), "data", "chroma")
+            os.makedirs(path, exist_ok=True)
+            self.client = chromadb.PersistentClient(path=path)
+            logger.info(f"💾 Connected to local ChromaDB at {path}")
 
     async def add_documents(self, documents: list[VectorDocument], collection_name: str) -> list[str]:
         # Chroma operations are blocking, run in executor if needed for high volume

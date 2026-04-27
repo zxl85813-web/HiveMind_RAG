@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from pydantic_settings import BaseSettings
 
 # 计算后端根目录 (C:\Users\... \aiproject\backend)
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     BASE_DIR: Path = BASE_DIR
     DEBUG: bool = True
     ENV: str = "development"  # development | production | test
-    
+
     # 基于 BASE_DIR 的绝对存储路径
     STORAGE_DIR: Path = BASE_DIR / "storage"
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
@@ -77,6 +78,10 @@ class Settings(BaseSettings):
     # === Vector Store ===
     VECTOR_STORE_TYPE: str = "elasticsearch"  # chroma | milvus | qdrant | elasticsearch
 
+    # ChromaDB
+    CHROMA_HOST: str | None = None   # None = 本地模式；设置后连接远程容器
+    CHROMA_PORT: int = 8000
+
     # Elasticsearch (Matches .env keys)
     ES_HOST: str = "localhost"
     ES_PORT: int = 9200
@@ -111,10 +116,10 @@ class Settings(BaseSettings):
     MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
     # === ClawRouter 4-Tier Models (Cost Optimization) ===
-    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Factual lookups, greetings, translations (e.g. Gemini Flash)
-    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Summaries, explanations, data extraction (e.g. DeepSeek Chat)
-    DEFAULT_COMPLEX_MODEL: str = "Pro/zai-org/GLM-5"       # Code generation, multi-step analysis (e.g. Claude Opus)
-    DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"     # Proofs, formal logic, multi-step math (e.g. o3 / o1)
+    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V3"    # Factual lookups, greetings
+    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V3"    # Summaries, data extraction
+    DEFAULT_COMPLEX_MODEL: str = "Pro/zai-org/GLM-5"         # Code generation, analysis
+    DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"       # Proofs, formal logic
 
     # === Tier Specific Providers (Optional overrides) ===
     SIMPLE_PROVIDER: str | None = "siliconflow"

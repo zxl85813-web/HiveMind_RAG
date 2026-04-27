@@ -156,7 +156,9 @@ class LLMService:
                 )
             except Exception as fallback_error:
                 logger.error(f"[LLMService] fallback chain exhausted: {fallback_error}")
-                return str(primary_error)
+                raise RuntimeError(
+                    f"LLM unavailable: {primary_error}"
+                ) from fallback_error
 
     async def stream_chat(self, messages: list[dict[str, str]], temperature: float = 0.7) -> AsyncGenerator[str, None]:
         """

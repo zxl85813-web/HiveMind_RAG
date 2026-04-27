@@ -17,7 +17,6 @@ import json
 from datetime import datetime
 from typing import Any
 
-import chromadb
 from loguru import logger
 from pydantic import BaseModel
 
@@ -57,16 +56,36 @@ class EpisodicMemoryService:
     """情节记忆服务 — 跨会话记忆的核心引擎。"""
 
     _chroma_collection = None
+    _chroma_init_lock: asyncio.Lock | None = None
 
     @classmethod
-    def _get_collection(cls):
-        if cls._chroma_collection is None:
-            # Use the same path as MemoryService for consistency
-            client = chromadb.PersistentClient(path="./start_data/chroma_db")
-            cls._chroma_collection = client.get_or_create_collection(
-                name="episodic_episodes", metadata={"hnsw:space": "cosine"}
-            )
+    def _get_init_lock(cls) -> asyncio.Lock:
+        """懒加载 Lock，避免在事件循环启动前创建。"""
+        if cls._chroma_init_lock is None:
+            cls._chroma_init_lock = asyncio.Lock()
+        return cls._chroma_init_lock
+
+    @classmethod
+    async def _get_collection_async(cls):
+        """异步获取 ChromaDB collection，加锁防止并发重复初始化。"""
+        if cls._chroma_collection is not None:
+            return cls._chroma_collection
+        async with cls._get_init_lock():
+            if cls._chroma_collection is None:
+                loop = asyncio.get_event_loop()
+                cls._chroma_collection = await loop.run_in_executor(
+                    None, cls._init_collection_sync
+                )
         return cls._chroma_collection
+
+    @staticmethod
+    def _init_collection_sync():
+        """同步初始化，在 executor 中运行避免阻塞事件循环。"""
+        import chromadb
+        client = chromadb.PersistentClient(path="./start_data/chroma_db")
+        return client.get_or_create_collection(
+            name="episodic_episodes", metadata={"hnsw:space": "cosine"}
+        )
 
     # ─────────────────────────────────────────────
     # 写入路径 (Write Path)
@@ -152,7 +171,7 @@ class EpisodicMemoryService:
         try:
             vector_text = f"{episode.summary}\nTopics: {', '.join(episode.topics)}\nIntent: {episode.user_intent}"
 
-            collection = self._get_collection()
+            collection = await self._get_collection_async()
             loop = asyncio.get_event_loop()
 
             await loop.run_in_executor(
@@ -309,7 +328,7 @@ Summary: {existing_summary}
 
     async def _recall_by_vector(self, user_id: str, query: str, limit: int) -> list[str]:
         try:
-            collection = self._get_collection()
+            collection = await self._get_collection_async()
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
                 None, lambda: collection.query(query_texts=[query], n_results=limit, where={"user_id": user_id})
