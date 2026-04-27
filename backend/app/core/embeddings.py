@@ -2,8 +2,6 @@
 Embeddings Service — Embed text using ZhipuAI.
 """
 
-from zhipuai import ZhipuAI
-
 from app.sdk.core import settings
 
 
@@ -27,8 +25,12 @@ class ZhipuEmbeddingService(BaseEmbeddingService):
             return
         
         try:
+            from zhipuai import ZhipuAI
             self.client = ZhipuAI(api_key=settings.EMBEDDING_API_KEY)
             self._initialized = True
+        except ImportError:
+            self._error = "zhipuai package not installed - embedding service disabled"
+            print(f"⚠️ {self._error}")
         except Exception as e:
             self._error = f"Failed to initialize ZhipuAI client: {e}"
             print(f"⚠️ {self._error}")
