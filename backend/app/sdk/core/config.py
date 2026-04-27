@@ -222,6 +222,35 @@ class Settings(BaseSettings):
         """S3 是否已配置，用于在存储服务中做降级判断。"""
         return bool(self.AWS_ACCESS_KEY_ID and self.AWS_S3_BUCKET_NAME)
 
+    # === Celery Worker & Rate Limiting ===
+    # Worker 并发数（IO 密集型任务建议 4-8，CPU 密集型建议 = CPU 核数）
+    CELERY_WORKER_CONCURRENCY: int = 4
+    # 预取倍数：1 = 每次只取 1 个任务，防止大任务堆积在单个 worker
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+
+    # ingestion_queue 任务限速：每分钟最多处理 N 个文档
+    # 主要目的：防止 LLM API 配额（TPM/RPM）被 Celery 瞬间耗尽
+    # 计算方式：LLM_RPM_LIMIT / 每文档平均 LLM 调用次数（约 3-5 次）
+    CELERY_INGESTION_RATE_LIMIT: str = "10/m"   # 格式: "N/s" | "N/m" | "N/h"
+
+    # maintenance_queue 任务限速（内存衰减等低优先级任务）
+    CELERY_MAINTENANCE_RATE_LIMIT: str = "2/m"
+
+    # 任务重试：最大重试次数 & 指数退避基数（秒）
+    CELERY_MAX_RETRIES: int = 3
+    CELERY_RETRY_BACKOFF_BASE: int = 30         # 第 N 次重试等待 base * 2^(N-1) 秒
+
+    # Beat 调度：内存衰减任务执行时间（UTC）
+    CELERY_MEMORY_DECAY_HOUR: int = 3
+    CELERY_MEMORY_DECAY_MINUTE: int = 0
+
+    # Beat 调度：可观测性 trace buffer 刷新间隔（秒）
+    CELERY_OBS_FLUSH_INTERVAL: float = 10.0
+
+    # Beat 调度：LLM 配额使用情况日报（UTC 每天 08:00）
+    CELERY_LLM_QUOTA_REPORT_HOUR: int = 8
+    CELERY_LLM_QUOTA_REPORT_MINUTE: int = 0
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True, "extra": "ignore"}
 
     def __init__(self, **data):
