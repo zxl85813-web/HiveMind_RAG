@@ -22,12 +22,13 @@ class Settings(BaseSettings):
     CHECKPOINT_DB_PATH: Path = BASE_DIR / "storage" / "swarm_checkpoints.sqlite"
 
     # === Token Governance (P0 Hardening) ===
-    # Standard 32K context window budget (Reference: REQ-014)
-    CONTEXT_WINDOW_LIMIT: int = 32768
+    # V4 的 KV Cache 只有 V3 的 7-10%，1M 上下文成本大幅下降。
+    # 将上下文窗口从 32K 放宽到 64K，RAG 可塞入更多检索结果。
+    CONTEXT_WINDOW_LIMIT: int = 65536
     # Percentage-based budgets (Total must be <= 1.0)
-    BUDGET_SYSTEM_RATIO: float = 0.10
-    BUDGET_MEMORY_RATIO: float = 0.15
-    BUDGET_RAG_RATIO: float = 0.45
+    BUDGET_SYSTEM_RATIO: float = 0.08   # 系统 prompt 静态部分（缓存友好，比例可小）
+    BUDGET_MEMORY_RATIO: float = 0.12
+    BUDGET_RAG_RATIO: float = 0.50      # RAG 上下文：窗口放大后可塞更多检索结果
     BUDGET_HISTORY_RATIO: float = 0.20
     BUDGET_OUTPUT_RATIO: float = 0.10
 
@@ -116,9 +117,12 @@ class Settings(BaseSettings):
     MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
     # === ClawRouter 4-Tier Models (Cost Optimization) ===
-    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V3"    # Factual lookups, greetings
-    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V3"    # Summaries, data extraction
-    DEFAULT_COMPLEX_MODEL: str = "Pro/zai-org/GLM-5"         # Code generation, analysis
+    # Simple/Medium → V4-Flash: 缓存命中后仅 $0.028/M，适合问候、摘要、数据提取
+    # Complex       → V4-Pro:   缓存命中后 $0.145/M，适合代码生成、多步分析
+    # Reasoning     → NVIDIA NIM V4-Pro (带 chain-of-thought)
+    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
+    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
+    DEFAULT_COMPLEX_MODEL: str = "deepseek-ai/DeepSeek-V4-Pro"
     DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"       # Proofs, formal logic
 
     # === Tier Specific Providers (Optional overrides) ===
@@ -193,6 +197,30 @@ class Settings(BaseSettings):
     ARK_API_KEY: str = ""
     ARK_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
     ARK_MODEL: str = "deepseek-v3-2-251201"
+
+    # === NVIDIA NIM (OpenAI-compatible, Free Tier) ===
+    # Provider: https://integrate.api.nvidia.com/v1
+    # Used for: Reasoning Tier (DeepSeek-V4-Pro with chain-of-thought)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_REASONING_MODEL: str = "deepseek-ai/deepseek-v4-pro"
+    # Enable DeepSeek thinking mode (chain-of-thought reasoning)
+    NVIDIA_THINKING_ENABLED: bool = True
+    NVIDIA_REASONING_EFFORT: str = "max"  # low | medium | max
+
+    # === AWS S3 Storage ===
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_S3_BUCKET_NAME: str = ""
+    AWS_S3_REGION: str = "us-east-1"
+    AWS_S3_ENDPOINT_URL: str | None = None   # None = 标准 AWS；填写则走兼容服务（MinIO/OSS/R2）
+    AWS_S3_PREFIX: str = "uploads/"          # Bucket 内的目录前缀
+    AWS_S3_PRESIGN_EXPIRES: int = 3600       # 预签名 URL 有效期（秒）
+
+    @property
+    def S3_ENABLED(self) -> bool:
+        """S3 是否已配置，用于在存储服务中做降级判断。"""
+        return bool(self.AWS_ACCESS_KEY_ID and self.AWS_S3_BUCKET_NAME)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True, "extra": "ignore"}
 

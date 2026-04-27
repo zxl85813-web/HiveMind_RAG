@@ -5,6 +5,7 @@ Uses Vector Search to find similar answered questions.
 @covers REQ-002
 """
 
+import asyncio
 import time
 from typing import Any, ClassVar
 
@@ -19,6 +20,9 @@ class CacheService:
     THRESHOLD: ClassVar[float] = 0.96  # High threshold for semantic equivalence
     ROUTE_THRESHOLD: ClassVar[float] = 0.92 # Slightly lower for routing variations
 
+    # [Fix-06] TTL 配置：语义缓存条目 24h 后过期，防止搜索空间无限膨胀
+    CACHE_TTL_SEC: ClassVar[int] = 86400        # 24 小时
+    ROUTE_CACHE_TTL_SEC: ClassVar[int] = 3600   # 路由缓存 1 小时
 
     # Tokens that indicate a corrupted/internal response — NEVER cache or return these
     POISON_TOKENS: ClassVar[list[str]] = ["tool_calls_begin", "tool_sep", "tool_call_end", "tool▁calls", "tool▁sep"]
@@ -27,10 +31,10 @@ class CacheService:
     async def get_cached_response(query: str) -> dict[str, Any] | None:
         """
         Retrieves a cached answer if a similar query was processed before.
+        [Fix-06] 命中时检查 TTL，过期条目视为 miss。
         """
         store = get_vector_store()
         try:
-            # Search for the query itself in the cache collection
             results = await store.search(
                 query=query,
                 k=1,
@@ -47,6 +51,12 @@ class CacheService:
             # Distance check (for cosine similarity, higher is better)
             if score < CacheService.THRESHOLD:
                 logger.debug(f"Cache miss: closest match score {score:.4f} < {CacheService.THRESHOLD}")
+                return None
+
+            # [Fix-06] TTL 检查：条目超过 24h 视为过期
+            cached_at = match.metadata.get("cached_at", 0.0)
+            if cached_at and (time.time() - cached_at) > CacheService.CACHE_TTL_SEC:
+                logger.debug(f"Cache entry expired for '{query}' (age={(time.time()-cached_at)/3600:.1f}h)")
                 return None
 
             answer = match.metadata.get("answer", match.page_content)
@@ -101,6 +111,7 @@ class CacheService:
         """
         JIT Route Cache (GOV-004).
         Retrieves a previously successful agent/step routing for this query.
+        [Fix-06] 命中时检查 TTL，路由缓存 1h 过期。
         """
         store = get_vector_store()
         try:
@@ -111,6 +122,11 @@ class CacheService:
                 search_type="vector"
             )
             if results and results[0].score >= CacheService.ROUTE_THRESHOLD:
+                # [Fix-06] TTL 检查
+                cached_at = results[0].metadata.get("cached_at", 0.0)
+                if cached_at and (time.time() - cached_at) > CacheService.ROUTE_CACHE_TTL_SEC:
+                    logger.debug(f"Route cache entry expired for '{query[:30]}'")
+                    return None
                 target_route = results[0].metadata.get("target")
                 if target_route:
                     logger.info(f"⚡ [JIT Cache] Route Hit: '{query[:30]}' -> {target_route}")
@@ -165,6 +181,62 @@ class CacheService:
     def clear_intent_cache(session_id: str):
         """Manual cleanup of intent cache."""
         CacheService._intent_cache.pop(session_id, None)
+
+    # ── [Fix-06] 定期清理过期的 Intent Cache 条目 ──────────────────────────
+    @staticmethod
+    def purge_expired_intent_cache() -> int:
+        """清理所有已过期的 intent cache 条目，返回清理数量。"""
+        now = time.time()
+        expired = [k for k, v in CacheService._intent_cache.items() if now > v["expiry"]]
+        for k in expired:
+            del CacheService._intent_cache[k]
+        if expired:
+            logger.debug(f"🧹 [IntentCache] Purged {len(expired)} expired entries.")
+        return len(expired)
+
+    @staticmethod
+    async def purge_expired_vector_cache(collection: str, ttl_sec: int) -> int:
+        """
+        [Fix-06] 从向量存储中删除超过 TTL 的缓存条目。
+        通过 metadata filter 筛选 cached_at < (now - ttl_sec) 的文档并删除。
+        返回删除数量（向量存储不支持 filter delete 时返回 0）。
+        """
+        store = get_vector_store()
+        cutoff = time.time() - ttl_sec
+        try:
+            deleted = await store.delete_by_metadata_filter(
+                collection_name=collection,
+                filter={"cached_at": {"$lt": cutoff}},
+            )
+            if deleted:
+                logger.info(f"🧹 [VectorCache] Purged {deleted} expired entries from '{collection}'.")
+            return deleted or 0
+        except AttributeError:
+            # 当前向量存储实现不支持 filter delete，跳过
+            logger.debug(f"[VectorCache] Store does not support filter delete, skipping purge for '{collection}'.")
+            return 0
+        except Exception as e:
+            logger.warning(f"[VectorCache] Purge failed for '{collection}': {e}")
+            return 0
+
+    @staticmethod
+    async def run_cache_maintenance() -> dict[str, int]:
+        """
+        [Fix-06] 统一缓存维护入口，供定时任务调用（建议每小时执行一次）。
+        清理：Intent Cache 过期条目 + 语义缓存过期条目 + 路由缓存过期条目。
+        """
+        intent_purged = CacheService.purge_expired_intent_cache()
+        semantic_purged = await CacheService.purge_expired_vector_cache(
+            CacheService.CACHE_COLLECTION, CacheService.CACHE_TTL_SEC
+        )
+        route_purged = await CacheService.purge_expired_vector_cache(
+            CacheService.ROUTE_CACHE_COLLECTION, CacheService.ROUTE_CACHE_TTL_SEC
+        )
+        return {
+            "intent_purged": intent_purged,
+            "semantic_purged": semantic_purged,
+            "route_purged": route_purged,
+        }
 
 
 

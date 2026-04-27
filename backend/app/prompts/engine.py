@@ -1,12 +1,13 @@
 """
-Prompt Engine — 四层 Prompt 组合引擎 (v2.0)。
+Prompt Engine — 四层 Prompt 组合引擎 (v3.0)。
 
 职责:
     1. 加载 YAML 配置 (Layer 1: Base, Layer 2: Role)
     2. 渲染 Jinja2 模板 (Layer 3: Task)
     3. 注入运行时上下文 (Layer 4: Context)
     4. 缓存和版本管理
-    5. 静态/动态分离 + Prompt Cache 优化 (v2.0 新增)
+    5. 静态/动态分离 + Prompt Cache 优化 (v2.0)
+    6. 进程级静态前缀缓存 (v3.0 新增)
 
 架构:
     Layer 1 (Base)     → base/system.yaml, base/output_schemas.yaml
@@ -15,27 +16,40 @@ Prompt Engine — 四层 Prompt 组合引擎 (v2.0)。
     Layer 3 (Task)     → templates/<task_type>.j2
     Layer 4 (Context)  → 运行时注入 (messages, RAG results, memory)
 
-Cache 优化 (借鉴 Claude Code):
+Cache 优化 (v2.0, 借鉴 Claude Code):
     - 静态部分 (身份、安全、角色、工程约束) 在 CACHE_BOUNDARY 之前
     - 动态部分 (RAG 上下文、记忆、环境信息) 在 CACHE_BOUNDARY 之后
     - 静态部分的 hash 不变时可跨请求复用 prefix cache, 节省 15-25% token
 
+进程级缓存 (v3.0):
+    - 服务启动时，预渲染每个 agent 的静态前缀（Layer 1 + Layer 2），存在内存 dict 里
+    - 请求时直接取预渲染好的静态前缀 + 拼接动态部分
+    - 两层收益:
+      1. 本地: 跳过 YAML 加载 + Jinja2 渲染
+      2. API 侧: 静态前缀字节级一致 → DeepSeek V4 前缀缓存 100% 命中
+
+    为什么叫"进程级":
+      - 缓存存在 Python 进程的内存里（dict），不依赖 Redis/Memcached
+      - 进程重启时自动重建（因为 YAML 和模板文件没变，渲染结果也不变）
+      - 多 worker 进程各自持有一份（内存占用极小，几十 KB）
+
 使用:
     engine = PromptEngine()
 
-    # 生成 Supervisor 路由 Prompt
-    prompt = engine.build_supervisor_prompt(
-        agents=[...],
-        memory_context="用户之前问过..."
-    )
+    # 方式 1: 传统方式（兼容旧代码）
+    prompt = engine.build_agent_prompt(agent_name="rag_agent", task="...", rag_context="...")
 
-    # 生成 Agent 执行 Prompt (带 cache 分离)
-    prompt = engine.build_agent_prompt(
+    # 方式 2: 缓存感知方式（推荐，最大化 API 侧缓存命中）
+    messages = engine.build_cache_aware_messages(
         agent_name="rag_agent",
         task="查找关于机器学习的文档",
         rag_context="[Document 1] ...",
     )
-    static, dynamic = engine.split_prompt_for_cache(prompt)
+    # messages 结构:
+    # [
+    #   {"role": "system", "content": "<静态前缀，字节级稳定>"},
+    #   {"role": "user",   "content": "<动态部分: task + RAG + memory>"},
+    # ]
 """
 
 import hashlib
@@ -80,10 +94,177 @@ class PromptEngine:
         self._platform_kb = self._load_yaml("base", "platform_knowledge")
         self._defensive = self._load_yaml("base", "defensive_engineering")
 
-        logger.info(f"PromptEngine v2.0 initialized (dir={prompt_dir})")
+        # ── v3.0: 进程级静态前缀缓存 ──────────────────────────────
+        # key = agent_name (或 "supervisor", "reflection")
+        # value = (static_prefix_str, blake2b_hash)
+        self._static_prefix_cache: dict[str, tuple[str, str]] = {}
+        self._warmup_static_prefixes()
+
+        logger.info(f"PromptEngine v3.0 initialized (dir={prompt_dir})")
 
     # ============================================================
-    #  公开 API — 构建各类 Prompt
+    #  v3.0: 进程级静态前缀缓存
+    # ============================================================
+
+    def _warmup_static_prefixes(self) -> None:
+        """
+        服务启动时预渲染所有已知 agent 的静态前缀。
+
+        静态前缀 = Layer 1 (base) + Layer 1.5 (defensive) + Layer 2 (role)
+        不包含任何动态内容（task, rag_context, memory 等）。
+
+        这样做的目的:
+        1. 请求时直接取字符串，跳过 YAML + Jinja2
+        2. 字节级一致 → DeepSeek V4 前缀缓存 100% 命中
+        """
+        agents = self.list_available_agents()
+        for agent_name in agents:
+            self._build_and_cache_static_prefix(agent_name)
+
+        # Supervisor 也预热
+        self._build_and_cache_static_prefix("supervisor")
+
+        logger.info(
+            "🔥 [PromptEngine] Warmed up {} static prefixes: {}",
+            len(self._static_prefix_cache),
+            list(self._static_prefix_cache.keys()),
+        )
+
+    def _build_and_cache_static_prefix(self, agent_name: str) -> tuple[str, str]:
+        """
+        为指定 agent 构建静态前缀并缓存。
+
+        静态前缀的内容:
+        - 系统身份 (base/system.yaml)
+        - 安全约束 (base/defensive_engineering.yaml)
+        - 输出格式 (base/output_schemas.yaml)
+        - 角色定义 (agents/<agent_name>.yaml)
+
+        Returns:
+            (static_prefix, hash)
+        """
+        if agent_name in self._static_prefix_cache:
+            return self._static_prefix_cache[agent_name]
+
+        role = self._load_yaml("agents", agent_name)
+        if not role:
+            role = {
+                "role": f"You are {agent_name}, a helpful specialist agent.",
+                "constraints": [],
+            }
+
+        # 用一个专门的静态模板渲染，不包含任何动态变量
+        # 如果没有 static_prefix.j2，就用 base + role 的文本拼接
+        try:
+            template = self._jinja_env.get_template("static_prefix.j2")
+            prefix = template.render(
+                base=self._base,
+                role=role,
+                schemas=self._schemas,
+                platform_kb=self._platform_kb,
+                defensive=self._defensive,
+            )
+        except Exception:
+            # 没有专门的静态模板，用简单拼接
+            parts = []
+            if self._base.get("identity"):
+                parts.append(str(self._base["identity"]))
+            if self._defensive.get("rules"):
+                parts.append(str(self._defensive["rules"]))
+            if role.get("role"):
+                parts.append(str(role["role"]))
+            if role.get("constraints"):
+                constraints = role["constraints"]
+                if isinstance(constraints, list):
+                    parts.append("\n".join(f"- {c}" for c in constraints))
+            if self._schemas.get("output_format"):
+                parts.append(str(self._schemas["output_format"]))
+            prefix = "\n\n".join(parts)
+
+        prefix_hash = hashlib.blake2b(prefix.encode(), digest_size=16).hexdigest()
+        self._static_prefix_cache[agent_name] = (prefix, prefix_hash)
+        return prefix, prefix_hash
+
+    def get_static_prefix(self, agent_name: str) -> tuple[str, str]:
+        """
+        获取 agent 的静态前缀（从进程缓存中取，O(1) 查找）。
+
+        Returns:
+            (static_prefix_str, blake2b_hash)
+        """
+        if agent_name not in self._static_prefix_cache:
+            return self._build_and_cache_static_prefix(agent_name)
+        return self._static_prefix_cache[agent_name]
+
+    def build_cache_aware_messages(
+        self,
+        agent_name: str,
+        task: str,
+        rag_context: str = "",
+        memory_context: str = "",
+        tools_available: list[str] | None = None,
+        user_message: str = "",
+        language: str = "zh-CN",
+    ) -> list[dict[str, str]]:
+        """
+        构建缓存感知的 messages 列表（v3.0 推荐方式）。
+
+        将 prompt 拆成两条 message:
+        1. system message = 静态前缀（字节级稳定，API 侧 100% 缓存命中）
+        2. user message   = 动态部分（task + RAG + memory + 用户输入）
+
+        这样 DeepSeek V4 的前缀缓存会自动命中 system message 部分，
+        只对 user message 部分按 cache miss 计费。
+
+        Args:
+            agent_name:      Agent 名称
+            task:            任务描述
+            rag_context:     RAG 检索结果
+            memory_context:  记忆上下文
+            tools_available: 可用工具列表
+            user_message:    用户原始输入（如果有的话）
+            language:        语言
+
+        Returns:
+            [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+        """
+        # 1. 静态前缀（从进程缓存取）
+        static_prefix, prefix_hash = self.get_static_prefix(agent_name)
+
+        # 2. 动态部分
+        dynamic_parts = []
+        if task:
+            dynamic_parts.append(f"## 当前任务\n{task}")
+        if rag_context:
+            dynamic_parts.append(f"## 参考资料\n{rag_context}")
+        if memory_context:
+            dynamic_parts.append(f"## 相关记忆\n{memory_context}")
+        if tools_available:
+            tools_str = ", ".join(tools_available)
+            dynamic_parts.append(f"## 可用工具\n{tools_str}")
+
+        dynamic_content = "\n\n".join(dynamic_parts)
+
+        # 如果有用户原始输入，追加到动态部分
+        if user_message:
+            dynamic_content = f"{dynamic_content}\n\n## 用户输入\n{user_message}"
+
+        messages = [
+            {"role": "system", "content": static_prefix},
+            {"role": "user", "content": dynamic_content},
+        ]
+
+        logger.debug(
+            "📝 [CacheAware] agent={} | prefix_hash={} | static={}chars | dynamic={}chars",
+            agent_name,
+            prefix_hash[:8],
+            len(static_prefix),
+            len(dynamic_content),
+        )
+        return messages
+
+    # ============================================================
+    #  公开 API — 构建各类 Prompt（兼容旧代码）
     # ============================================================
 
     def build_supervisor_prompt(
@@ -228,11 +409,7 @@ class PromptEngine:
         return [f.stem for f in agents_dir.glob("*.yaml") if f.stem != "__init__"]
 
     # ============================================================
-    #  热更新
-    # ============================================================
-
-    # ============================================================
-    #  Prompt Cache 优化 (v2.0 新增)
+    #  Prompt Cache 优化 (v2.0)
     # ============================================================
 
     def split_prompt_for_cache(self, prompt: str) -> tuple[str, str]:
@@ -244,11 +421,6 @@ class PromptEngine:
 
         Returns:
             (static_prefix, dynamic_suffix)
-
-        用法 (在 API 调用时):
-            static, dynamic = engine.split_prompt_for_cache(prompt)
-            # 用 static 的 hash 做 cache key
-            # 只有 dynamic 部分需要每次发送完整内容
         """
         boundary = self._base.get("cache_boundary", PROMPT_CACHE_BOUNDARY)
         if boundary in prompt:
@@ -270,8 +442,9 @@ class PromptEngine:
     # ============================================================
 
     def reload(self) -> None:
-        """清除缓存，强制重新加载所有配置。"""
+        """清除缓存，强制重新加载所有配置（含静态前缀缓存）。"""
         self._config_cache.clear()
+        self._static_prefix_cache.clear()
         self._base = self._load_yaml("base", "system")
         self._schemas = self._load_yaml("base", "output_schemas")
         self._platform_kb = self._load_yaml("base", "platform_knowledge")
@@ -283,7 +456,9 @@ class PromptEngine:
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        logger.info("🔄 PromptEngine reloaded — all caches cleared")
+        # 重新预热静态前缀
+        self._warmup_static_prefixes()
+        logger.info("🔄 PromptEngine v3.0 reloaded — all caches cleared and re-warmed")
 
     # ============================================================
     #  内部方法

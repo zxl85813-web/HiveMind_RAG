@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { App, Drawer, Table, Button, Space, Tag, Upload, Typography, Tooltip, List, Tabs, Spin, Empty, Input, Popover, Select } from 'antd';
-import { DeleteOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined, InboxOutlined, SafetyCertificateOutlined, InfoCircleOutlined, RightOutlined, SearchOutlined, PlusOutlined, UserAddOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined, InboxOutlined, SafetyCertificateOutlined, InfoCircleOutlined, RightOutlined, SearchOutlined, PlusOutlined, UserAddOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { G6GraphVisualizer } from './G6GraphVisualizer';
 import { KBPermissionsModal } from './KBPermissionsModal';
+import { UploadProgressDrawer, type UploadFileItem } from './UploadProgressDrawer';
 import { useTranslation } from 'react-i18next';
 import { securityApi } from '../../services/securityApi';
 import { evalApi } from '../../services/evalApi';
@@ -12,6 +13,7 @@ import type { KnowledgeBase, Document, Tag as PCTag } from '../../types';
 import { Statistic, Row, Col, Card as AntdCard } from 'antd';
 import { LineChartOutlined, HeartOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
+import { useResumableUpload } from '../../hooks/useResumableUpload';
 
 const { Text, Title } = Typography;
 
@@ -41,6 +43,13 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
     const [isSearching, setIsSearching] = useState(false);
     const [allTags, setAllTags] = useState<PCTag[]>([]);
     const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
+
+    // ── 批量上传 & 进度面板状态 ──────────────────────────────────────────────
+    const [uploadFiles, setUploadFiles] = useState<UploadFileItem[]>([]);
+    const [batchId, setBatchId] = useState<string | undefined>();
+    const [isProgressOpen, setIsProgressOpen] = useState(false);
+    const BATCH_SIZE = 10; // 每批最多 10 个文件并发上传
+    const { upload: resumableUpload, abortUpload, checkResumable } = useResumableUpload();
 
     useEffect(() => {
         loadTags();
@@ -166,7 +175,146 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
         return false; // Prevent default ajax upload
     };
 
-    const handleUnlink = async (docId: string) => {
+    /**
+     * 批量上传入口（使用断点续传）：
+     *   1. 检查每个文件是否有未完成的上传记录（localStorage）
+     *   2. 初始化进度面板
+     *   3. 逐文件调用 useResumableUpload，支持断点续传
+     *   4. 批量关联到 KB，获取 batch_id
+     *   5. 打开进度面板，SSE 自动订阅
+     */
+    const handleBatchUpload = useCallback(async (rawFiles: File[]) => {
+        if (!kb || rawFiles.length === 0) return;
+
+        // 检查哪些文件有可续传记录
+        const items: UploadFileItem[] = rawFiles.map((f, i) => {
+            const resumableState = checkResumable(f);
+            const folderPath = (f as any).webkitRelativePath
+                ? (f as any).webkitRelativePath.split('/').slice(0, -1).join('/')
+                : undefined;
+            return {
+                uid: `${Date.now()}-${i}`,
+                filename: f.name,
+                folderPath,
+                fileSize: f.size,
+                // 有续传记录时显示 resumable 状态
+                status: resumableState ? 'resumable' as const : 'waiting' as const,
+                uploadPercent: resumableState
+                    ? Math.round((resumableState.completedParts.length / resumableState.totalParts) * 100)
+                    : 0,
+            };
+        });
+
+        setUploadFiles(items);
+        setBatchId(undefined);
+        setIsProgressOpen(true);
+        setUploading(true);
+
+        try {
+            const uploadedDocIds: string[] = [];
+            const updatedItems = [...items];
+
+            // 逐文件上传（每次最多 BATCH_SIZE 个并发）
+            for (let batchStart = 0; batchStart < rawFiles.length; batchStart += BATCH_SIZE) {
+                const batchFiles = rawFiles.slice(batchStart, batchStart + BATCH_SIZE);
+                const batchItems = updatedItems.slice(batchStart, batchStart + BATCH_SIZE);
+
+                await Promise.all(
+                    batchFiles.map(async (file, idx) => {
+                        const item = batchItems[idx];
+                        item.status = 'uploading';
+                        setUploadFiles([...updatedItems]);
+
+                        try {
+                            const docId = await resumableUpload(
+                                file,
+                                item.folderPath,
+                                {
+                                    onProgress: (percent) => {
+                                        item.uploadPercent = percent;
+                                        setUploadFiles([...updatedItems]);
+                                    },
+                                    onPartComplete: (partNum, total) => {
+                                        item.uploadPercent = Math.round((partNum / total) * 100);
+                                        setUploadFiles([...updatedItems]);
+                                    },
+                                    onError: (err) => {
+                                        item.status = 'failed';
+                                        item.errorMsg = err.message;
+                                        setUploadFiles([...updatedItems]);
+                                    },
+                                }
+                            );
+                            item.docId = docId;
+                            item.status = 'processing';
+                            uploadedDocIds.push(docId);
+                        } catch (err: any) {
+                            if (err.message !== 'Upload cancelled') {
+                                item.status = 'failed';
+                                item.errorMsg = err.message || '上传失败';
+                            }
+                        }
+                        setUploadFiles([...updatedItems]);
+                    })
+                );
+            }
+
+            if (uploadedDocIds.length > 0) {
+                try {
+                    const linkRes = await knowledgeApi.linkDocsBatch(kb.id, uploadedDocIds);
+                    const newBatchId = (linkRes.data as any)?.batch_id;
+                    if (newBatchId) setBatchId(newBatchId);
+                } catch {
+                    message.warning('文件已上传，但关联知识库时出错，请手动刷新');
+                }
+            }
+
+            loadDocs(kb.id);
+        } finally {
+            setUploading(false);
+        }
+    }, [kb, BATCH_SIZE, resumableUpload, checkResumable]);
+
+    const handleFileStatusChange = useCallback((uid: string, status: UploadFileItem['status'], docId?: string) => {
+        setUploadFiles(prev => prev.map(f =>
+            f.uid === uid ? { ...f, status, ...(docId ? { docId } : {}) } : f
+        ));
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        const items = Array.from(e.dataTransfer.items);
+        const files: File[] = [];
+
+        const readEntry = (entry: any): Promise<void> => {
+            if (entry.isFile) {
+                return new Promise(resolve => {
+                    entry.file((f: File) => { files.push(f); resolve(); });
+                });
+            }
+            if (entry.isDirectory) {
+                const reader = entry.createReader();
+                return new Promise(resolve => {
+                    reader.readEntries(async (entries: any[]) => {
+                        await Promise.all(entries.map(readEntry));
+                        resolve();
+                    });
+                });
+            }
+            return Promise.resolve();
+        };
+
+        Promise.all(
+            items.map(item => {
+                const entry = item.webkitGetAsEntry?.();
+                return entry ? readEntry(entry) : Promise.resolve();
+            })
+        ).then(() => {
+            if (files.length > 0) handleBatchUpload(files);
+        });
+    }, [handleBatchUpload]);
+
+     = async (docId: string) => {
         if (!kb) return;
         try {
             await knowledgeApi.unlinkDoc(kb.id, docId);
@@ -354,11 +502,15 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                         label: '文档资源',
                         children: (
                             <>
-                                <div style={{ marginBottom: 24, padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed rgba(6, 214, 160, 0.3)' }}>
+                                <div
+                                    style={{ marginBottom: 24, padding: '20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed rgba(6, 214, 160, 0.3)' }}
+                                    onDragOver={e => e.preventDefault()}
+                                    onDrop={handleDrop}
+                                >
                                     <Upload.Dragger
                                         beforeUpload={(file: any) => { handleUpload(file); return false; }}
                                         showUploadList={false}
-                                        multiple={false}
+                                        multiple={true}
                                         disabled={uploading}
                                         style={{ background: 'transparent', border: 'none' }}
                                     >
@@ -366,12 +518,48 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                                             <InboxOutlined style={{ color: 'var(--hm-color-brand)' }} />
                                         </p>
                                         <p className="ant-upload-text" style={{ color: 'var(--hm-color-text-primary)' }}>
-                                            {uploading ? t('common.loading') : t('knowledge.uploadText')}
+                                            {uploading ? t('common.loading') : '点击上传单个文件，或拖拽文件/文件夹到此处'}
                                         </p>
                                         <p className="ant-upload-hint" style={{ color: 'var(--hm-color-text-secondary)' }}>
                                             {t('knowledge.uploadHint')}
                                         </p>
                                     </Upload.Dragger>
+
+                                    {/* 文件夹批量上传按钮 */}
+                                    <div style={{ textAlign: 'center', marginTop: 12 }}>
+                                        <label htmlFor="folder-upload-input">
+                                            <Button
+                                                icon={<FolderOpenOutlined />}
+                                                disabled={uploading}
+                                                onClick={() => document.getElementById('folder-upload-input')?.click()}
+                                            >
+                                                选择文件夹批量上传
+                                            </Button>
+                                        </label>
+                                        <input
+                                            id="folder-upload-input"
+                                            type="file"
+                                            // @ts-ignore — webkitdirectory 是非标准属性
+                                            webkitdirectory=""
+                                            multiple
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => {
+                                                const files = Array.from(e.target.files || []);
+                                                if (files.length > 0) handleBatchUpload(files);
+                                                e.target.value = ''; // 允许重复选择同一文件夹
+                                            }}
+                                        />
+                                        {uploadFiles.length > 0 && (
+                                            <Button
+                                                type="link"
+                                                size="small"
+                                                style={{ marginLeft: 8 }}
+                                                onClick={() => setIsProgressOpen(true)}
+                                            >
+                                                查看上传进度 ({uploadFiles.filter(f => f.status === 'done').length}/{uploadFiles.length})
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <Table
@@ -581,6 +769,15 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
                     onClose={() => setIsPermissionsOpen(false)}
                 />
             )}
+
+            {/* 批量上传进度面板 */}
+            <UploadProgressDrawer
+                open={isProgressOpen}
+                onClose={() => setIsProgressOpen(false)}
+                files={uploadFiles}
+                batchId={batchId}
+                onFileStatusChange={handleFileStatusChange}
+            />
         </Drawer>
     );
 };

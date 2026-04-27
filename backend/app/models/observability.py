@@ -244,6 +244,11 @@ class LLMMetric(SQLModel, table=True):
     """
     M7.1: Model Health & Performance Metrics for ClawRouter.
     Tracks real-time latency, error rates, and costs per model/provider.
+
+    v2.0 新增字段:
+        tokens_cache_hit  — 命中前缀缓存的 input token 数（由 API 响应的
+                            usage.prompt_cache_hit_tokens 填充）。
+        cache_savings_usd — 因缓存命中节省的费用（相比全部 cache miss 的差值）。
     """
     __tablename__ = "obs_llm_metrics"
 
@@ -254,7 +259,11 @@ class LLMMetric(SQLModel, table=True):
     latency_ms: float = Field(default=0.0)
     tokens_input: int = Field(default=0)
     tokens_output: int = Field(default=0)
+    # 命中前缀缓存的 input token 数（DeepSeek V4 / OpenAI 等支持的 API 会返回）
+    tokens_cache_hit: int = Field(default=0)
     cost: float = Field(default=0.0)
+    # 因缓存命中节省的费用（USD），用于 BudgetService 展示真实节省
+    cache_savings_usd: float = Field(default=0.0)
 
     is_error: bool = Field(default=False, index=True)
     error_type: str | None = Field(default=None)

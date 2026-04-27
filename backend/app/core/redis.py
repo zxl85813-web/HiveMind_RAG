@@ -40,13 +40,26 @@ class TraceableRedis(Redis):
 def get_redis_client() -> Any:
     """
     获取 Redis 客户端，带自动降级保护。
+    [Fix-04] 超时从 1s 调整为 3s，防止网络抖动触发误降级。
     """
     if not settings.REDIS_URL:
         return MockRedis()
 
-    try:
-        client = TraceableRedis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=1)
-        client.ping()
-        return client
-    except Exception:
-        return MockRedis()
+    last_exc: Exception | None = None
+    for attempt in range(2):  # 最多重试 1 次
+        try:
+            client = TraceableRedis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=3,   # 从 1s 调整为 3s
+                socket_timeout=3,
+                retry_on_timeout=True,
+            )
+            client.ping()
+            return client
+        except Exception as e:
+            last_exc = e
+            logger.warning(f"⚠️ [Redis] Connection attempt {attempt + 1} failed: {e}")
+
+    logger.error(f"❌ [Redis] All connection attempts failed, falling back to MockRedis. Last error: {last_exc}")
+    return MockRedis()

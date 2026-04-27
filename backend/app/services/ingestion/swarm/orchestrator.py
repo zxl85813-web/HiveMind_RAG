@@ -32,6 +32,8 @@ class IngestionState(TypedDict):
     trace_id: str
     kb_id: str
     file_path: str
+    doc_id: str | None          # 数据库 Document.id，与 file_path 区分
+    folder_path: str | None     # 原始文件夹路径，传递给图谱对齐
 
     # Content extraction storage
     raw_text: str
@@ -204,13 +206,16 @@ class IngestionOrchestrator:
         """Final node: Contextual chunking and Vector synchronization."""
         logger.info("🧩 [Swarm] KnowledgeAssembler starting AssemblerService...")
 
-        # Restore real chunking & vectorization
+        # doc_id 优先用 state["doc_id"]，降级到 file_path（兼容旧调用）
+        doc_id = state.get("doc_id") or state.get("file_path")
+
         result = await SwarmAssembler.process_and_vectorize(
             kb_id=self.kb_id,
-            doc_id=state.get("file_path"),
+            doc_id=doc_id,
             raw_text=state.get("raw_text", ""),
             sections=state.get("sections", []),
             code_structure=state.get("code_structure"),
+            folder_path=state.get("folder_path"),
             enrichment_data={
                 "temporal_entities": state.get("temporal_entities"),
                 "version_chain": state.get("version_chain"),
@@ -240,12 +245,20 @@ class IngestionOrchestrator:
 
     # --- Execution Entrypoint ---
 
-    async def run(self, file_path: str) -> dict[str, Any]:
-        """Execute the swarm for a single file."""
+    async def run(self, file_path: str, doc_id: str | None = None, folder_path: str | None = None) -> dict[str, Any]:
+        """Execute the swarm for a single file.
+
+        Args:
+            file_path:   S3 key 或本地路径，供 Parser 读取文件内容
+            doc_id:      数据库 Document.id，用于图谱节点 ID（缺省时降级为 file_path）
+            folder_path: 原始文件夹路径，写入图谱保留目录结构
+        """
         initial_state: IngestionState = {
             "trace_id": self.trace_id,
             "kb_id": self.kb_id,
             "file_path": file_path,
+            "doc_id": doc_id or file_path,
+            "folder_path": folder_path,
             "raw_text": "",
             "sections": [],
             "code_structure": None,

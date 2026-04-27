@@ -121,6 +121,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.error(f"❌ Learning Service failed to schedule: {e}")
 
+        # [Fix-06] 缓存维护定时任务：每小时清理过期的语义缓存 / 路由缓存 / Intent Cache
+        try:
+            from app.services.cache_service import CacheService
+            async def run_cache_maintenance_loop():
+                while True:
+                    await asyncio.sleep(3600)  # 每小时执行一次
+                    try:
+                        result = await CacheService.run_cache_maintenance()
+                        logger.info(f"🧹 Cache maintenance done: {result}")
+                    except Exception as e:
+                        logger.error(f"❌ Cache maintenance failed: {e}")
+
+            t = asyncio.create_task(run_cache_maintenance_loop())
+            _bg_tasks.append(t)
+            logger.info("🚀 Cache Maintenance Task scheduled (interval: 1h).")
+        except Exception as e:
+            logger.error(f"❌ Cache Maintenance Task failed to schedule: {e}")
+
     startup_task = asyncio.create_task(start_delayed_services())
     _bg_tasks.append(startup_task)
     logger.info("✅ Lifespan startup completed (Background tasks deferred).")
