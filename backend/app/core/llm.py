@@ -2,6 +2,7 @@
 LLM Core Service — Wrapper for Model Inference (DeepSeek/SiliconFlow/OpenAI).
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -165,24 +166,34 @@ class LLMService:
             target_model = await self._route_model(messages)
 
             async def _invoke_stream_create():
-                return await self.client.chat.completions.create(
-                    model=target_model, messages=messages, temperature=temperature, stream=True
+                return await asyncio.wait_for(
+                    self.client.chat.completions.create(
+                        model=target_model, messages=messages, temperature=temperature, stream=True
+                    ),
+                    timeout=30.0,  # 建立连接超时
                 )
 
             stream = await breaker_manager.execute("llm", _invoke_stream_create)
-            async for chunk in stream:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
+            try:
+                async for chunk in stream:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield content
+            except TimeoutError:
+                logger.warning("[LLMService] stream chunk timeout, activating fallback")
+                raise
         except Exception as primary_error:
             logger.warning(f"[LLMService] stream primary failed, trying fallback chain: {primary_error}")
             try:
-                recovered = await self._recover_non_stream(
-                    messages=messages,
-                    temperature=temperature,
-                    json_mode=False,
-                    extra_headers=None,
-                    extra_body=None,
+                recovered = await asyncio.wait_for(
+                    self._recover_non_stream(
+                        messages=messages,
+                        temperature=temperature,
+                        json_mode=False,
+                        extra_headers=None,
+                        extra_body=None,
+                    ),
+                    timeout=60.0,  # fallback 总超时
                 )
                 for i in range(0, len(recovered), 80):
                     chunk = recovered[i : i + 80]

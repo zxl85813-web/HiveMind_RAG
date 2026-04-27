@@ -16,7 +16,7 @@ from collections.abc import AsyncGenerator
 from loguru import logger
 from sqlmodel import desc, select
 
-from app.core.database import get_db_session
+from app.core.database import async_session_factory
 from app.models.chat import Conversation, Message
 from app.models.evaluation import BadCase
 from app.schemas.chat import ChatRequest, ConversationListItem
@@ -28,20 +28,19 @@ class ChatService:
     @staticmethod
     async def create_conversation(user_id: str, title: str = "New Chat") -> Conversation:
         """创建新会话。"""
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             conv = Conversation(user_id=user_id, title=title)
             session.add(conv)
             await session.commit()
             await session.refresh(conv)
             return conv
-        return None  # Should not reach here
 
     @staticmethod
     async def get_conversations(user_id: str, limit: int = 20, offset: int = 0) -> list[ConversationListItem]:
         """获取用户的会话列表 (优化 N+1 查询)。"""
         from sqlalchemy import func
 
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             # 1. Fetch conversations
             stmt = (
                 select(Conversation)
@@ -58,7 +57,6 @@ class ChatService:
             conv_ids = [c.id for c in conversations]
 
             # 2. Fetch latest messages for all these conversations in one batch
-            # We use a subquery to find the max(created_at) for each conversation
             subq = (
                 select(Message.conversation_id, func.max(Message.created_at).label("max_created_at"))
                 .where(Message.conversation_id.in_(conv_ids))
@@ -88,48 +86,43 @@ class ChatService:
                     )
                 )
             return items
-        return []
 
     @staticmethod
     async def get_conversation(conv_id: str) -> Conversation | None:
         """获取单个会话及其所有消息。"""
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             statement = select(Conversation).where(Conversation.id == conv_id)
             result = await session.exec(statement)
             conv = result.first()
             if conv:
-                # 触发消息加载 (SQLModel Relationship)
                 _ = conv.messages
             return conv
 
     @staticmethod
     async def delete_conversation(conv_id: str) -> bool:
         """删除会话及其关联消息。"""
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             conv_statement = select(Conversation).where(Conversation.id == conv_id)
             conv_result = await session.exec(conv_statement)
             conv = conv_result.first()
             if not conv:
                 return False
 
-            # 删除消息
             msg_statement = select(Message).where(Message.conversation_id == conv_id)
             msg_results = await session.exec(msg_statement)
             for m in msg_results.all():
                 await session.delete(m)
 
-            # 删除会话
             await session.delete(conv)
             await session.commit()
             return True
-        return False
 
     @staticmethod
     async def record_feedback(msg_id: str, rating: int, text: str | None = None) -> bool:
         """Record user feedback (like/dislike) for a specific AI message."""
         from app.models.evaluation import EvaluationItem, EvaluationSet
 
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             statement = select(Message).where(Message.id == msg_id)
             result = await session.exec(statement)
             msg = result.first()
@@ -147,7 +140,6 @@ class ChatService:
 
             # 1. Negative Feedback -> Bad Case Analysis (M2.1E)
             if rating == -1:
-                # 寻找本轮对话对应的 user question
                 stmt_q = (
                     select(Message)
                     .where(Message.conversation_id == msg.conversation_id)
@@ -171,7 +163,6 @@ class ChatService:
 
             # 2. Positive Feedback -> Evaluation/Few-shot set (M2.1F)
             if rating == 1:
-                # 寻找对应的 user question
                 stmt_q = (
                     select(Message)
                     .where(Message.conversation_id == msg.conversation_id)
@@ -181,12 +172,10 @@ class ChatService:
                 )
                 user_q = (await session.exec(stmt_q)).first()
                 if user_q:
-                    # Find a "User-Gold" Evaluation Set or create one
                     set_stmt = select(EvaluationSet).where(EvaluationSet.name == "User-Gold Feedback Set")
                     eval_set = (await session.exec(set_stmt)).first()
 
                     if not eval_set:
-                        # Find first available KB to link this set to (Default strategy)
                         from app.models.knowledge import KnowledgeBase
 
                         kb_stmt = select(KnowledgeBase).limit(1)
@@ -201,7 +190,6 @@ class ChatService:
                             await session.flush()  # Get ID
 
                     if eval_set:
-                        # Check for duplicate
                         dup_stmt = select(EvaluationItem).where(
                             EvaluationItem.set_id == eval_set.id, EvaluationItem.question == user_q.content
                         )
@@ -220,10 +208,11 @@ class ChatService:
             await session.commit()
             logger.info(f"Feedback recorded for message {msg_id}: rating={rating}")
             return True
-        return False
 
     @staticmethod
-    async def chat_stream(request: ChatRequest, user_id: str, accept_language: str | None = None) -> AsyncGenerator[str, None]:
+    async def chat_stream(
+        request: ChatRequest, user_id: str, accept_language: str | None = None
+    ) -> AsyncGenerator[str, None]:
         """
         核心流式对话生成器 — 使用 SwarmOrchestrator 进行智能编排与多级存储检索。
         P2: 集成语义缓存 (Semantic Cache) 与 Token 追踪。
@@ -303,7 +292,7 @@ class ChatService:
 
         # 2 & 3. Save User Message & Load History (M6.4 Session Optimization)
         history = []
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             user_msg = Message(conversation_id=conversation_id, role="user", content=request.message)
             session.add(user_msg)
             await session.commit()
@@ -322,7 +311,6 @@ class ChatService:
                 elif m.role == "assistant":
                     from langchain_core.messages import AIMessage
                     history.append(AIMessage(content=m.content))
-            break
 
         # 4. Semantic Cache Lookup
         cache_step = tracer.start_step("Semantic Cache Check", "tool", input_data=request.message)
@@ -356,14 +344,13 @@ class ChatService:
             user_dept = None
             auth_kb_ids = []
 
-            async for session in get_db_session():
+            async with async_session_factory() as session:
                 user_obj = await session.get(User, user_id)
                 if user_obj:
                     user_role = user_obj.role
                     user_dept = user_obj.department_id
                     kb_service = KnowledgeService(session)
                     auth_kb_ids = await kb_service.get_user_accessible_kbs(user_obj)
-                break
 
             auth_context = AuthorizationContext(
                 user_id=user_id,
@@ -385,12 +372,11 @@ class ChatService:
 
             # 5.5 Load Security Policy for Outbound Filtering
             policy_rules = None
-            async for session in get_db_session():
+            async with async_session_factory() as session:
                 from app.services.security_service import SecurityService
                 policy = await SecurityService.get_active_policy(session)
                 if policy and policy.rules_json:
                     policy_rules = json.loads(policy.rules_json)
-                break
 
             # 6. 调用 Swarm 编排器
             response_content = ""
@@ -401,7 +387,8 @@ class ChatService:
                 ):
                     # --- Thought Chain & Status Mapping ---
                     for node_name, updates in output.items():
-                        if not isinstance(updates, dict): continue
+                        if not isinstance(updates, dict):
+                            continue
 
                         if updates.get("thought_log"):
                             async for p in _yield_payload("status", {"content": updates["thought_log"]}):
@@ -441,9 +428,12 @@ class ChatService:
 
                             content = re.sub(r"<(think|thought)>.*?</\1>", "", raw_content, flags=re.DOTALL)
                             content = re.sub(r"<[\|｜].*?[\|｜]>", "", content)
-                            content = content.replace("< | tool_calls_begin | >", "").replace("< | tool_calls_end | >", "")
+                            content = content.replace(
+                                "< | tool_calls_begin | >", ""
+                            ).replace("< | tool_calls_end | >", "")
 
-                            if not content.strip(): continue
+                            if not content.strip():
+                                continue
 
                             batch_size = 15
                             for i in range(0, len(content), batch_size):
@@ -489,7 +479,7 @@ class ChatService:
         c_tokens = TokenService.count_tokens(response_content)
         total_tokens = p_tokens + c_tokens
 
-        async for session in get_db_session():
+        async with async_session_factory() as session:
             actions_json = None
             if "insight" in locals() and insight:
                 actions_json = json.dumps([a.dict() for a in insight.actions])
@@ -524,10 +514,13 @@ class ChatService:
                 current_session_msgs.append({"role": "user", "content": request.message})
                 current_session_msgs.append({"role": "assistant", "content": response_content})
 
-                asyncio.create_task(
+                # 持有 task 引用，防止 GC 在任务完成前回收
+                task = asyncio.create_task(
                     consolidator.consolidate_session(
                         user_id=user_id, conversation_id=conversation_id, messages=current_session_msgs
                     )
                 )
+                _swarm._background_tasks.add(task)
+                task.add_done_callback(_swarm._background_tasks.discard)
             except Exception as dist_err:
                 logger.warning(f"Failed to trigger autonomous consolidation: {dist_err}")

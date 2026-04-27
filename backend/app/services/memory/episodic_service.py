@@ -222,7 +222,9 @@ class EpisodicMemoryService:
             logger.warning(f"[EpisodicMemory] Distillation failed: {e}")
             return None
 
-    async def _parse_or_generate_distill(self, existing_summary: str, messages: list[dict]) -> EpisodeDistillResult | None:
+    async def _parse_or_generate_distill(
+        self, existing_summary: str, messages: list[dict]
+    ) -> EpisodeDistillResult | None:
         """从已有摘要中提取结构化字段。"""
         try:
             llm = get_llm_service()
@@ -298,7 +300,10 @@ Summary: {existing_summary}
         result = merged[:limit]
 
         if result:
-            asyncio.create_task(self._update_recall_stats([e.id for e in result]))
+            task = asyncio.create_task(self._update_recall_stats([e.id for e in result]))
+            # 防止 GC 在任务完成前回收
+            _background_recall_tasks.add(task)
+            task.add_done_callback(_background_recall_tasks.discard)
 
         return result
 
@@ -317,7 +322,9 @@ Summary: {existing_summary}
             logger.warning(f"[EpisodicMemory] Vector recall failed: {e}. Falling back to SQL/Topic search.")
         return []
 
-    async def _recall_by_topics(self, user_id: str, query: str, limit: int, min_temperature: float) -> list[EpisodicMemory]:
+    async def _recall_by_topics(
+        self, user_id: str, query: str, limit: int, min_temperature: float
+    ) -> list[EpisodicMemory]:
         async with async_session_factory() as session:
             from sqlmodel import desc, select
 
@@ -356,17 +363,21 @@ Summary: {existing_summary}
 
 
     async def _update_recall_stats(self, episode_ids: list[str]) -> None:
-        async with async_session_factory() as session:
-            for ep_id in episode_ids:
-                from sqlmodel import select
+        """批量更新召回统计，避免 N 次独立查询。"""
+        from sqlalchemy import update
 
-                stmt = select(EpisodicMemory).where(EpisodicMemory.id == ep_id)
-                ep = (await session.execute(stmt)).scalar_one_or_none()
-                if ep:
-                    ep.recall_count += 1
-                    ep.last_recalled_at = datetime.utcnow()
-                    ep.temperature = min(1.0, ep.temperature + 0.1)
-                    session.add(ep)
+        from app.models.episodic import EpisodicMemory as _EpisodicMemory
+
+        async with async_session_factory() as session:
+            await session.execute(
+                update(_EpisodicMemory)
+                .where(_EpisodicMemory.id.in_(episode_ids))
+                .values(
+                    recall_count=_EpisodicMemory.recall_count + 1,
+                    last_recalled_at=datetime.utcnow(),
+                    temperature=_EpisodicMemory.temperature + 0.1,
+                )
+            )
             await session.commit()
 
     async def format_for_context(self, episodes: list[EpisodicMemory]) -> str:
@@ -387,3 +398,6 @@ Summary: {existing_summary}
 
 
 episodic_memory_service = EpisodicMemoryService()
+
+# 模块级 task 引用集合，防止 GC 提前回收后台任务
+_background_recall_tasks: set[asyncio.Task] = set()
