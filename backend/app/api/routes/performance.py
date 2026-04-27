@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 from sqlalchemy import text
 from sqlmodel import select
 
-from app.api.deps import get_current_active_admin
+from app.api.deps import get_current_admin
 from app.core.database import async_session_factory
 from app.sdk.core.logging import get_trace_logger
 
@@ -12,7 +12,7 @@ logger = get_trace_logger("api.performance")
 
 @router.get("/db/stats")
 async def get_db_performance_stats(
-    current_user: Any = Depends(get_current_active_admin)
+    current_user: Any = Depends(get_current_admin)
 ) -> Dict[str, Any]:
     """
     Get real-time database performance metrics from PostgreSQL system views.
@@ -87,7 +87,7 @@ async def get_es_metrics() -> Dict[str, Any]:
 
 @router.get("/db/deadlocks")
 async def get_deadlock_history(
-    current_user: Any = Depends(get_current_active_admin)
+    current_user: Any = Depends(get_current_admin)
 ) -> List[Dict[str, Any]]:
     """
     Check for detected deadlocks in the PostgreSQL logs (if configured) or stats.
@@ -106,7 +106,7 @@ async def get_deadlock_history(
 @router.post("/db/drill/deadlock")
 async def trigger_deadlock_drill(
     background_tasks: BackgroundTasks,
-    current_user: Any = Depends(get_current_active_admin)
+    current_user: Any = Depends(get_current_admin)
 ):
     """
     Trigger the AB-BA deadlock drill in the background to verify DB self-healing.
