@@ -334,10 +334,29 @@ export interface EvaluationReport {
     context_recall: number;
     answer_correctness: number;
     semantic_similarity: number;
+    
+    // M2.5.1 Enhanced Metrics
+    instruction_following?: number;
+    hit_rate?: number;
+    mrr?: number;
+    ndcg?: number;
+
     total_score: number;
     details_json: string; // JSON string in backend
     status: 'pending' | 'running' | 'completed' | 'failed';
     created_at: string;
+}
+
+export interface DashboardStats {
+    total_kbs: number;
+    active_agents: number;
+    today_requests: number;
+    shared_todos: number;
+    reflection_logs: number;
+    total_discoveries: number;
+    hardening_score: number;
+    logic_entities: number;
+    debt_count: number;
 }
 export interface FineTuningItem {
     id: string;

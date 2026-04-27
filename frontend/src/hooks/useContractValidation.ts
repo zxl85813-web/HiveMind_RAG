@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { ContractGuard } from '../services/governanceApi';
+import { ContractGuard, governanceApi } from '../services/governanceApi';
 
 interface ValidationContext {
     component: string;
@@ -27,7 +27,6 @@ export function useContractValidation(context: ValidationContext) {
      * 手动报告一个遇到的奇葩逻辑或数据结构问题
      */
     const reportManualIncident = useCallback((category: any, message: string, receivedData: any) => {
-        const { governanceApi } = require('../services/governanceApi'); // Lazy load to avoid circular deps
         governanceApi.reportIncident({
             category,
             component: context.component,

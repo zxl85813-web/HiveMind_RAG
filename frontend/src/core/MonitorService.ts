@@ -57,15 +57,18 @@ class MonitorService {
     public log(event: Omit<MonitorEvent, 'timestamp'>) {
         try {
             // 🛰️ [FE-GOV-002]: 统一映射到 UnifiedLog 契约
+            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+            const inferredPage = event.user_context?.page || currentPath || 'RootUI';
+
             const unifiedLog: UnifiedLog = {
                 ts: Date.now(),
                 level: event.category === 'error' ? 'ERROR' : 'INFO',
                 trace_id: this.traceId,
                 platform: 'FE',
                 category: event.category,
-                module: event.user_context?.page || 'UnknownUI',
+                module: inferredPage,
                 action: event.action,
-                msg: event.label || event.action,
+                msg: event.label || (event.metadata?.message as string) || event.action,
                 meta: {
                     ...event.metadata,
                     value: event.value,
@@ -90,7 +93,14 @@ class MonitorService {
                 });
             }
 
-            // 3. TODO: 批量上报逻辑 (P1)
+            // 🛰️ [FE-GOV-002]: 自动回传统一日志 (P1 Checkpoint)
+            // 在开发环境下，为了减少噪音，仅对 ERROR 及以上级别进行实时同步
+            // 在生产环境下，由于没有 F12 审计，全量上报以备追溯
+            const shouldDispatch = !this.isProd ? validatedLog.level === 'ERROR' || validatedLog.level === 'CRITICAL' : true;
+            
+            if (shouldDispatch) {
+                void this.dispatchBeacon('unified_log', validatedLog);
+            }
         } catch (e) {
             console.warn('[Monitor] Failed to log event due to UnifiedLog non-compliance', e);
         }

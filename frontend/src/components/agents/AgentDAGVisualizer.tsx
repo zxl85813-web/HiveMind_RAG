@@ -31,9 +31,10 @@ interface AgentDAGVisualizerProps {
     data: DAGData;
     height?: number;
     width?: number;
+    onNodeClick?: (node: DAGNode) => void;
 }
 
-export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, height, width }) => {
+export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, height, width, onNodeClick }) => {
     const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
     const { width: windowWidth } = useWindowSize();
     const [graphData, setGraphData] = useState<DAGData>({ nodes: [], links: [] });
@@ -192,6 +193,7 @@ export const AgentDAGVisualizer: React.FC<AgentDAGVisualizerProps> = ({ data, he
                 onNodeClick={(node: any) => {
                     graphRef.current?.centerAt(node.x, node.y, 400);
                     graphRef.current?.zoom(2.5, 400);
+                    if (onNodeClick) onNodeClick(node);
                 }}
             />
         </div>

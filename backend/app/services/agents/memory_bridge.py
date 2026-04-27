@@ -10,11 +10,13 @@ from datetime import datetime
 from typing import Any
 
 from loguru import logger
+from sqlmodel import select
 
 from app.agents.memory import SharedMemoryManager
 from app.services.memory.episodic_service import episodic_memory_service
 from app.services.memory.memory_service import MemoryService
 from app.services.memory.social_graph_service import SocialGraphService, SocializedConsensus
+from app.models.evolution import CognitiveDirective
 
 
 class SwarmMemoryBridge:
@@ -36,51 +38,71 @@ class SwarmMemoryBridge:
         """
         logger.info(f"[SwarmMemory] Loading historical context and assessing risk for: {query}")
         is_high_risk = False
+        context = ""
+        directives = []
+
+        # 1. Consolidated L4 Evolutionary Directives (M4.2.5) - HIGH PRIORITY
         try:
-            # 1. Standard L1-L5 Retrieval
-            context = await self.memory_svc.get_context(query)
+            stmt = select(CognitiveDirective).where(CognitiveDirective.is_active == True)
+            from app.core.database import async_session_factory
+            async with async_session_factory() as session:
+                res = await session.execute(stmt)
+                consolidated = res.scalars().all()
+                for cd in consolidated:
+                    directives.append(f"{cd.directive} (Ref: L4-EVO-v{cd.version})")
+        except Exception as e:
+            logger.error(f"Failed to load consolidated directives: {e}")
 
-            # 2. Reflection Log Retrieval
-            reflections = await self.shared_mgr.get_reflections(limit=5)
+        try:
+            # 2. Standard L1-L5 Retrieval (Vector/Text)
+            try:
+                context = await self.memory_svc.get_context(query)
+            except Exception as e:
+                logger.warning(f"Memory search failed: {e}")
+                context = ""
+
+            # 3. Reflection Log Retrieval
             reflection_context = ""
-            directives = []
+            try:
+                reflections = await self.shared_mgr.get_reflections(limit=5)
+                for r in reflections:
+                    if any(kw in query.lower() for kw in (r.topic or "").lower().split()) or \
+                       any(kw in query.lower() for kw in (r.match_key or "").lower().split()):
+                        
+                        reflection_context += f"\n- [Past Reflection/{r.signal_type}] {r.summary}"
+                        if r.confidence_score < 0.6 or r.action_taken == "PENDING_TODO":
+                            is_high_risk = True
 
-            for r in reflections:
-                # Semantic/Topic Matching
-                if any(kw in query.lower() for kw in r.topic.lower().split()) or \
-                   any(kw in query.lower() for kw in r.match_key.lower().split()):
-                    
-                    reflection_context += f"\n- [Past Reflection/{r.signal_type}] {r.summary}"
-                    
-                    # RISK DETECTION: If past confidence was low or action is pending_todo, it's high risk
-                    if r.confidence_score < 0.6 or r.action_taken == "PENDING_TODO":
-                        is_high_risk = True
+                        directive = r.details.get("analysis", {}).get("cognitive_directive") or r.details.get("directive")
+                        if directive:
+                            directives.append(directive)
+            except Exception as e:
+                logger.warning(f"Reflection lookup failed: {e}")
 
-                    # Extract L4 Cognitive Directive
-                    directive = r.details.get("analysis", {}).get("cognitive_directive") or r.details.get("directive")
-                    if directive:
-                        directives.append(directive)
-
-            # 3. L5 Collective Unconsciousness (Subconscious Recall)
-            wisdom = await self.social_graph.suggest_prior_wisdom(query)
-            wisdom_context = ""
-            for item in wisdom:
-                wisdom_context += f"\n- [Past Swarm Consensus] Requirement: {item['point']}\n  Solution: {item['solution']}\n  Rationale: {item['rationale']}"
-
-            if wisdom_context:
-                context += f"\n\n--- COLLECTIVE INTELLIGENCE FROM PAST DEBATES ---\n{wisdom_context}"
+            # 4. L5 Collective Unconsciousness (Subconscious Recall)
+            try:
+                wisdom = await self.social_graph.suggest_prior_wisdom(query)
+                wisdom_context = ""
+                for item in wisdom:
+                    wisdom_context += f"\n- [Past Swarm Consensus] Requirement: {item['point']}\n  Solution: {item['solution']}\n  Rationale: {item['rationale']}"
+                if wisdom_context:
+                    context += f"\n\n--- COLLECTIVE INTELLIGENCE FROM PAST DEBATES ---\n{wisdom_context}"
+            except Exception as e:
+                logger.warning(f"Social graph recall failed: {e}")
 
             if reflection_context:
                 context += f"\n\n--- RELEVANT PAST REFLECTIONS ---\n{reflection_context}"
             
             if directives:
-                directive_block = "\n".join([f"!!! [SYSTEM DIRECTIVE] {d}" for d in directives])
+                # Remove duplicates
+                unique_directives = list(dict.fromkeys(directives))
+                directive_block = "\n".join([f"!!! [SYSTEM DIRECTIVE] {d}" for d in unique_directives])
                 context += f"\n\n--- HARD CONSTRAINTS FROM PAST FAILURES ---\n{directive_block}\n(You MUST adhere to these directives to pass the L4 Integrity Gate.)"
 
             return context, is_high_risk
         except Exception as e:
-            logger.error(f"Failed to load historical context: {e}")
-            return "", False
+            logger.error(f"Failed to assemble historical context: {e}")
+            return context, False
 
     async def persist_successful_outcome(self, query: str, context: dict[str, Any], conversation_id: str | None = None):
         """

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, theme } from 'antd';
-import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Card, Progress, App, Modal, Form, Input, Select, Tabs, Statistic, Row, Col, Flex, Typography, theme, Alert, Checkbox, List, Popover, Switch } from 'antd';
+import { BugOutlined, LineChartOutlined, DatabaseOutlined, PlayCircleOutlined, PlusOutlined, FileSearchOutlined, TrophyOutlined, ThunderboltOutlined, DollarOutlined, DownloadOutlined, ExperimentOutlined, SafetyCertificateOutlined, AimOutlined, CheckCircleOutlined, BulbOutlined, HistoryOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { PermissionButton } from '../components/common';
 import { evalApi } from '../services/evalApi';
@@ -8,9 +8,11 @@ import { knowledgeApi } from '../services/knowledgeApi';
 import type { EvaluationSet, EvaluationReport, KnowledgeBase } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useMonitor } from '../hooks/useMonitor';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 
 const { TabPane } = Tabs;
 const { Text, Title, Paragraph } = Typography;
+const { TextArea } = Input;
 
 // ============================================================
 //  RAGAS Benchmark Metric Definitions
@@ -21,8 +23,8 @@ const RAGAS_METRICS = [
         name: 'Faithfulness (忠实度)',
         icon: <SafetyCertificateOutlined />,
         color: 'var(--hm-color-success)',
-        description: '衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉。',
-        formula: 'Faithful Statements / Total Statements',
+        description: '衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉 (Claim-level NLI)。',
+        formula: 'Faithful Claims / Total Claims',
         benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
     },
     {
@@ -35,40 +37,40 @@ const RAGAS_METRICS = [
         benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
     },
     {
-        key: 'context_precision',
-        name: 'Context Precision (上下文精确度)',
-        icon: <ExperimentOutlined />,
-        color: 'rebeccapurple',
-        description: '评估检索到的上下文块中有多少是与问题真正相关的（信号/噪声比）。',
-        formula: 'Relevant Chunks / Total Retrieved Chunks',
-        benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
-    },
-    {
-        key: 'context_recall',
-        name: 'Context Recall (召回率)',
-        icon: <FileSearchOutlined />,
-        color: 'deeppink',
-        description: '评估 Ground Truth 中的关键信息有多少被检索系统成功召回。',
-        formula: 'GT Sentences in Context / Total GT Sentences',
-        benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
-    },
-    {
-        key: 'answer_correctness',
-        name: 'Answer Correctness (答案准确度)',
-        icon: <CheckCircleOutlined />,
-        color: 'orange',
-        description: '评估 AI 回答是否与 Ground Truth 事实一致。',
-        formula: 'Weighted average of Fact extraction + Semantic matching',
-        benchmark: { excellent: 0.85, good: 0.65, poor: 0.4 }
-    },
-    {
-        key: 'semantic_similarity',
-        name: 'Semantic Similarity (语义相似度)',
+        key: 'instruction_following',
+        name: 'Instruction Following (指令遵循)',
         icon: <ThunderboltOutlined />,
-        color: 'cyan',
-        description: '评估 AI 回答与标准答案在语义空间上的相似距离。',
-        formula: 'Cosine Similarity between Embeddings',
-        benchmark: { excellent: 0.9, good: 0.7, poor: 0.5 }
+        color: 'var(--hm-color-warning)',
+        description: '检查 AI 是否遵循了格式、风格或特定约束要求。',
+        formula: 'Followed Instructions / Total Instructions',
+        benchmark: { excellent: 1.0, good: 0.8, poor: 0.6 }
+    },
+    {
+        key: 'hit_rate',
+        name: 'Hit Rate (命中率)',
+        icon: <CheckCircleOutlined />,
+        color: 'hsl(180, 100%, 40%)',
+        description: '评估 Top-K 检索结果中是否包含至少一个正确文档。',
+        formula: 'Exists(Relevant Doc in Top-K)',
+        benchmark: { excellent: 0.95, good: 0.8, poor: 0.6 }
+    },
+    {
+        key: 'mrr',
+        name: 'MRR (平均倒数排名)',
+        icon: <LineChartOutlined />,
+        color: 'hsl(265, 60%, 60%)',
+        description: '衡量检索系统将相关文档排在首位的平均能力。',
+        formula: 'Mean(1 / First_Relevant_Rank)',
+        benchmark: { excellent: 0.8, good: 0.6, poor: 0.4 }
+    },
+    {
+        key: 'ndcg',
+        name: 'NDCG (归一化折损收益)',
+        icon: <DatabaseOutlined />,
+        color: 'hsl(330, 80%, 60%)',
+        description: '全面衡量检索系统的排序质量，对高位排名的权重更敏感。',
+        formula: 'DCG / IDCG',
+        benchmark: { excellent: 0.85, good: 0.65, poor: 0.5 }
     }
 ];
 
@@ -94,10 +96,11 @@ function generateReportHTML(
             <td><strong>${m.model}</strong></td>
             <td style="text-align:center;">${(m.avgScore * 100).toFixed(1)}%</td>
             <td style="text-align:center;">${m.faithfulness.toFixed(3)}</td>
-            <td style="text-align:center;">${m.relevance.toFixed(3)}</td>
+            <td style="text-align:center;">${(m.instruction_following || 0).toFixed(3)}</td>
+            <td style="text-align:center;">${(m.hit_rate || 0).toFixed(3)}</td>
+            <td style="text-align:center;">${(m.ndcg || 0).toFixed(3)}</td>
             <td style="text-align:center;">${Math.round(m.avgLatency)}ms</td>
             <td style="text-align:center;">$${m.avgCost.toFixed(4)}</td>
-            <td style="text-align:center;">${m.count}</td>
         </tr>
     `).join('');
 
@@ -108,12 +111,11 @@ function generateReportHTML(
             <td><code>${r.model_name}</code></td>
             <td style="text-align:center;">${(r.total_score * 100).toFixed(1)}%</td>
             <td style="text-align:center;">${r.faithfulness.toFixed(3)}</td>
-            <td style="text-align:center;">${r.answer_relevance.toFixed(3)}</td>
-            <td style="text-align:center;">${r.context_precision.toFixed(3)}</td>
-            <td style="text-align:center;">${r.context_recall.toFixed(3)}</td>
+            <td style="text-align:center;">${(r.instruction_following || 0).toFixed(3)}</td>
+            <td style="text-align:center;">${(r.hit_rate || 0).toFixed(3)}</td>
+            <td style="text-align:center;">${(r.mrr || 0).toFixed(3)}</td>
             <td style="text-align:center;">${Math.round(r.latency_ms)}ms</td>
             <td style="text-align:center;">$${(r.cost || 0).toFixed(4)}</td>
-            <td style="text-align:center;">${r.token_usage || 0}</td>
         </tr>
     `).join('');
 
@@ -142,14 +144,14 @@ function generateReportHTML(
                         <td>${d.ground_truth}</td>
                         <td>${d.answer}</td>
                         <td style="text-align:center;color:${d.faithfulness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${d.faithfulness.toFixed(2)}</td>
-                        <td style="text-align:center;color:${d.answer_correctness > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${(d.answer_correctness || 0).toFixed(2)}</td>
+                        <td style="text-align:center;color:${(d.instruction_following || 0) > 0.7 ? 'rgb(82,196,26)' : 'rgb(255,77,79)'}">${(d.instruction_following || 0).toFixed(2)}</td>
                     </tr>
                 `).join('');
                 qaDetail = `
                     <h2>📋 最优模型 QA 逐题分析 — ${bestModel}</h2>
                     <table>
                         <thead><tr>
-                            <th>#</th><th>问题 (Question)</th><th>标准答案 (Ground Truth)</th><th>AI 回答</th><th>Faithfulness</th><th>Correctness</th>
+                            <th>#</th><th>问题 (Question)</th><th>标准答案 (Ground Truth)</th><th>AI 回答</th><th>Faithfulness</th><th>Instruction</th>
                         </tr></thead>
                         <tbody>${qaRows}</tbody>
                     </table>
@@ -181,7 +183,7 @@ function generateReportHTML(
         .metric-card { background: rgb(22,27,34); border: 1px solid rgb(48,54,61); border-radius: 12px; padding: 20px; text-align: center; }
         .metric-card .value { font-size: 28px; font-weight: bold; color: rgb(88,166,255); }
         .metric-card .label { font-size: 12px; color: rgb(139,148,158); margin-top: 4px; }
-        .ragas-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+        .ragas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
         .ragas-card { background: rgb(22,27,34); border: 1px solid rgb(48,54,61); border-radius: 12px; padding: 20px; }
         .ragas-card .metric-name { font-size: 15px; font-weight: bold; margin-bottom: 6px; }
         .ragas-card .metric-desc { font-size: 12px; color: rgb(139,148,158); margin-bottom: 10px; }
@@ -203,7 +205,7 @@ function generateReportHTML(
 <div class="container">
     <div class="header">
         <h1>🧠 HiveMind RAG 评估综合报告</h1>
-        <div class="subtitle">基于 RAGAS (Retrieval Augmented Generation Assessment) 框架的全面质量评估</div>
+        <div class="subtitle">基于多维原子指标 (MRR, NDCG, NLI-Faithfulness) 的全面质量评估</div>
         <div class="subtitle" style="margin-top:4px;">报告生成时间: ${exportTime}</div>
         <div class="score-badge" style="background:${scoreBadge}">综合评级: ${scoreLevel} - ${(avgScore * 100).toFixed(1)}%</div>
     </div>
@@ -216,27 +218,37 @@ function generateReportHTML(
         <div class="metric-card"><div class="value">$${totalCost.toFixed(4)}</div><div class="label">累计评估成本</div></div>
     </div>
 
-    <h2>🔬 RAGAS 评估指标体系说明</h2>
+    <h2>🔬 RAG 高阶评估指标体系</h2>
     <div class="ragas-grid">
         <div class="ragas-card">
             <div class="metric-name" style="color:rgb(82,196,26)">✅ Faithfulness (忠实度)</div>
-            <div class="metric-desc">衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉 (Hallucination)。</div>
-            <div class="metric-formula">Score = Faithful Statements / Total Statements</div>
+            <div class="metric-desc">衡量 AI 回答是否完全基于检索到的上下文，不产生幻觉 (Claim-level NLI)。</div>
+            <div class="metric-formula">Score = Faithful Claims / Total Claims</div>
         </div>
         <div class="ragas-card">
             <div class="metric-name" style="color:rgb(24,144,255)">🎯 Answer Relevance (答案相关性)</div>
-            <div class="metric-desc">评估 AI 回答与用户问题的相关程度，从多角度检测偏题和冗余信息。</div>
+            <div class="metric-desc">评估 AI 回答与用户问题的相关程度。</div>
             <div class="metric-formula">Score = Mean Cosine Sim(Generated Q, Original Q)</div>
         </div>
         <div class="ragas-card">
-            <div class="metric-name" style="color:rgb(114,46,209)">🔍 Context Precision (上下文精确度)</div>
-            <div class="metric-desc">评估检索到的上下文块中有多少是与问题真正相关的（信噪比）。</div>
-            <div class="metric-formula">Score = Relevant Chunks / Total Retrieved Chunks</div>
+            <div class="metric-name" style="color:rgb(250,173,20)">⚡ Instruction Following (指令遵循)</div>
+            <div class="metric-desc">检查 AI 是否遵循了格式、风格或特定约束要求。</div>
+            <div class="metric-formula">Score = Followed Instructions / Total Instructions</div>
         </div>
         <div class="ragas-card">
-            <div class="metric-name" style="color:rgb(235,47,150)">📖 Context Recall (上下文召回率)</div>
-            <div class="metric-desc">评估 Ground Truth 中的关键信息有多少被检索系统成功召回。</div>
-            <div class="metric-formula">Score = GT Sentences in Context / Total GT Sentences</div>
+            <div class="metric-name" style="color:rgb(0,255,255)">🔍 Hit Rate (命中率)</div>
+            <div class="metric-desc">Top-K 结果中包含正确片段的概率。</div>
+            <div class="metric-formula">Score = Binary Hit in Top-K</div>
+        </div>
+        <div class="ragas-card">
+            <div class="metric-name" style="color:rgb(180,100,255)">📈 MRR (平均倒数排名)</div>
+            <div class="metric-desc">衡量检索结果排位的平均倒数。</div>
+            <div class="metric-formula">Score = Mean(1 / Rank)</div>
+        </div>
+        <div class="ragas-card">
+            <div class="metric-name" style="color:rgb(255,100,200)">💎 NDCG (归一化折损收益)</div>
+            <div class="metric-desc">衡量检索系统的多级排序质量。</div>
+            <div class="metric-formula">Score = DCG / IDCG</div>
         </div>
     </div>
 
@@ -309,6 +321,7 @@ export const EvalPage: React.FC = () => {
     const [reports, setReports] = useState<EvaluationReport[]>([]);
     const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
     const [badCases, setBadCases] = useState<any[]>([]);
+    const [directives, setDirectives] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
     const [runForm] = Form.useForm();
@@ -317,20 +330,27 @@ export const EvalPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
     const [activeSetId, setActiveSetId] = useState<string | null>(null);
+    const [isSMEModalOpen, setIsSMEModalOpen] = useState(false);
+    const [smeForm] = Form.useForm();
+    const [smeContext, setSmeContext] = useState("");
+    const [smeClaims, setSmeClaims] = useState<string[]>([]);
+    const [smeConsistency, setSmeConsistency] = useState<{ is_consistent: boolean, issues: string[] } | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [setsRes, reportsRes, kbsRes, badCasesRes] = await Promise.all([
+            const [setsRes, reportsRes, kbsRes, badCasesRes, directivesRes] = await Promise.all([
                 evalApi.getTestsets(),
                 evalApi.getReports(),
                 knowledgeApi.listKBs(),
-                evalApi.getBadCases()
+                evalApi.getBadCases(),
+                evalApi.getDirectives()
             ]);
             setSets(setsRes.data.data || []);
             setReports(reportsRes.data.data || []);
             setKbs(kbsRes.data.data || []);
             setBadCases(badCasesRes.data.data || []);
+            setDirectives(directivesRes.data.data || []);
         } catch {
             message.error("数据加载失败");
         } finally {
@@ -375,8 +395,8 @@ export const EvalPage: React.FC = () => {
             return;
         }
         try {
-            await evalApi.runEvaluation(activeSetId, values.model_name);
-            message.success(`针对模型 ${values.model_name} 的评估任务已启动`);
+            await evalApi.runEvaluation(activeSetId, values.model_name, values.apply_reflection);
+            message.success(`针对模型 ${values.model_name} 的评估任务已启动 (鲁棒模式: ${values.apply_reflection ? '开启' : '关闭'})`);
             setIsRunModalOpen(false);
         } catch {
             message.error("启动失败");
@@ -409,7 +429,10 @@ export const EvalPage: React.FC = () => {
             modelStats[m].avgCost += (r.cost || 0);
             modelStats[m].faithfulness += r.faithfulness;
             modelStats[m].relevance += r.answer_relevance;
-            modelStats[m].correctness = (modelStats[m].correctness || 0) + (r.answer_correctness || 0);
+            modelStats[m].instruction_following = (modelStats[m].instruction_following || 0) + (r.instruction_following || 0);
+            modelStats[m].mrr = (modelStats[m].mrr || 0) + (r.mrr || 0);
+            modelStats[m].hit_rate = (modelStats[m].hit_rate || 0) + (r.hit_rate || 0);
+            modelStats[m].ndcg = (modelStats[m].ndcg || 0) + (r.ndcg || 0);
             modelStats[m].count += 1;
         });
 
@@ -420,7 +443,10 @@ export const EvalPage: React.FC = () => {
             avgCost: s.avgCost / s.count,
             faithfulness: s.faithfulness / s.count,
             relevance: s.relevance / s.count,
-            correctness: (s.correctness || 0) / s.count
+            instruction_following: s.instruction_following / s.count,
+            mrr: s.mrr / s.count,
+            hit_rate: s.hit_rate / s.count,
+            ndcg: s.ndcg / s.count
         })).sort((a, b) => b.avgScore - a.avgScore);
     }, [reports]);
 
@@ -551,22 +577,26 @@ export const EvalPage: React.FC = () => {
             render: (s: number) => <Progress percent={Math.round(s * 100)} strokeColor={token.colorInfo} />
         },
         {
-            title: 'Faithfulness',
-            dataIndex: 'faithfulness',
-            key: 'f',
-            render: (s: number) => <Tag color="green">{s.toFixed(2)}</Tag>
-        },
-        {
-            title: 'Relevance',
-            dataIndex: 'relevance',
-            key: 'r',
-            render: (s: number) => <Tag color="purple">{s.toFixed(2)}</Tag>
-        },
-        {
-            title: 'Correctness',
-            dataIndex: 'correctness',
-            key: 'acc',
+            title: 'Instruction Following',
+            dataIndex: 'instruction_following',
+            key: 'inst',
             render: (s: number) => <Tag color="orange">{(s || 0).toFixed(2)}</Tag>
+        },
+        {
+            title: 'Hit Rate',
+            dataIndex: 'hit_rate',
+            key: 'hr',
+            render: (s: number) => <Tag color="cyan">{(s || 0).toFixed(2)}</Tag>
+        },
+        {
+            title: 'MRR / NDCG',
+            key: 'retrieval',
+            render: (_: any, record: any) => (
+                <Space direction="vertical" size={0}>
+                    <Text style={{ fontSize: '12px' }} type="secondary">MRR: {(record.mrr || 0).toFixed(2)}</Text>
+                    <Text style={{ fontSize: '12px' }} type="secondary">NDCG: {(record.ndcg || 0).toFixed(2)}</Text>
+                </Space>
+            )
         },
         {
             title: '平均延迟',
@@ -613,20 +643,20 @@ export const EvalPage: React.FC = () => {
                                 valueStyle={{ fontSize: 14, color: selectedReport.answer_relevance > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={4}>
-                            <Statistic title={<span style={{ fontSize: 11 }}>Ctx Prec.</span>} value={selectedReport.context_precision} precision={3}
-                                valueStyle={{ fontSize: 14, color: selectedReport.context_precision > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                            <Statistic title={<span style={{ fontSize: 11 }}>Instruction</span>} value={selectedReport.instruction_following || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.instruction_following || 0) > 0.7 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={4}>
-                            <Statistic title={<span style={{ fontSize: 11 }}>Ctx Recall</span>} value={selectedReport.context_recall} precision={3}
-                                valueStyle={{ fontSize: 14, color: selectedReport.context_recall > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                            <Statistic title={<span style={{ fontSize: 11 }}>Hit Rate</span>} value={selectedReport.hit_rate || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.hit_rate || 0) > 0.8 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={4}>
-                            <Statistic title={<span style={{ fontSize: 11 }}>Correctness</span>} value={selectedReport.answer_correctness || 0} precision={3}
-                                valueStyle={{ fontSize: 14, color: (selectedReport.answer_correctness || 0) > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                            <Statistic title={<span style={{ fontSize: 11 }}>MRR</span>} value={selectedReport.mrr || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.mrr || 0) > 0.6 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                         <Col span={4}>
-                            <Statistic title={<span style={{ fontSize: 11 }}>Semantic Sim</span>} value={selectedReport.semantic_similarity || 0} precision={3}
-                                valueStyle={{ fontSize: 14, color: (selectedReport.semantic_similarity || 0) > 0.7 ? token.colorSuccess : token.colorWarning }} />
+                            <Statistic title={<span style={{ fontSize: 11 }}>NDCG</span>} value={selectedReport.ndcg || 0} precision={3}
+                                valueStyle={{ fontSize: 14, color: (selectedReport.ndcg || 0) > 0.6 ? token.colorSuccess : token.colorWarning }} />
                         </Col>
                     </Row>
                 </Card>
@@ -676,19 +706,19 @@ export const EvalPage: React.FC = () => {
         const avgMetrics = {
             faithfulness: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.faithfulness, 0) / completedReports.length : 0,
             answer_relevance: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.answer_relevance, 0) / completedReports.length : 0,
-            context_precision: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.context_precision, 0) / completedReports.length : 0,
-            context_recall: completedReports.length > 0 ? completedReports.reduce((s, r) => s + r.context_recall, 0) / completedReports.length : 0,
-            answer_correctness: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.answer_correctness || 0), 0) / completedReports.length : 0,
-            semantic_similarity: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.semantic_similarity || 0), 0) / completedReports.length : 0,
+            instruction_following: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.instruction_following || 0), 0) / completedReports.length : 0,
+            mrr: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.mrr || 0), 0) / completedReports.length : 0,
+            hit_rate: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.hit_rate || 0), 0) / completedReports.length : 0,
+            ndcg: completedReports.length > 0 ? completedReports.reduce((s, r) => s + (r.ndcg || 0), 0) / completedReports.length : 0,
         };
 
         const metricColors = {
             faithfulness: 'hsl(145, 63%, 49%)',
             answer_relevance: 'hsl(210, 100%, 60%)',
-            context_precision: 'hsl(265, 60%, 60%)',
-            context_recall: 'hsl(330, 80%, 60%)',
-            answer_correctness: 'hsl(38, 100%, 50%)',
-            semantic_similarity: 'hsl(180, 100%, 40%)'
+            instruction_following: 'hsl(38, 100%, 50%)',
+            hit_rate: 'hsl(180, 100%, 40%)',
+            mrr: 'hsl(265, 60%, 60%)',
+            ndcg: 'hsl(330, 80%, 60%)'
         };
 
         return (
@@ -815,6 +845,90 @@ export const EvalPage: React.FC = () => {
         );
     };
 
+    const renderTrendChart = () => {
+        const completed = reports
+            .filter(r => r.status === 'completed')
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        if (completed.length < 2) {
+            return (
+                <Card style={{ borderRadius: 16, background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', padding: 40, textAlign: 'center', marginTop: 20 }}>
+                    <LineChartOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.1)', marginBottom: 16 }} />
+                    <Text type="secondary" style={{ display: 'block' }}>需要至少 2 条已完成的报告来生成趋势分析 (Needs at least 2 reports)</Text>
+                </Card>
+            );
+        }
+
+        const data = completed.map(r => ({
+            time: new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            faithfulness: r.faithfulness,
+            relevance: r.answer_relevance,
+            instruction: r.instruction_following || 0,
+            hit_rate: r.hit_rate || 0,
+            full: r.total_score,
+            model: r.model_name
+        }));
+
+        return (
+            <Space direction="vertical" style={{ width: '100%' }} size="large" className="trend-container">
+                <Card 
+                    title={<span style={{ fontWeight: 600 }}><LineChartOutlined /> 质量演进趋势 (RAGAS Quality Evolution)</span>}
+                    bordered={false}
+                    style={{ borderRadius: 16, background: token.colorBgContainer, border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', marginTop: 20 }}
+                >
+                    <div style={{ height: 400, width: '100%', marginTop: 20 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis 
+                                    dataKey="time" 
+                                    stroke="rgba(255,255,255,0.45)" 
+                                    fontSize={10} 
+                                    tick={{ fill: 'rgba(255,255,255,0.45)' }}
+                                    axisLine={false}
+                                />
+                                <YAxis 
+                                    stroke="rgba(255,255,255,0.45)" 
+                                    fontSize={10} 
+                                    domain={[0, 1]}
+                                    tick={{ fill: 'rgba(255,255,255,0.45)' }}
+                                    axisLine={false}
+                                />
+                                <RechartsTooltip 
+                                    contentStyle={{ background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
+                                    itemStyle={{ fontSize: 12, fontWeight: 500 }}
+                                />
+                                <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 12, opacity: 0.8 }} />
+                                <ReferenceLine y={0.7} label={{ value: "Stability Gate", position: 'insideBottomRight', fill: '#EF476F', fontSize: 10 }} stroke="#EF476F" strokeDasharray="3 3" />
+                                
+                                <Line type="monotone" dataKey="faithfulness" name="Faithfulness" stroke="hsl(145, 63%, 49%)" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#000' }} activeDot={{ r: 6 }} />
+                                <Line type="monotone" dataKey="relevance" name="Relevance" stroke="hsl(210, 100%, 60%)" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#000' }} />
+                                <Line type="monotone" dataKey="instruction" name="Instruction" stroke="hsl(38, 100%, 50%)" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                                <Line type="monotone" dataKey="hit_rate" name="Hit Rate" stroke="hsl(180, 100%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
+                                <Line type="monotone" dataKey="full" name="Composite Score" stroke="#fff" strokeWidth={4} dot={{ r: 6, fill: '#fff', strokeWidth: 0 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                <Alert 
+                    message={<Text strong style={{ color: token.colorInfo }}>🧠 智体自省 (Agent Observation)</Text>}
+                    description={
+                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                            Composite Score (白线) 是系统的核心北极星指标。
+                            若观察到 <strong>Faithfulness</strong> 下滑，通常意味着检索上下文包含过多干扰噪声；
+                            若 <strong>Hit Rate</strong> 较低，建议优化 Rerank 模型或增加 Top-K 值。
+                            当前的稳定性门禁线设为 0.7，持续低于该值将触发架构重构建议。
+                        </div>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ borderRadius: 16, background: 'rgba(24,144,255,0.05)', border: '1px solid rgba(24,144,255,0.1)' }}
+                />
+            </Space>
+        );
+    };
+
     const tabItems = [
         {
             key: 'arena',
@@ -822,8 +936,13 @@ export const EvalPage: React.FC = () => {
             children: renderRagasBenchmark()
         },
         {
+            key: 'trend',
+            label: <span><LineChartOutlined /> 质量趋势 (Trends)</span>,
+            children: renderTrendChart()
+        },
+        {
             key: 'reports',
-            label: <span><LineChartOutlined /> 评估报告 (Reports)</span>,
+            label: <span><HistoryOutlined /> 评估报告 (Reports)</span>,
             children: (
                 <Table
                     dataSource={reports}
@@ -848,19 +967,107 @@ export const EvalPage: React.FC = () => {
         },
         {
             key: 'badcases',
-            label: <span><BugOutlined /> Bad Cases</span>,
+            label: <span><BugOutlined /> Bad Cases (待校对)</span>,
             children: (
                 <Table
                     dataSource={badCases}
                     rowKey="id"
                     columns={[
-                        { title: '时间', dataIndex: 'created_at', render: (t: string) => new Date(t).toLocaleString() },
-                        { title: '问题', dataIndex: 'question' },
-                        { title: '差评答案', dataIndex: 'bad_answer', ellipsis: true },
-                        { title: '原因', dataIndex: 'reason' },
-                        { title: '状态', dataIndex: 'status', render: (s: string) => <Tag color="warning">{s.toUpperCase()}</Tag> }
+                        { title: '时间', dataIndex: 'created_at', width: 140, render: (t: string) => new Date(t).toLocaleString() },
+                        { title: '问题', dataIndex: 'question', width: 250 },
+                        { title: 'AI 答案', dataIndex: 'bad_answer', ellipsis: true },
+                        { 
+                            title: '标准答案 (Human)', 
+                            dataIndex: 'expected_answer', 
+                            render: (v: string, record: any) => (
+                                <Input 
+                                    defaultValue={v} 
+                                    placeholder="点击输入正确答案..."
+                                    onBlur={(e) => {
+                                        if (e.target.value !== v) {
+                                            evalApi.updateBadCase(record.id, record.status, e.target.value).then(() => {
+                                                message.success("已记录人工修正");
+                                                fetchData();
+                                            });
+                                        }
+                                    }}
+                                />
+                            )
+                        },
+                        { title: '状态', dataIndex: 'status', width: 120, render: (s: string) => <Tag color={s === 'added_to_dataset' ? 'success' : 'warning'}>{s.toUpperCase()}</Tag> },
+                        { 
+                            title: '系统诊断 (AI Insight)', 
+                            dataIndex: 'ai_insight', 
+                            width: 200,
+                            render: (v: string) => <Text type="secondary" style={{ fontSize: '12px' }} italic>{v || '无诊断建议'}</Text>
+                        },
+                        {
+                            title: '协作进化',
+                            key: 'evolve',
+                            width: 150,
+                            render: (_: any, record: any) => (
+                                <Space>
+                                    <Popover 
+                                        title="证据溯源 (Context Snapshot)" 
+                                        content={<div style={{ maxWidth: 400, maxHeight: 300, overflowY: 'auto' }}><Text style={{ fontSize: '12px' }}>{record.context_snapshot || '未记录上下文'}</Text></div>}
+                                    >
+                                        <Button size="small" icon={<FileSearchOutlined />}>证据</Button>
+                                    </Popover>
+                                    <Button 
+                                        type="primary" 
+                                        size="small" 
+                                        disabled={!record.expected_answer || record.status === 'added_to_dataset'}
+                                        onClick={async () => {
+                                            setLoading(true);
+                                            try {
+                                                await evalApi.promoteBadCase(record.id);
+                                                message.success("✅ 已晋升为黄金标准并触发认知学习！");
+                                                fetchData();
+                                            } catch {
+                                                message.error("晋升失败");
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        晋升
+                                    </Button>
+                                </Space>
+                            )
+                        }
                     ]}
                 />
+            )
+        },
+        {
+            key: 'evolution',
+            label: <span><ThunderboltOutlined /> 协同进化 (Cognitive Directives)</span>,
+            children: (
+                <div style={{ padding: '20px' }}>
+                    <div style={{ marginBottom: '20px' }}>
+                        <Title level={4}>🧠 集群认知指令集 (Evolution Results)</Title>
+                        <Text type="secondary">基于人机协同纠错过程，系统自动提炼的“群体指令”。这些规则将强制注入后续所有 Agent 执行周期中。</Text>
+                    </div>
+                    <List
+                        grid={{ gutter: 16, column: 2 }}
+                        dataSource={directives}
+                        renderItem={item => (
+                            <List.Item>
+                                <Card 
+                                    title={<Tag color="purple">{item.topic}</Tag>}
+                                    extra={<Text type="secondary">v{item.version}</Text>}
+                                    style={{ borderLeft: '4px solid #722ed1', borderRadius: '8px' }}
+                                >
+                                    <Text strong style={{ fontSize: '15px' }}>{item.directive}</Text>
+                                    <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: '12px' }} type="secondary">信度: {(item.confidence_score * 100).toFixed(1)}%</Text>
+                                        <Text style={{ fontSize: '12px' }} type="secondary">更新: {new Date(item.updated_at).toLocaleDateString()}</Text>
+                                    </div>
+                                </Card>
+                            </List.Item>
+                        )}
+                    />
+                </div>
             )
         }
     ];
@@ -889,6 +1096,14 @@ export const EvalPage: React.FC = () => {
                     >
                         生成测试集
                     </PermissionButton>
+                    <Button
+                        type="primary"
+                        icon={<BulbOutlined />}
+                        onClick={() => setIsSMEModalOpen(true)}
+                        style={{ background: '#722ed1', borderColor: '#722ed1' }}
+                    >
+                        专家辅助录入
+                    </Button>
                 </Space>
             }
         >
@@ -900,7 +1115,7 @@ export const EvalPage: React.FC = () => {
                 onCancel={() => setIsRunModalOpen(false)}
                 onOk={() => runForm.submit()}
             >
-                <Form form={runForm} layout="vertical" onFinish={confirmRunEval} initialValues={{ model_name: 'gpt-3.5-turbo' }}>
+                <Form form={runForm} layout="vertical" onFinish={confirmRunEval} initialValues={{ model_name: 'gpt-3.5-turbo', apply_reflection: false }}>
                     <Form.Item name="model_name" label="目标模型" rules={[{ required: true }]}>
                         <Select>
                             <Select.Option value="gpt-3.5-turbo">GPT-3.5 Turbo (Standard)</Select.Option>
@@ -910,7 +1125,12 @@ export const EvalPage: React.FC = () => {
                             <Select.Option value="deepseek-chat">DeepSeek Chat (Cost Effective)</Select.Option>
                         </Select>
                     </Form.Item>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>系统将使用此模型生成回答，并由 Judge 模型进行客观评分。</Text>
+                    <Form.Item name="apply_reflection" label="智体自省 (鲁棒模式)" valuePropName="checked">
+                        <Switch />
+                    </Form.Item>
+                    <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginBottom: '16px' }}>
+                        启用该选项后，Judge 模型将对评分结果进行自我审查（Self-Correction），有效降低“幻觉”和“倾向性偏差”，但评估耗时将翻倍。
+                    </Text>
                 </Form>
             </Modal>
 
@@ -948,6 +1168,110 @@ export const EvalPage: React.FC = () => {
                 styles={{ body: { maxHeight: '80vh', overflowY: 'auto' } }}
             >
                 {renderDetails()}
+            </Modal>
+            <Modal
+                title={<span><BulbOutlined /> 业务专家标注工作台 (SME Workspace)</span>}
+                open={isSMEModalOpen}
+                onCancel={() => setIsSMEModalOpen(false)}
+                width={1000}
+                footer={null}
+            >
+                <div style={{ display: 'flex', gap: '24px' }}>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Title level={5}>📖 参考原文 (证据区)</Title>
+                        <TextArea 
+                            rows={15} 
+                            placeholder="请粘贴文档原文段落到这里，AI将根据此段落辅助您校验..." 
+                            value={smeContext}
+                            onChange={(e) => setSmeContext(e.target.value)}
+                            style={{ background: 'transparent' }}
+                        />
+                    </div>
+                    <div style={{ flex: 1.2 }}>
+                        <Form form={smeForm} layout="vertical">
+                            <Form.Item label="1. 业务问题 (Question)" name="question" rules={[{ required: true }]}>
+                                <Input.TextArea placeholder="模拟客户的真实提问..." />
+                            </Form.Item>
+                            
+                            <Form.Item label="2. 标准正解 (Standard Answer)" name="answer" rules={[{ required: true }]}>
+                                <Input.TextArea 
+                                    rows={5} 
+                                    placeholder="请输入这份文件的教科书式回答..." 
+                                    onBlur={async (e) => {
+                                        const text = e.target.value;
+                                        if (!text || !smeContext) return;
+                                        // Trigger Consistency Check
+                                        const res = await evalApi.verifySMEAnswer(text, smeContext);
+                                        setSmeConsistency(res.data.data);
+                                    }}
+                                />
+                            </Form.Item>
+
+                            {smeConsistency && !smeConsistency.is_consistent && (
+                                <Alert 
+                                    message="逻辑一致性红线预警" 
+                                    description={smeConsistency.issues.join(', ')} 
+                                    type="error" 
+                                    showIcon 
+                                    style={{ marginBottom: '16px' }}
+                                />
+                            )}
+
+                            <Button 
+                                type="dashed" 
+                                block 
+                                onClick={async () => {
+                                    const answer = smeForm.getFieldValue('answer');
+                                    if (!answer) return;
+                                    setLoading(true);
+                                    const res = await evalApi.assistClaims(answer);
+                                    setSmeClaims(res.data.data);
+                                    setLoading(false);
+                                }}
+                                style={{ marginBottom: '16px' }}
+                            >
+                                ✨ 自动拆解核心知识点 (Claim Decomposition)
+                            </Button>
+
+                            {smeClaims.length > 0 && (
+                                <div style={{ marginBottom: '20px', padding: '12px', background: 'rgba(114, 46, 209, 0.05)', borderRadius: '8px' }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>评测基准 Checklist:</Text>
+                                    <div style={{ marginTop: '8px' }}>
+                                        {smeClaims.map((c, i) => <Checkbox key={i} checked style={{ display: 'block', marginBottom: '4px' }}>{c}</Checkbox>)}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ textAlign: 'right' }}>
+                                <Button 
+                                    type="primary" 
+                                    size="large" 
+                                    loading={loading}
+                                    onClick={async () => {
+                                        try {
+                                            const values = await smeForm.validateFields();
+                                            setLoading(true);
+                                            await evalApi.submitSMEGoldCase(values.question, values.answer, smeContext);
+                                            message.success("金色标准已入库，并自动对齐原子事实点！");
+                                            setIsSMEModalOpen(false);
+                                            smeForm.resetFields();
+                                            setSmeClaims([]);
+                                            setSmeContext("");
+                                            setSmeConsistency(null);
+                                            fetchData();
+                                        } catch (err) {
+                                            message.error("提交失败，请检查输入项");
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                >
+                                    提交并入库 (Save to Gold Set)
+                                </Button>
+                            </div>
+                        </Form>
+                    </div>
+                </div>
             </Modal>
         </PageContainer>
     );

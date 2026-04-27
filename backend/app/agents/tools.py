@@ -3,10 +3,12 @@ Native tools for the Agent Swarm.
 """
 
 from loguru import logger
+import json
 
 from app.agents.memory import SharedMemoryManager
 from app.agents.tool_types import InterruptBehavior, hive_tool
 from app.models.agents import ReflectionEntry, ReflectionSignalType, ReflectionType, TodoItem, TodoPriority
+from app.services.log_search import log_search_service
 
 # Singleton for tools to share
 _memory = SharedMemoryManager()
@@ -199,12 +201,44 @@ async def web_search(query: str) -> str:
     Search the internet for real-time information or external documentation.
     Use this when you need facts or news that might not be in the internal knowledge base.
     """
-    # Mock for now - in production, integrate with Tavily or Serper
-    logger.info(f"🌐 Mock Web Search for: {query}")
-    return (
-        f"Default search result for '{query}': (Mock result) "
-        "DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
-    )
+    import httpx
+    from app.core.config import settings
+
+    if not settings.TAVILY_API_KEY:
+        logger.warning("⚠️ TAVILY_API_KEY not set. Falling back to mock search.")
+        return (
+            f"Default search result for '{query}': (Mock result) "
+            "DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
+        )
+
+    try:
+        logger.info(f"🌐 [WebSearch] Searching Tavily for: {query}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": settings.TAVILY_API_KEY,
+                    "query": query,
+                    "search_depth": "basic",
+                    "include_answer": True,
+                    "max_results": 5
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            results = []
+            if data.get("answer"):
+                results.append(f"DIRECT ANSWER: {data['answer']}\n")
+
+            for res in data.get("results", []):
+                results.append(f"TITLE: {res['title']}\nURL: {res['url']}\nCONTENT: {res['content']}")
+
+            return "\n\n---\n\n".join(results) if results else "No significant web results found."
+
+    except Exception as e:
+        logger.error(f"❌ Web Search Error: {e}")
+        return f"Search failed: {e!s}. (Ensure TAVILY_API_KEY is valid)"
 
 
 @hive_tool(
@@ -345,6 +379,37 @@ async def think(thought: str, target_goal: str | None = None) -> str:
     return "Thought recorded. You may now proceed with your planned actions."
 
 
+@hive_tool(
+    is_read_only=True,
+    is_concurrency_safe=True,
+    search_hint="search full-stack logs (frontend and backend) for errors or clues",
+    always_load=True
+)
+async def search_full_stack_logs(query: str, limit: int = 20) -> str:
+    """
+    Search combined logs from both Frontend and Backend for specific keywords, errors, or trace IDs.
+    Use this when you need to troubleshoot why a request failed or what the system is doing.
+    """
+    try:
+        results = await log_search_service.search_logs(query, limit=limit)
+        if not results:
+            return f"No logs found matching query: '{query}'"
+        
+        formatted = []
+        for r in results:
+            # 格式化输出方便 Agent 阅读
+            ts = r.get("time", r.get("timestamp", "??"))
+            lvl = r.get("level", "INFO")
+            msg = r.get("message", "no message")
+            extra = {k: v for k, v in r.items() if k not in ["time", "timestamp", "level", "message"]}
+            formatted.append(f"[{ts}] {lvl} | {msg}\n   Context: {json.dumps(extra)}")
+            
+        return "\n\n".join(formatted)
+    except Exception as e:
+        logger.error(f"Error in search_full_stack_logs: {e}")
+        return f"Log search failed: {e!s}"
+
+
 from app.services.sandbox.tool_sandbox import programmatic_execute
 
 # Export tools
@@ -358,4 +423,5 @@ NATIVE_TOOLS = [
     search_available_tools,
     python_interpreter,
     programmatic_execute,
+    search_full_stack_logs,
 ]

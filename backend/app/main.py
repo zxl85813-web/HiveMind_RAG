@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 import asyncio
 from contextlib import asynccontextmanager
 
+# @covers REQ-014
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -24,108 +25,118 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.core.database import close_db, init_db
     from app.core.init_data import init_base_data
 
-    await init_db()  # Initialize Database (Auto-migration in dev)
-    await init_base_data()  # Seed critical data (Mock User etc.)
+    # 1. Critical Initialization
+    try:
+        await init_db()  # Initialize Database
+        await init_base_data()  # Seed critical data (Mock User etc.)
+    except Exception as e:
+        logger.critical(f"❌ Critical DB initialization failed: {e}")
+        raise
 
-    # Initialize Agent Swarm
-    from app.agents.swarm import AgentDefinition
-    from app.api.routes import (
-        agents,
-        auth,
-        chat,
-        generation,
-        governance,
-        health,
-        knowledge,
-        llm_config,
-        memory,
-        pipelines,
-        security,
-        settings,
-        audit,
-    )
+    # 2. Agent Swarm Initialization
     from app.api.routes.agents import _swarm
+    from app.agents.schemas import AgentDefinition
+    
+    logger.info("🐝 Registering Swarm Agents...")
 
-    # Registering default agents (MVP)
-    _swarm.register_agent(
+    agents_to_register = [
         AgentDefinition(
             name="rag",
-            description=(
-                "Knowledge Expert. Use this for factual questions, knowledge-base lookups, "
-                "or internal documentation queries with citations."
-            ),
+            description="Knowledge Expert. Use this for factual questions, knowledge-base lookups, or internal documentation queries with citations.",
+            icon="📚",
             model_hint="balanced",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="web",
             description="Able to search the internet for the most up-to-date information.",
+            icon="🌐",
             model_hint="fast",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="code",
             description="Specialized in writing, debugging, and explaining code in various programming languages.",
+            icon="💻",
             model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="eval_architect",
-            description=(
-                "Expert in RAG evaluation systems. Helps design testsets, expand data with AI, "
-                "and diagnose quality issues."
-            ),
+            description="Expert in RAG evaluation systems. Helps design testsets, expand data with AI, and diagnose quality issues.",
+            icon="📐",
             model_hint="reasoning",
-        )
-    )
-    _swarm.register_agent(
+        ),
         AgentDefinition(
             name="critic",
-            description="Quality control and compliance agent. Reviews generated content for safety and accuracy.",
+            description="Audits agent responses for logic, safety, and hallucination risks.",
+            icon="⚖️",
             model_hint="reasoning",
-        )
-    )
+        ),
+        AgentDefinition(
+            name="commerce_expert",
+            description="电商业务专家。专门处理订单查询、物流轨迹、订单取消和地址变更。",
+            icon="🛍️",
+            model_hint="balanced",
+        ),
+        AgentDefinition(
+            name="email_expert",
+            description="邮件客服专家。负责邮件分级、首回草稿生成和风控审核。",
+            icon="📧",
+            model_hint="reasoning",
+        ),
+        AgentDefinition(name="Supervisor", description="Coordinator of the swarm", icon="👑")
+    ]
 
-    logger.info("🐝 Agent Swarm initialized with 5 agents (rag, web, code, eval_architect, critic)")
+    for agent_def in agents_to_register:
+        _swarm.register_agent(agent_def)
 
-    # Start External Source Background Sync Service
-    from app.services.sync_service import sync_service
+    logger.info(f"✅ Swarm initialized with {len(_swarm.get_agents())} agents.")
 
-    await sync_service.start()
+    # 3. Background Services (Delayed Start)
+    _bg_tasks = []
 
-    # 🌐 [Native Scheduler]: Replacement for APScheduler
-    async def run_learning_crawl_loop():
-        from app.services.learning_service import LearningService
-        from app.core.config import settings as _cfg
+    async def start_delayed_services():
+        logger.info("⏳ Waiting 10s before starting background services...")
+        await asyncio.sleep(10)
         
-        interval = _cfg.LEARNING_FETCH_INTERVAL_HOURS * 3600
-        logger.info("🌐 Native Learning Crawler loop started (Interval: {} hours).", _cfg.LEARNING_FETCH_INTERVAL_HOURS)
-        
-        while True:
-            try:
-                await LearningService.run_external_crawl()
-            except Exception as e:
-                logger.error("❌ Scheduled crawl failed: {}", e)
+        try:
+            from app.services.sync_service import sync_service
+            await sync_service.start()
+            logger.info("🚀 Background Sync Service started.")
+        except Exception as e:
+            logger.error(f"❌ Sync Service failed to start: {e}")
+
+        try:
+            from app.services.learning_service import LearningService
+            async def run_learning_crawl_loop():
+                interval = settings.LEARNING_FETCH_INTERVAL_HOURS * 3600
+                while True:
+                    try:
+                        await LearningService.run_external_crawl()
+                    except Exception as e:
+                        logger.error(f"❌ Scheduled crawl failed: {e}")
+                    await asyncio.sleep(interval)
             
-            await asyncio.sleep(interval)
+            t = asyncio.create_task(run_learning_crawl_loop())
+            _bg_tasks.append(t)
+            logger.info("🚀 Learning Crawl Task scheduled.")
+        except Exception as e:
+            logger.error(f"❌ Learning Service failed to schedule: {e}")
 
-    # Start External Source Background Sync Service
-    from app.services.sync_service import sync_service
-    await sync_service.start()
-
-    # Start native crawler task
-    crawler_task = asyncio.create_task(run_learning_crawl_loop())
-
-    # TODO: Initialize WebSocket manager
-
+    startup_task = asyncio.create_task(start_delayed_services())
+    _bg_tasks.append(startup_task)
+    logger.info("✅ Lifespan startup completed (Background tasks deferred).")
+    
     yield
 
     logger.info("🐝 HiveMind RAG Platform shutting down...")
-    crawler_task.cancel()
-    await sync_service.stop()
+    for t in _bg_tasks:
+        if not t.done():
+            t.cancel()
+    
+    try:
+        from app.services.sync_service import sync_service
+        await sync_service.stop()
+    except Exception:
+        pass
     await close_db()
     # TODO: Cleanup resources
 

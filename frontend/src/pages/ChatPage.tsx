@@ -109,15 +109,14 @@ export const ChatPage: React.FC = () => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
                     if (lastMsg && lastMsg.role === 'assistant') {
-                        // @ts-expect-error: actions property might not be in the base message type
                         lastMsg.actions = data.actions;
                     }
                     return newMsgs;
                 });
             },
-            onSessionCreated: (id) => {
-                setCurrentConversationId(id);
-                track('system', 'chat_session_created', { conversationId: id });
+            onSessionCreated: (session) => {
+                setCurrentConversationId(session.id);
+                track('system', 'chat_session_created', { conversationId: session.id });
             },
             onFinish: () => {
                 setLoading(false);

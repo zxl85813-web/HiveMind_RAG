@@ -107,7 +107,7 @@ async def _run_one_dependency(dep: DependencyName, open_duration_sec: float) -> 
 
     started_at = time.perf_counter()
 
-    logger.info(f"[Step3-Validate] [{dep}] Scenario 1: trigger OPEN")
+    t_logger.info(f"[Step3-Validate] [{dep}] Scenario 1: trigger OPEN")
 
     async def fail_once():
         raise RuntimeError(f"simulated {dep} outage")
@@ -120,39 +120,39 @@ async def _run_one_dependency(dep: DependencyName, open_duration_sec: float) -> 
     try:
         await cb.execute(dep, fail_once)
     except Exception as exc:
-        logger.info(f"expected failure: {exc}")
+        t_logger.info(f"expected failure: {exc}")
 
     snapshot_open = cast(dict[str, Any], cb.snapshot().get(dep, {}))
     open_triggered = snapshot_open.get("state") == "OPEN"
 
-    logger.info(f"[Step3-Validate] [{dep}] snapshot-open: {snapshot_open}")
+    t_logger.info(f"[Step3-Validate] [{dep}] snapshot-open: {{}}", snapshot_open)
 
-    logger.info(f"[Step3-Validate] [{dep}] Scenario 2: OPEN should block immediately")
+    t_logger.info(f"[Step3-Validate] [{dep}] Scenario 2: OPEN should block immediately")
     try:
         await cb.execute(dep, lambda: asyncio.sleep(0))
     except Exception as exc:
         msg = str(exc)
-        logger.info(f"expected open-block: {msg}")
+        t_logger.info(f"expected open-block: {msg}")
         open_blocked = f"Dependency circuit OPEN: {dep}" in msg
 
-    logger.info(f"[Step3-Validate] [{dep}] waiting for open duration...")
+    t_logger.info(f"[Step3-Validate] [{dep}] waiting for open duration...")
     await asyncio.sleep(open_duration_sec + 0.2)
 
-    logger.info(f"[Step3-Validate] [{dep}] Scenario 3/4: half-open probe success closes circuit")
+    t_logger.info(f"[Step3-Validate] [{dep}] Scenario 3/4: half-open probe success closes circuit")
 
     async def success_probe():
         return "ok"
 
     try:
         probe_result = await cb.execute(dep, success_probe)
-        logger.info(f"probe result: {probe_result}")
+        t_logger.info("probe result: {}", probe_result)
     except Exception as exc:
         errors.append(f"probe failed: {exc}")
 
     snapshot_closed = cast(dict[str, Any], cb.snapshot().get(dep, {}))
     closed_after_probe = snapshot_closed.get("state") == "CLOSED"
 
-    convergence_ms = round((time.perf_counter() - started_at) * 1000, 2)
+    convergence_ms = round(cast(float, time.perf_counter() - started_at) * 1000, 2)
 
     success = open_triggered and open_blocked and closed_after_probe and not errors
     if not success:
@@ -163,7 +163,7 @@ async def _run_one_dependency(dep: DependencyName, open_duration_sec: float) -> 
         if not closed_after_probe:
             errors.append("HALF_OPEN probe did not close circuit")
 
-    t_logger.info(f"[{dep}] snapshot-closed: {snapshot_closed}", action="cb_check")
+    t_logger.info(f"[{dep}] snapshot-closed: {{}}", snapshot_closed, action="cb_check")
 
     return {
         "dependency": dep,

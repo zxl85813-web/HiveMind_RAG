@@ -12,31 +12,33 @@
 
 ```mermaid
 graph TD
-    User((User)) <--> Frontend["⚛️ React Frontend<br>(AI-First UI/ChatPanel)"]
+    User((User))
+    Frontend["⚛️ React Frontend\n(AI-First UI/ChatPanel)"]
+    User --- Frontend
     
     subgraph "Backend (FastAPI)"
-        API["🌐 API Gateway<br>(Routes + Deps)"]
+        API["🌐 API Gateway\n(Routes + Deps)"]
         
         subgraph "Application Layer"
-            Service["💼 Business Services<br>(User/Chat/KB)"]
-            Auth["🔐 Auth & Audit<br>(RBAC/Log/Sanitizer)"]
+            Service["💼 Business Services\n(User/Chat/KB)"]
+            Auth["🔐 Auth & Audit\n(RBAC/Log/Sanitizer)"]
         end
         
         subgraph "Intelligence Layer (Agent Swarm)"
-            Supervisor["🧠 Manager Agent<br>(Router)"]
-            Workers["👷 Worker Agents<br>(RAG/Code/Web/Reflection)"]
-            Memory["💾 Shared Memory<br>(Redis/Vector)"]
+            Supervisor["🧠 Manager Agent\n(Router)"]
+            Workers["👷 Worker Agents\n(RAG/Code/Web/Reflection)"]
+            Memory["💾 Shared Memory\n(Redis/Vector)"]
         end
         
         subgraph "Infrastructure Layer"
-            Core["⚙️ Core Infra<br>(Config/DB/Log)"]
-            LLM["🧠 LLM Gateway<br>(Router/Guardrails)"]
-            Tools["🛠️ Tools<br>(MCP/Skills/Learning)"]
+            Core["⚙️ Core Infra\n(Config/DB/Log)"]
+            LLM["🧠 LLM Gateway\n(Router/Guardrails)"]
+            Tools["🛠️ Tools\n(MCP/Skills/Learning)"]
         end
     end
 
-    Frontend <-->|"SSE Stream"| API
-    Frontend <-->|"WebSocket"| API
+    Frontend --> API
+    API --> Frontend
     API --> Service
     Service --> Supervisor
     Supervisor --> Workers
@@ -134,6 +136,12 @@ alembic upgrade head
 - **Tier 1 - 索引雷达层 (Hot Radar)**: 纯内存抽象索引 (`InMemoryAbstractIndex`)，利用标签与实体做极速集合碰撞，在检索底层海量文本前率先明确意图和方向。
 - **Tier 2 - 知识图谱层 (Overview Graph)**: 基于 **Neo4j** 构建实体关系网。当命中线索时，系统顺藤摸瓜拉取图谱邻居，赋予 Agent 类似人类大脑的关联能力，洞悉隐式关系。
 - **Tier 3 - 向量细节层 (Deep Detail)**: 基于 Vector/Elastic 本地数据库执行深层匹配。在明确目标后精准捞取原始长文本与代码切块兜底，交由 LLM 生成精确答案。
+
+### 4. 主动进化架构 (Active Evolution Cycle - AEC)
+独创的“感知-决策-实验”闭环自进化体系，解决 RAG 系统上线后难以持续优化的痛点：
+- **感知层 (Perception)**: `RAGGateway` 实时对每一笔检索产出 `KnowledgeQuality` 评分 (EXCELLENT -> FAIL)，实现检索效果的原子级监控。
+- **决策层 (Governance)**: `QualityGovernanceService` 充当“主治医生”，根据质量指标动态决定应对措施（如自动触发 HyDE 改写、多路径扩展或图谱拓扑注入）。
+- **实验层 (Lab)**: `RefinementLab` 自动化实验室。它能从 `BadCase` 中提取样本进行“锦标赛”对比实验，量化不同优化策略的提升效果，为系统进化提供数据支撑。
 
 ---
 

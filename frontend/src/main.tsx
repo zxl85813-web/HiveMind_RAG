@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { intentManager } from './core/IntentManager';
 import App from './App';
 import './index.css';
+import { loggingService } from './services/loggingService';
 
 const queryClient = new QueryClient({
   defaultOptions: {

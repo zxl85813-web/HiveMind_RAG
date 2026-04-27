@@ -13,27 +13,8 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
-from app.models.agents import ReflectionEntry, TodoItem  # noqa: F401
+from app.models import *  # noqa: F401
 
-# 导入所有 Model 以便 Alembic 正确识别 Schema 变更
-from app.models.chat import Conversation, Message, User  # noqa: F401
-from app.models.evaluation import BadCase, EvaluationItem, EvaluationReport, EvaluationSet  # noqa: F401
-from app.models.knowledge import (  # noqa: F401
-    Document,
-    DocumentChunk,
-    KnowledgeBase,
-    KnowledgeBaseDocumentLink,
-)
-from app.models.observability import AgentSpan, FileTrace, HITLTask, IngestionBatch  # noqa: F401
-from app.models.pipeline_config import PipelineConfig  # noqa: F401
-from app.models.security import (  # noqa: F401
-    AuditLog,
-    DesensitizationPolicy,
-    DesensitizationReport,
-    DocumentPermission,
-    SensitiveItem,
-)
-from app.models.tags import DocumentTagLink, Tag, TagCategory  # noqa: F401
 
 config = context.config
 

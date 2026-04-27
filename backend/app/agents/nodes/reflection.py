@@ -52,7 +52,14 @@ async def reflection_node(orchestrator, state: SwarmState) -> dict:
     prompt_variant = state.get("prompt_variant", "default")
     suggested_variant = prompt_variant
     
-    next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
+    # ADAPTIVE RAG: If faithfulness is low, we suspect a knowledge gap.
+    # We trigger a 'retrieval' retry instead of just supervisor.
+    if eval_result.verdict == "FAIL" and eval_result.metrics.get("faithfulness", 1.0) < 0.4:
+        logger.warning(f"🚨 Hallucination detected (faithfulness={eval_result.metrics.get('faithfulness')}). Triggering Adaptive Retrieval.")
+        next_step = "retrieval"
+    else:
+        next_step = "FINISH" if eval_result.verdict in ["PASS", "EXCELLENT"] else "supervisor"
+    
     should_escalate = eval_result.verdict == "ESCALATE"
 
     return {
@@ -60,4 +67,5 @@ async def reflection_node(orchestrator, state: SwarmState) -> dict:
         "next_step": next_step,
         "prompt_variant": suggested_variant,
         "force_reasoning_tier": should_escalate,
+        "is_adaptive_retry": next_step == "retrieval"
     }

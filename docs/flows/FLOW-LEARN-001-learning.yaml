@@ -1,0 +1,80 @@
+# 外部学习与技术追踪流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-LEARN-001
+name: 外部学习与技术追踪流程
+description: 添加订阅 → 触发每日学习 → 查看报告 → 提交反馈 → 管理订阅的技术追踪闭环。
+module: learning
+page: /learning
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 添加技术订阅
+    api: POST /api/v1/learning/subscriptions
+    handler: add_subscription
+    request:
+      topic: "LangGraph"
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空"
+        - "data.topic == 'LangGraph'"
+        - "data.is_active == true"
+    precondition: 用户已登录
+
+  - seq: 2
+    name: 触发每日学习周期
+    api: POST /api/v1/learning/daily-cycle
+    handler: run_daily_cycle
+    response:
+      status_code: 200
+      assert:
+        - "data.report_path 不为空"
+        - "data.external_signals_count >= 0"
+    side_effects:
+      - "爬取 GitHub Trending、Hacker News、ArXiv"
+      - "调用 LLM 评估信号相关性"
+      - "生成 Markdown 学习报告到 docs/learning/daily/"
+    precondition: "配置了 GITHUB_TOKEN 和学习相关环境变量"
+
+  - seq: 3
+    name: 查看学习报告
+    type: verification
+    apis:
+      - GET /api/v1/learning/daily-reports
+      - GET /api/v1/learning/daily-report-content
+      - GET /api/v1/learning/discoveries
+    assert:
+      - "daily-reports 列表不为空"
+      - "discoveries 包含 step 2 发现的技术动态"
+
+  - seq: 4
+    name: 提交反馈
+    api: POST /api/v1/learning/feedback
+    handler: submit_feedback
+    request:
+      message_id: "{对话中的消息 ID}"
+      rating: 5
+    response:
+      status_code: 200
+    precondition: "有对话消息可评分"
+
+  - seq: 5
+    name: 删除订阅
+    api: DELETE /api/v1/learning/subscriptions/{sub_id}
+    handler: delete_subscription
+    response:
+      status_code: 200
+    precondition: "step 1 完成"
+
+error_paths:
+  - name: 学习源不可用
+    at_step: 2
+    trigger: "GitHub API / HN / ArXiv 全部不可达"
+    expected: "返回空的 external_signals，但不报错（降级处理）"
+
+  - name: 无 GITHUB_TOKEN
+    at_step: 2
+    trigger: "GITHUB_TOKEN 未配置"
+    expected: "GitHub 相关信号为空，其他源正常"

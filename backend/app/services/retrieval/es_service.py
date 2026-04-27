@@ -66,7 +66,7 @@ class GlobalKnowledgeService:
     async def global_search(
         self,
         query: str,
-        limit: int = 3,
+        limit: int = 30,
         min_score: float = 0.3
     ) -> list[HeavySearchResult]:
         """Perform a deep keyword/BM25 search on global indices."""

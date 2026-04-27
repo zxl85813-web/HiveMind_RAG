@@ -16,22 +16,7 @@ from app.services.learning_agentic import LearningAnalystAgent
 from app.services.memory.memory_service import MemoryService
 
 
-class Subscription(BaseModel):
-    id: str
-    topic: str
-    is_active: bool = True
-    created_at: datetime = datetime.now()
-
-
-class TechDiscovery(BaseModel):
-    id: str
-    title: str
-    summary: str
-    url: str
-    category: str
-    relevance_score: float
-    discovered_at: datetime = datetime.now()
-
+from app.models.learning import TechDiscovery, TechSubscription
 
 class LearningSuggestion(BaseModel):
     title: str
@@ -58,54 +43,129 @@ class DailyLearningRun(BaseModel):
 class LearningService:
     """
     Self-improving AI System and External Learning coordinator.
+    Now backed by persistent DB storage (Phase 7 Hardening).
     """
 
-    _mock_subscriptions: ClassVar[list[dict]] = [
-        {"id": "sub_1", "topic": "LangChain", "is_active": True, "created_at": datetime.now()},
-        {"id": "sub_2", "topic": "React 19", "is_active": True, "created_at": datetime.now()},
-    ]
-
-    _mock_discoveries: ClassVar[list[dict]] = [
-        {
-            "id": "disc_1",
-            "title": "GPT-5 Architecture Leak?",
-            "summary": "关于最新大模型架构的传闻分析，涉及多模态集成细节。",
-            "url": "https://example.com/gpt5",
-            "category": "paper",
-            "relevance_score": 0.95,
-            "discovered_at": datetime.now(),
-        },
-        {
-            "id": "disc_2",
-            "title": "HiveMind v2.0 Released",
-            "summary": "HiveMind 框架发布重大更新，支持分布式 Agent 协同。",
-            "url": "https://github.com/hivemind/core",
-            "category": "tool",
-            "relevance_score": 0.88,
-            "discovered_at": datetime.now(),
-        },
-    ]
+    @staticmethod
+    async def get_subscriptions() -> list[TechSubscription]:
+        """Fetch all active learning subscriptions."""
+        async with async_session_factory() as session:
+            stmt = select(TechSubscription).where(TechSubscription.is_active == True)
+            res = await session.execute(stmt)
+            return list(res.scalars().all())
 
     @staticmethod
-    async def get_subscriptions():
-        return LearningService._mock_subscriptions
+    async def add_subscription(topic: str) -> TechSubscription:
+        """Add a new persistent sub."""
+        async with async_session_factory() as session:
+            sub = TechSubscription(topic=topic)
+            session.add(sub)
+            await session.commit()
+            await session.refresh(sub)
+            return sub
 
     @staticmethod
-    async def add_subscription(topic: str):
-        import uuid
+    async def record_feedback(message_id: str, rating: int, comment: str | None = None):
+        """Record user feedback into the database."""
+        async with async_session_factory() as session:
+            stmt = select(Message).where(Message.id == message_id)
+            res = await session.execute(stmt)
+            message = res.scalars().one_or_none()
+            if not message:
+                logger.warning(f"Message {message_id} not found for feedback.")
+                return
 
-        new_sub = {"id": f"sub_{uuid.uuid4().hex[:6]}", "topic": topic, "is_active": True, "created_at": datetime.now()}
-        LearningService._mock_subscriptions.append(new_sub)
-        return new_sub
+            message.rating = rating
+            message.feedback_comment = comment
+            session.add(message)
+            await session.commit()
+            logger.info(f"✅ Feedback recorded for message {message_id}: {rating}")
+
+    @staticmethod
+    async def learn_from_feedback(message_id: str):
+        """
+        L4 Learning: Convert a negative feedback case into a Cognitive Directive.
+        """
+        async with async_session_factory() as session:
+            stmt = select(Message).where(Message.id == message_id)
+            res = await session.execute(stmt)
+            msg = res.scalars().one_or_none()
+            if not msg or msg.rating != -1:
+                return
+
+            # Find the question (HumanMessage before this AIMessage)
+            from app.models.chat import Conversation
+            conv_stmt = select(Message).where(Message.conversation_id == msg.conversation_id).order_by(Message.created_at.desc())
+            c_res = await session.execute(conv_stmt)
+            msgs = c_res.scalars().all()
+            
+            question = ""
+            for i, m in enumerate(msgs):
+                if m.id == message_id and i + 1 < len(msgs):
+                    question = msgs[i+1].content
+                    break
+
+            if not question:
+                return
+
+            # Trigger ExperienceLearner
+            from app.models.evaluation import BadCase
+            # Create a virtual BadCase for the learner
+            case = BadCase(
+                question=question,
+                bad_answer=msg.content,
+                reason=msg.feedback_comment or "User negative feedback"
+            )
+            session.add(case)
+            await session.commit()
+            await session.refresh(case)
+
+            from app.services.evolution.experience_learner import experience_learner
+            await experience_learner.learn_from_correction(session, case.id)
+            logger.info(f"🧠 [Evolution] Learned from feedback on message {message_id}")
+
+    @staticmethod
+    async def learn_from_evaluation(report_id: str):
+        """
+        Automated Self-Improvement: Analyze failed items in an evaluation report.
+        """
+        from app.models.evaluation import EvaluationReport, BadCase
+        from app.services.evolution.experience_learner import experience_learner
+
+        async with async_session_factory() as session:
+            report = await session.get(EvaluationReport, report_id)
+            if not report: return
+
+            # Find all bad cases linked to this report that aren't yet handled
+            stmt = select(BadCase).where(BadCase.report_id == report_id, BadCase.status == "pending")
+            res = await session.execute(stmt)
+            cases = res.scalars().all()
+
+            for case in cases:
+                # If it has an expected answer (human corrected), learn deeply
+                if case.expected_answer:
+                    await experience_learner.learn_from_correction(session, case.id)
+                    case.status = "reviewed"
+                    session.add(case)
+            
+            await session.commit()
 
     @staticmethod
     async def delete_subscription(sub_id: str):
-        LearningService._mock_subscriptions = [s for s in LearningService._mock_subscriptions if s["id"] != sub_id]
-        return True
+        async with async_session_factory() as session:
+            sub = await session.get(TechSubscription, sub_id)
+            if sub:
+                await session.delete(sub)
+                await session.commit()
+                return True
+            return False
 
     @staticmethod
-    async def get_discoveries():
-        return LearningService._mock_discoveries
+    async def get_discoveries(limit: int = 50) -> list[TechDiscovery]:
+        async with async_session_factory() as session:
+            stmt = select(TechDiscovery).order_by(TechDiscovery.discovered_at.desc()).limit(limit)
+            res = await session.execute(stmt)
+            return list(res.scalars().all())
 
     @staticmethod
     def _repo_root() -> Path:
@@ -622,23 +682,16 @@ class LearningService:
                 )
             )
 
-        # Prepend new discoveries, keep at most 100 total
-        existing_urls = {d["url"] for d in LearningService._mock_discoveries}
-        for disc in discoveries:
-            if disc.url not in existing_urls:
-                LearningService._mock_discoveries.insert(
-                    0,
-                    {
-                        "id": disc.id,
-                        "title": disc.title,
-                        "summary": disc.summary,
-                        "url": disc.url,
-                        "category": disc.category,
-                        "relevance_score": disc.relevance_score,
-                        "discovered_at": disc.discovered_at,
-                    },
-                )
-        LearningService._mock_discoveries = LearningService._mock_discoveries[:100]
+        # Prepend new discoveries to DB
+        async with async_session_factory() as session:
+            for disc in discoveries:
+                # Deduplicate by URL
+                stmt = select(TechDiscovery).where(TechDiscovery.url == disc.url)
+                check = await session.execute(stmt)
+                if not check.scalars().one_or_none():
+                    session.add(disc)
+            
+            await session.commit()
 
         logger.info(
             "[ExternalCrawl] Cycle complete: {} raw signals → {} stored discoveries (min_score={}).",
@@ -851,8 +904,53 @@ class LearningService:
         lines.append("")
         return "\n".join(lines)
 
-    @staticmethod
-    def read_report_content(report_path: str) -> str:
+    @classmethod
+    async def ingest_discovery(cls, discovery_id: str):
+        """
+        [M7.2] 将技术发现内化为智体群落的语义记忆 (SwarmKnowledge)。
+        """
+        from app.models.agents import SwarmKnowledge
+        from app.agents.memory import SharedMemoryManager
+        
+        db = SessionLocal()
+        try:
+            stmt = select(TechDiscovery).where(TechDiscovery.id == discovery_id)
+            discovery = db.exec(stmt).first()
+            if not discovery:
+                return None
+            
+            # 1. 构造语义知识节点
+            knowledge_key = f"tech:{discovery.category}:{discovery.title[:50].lower().replace(' ', '_')}"
+            knowledge = SwarmKnowledge(
+                key=knowledge_key,
+                content=f"Discovery: {discovery.title}\n\nSummary: {discovery.summary}\n\nSource: {discovery.url}",
+                details={
+                    "original_discovery_id": discovery.id,
+                    "relevance_score": discovery.relevance_score,
+                    "ingested_at": datetime.utcnow().isoformat()
+                }
+            )
+            
+            # 2. 保存至共享记忆系统
+            memory = SharedMemoryManager()
+            await memory.save_knowledge(knowledge)
+            
+            # 3. 更新状态
+            discovery.status = "ingested"
+            db.add(discovery)
+            db.commit()
+            
+            logger.info(f"💾 Ingested tech discovery into semantic memory: {knowledge_key}")
+            return knowledge
+        except Exception as e:
+            logger.error(f"Ingestion failed: {e}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    @classmethod
+    def read_report_content(cls, report_path: str) -> str:
         report_dir = LearningService._report_dir().resolve()
         target = (LearningService._repo_root() / report_path).resolve()
         # Safety check: prevent path traversal and enforce report directory boundary.

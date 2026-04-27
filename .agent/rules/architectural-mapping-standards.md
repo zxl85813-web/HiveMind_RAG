@@ -16,5 +16,11 @@
 - `@specifies DES-NNN`: 设计文档关联设计单。
 - `@implements APP/PATH`: 代码实现文件路径映射。
 
+## 4. 刚性治理 (Rigid Governance)
+- **零容忍备份**: 禁止在代码库中存放 `.bak`, `.tmp`, `.old` 等备份文件。必须使用 Git 版本管理而非手动备份。
+- **强制登记**: 所有位于 `scripts/` 或 `app/scripts/` 的工具脚本，必须在 `REGISTRY.md` 中登记职责。未登记且孤立的脚本将被视为死代码清理。
+- **孤立节点巡检**: Agent 每次完成重大重构后，应运行 `scratch/analyze_isolated.py`。如果发现新增了非预期的孤立节点，必须立即修复关联关系或清理冗余资产。
+- **关联可追溯**: 任何新生成的 Design Doc (DES) 必须至少链接到一个 Requirement (REQ)。禁止创建任何物理上孤立的架构节点。
+
 ---
-*Created by Antigravity AI | 2026-03-13*
+*Created by Antigravity AI | 2026-04-16 (Updated)*

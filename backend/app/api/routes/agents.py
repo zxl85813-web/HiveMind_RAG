@@ -8,6 +8,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from app.sdk.core.logging import get_trace_logger
 
 from app.agents.swarm import SwarmOrchestrator
 from app.batch.engine import JobManager
@@ -16,8 +17,8 @@ from app.common.response import ApiResponse
 from app.api.deps import get_current_user
 from app.models.chat import User
 from app.models.agents import ReflectionSignalType
-from app.core.logging import get_trace_logger
 from app.services.rag_gateway import RAGGateway
+from app.services.swarm_observability import start_swarm_trace, finalize_swarm_trace
 
 logger = get_trace_logger("api.routes.agents")
 router = APIRouter()
@@ -184,12 +185,28 @@ async def get_swarm_stats(
         todos = await memory_manager.get_todos()
         todos_count = len(todos)
 
+    # 🛰️ [Hardening]: Calculate architectural metrics for dashboard
+    hardening_score = 0
+    debt_count = 0
+    try:
+        from app.sdk.core.graph_store import Neo4jStore
+        store = Neo4jStore()
+        debt_res = await store.execute_query("MATCH (n:ArchNode) WHERE n.id STARTS WITH 'DEBT:' OR toLower(n.name) CONTAINS 'stub' OR toLower(n.name) CONTAINS 'mock' RETURN count(n) as count")
+        debt_count = debt_res[0]['count'] if debt_res else 0
+        prod_res = await store.execute_query("MATCH (n:CodeEntity) WHERE NOT (toLower(n.name) CONTAINS 'mock' OR toLower(n.name) CONTAINS 'stub') RETURN count(n) as count")
+        prod_count = prod_res[0]['count'] if prod_res else 0
+        hardening_score = round((prod_count / (prod_count + debt_count) * 100), 1) if (prod_count + debt_count) > 0 else 100.0
+    except Exception:
+        pass
+
     return ApiResponse.ok(
         data={
             "active_agents": len(agents),
             "today_requests": 0,  # TODO: Track this
             "shared_todos": todos_count,
             "reflection_logs": reflections_count,
+            "hardening_score": hardening_score,
+            "debt_count": debt_count
         }
     )
 
@@ -235,6 +252,10 @@ async def swarm_chat_stream(
         "language": "zh-CN",
     }
     swarm = get_swarm()
+    
+    # 🛰️ OBS: Start global trace
+    trace_id = await start_swarm_trace(query=request.message, user_id=user_id)
+    context["swarm_trace_id"] = trace_id
 
     async def event_generator():
         try:
@@ -268,7 +289,10 @@ async def swarm_chat_stream(
             yield f"data: {json.dumps({'event': 'done'})}\n\n"
         except Exception as e:
             logger.error(f"Swarm Stream Error: {e}")
+            await finalize_swarm_trace(trace_id, status="failed")
             yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+        finally:
+            await finalize_swarm_trace(trace_id, status="success")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

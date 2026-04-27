@@ -43,6 +43,11 @@
 - [x] **全局异常处理治理**: 在 `main.py` 注册异常处理器，确保所有 5xx 错误返回合规 JSON 并解决 CORS 头丢失风险。
 - [x] **Ant Design v6 适配**: 迁移 `notification` 的 `message` 字段为 `title`，重构已弃用的 `List` 组件为 Flex 布局。
 - [x] **401 死循环拦截**: 在 API 拦截器注入路由锁，防止认证失效后的重定向风暴。
+- [x] **架构元数据完整性 (P0)**: 完成图谱全量增量索引，解决资产节点路径显示为 "Unknown" 的问题。
+- [x] **治理可观测性加固 (P1)**: 
+    - [x] 成功执行 `cleanup_junk_data.py` 清理测试污染数据。
+    - [x] `AgentsPage` 任务列表实现 Markdown 渲染支持。
+    - [x] `G6GraphVisualizer` 落地节点类型过滤 (Labels Filter) 功能。
 
 - [x] **需求定界网关 (Scoping Gate)**: 落地 `ScopingAgent`，强制执行“前置确认”审计，并根据需求复杂度自动判定优先级 (Priority 1-5)。
 - [x] **多模型辩论演进 (Multi-AI Debate)**: 升级 `DebateOrchestrator`，支持高优先级任务通过 GPT-4o/Claude-3/Gemini 等异构模型进行红蓝对抗，增加博弈多样性。
@@ -61,6 +66,8 @@
 - [x] **L4 行为熔断器**: 在 `SupervisorAgent` 中实现“知识真空”与“逻辑停滞”自动熔断保护 (M4.2.7)
 - [x] **L4 认知升阶路由**: 联动 `MemoryBridge` 实现高风险任务自动升级模型 Tier 与审计强度 (M4.2.4)
 - [x] **L4 红蓝对抗测试**: 交付 `AnarchyAgent` 模拟内鬼渗透，完成 3 轮治理鲁棒性演习并固化“安全治理宪法”
+- [x] **自动化红队压测框架**: 交付 `RedTeamCampaign` 系统，支持自动化攻击场景模拟、拦截率评估与前端历史报告面板 (M4.2.8)
+- [x] **治理中心可视化升级**: 在 `AgentGovernancePage` 实现“自主进化”与“对抗性压测”双看板，支持一键启动红队演习。
 
 ### [2026-03-31] 架构治理与 Code Vault (M7.1/M7.2 Architecture Resilience)
 
@@ -161,6 +168,8 @@
 - [x] **Token 实时大屏**: 基于 `TokenUsage` 独立表的实时成本监控大屏 (`M5.2.1`)
 - [x] **知识库使用分析看板**: 热门查询/冷门文档/使用趋势前端 (`M5.2.4`)
 - [x] **并行协作 (Debate Mode)**: 实现 Supervisor 触发多智体并行工作与共识合成 (`M4.2.5`)
+- [x] **REQ-028: 智能电商 (Order & Logistics)**: 交付 Commerce MCP Server 与 2 个独立 Skill (M7.4.3)
+- [x] **REQ-029: 邮件首回 (Email First Reply)**: 实现 L1-L5 分级与 RAG 草稿生成逻辑 (M7.4.4)
 - [ ] **Swarm 策略 A/B 测试**: 支持在 `EvalPage` 直接对比不同 Swarm 策略的跑分结果
 
 ### 其他待办
@@ -180,10 +189,22 @@
 - [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
 - [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
 - [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发“重写查询并二次召回”的逻辑 (M5.2.5)
-- [ ] **L3 智体能力测试 (Path A)**: 自动化 RAG 评分看板集成 (M5.3) 🚧
-- [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 与 `docs/evaluation/` 目录
-- [ ] **L3 质量门禁**: 实现 `gate_l3_intelligence.py` 准入校验
-- [ ] **Next Milestone**: 自动化回归测试与多环境部署验证
+| **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
+| **观测层** | SwarmTrace | [x] DAG 链路追踪可视化修复 (Nodes+Spans Linking) | ✅ 已修复 |
+| **治理层** | Governance | [x] L3 评测流水线 JSON 解析加固与 12 阶段索引同步 | 🚧 运行中 |
+| **协同层** | DebateOrchestrator| [x] L5 需求定界、多模型辩论引擎与优先级策略 (Priority & Multi-AI) | ✅ 已硬化 |
+
+---
+
+## ✅ 已完成归档 (最近 Sprint)
+ ...
+- [x] **L3 基础架构**: 交付 `l3_dashboard_sync.py` 鲁棒解析版
+- [x] **Swarm DAG 可视化**: 修复 `get_traces` 逻辑，支持 Trace -> Span 链路渲染
+- [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
+- [ ] **L3 质量门禁**: 验证 `gate_l3_intelligence.py` 在真实跑分下的准入表现
+- [ ] **12阶段架构图谱**: 等待 `index_architecture.py` 完成全量索引 (Phase 1-12)
+- [x] **容器化发布验证 (GitHub Actions)**: 针对本地虚拟机无法安装 Docker 的限制，建立云端全量构建与冒烟测试流水线 (Smoke Test)，覆盖前后端镜像、多服务协作与 API 健康检查。
+- [ ] **Next Milestone**: 自动化回归测试与多环境部署验证 (生产环境连通性)
 - [x] **REQ-015: L5 智体治理任务提报与图谱融合 (M6.1.4)** ✅ 已硬化
     - [x] Phase 1: 任务格式标准化与 TODO.md 扩展
     - [x] Phase 2: Neo4j Task 节点与关系定义

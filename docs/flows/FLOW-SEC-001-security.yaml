@@ -1,0 +1,96 @@
+# 安全脱敏与权限管理流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-SEC-001
+name: 安全脱敏与权限管理流程
+description: 创建脱敏策略 → 激活策略 → 授予文档权限 → 审计日志查看的安全管理闭环。
+module: security
+page: /security
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 创建脱敏策略
+    api: POST /api/v1/security/policies
+    handler: create_policy
+    request:
+      name: "默认脱敏规则"
+      rules_json: '{"phone": "mask", "email": "star", "api_key": "delete"}'
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空"
+        - "data.is_active == false（默认未激活）"
+    db_writes:
+      - table: DesensitizationPolicy
+        assert: "新增一行，is_active=false"
+    permissions: [security:manage]
+    precondition: 用户已登录且有 security:manage 权限
+    output_variables:
+      policy_id: "data.id"
+
+  - seq: 2
+    name: 激活脱敏策略
+    api: PUT /api/v1/security/policies/{policy_id}/activate
+    handler: activate_policy
+    request:
+      policy_id: "{step_1.policy_id}"
+    response:
+      status_code: 200
+      assert:
+        - "data.is_active == true"
+    db_writes:
+      - table: DesensitizationPolicy
+        assert: "is_active 更新为 true"
+    precondition: "step 1 完成"
+
+  - seq: 3
+    name: 授予文档级权限
+    api: POST /api/v1/security/permissions
+    handler: grant_permission
+    request:
+      document_id: "{已有文档 ID}"
+      user_id: "{目标用户 ID}"
+      can_read: true
+      can_write: false
+    response:
+      status_code: 200
+    db_writes:
+      - table: document_permissions
+        assert: "新增一行"
+    permissions: [security:manage]
+    precondition: "文档已存在"
+    output_variables:
+      permission_id: "data.id"
+
+  - seq: 4
+    name: 撤销权限
+    api: DELETE /api/v1/security/permissions/{permission_id}
+    handler: revoke_permission
+    request:
+      permission_id: "{step_3.permission_id}"
+    response:
+      status_code: 200
+    db_writes:
+      - table: document_permissions
+        assert: "该行被删除"
+    precondition: "step 3 完成"
+
+  - seq: 5
+    name: 查看审计日志
+    type: verification
+    api: GET /api/v1/security/audit/logs
+    assert:
+      - "日志中包含 step 1-4 的操作记录"
+      - "每条记录有 action, user_id, timestamp"
+
+error_paths:
+  - name: 权限不足
+    at_step: 1
+    trigger: "用户无 security:manage 权限"
+    expected: "403 Forbidden"
+
+  - name: 文档不存在
+    at_step: 3
+    trigger: "document_id 无效"
+    expected: "404 Not Found"

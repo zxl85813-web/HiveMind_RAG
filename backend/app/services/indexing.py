@@ -4,6 +4,8 @@ Indexing Service — Handles background parsing and vectorization using the Pipe
 所属模块: services
 依赖模块: core.vector_store, batch.ingestion.executor, models.knowledge
 注册位置: REGISTRY.md > Services > IndexingService
+
+@covers REQ-008
 """
 
 from loguru import logger

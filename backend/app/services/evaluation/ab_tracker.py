@@ -11,6 +11,8 @@ A lightweight in-memory summary is also available via `get_summary()`.
 Usage in swarm.py (at the end of _create_agent_node):
     from app.services.evaluation.ab_tracker import ab_tracker
     ab_tracker.record(...)
+
+@covers REQ-008
 """
 
 import json

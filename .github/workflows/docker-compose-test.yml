@@ -1,0 +1,78 @@
+name: Containerized Release Test
+
+on:
+  push:
+    branches: [ master, main, feature/*, feat/* ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  test-container-release:
+    runs-on: ubuntu-latest
+    name: Containerized Release Test
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Dummy Environment
+        run: |
+          cp backend/.env.example backend/.env.production
+          echo "DATABASE_URL=postgresql+asyncpg://postgres:root@postgres:5432/hivemind" >> backend/.env.production
+          if [ -f "frontend/.env.production" ]; then
+            echo "Environment exists"
+          else
+            echo "VITE_API_BASE_URL=/api/v1" > frontend/.env.production
+          fi
+
+      - name: Build and Start Containers
+        run: |
+          docker compose -f docker-compose.prod.yml up -d --build 2>&1 || true
+
+      - name: Wait for Backend Health Check
+        run: |
+          echo "Waiting for backend to become healthy..."
+          for i in $(seq 1 36); do
+            STATUS=$(docker inspect -f '{{.State.Health.Status}}' hivemind-backend-prod 2>/dev/null || echo "not_found")
+            echo "  [$i/36] Backend status: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            if [ "$STATUS" = "not_found" ]; then
+              echo "Container not found, checking docker compose logs..."
+              docker compose -f docker-compose.prod.yml logs backend --tail=30
+            fi
+            sleep 5
+          done
+          echo "=== BACKEND FAILED TO BECOME HEALTHY ==="
+          echo "--- Backend container logs ---"
+          docker compose -f docker-compose.prod.yml logs backend --tail=100
+          echo "--- Backend container inspect ---"
+          docker inspect hivemind-backend-prod | grep -A 20 '"Health"' || true
+          exit 1
+          
+      - name: Verify Services
+        run: |
+          echo "--- Checking Frontend (Nginx) ---"
+          curl -f http://localhost:80 || exit 1
+          echo "--- Checking Backend API ---"
+          docker compose -f docker-compose.prod.yml exec -T backend curl -f http://localhost:8000/api/v1/health/ || exit 1
+          echo "--- Container Release Test Passed! ---"
+
+      - name: Show Container Logs on Failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.prod.yml logs --tail=200
+
+      - name: Upload Logs as Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hivemind-system-logs
+          path: |
+            logs/
+            backend/logs/
+            frontend/logs/
+          if-no-files-found: ignore

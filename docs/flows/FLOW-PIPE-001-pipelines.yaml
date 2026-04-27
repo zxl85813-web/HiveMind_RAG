@@ -1,0 +1,80 @@
+# Pipeline 构建与执行流程 — 业务流程定义
+# 状态: APPROVED
+
+id: FLOW-PIPE-001
+name: Pipeline 构建与执行流程
+description: 创建 Pipeline 配置 → 可视化编排 → 保存 → 执行 → 删除的完整 Pipeline 管理流程。
+module: pipelines
+page: /pipelines
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 创建 Pipeline
+    api: POST /api/v1/pipelines
+    handler: create_pipeline
+    request:
+      name: "文档解析流水线"
+      description: "PDF → 分块 → 向量化"
+      pipeline_type: "ingestion"
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空"
+        - "data.flow_data_json 包含空的 nodes 和 edges"
+    db_writes:
+      - table: pipeline_configs
+        assert: "新增一行"
+    permissions: [pipeline:edit]
+    precondition: 用户已登录且有 pipeline:edit 权限
+    output_variables:
+      pipeline_id: "data.id"
+
+  - seq: 2
+    name: 编辑 Pipeline（可视化编排）
+    page: /pipelines
+    action: 在 XYFlow 画布上拖拽节点、连线
+    api: PUT /api/v1/pipelines/{pipeline_id}
+    handler: update_pipeline
+    request:
+      pipeline_id: "{step_1.pipeline_id}"
+      flow_data_json: '{"nodes":[...], "edges":[...]}'
+      execution_sequence_json: "[...]"
+    response:
+      status_code: 200
+    db_writes:
+      - table: pipeline_configs
+        assert: "flow_data_json 和 execution_sequence_json 被更新"
+    precondition: "step 1 完成"
+
+  - seq: 3
+    name: 验证 Pipeline 配置
+    type: verification
+    api: GET /api/v1/pipelines
+    assert:
+      - "列表中包含 step 1 创建的 pipeline"
+      - "flow_data_json 包含 step 2 编辑的节点和边"
+
+  - seq: 4
+    name: 删除 Pipeline
+    api: DELETE /api/v1/pipelines/{pipeline_id}
+    handler: delete_pipeline
+    request:
+      pipeline_id: "{step_1.pipeline_id}"
+    response:
+      status_code: 200
+    db_writes:
+      - table: pipeline_configs
+        assert: "该行被删除"
+    precondition: "step 1 完成"
+
+error_paths:
+  - name: 权限不足
+    at_step: 1
+    trigger: "用户无 pipeline:edit 权限"
+    expected: "403 Forbidden"
+
+  - name: Pipeline 不存在
+    at_step: 4
+    trigger: "pipeline_id 无效"
+    expected: "404 Not Found"

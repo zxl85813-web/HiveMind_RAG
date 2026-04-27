@@ -139,6 +139,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""  # CRITICAL: Must be set in .env for production
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes (short-lived)
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    TAVILY_API_KEY: str = ""
 
     # === External Learning ===
     LEARNING_FETCH_INTERVAL_HOURS: int = 6

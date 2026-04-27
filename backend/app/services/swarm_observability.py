@@ -13,7 +13,7 @@ from app.core.database import async_session_factory
 from app.models.observability import SwarmSpan, SwarmTrace, TraceStatus
 
 
-async def start_swarm_trace(query: str, user_id: str | None = None) -> str:
+async def start_swarm_trace(query: str, user_id: str | None = None, details: dict | None = None) -> str:
     """Initialize a high-level swarm trace."""
     trace_id = str(uuid.uuid4())
     async with async_session_factory() as session:
@@ -21,7 +21,8 @@ async def start_swarm_trace(query: str, user_id: str | None = None) -> str:
             id=trace_id,
             user_id=user_id,
             query=query,
-            status=TraceStatus.RUNNING
+            status=TraceStatus.RUNNING,
+            details=details or {}
         )
         session.add(trace)
         await session.commit()
@@ -44,7 +45,8 @@ async def record_swarm_span(
     instruction: str,
     output: str | None = None,
     latency_ms: float = 0.0,
-    status: TraceStatus = TraceStatus.SUCCESS
+    status: TraceStatus = TraceStatus.SUCCESS,
+    details: dict | None = None
 ) -> str:
     """Write an entry for a single agent's execution."""
     span_id = str(uuid.uuid4())
@@ -56,7 +58,8 @@ async def record_swarm_span(
             instruction=instruction,
             output=output,
             latency_ms=latency_ms,
-            status=status
+            status=status,
+            details=details or {}
         )
         s.add(span)
         await s.commit()

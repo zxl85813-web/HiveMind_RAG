@@ -29,13 +29,17 @@
         "architectureLab": "Arch Lab",
         "tokenDashboard": "Token Board",
         "kbAnalytics": "KB Analytics",
-        "trace": "Network Trace",
+        "trace": "System Trace",
+        "performanceLab": "DB Performance Lab",
+        "agentGovernance": "Agent Governance",
         "category": {
             "insight": "Insight",
             "cognitive": "Cognitive Core",
-            "studio": "Studio & Lab",
-            "governance": "Governance",
-            "system": "System & Infra"
+            "studio": "Studio",
+            "lab": "Performance Lab",
+            "observability": "Observability Hub",
+            "sovereign": "Sovereign Governance",
+            "system": "System Settings"
         }
     },
     "dashboard": {

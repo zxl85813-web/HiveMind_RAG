@@ -143,31 +143,27 @@ function _makeReport(id: string, setId: string, kbId: string, model: string, qa:
 }
 
 export const mockReports = [
-    // GPT-4 Turbo — High Quality, High Cost
-    _makeReport('rep-gpt4-fin-1', 'set-finance', 'kb-demo-smart-finance', 'gpt-4-turbo', _financeQA, 'high', 2150, 0.0612, 2100, 7),
-    _makeReport('rep-gpt4-hr-1', 'set-hr', 'kb-demo-hr-policy', 'gpt-4-turbo', _hrQA, 'high', 1980, 0.0534, 1850, 5),
-    _makeReport('rep-gpt4-fin-2', 'set-finance', 'kb-demo-smart-finance', 'gpt-4-turbo', _financeQA, 'high', 2300, 0.0689, 2350, 2),
+    // Claude 4.6 Thinking — #1 Globally
+    _makeReport('rep-claude46-fin-1', 'set-finance', 'kb-demo-smart-finance', 'claude-4.6-thinking', _financeQA, 'high', 4500, 0.1245, 3200, 7),
+    _makeReport('rep-claude46-hr-1', 'set-hr', 'kb-demo-hr-policy', 'claude-4.6-thinking', _hrQA, 'high', 4200, 0.0987, 2800, 5),
+    
+    // Gemini 3.1 Pro — Balanced Performance
+    _makeReport('rep-gemini31-fin-1', 'set-finance', 'kb-demo-smart-finance', 'gemini-3.1-pro', _financeQA, 'high', 1650, 0.0456, 2200, 7),
+    _makeReport('rep-gemini31-hr-1', 'set-hr', 'kb-demo-hr-policy', 'gemini-3.1-pro', _hrQA, 'high', 1400, 0.0389, 1900, 5),
 
-    // Claude 3 Opus — Highest Quality, Highest Cost
-    _makeReport('rep-claude-fin-1', 'set-finance', 'kb-demo-smart-finance', 'claude-3-opus', _financeQA, 'high', 2800, 0.0823, 2600, 7),
-    _makeReport('rep-claude-hr-1', 'set-hr', 'kb-demo-hr-policy', 'claude-3-opus', _hrQA, 'high', 3100, 0.0912, 2900, 5),
-    _makeReport('rep-claude-fin-2', 'set-finance', 'kb-demo-smart-finance', 'claude-3-opus', _financeQA, 'high', 2650, 0.0756, 2400, 2),
+    // GPT-5.4 High — Flagship Output
+    _makeReport('rep-gpt54-fin-1', 'set-finance', 'kb-demo-smart-finance', 'gpt-5.4-high', _financeQA, 'high', 2400, 0.0789, 2600, 7),
+    _makeReport('rep-gpt54-fin-2', 'set-finance', 'kb-demo-smart-finance', 'gpt-5.4-high', _financeQA, 'high', 2600, 0.0823, 2900, 2),
 
-    // DeepSeek Chat — Good Quality, Very Low Cost
-    _makeReport('rep-ds-fin-1', 'set-finance', 'kb-demo-smart-finance', 'deepseek-chat', _financeQA, 'medium', 520, 0.0012, 1100, 7),
-    _makeReport('rep-ds-hr-1', 'set-hr', 'kb-demo-hr-policy', 'deepseek-chat', _hrQA, 'medium', 480, 0.0009, 950, 5),
-    _makeReport('rep-ds-fin-2', 'set-finance', 'kb-demo-smart-finance', 'deepseek-chat', _financeQA, 'medium', 560, 0.0015, 1250, 2),
+    // Grok 4.20 Beta — Real-time Specialist
+    _makeReport('rep-grok4-fin-1', 'set-finance', 'kb-demo-smart-finance', 'grok-4.20-beta', _financeQA, 'medium', 1200, 0.0312, 1800, 7),
+    _makeReport('rep-grok4-hr-1', 'set-hr', 'kb-demo-hr-policy', 'grok-4.20-beta', _hrQA, 'medium', 1100, 0.0284, 1600, 5),
 
-    // GPT-3.5 Turbo — Medium Quality, Low Cost
-    _makeReport('rep-gpt35-fin-1', 'set-finance', 'kb-demo-smart-finance', 'gpt-3.5-turbo', _financeQA, 'medium', 650, 0.0038, 1400, 7),
-    _makeReport('rep-gpt35-hr-1', 'set-hr', 'kb-demo-hr-policy', 'gpt-3.5-turbo', _hrQA, 'medium', 580, 0.0029, 1200, 5),
-    _makeReport('rep-gpt35-fin-2', 'set-finance', 'kb-demo-smart-finance', 'gpt-3.5-turbo', _financeQA, 'medium', 700, 0.0042, 1500, 2),
-
-    // Llama-3-8B — Lower Quality, Cheapest
-    _makeReport('rep-llama-fin-1', 'set-finance', 'kb-demo-smart-finance', 'llama-3-8b', _financeQA, 'low', 350, 0.0003, 800, 7),
-    _makeReport('rep-llama-hr-1', 'set-hr', 'kb-demo-hr-policy', 'llama-3-8b', _hrQA, 'low', 280, 0.0002, 650, 5),
-    _makeReport('rep-llama-fin-2', 'set-finance', 'kb-demo-smart-finance', 'llama-3-8b', _financeQA, 'low', 380, 0.0004, 900, 2),
+    // DeepSeek V3.2 — Cost-Performance King
+    _makeReport('rep-ds32-fin-1', 'set-finance', 'kb-demo-smart-finance', 'deepseek-v3.2', _financeQA, 'medium', 520, 0.0012, 1100, 7),
+    _makeReport('rep-ds32-hr-1', 'set-hr', 'kb-demo-hr-policy', 'deepseek-v3.2', _hrQA, 'medium', 480, 0.0009, 950, 5),
 ];
+
 
 // 8b. Bad Cases Mock Data
 export const mockBadCases = [

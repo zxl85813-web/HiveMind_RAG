@@ -8,7 +8,7 @@ export interface AppRouteMeta {
     labelKey: string;
     icon: string;
     showInMenu: boolean;
-    category?: 'insight' | 'cognitive' | 'studio' | 'governance' | 'system';
+    category?: 'insight' | 'cognitive' | 'studio' | 'lab' | 'observability' | 'sovereign' | 'system';
     access?: AccessRequirement;
 }
 

@@ -1,17 +1,21 @@
 """
 RAG Gateway - High-level Microservice Governance for Knowledge Retrieval.
 Implements Circuit Breaker, Unified Entry, and Strategy Routing.
+
+@covers REQ-008
 """
 
+# @covers REQ-001
 import asyncio
 import time
-from typing import ClassVar
+# @covers REQ-008
+from typing import List, Optional, ClassVar
 
 from app.core.logging import get_trace_logger
 
 logger = get_trace_logger("services.rag_gateway")
 
-from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse
+from app.schemas.knowledge_protocol import KnowledgeFragment, KnowledgeResponse, KnowledgeQuality
 from app.services.dependency_circuit_breaker import breaker_manager
 from app.services.observability_service import fire_and_forget_trace
 from app.services.retrieval.pipeline import RetrievalPipeline
@@ -106,12 +110,14 @@ class RAGGateway:
                 fragments, trace_log = res
                 all_fragments.extend(fragments)
                 all_step_traces.extend(trace_log)
-
         # 3. Global Reranking / Post-processing
         all_fragments.sort(key=lambda x: x.score, reverse=True)
         final_fragments = all_fragments[: top_k * len(active_kbs)]
 
-        # 4. Fire-and-forget observability trace
+        # 4. Calculate Quality Metrics [AEC-G1]
+        quality = self._calculate_quality(final_fragments)
+
+        # 5. Fire-and-forget observability trace
         retrieved_doc_ids = list({f.source_id for f in final_fragments})
         fire_and_forget_trace(
             query=query,
@@ -123,6 +129,7 @@ class RAGGateway:
             retrieved_doc_ids=retrieved_doc_ids,
             step_traces=list(set(all_step_traces)) if all_step_traces else warnings,
             is_error=bool(warnings),
+            quality_tier=quality.quality_tier, # Inject quality into trace
         )
 
         return KnowledgeResponse(
@@ -131,8 +138,37 @@ class RAGGateway:
             total_found=len(all_fragments),
             processing_time_ms=(time.time() - start_time) * 1000,
             retrieval_strategy=strategy,
+            quality=quality,
             warnings=warnings,
             step_traces=all_step_traces
+        )
+
+    def _calculate_quality(self, fragments: list[KnowledgeFragment]) -> KnowledgeQuality:
+        """
+        [AEC-M1] Quality Scoring logic.
+        Tiers:
+        - EXCELLENT: max_score > 0.8
+        - GOOD: max_score > 0.5
+        - LOW_RELEVANCE: max_score > 0.2
+        - FAIL: max_score <= 0.2 or no fragments
+        """
+        if not fragments:
+            return KnowledgeQuality(max_score=0.0, avg_score=0.0, is_satisfactory=False, quality_tier="FAIL")
+
+        scores = [f.score for f in fragments]
+        max_s = max(scores)
+        avg_s = sum(scores) / len(scores)
+
+        tier = "FAIL"
+        if max_s > 0.8: tier = "EXCELLENT"
+        elif max_s > 0.5: tier = "GOOD"
+        elif max_s > 0.2: tier = "LOW_RELEVANCE"
+
+        return KnowledgeQuality(
+            max_score=max_s,
+            avg_score=avg_s,
+            is_satisfactory=(max_s > 0.3), # Threshold for "usable"
+            quality_tier=tier
         )
 
     async def prefetch(

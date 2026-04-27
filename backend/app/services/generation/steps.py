@@ -7,11 +7,152 @@ import os
 import time
 from typing import Any
 
+from loguru import logger as _logger
 from pydantic import BaseModel, Field
 
 from app.services.retrieval import get_retrieval_service
 
 from .protocol import DesignResult, GenerationContext
+
+
+# ---------------------------------------------------------------------------
+# JSON Truncation Recovery
+# ---------------------------------------------------------------------------
+# When the LLM hits its max_tokens limit, the returned JSON is often cut off
+# mid-stream (e.g. missing closing braces).  Instead of failing immediately,
+# we ask the model to continue from where it stopped — similar to the
+# max_output_tokens recovery pattern used in Claude Code's query loop.
+# ---------------------------------------------------------------------------
+
+MAX_JSON_RECOVERY_ATTEMPTS = 2
+
+
+async def _recover_truncated_json(
+    llm: Any,
+    original_messages: list[dict[str, str]],
+    truncated_response: str,
+    *,
+    temperature: float = 0.3,
+    json_mode: bool = True,
+) -> dict[str, Any]:
+    """Try to recover a truncated JSON response from the LLM.
+
+    Strategy:
+    1. First, attempt lightweight local repair (close open braces/brackets).
+    2. If that fails, ask the LLM to continue from the truncation point.
+    3. If continuation also fails, ask the LLM to regenerate from scratch
+       with a shorter-output hint.
+
+    Returns the parsed dict on success; raises on total failure.
+    """
+
+    # --- Attempt 1: Local brace repair -----------------------------------
+    repaired = _try_close_json(truncated_response)
+    if repaired is not None:
+        _logger.info("🔧 [JSONRecovery] Fixed truncated JSON via local brace repair.")
+        return repaired
+
+    # --- Attempt 2-N: Ask LLM to continue --------------------------------
+    for attempt in range(1, MAX_JSON_RECOVERY_ATTEMPTS + 1):
+        _logger.warning(
+            f"🔄 [JSONRecovery] Attempt {attempt}/{MAX_JSON_RECOVERY_ATTEMPTS}: "
+            "asking LLM to continue truncated JSON."
+        )
+        continuation_messages = [
+            *original_messages,
+            {"role": "assistant", "content": truncated_response},
+            {
+                "role": "user",
+                "content": (
+                    "Your previous JSON response was truncated. "
+                    "Continue EXACTLY from where you stopped — do NOT repeat "
+                    "content already generated. Output ONLY the remaining JSON "
+                    "fragment so it can be concatenated with the previous part."
+                ),
+            },
+        ]
+        try:
+            continuation = await llm.chat_complete(
+                messages=continuation_messages,
+                temperature=temperature,
+                json_mode=False,  # continuation is a fragment, not standalone JSON
+            )
+            combined = truncated_response.rstrip() + continuation.lstrip()
+
+            # Try parsing the combined result
+            repaired = _try_close_json(combined)
+            if repaired is not None:
+                _logger.info(f"✅ [JSONRecovery] Recovered via LLM continuation (attempt {attempt}).")
+                return repaired
+
+            # Maybe the continuation itself is valid JSON (model regenerated)
+            data = json.loads(combined)
+            _logger.info(f"✅ [JSONRecovery] Combined text parsed directly (attempt {attempt}).")
+            return data
+        except (json.JSONDecodeError, Exception) as e:
+            _logger.warning(f"[JSONRecovery] Continuation attempt {attempt} failed: {e}")
+
+    # --- All attempts exhausted -------------------------------------------
+    raise json.JSONDecodeError(
+        "JSON recovery exhausted after all attempts",
+        truncated_response,
+        len(truncated_response),
+    )
+
+
+def _try_close_json(text: str) -> dict[str, Any] | None:
+    """Attempt to fix truncated JSON by closing open braces/brackets.
+
+    This handles the common case where the model output was cut off
+    mid-object or mid-array.  Returns parsed dict or None.
+    """
+    text = text.strip()
+    if not text:
+        return None
+
+    # Quick check: already valid?
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Strip trailing comma (common truncation artifact)
+    cleaned = text.rstrip().rstrip(",")
+
+    # Count unmatched openers
+    stack: list[str] = []
+    in_string = False
+    escape_next = False
+    for ch in cleaned:
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\":
+            escape_next = True
+            continue
+        if ch == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in ("{", "["):
+            stack.append(ch)
+        elif ch == "}" and stack and stack[-1] == "{":
+            stack.pop()
+        elif ch == "]" and stack and stack[-1] == "[":
+            stack.pop()
+
+    # Close in reverse order
+    closers = {"[": "]", "{": "}"}
+    suffix = "".join(closers.get(opener, "") for opener in reversed(stack))
+
+    if not suffix:
+        return None
+
+    try:
+        return json.loads(cleaned + suffix)
+    except json.JSONDecodeError:
+        return None
 
 
 class CritiqueReport(BaseModel):
@@ -99,7 +240,18 @@ class DraftingStep(BaseGenerationStep):
             response = await llm.chat_complete(
                 messages=[{"role": "user", "content": prompt}], temperature=0.7, json_mode=True
             )
-            data = json.loads(response)
+
+            # Parse with truncation recovery
+            try:
+                data = json.loads(response)
+            except json.JSONDecodeError:
+                ctx.log("Drafting", "⚠️ JSON truncated, attempting recovery...")
+                data = await _recover_truncated_json(
+                    llm,
+                    original_messages=[{"role": "user", "content": prompt}],
+                    truncated_response=response,
+                    temperature=0.5,
+                )
 
             if "headers" in data and "rows" in data:
                 # Basic validation
@@ -187,7 +339,19 @@ class SelfCorrectionStep(BaseGenerationStep):
                     temperature=0.2,  # Very low: critic must be conservative
                     json_mode=True,
                 )
-                data = json.loads(response)
+
+                # Parse with truncation recovery
+                try:
+                    data = json.loads(response)
+                except json.JSONDecodeError:
+                    ctx.log("Correction", f"⚠️ [Iter {iteration}] JSON truncated, attempting recovery...")
+                    data = await _recover_truncated_json(
+                        llm,
+                        original_messages=[{"role": "user", "content": prompt}],
+                        truncated_response=response,
+                        temperature=0.2,
+                    )
+
                 report = CritiqueReport(**data)
 
                 # Apply the corrected draft

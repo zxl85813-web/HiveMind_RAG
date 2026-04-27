@@ -143,7 +143,7 @@ async def run_steady(steady_requests: int, seed: int) -> ScenarioResult:
 
     snap = router.snapshot()
     stats = snap["stats"]
-    degradations = int(stats["cost_guard_downgrades"])  # type: ignore[index]
+    degradations = int(stats.get("latency_downgrades", 0))  # type: ignore[index]
 
     t_logger.info("Steady state drill completed", action="scenario_end", meta={"name": "steady", "success": success, "blocked": blocked})
 
@@ -195,7 +195,7 @@ async def run_steady_for_duration(steady_duration_sec: float, steady_rps: float,
 
     snap = router.snapshot()
     stats = snap["stats"]
-    degradations = int(stats["cost_guard_downgrades"])  # type: ignore[index]
+    degradations = int(stats.get("latency_downgrades", 0))  # type: ignore[index]
 
     return ScenarioResult(
         name="steady",
@@ -243,7 +243,7 @@ async def run_spike(spike_requests: int, seed: int) -> ScenarioResult:
 
     snap = router.snapshot()
     stats = snap["stats"]
-    degradations = int(stats["cost_guard_downgrades"]) + blocked  # type: ignore[index]
+    degradations = int(stats.get("latency_downgrades", 0)) + blocked  # type: ignore[index]
     
     t_logger.info("Spike drill completed", action="scenario_end", meta={"name": "spike", "success": success, "blocked": blocked})
 

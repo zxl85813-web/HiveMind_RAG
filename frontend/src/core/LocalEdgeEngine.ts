@@ -5,6 +5,8 @@ import { tokenVault } from './auth/TokenVault';
  * 🛰️ [HMER Phase 2] Local Edge Engine
  * 本地持久化引擎：处理 IndexedDB 存储与同步。
  * 这是击碎网络延迟、实现离线可用性的基石。
+ * 
+ * @covers REQ-015
  */
 class LocalEdgeEngine {
     private dbPromise: Promise<IDBPDatabase<any>> | null = null;

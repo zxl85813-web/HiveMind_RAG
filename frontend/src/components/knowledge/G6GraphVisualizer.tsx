@@ -1,13 +1,17 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Graph, Line, register, ExtensionCategory } from '@antv/g6';
-import { theme } from 'antd';
+import { theme, Checkbox, Space, Typography } from 'antd';
+
+const { Text } = Typography;
 
 /**
  * 自定义流动边 (Streaming Edge)
  * 基于 G6 v5.0 的动画系统实现“蚂蚁线”流动效果
  */
 class FlowingEdge extends Line {
+  // @ts-ignore
   onCreate() {
+    // @ts-ignore
     super.onCreate();
     this.animate(
       [
@@ -36,19 +40,60 @@ interface Props {
   width?: number;
   height?: number;
   onNodeClick?: (node: any) => void;
+  onImpactComplete?: () => void;
 }
 
-export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNodeClick }) => {
+export interface G6GraphVisualizerHandle {
+  zoomToNode: (nodeId: string) => void;
+  resetZoom: () => void;
+  rippleImpact: (originId: string, impactNodeIds: string[]) => void;
+}
+
+export const G6GraphVisualizer = React.forwardRef<G6GraphVisualizerHandle, Props>(({ data, width, height, onNodeClick, onImpactComplete }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const { token } = theme.useToken();
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+
+  // 0. 提取可用类型 (Labels)
+  const availableTypes = useMemo(() => {
+    if (!data?.nodes) return [];
+    const types = new Set<string>();
+    data.nodes.forEach(n => {
+        const label = (Array.isArray(n.labels) ? n.labels[0] : n.type) || 'Unknown';
+        types.add(label);
+    });
+    return Array.from(types);
+  }, [data]);
+
+  // 初始化全选
+  useEffect(() => {
+    if (availableTypes.length > 0 && selectedTypes.length === 0) {
+        setSelectedTypes(availableTypes);
+    }
+  }, [availableTypes]);
+
+  // 计算过滤后的数据
+  const filteredData = useMemo(() => {
+    if (!data || selectedTypes.length === 0) return data;
+    const nodes = data.nodes.filter(n => {
+        const label = (Array.isArray(n.labels) ? n.labels[0] : n.type) || 'Unknown';
+        return selectedTypes.includes(label);
+    });
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const links = data.links.filter(l => 
+        nodeIds.has(typeof l.source === 'object' ? (l.source as any).id : l.source) && 
+        nodeIds.has(typeof l.target === 'object' ? (l.target as any).id : l.target)
+    );
+    return { nodes, links };
+  }, [data, selectedTypes]);
 
   useEffect(() => {
-    if (!containerRef.current || !data) return;
+    if (!containerRef.current || !filteredData) return;
 
     // 1. 数据转换
     const g6Data = {
-      nodes: data.nodes.map(n => ({
+      nodes: filteredData.nodes.map(n => ({
         id: n.id,
         data: {
           label: n.name || n.id,
@@ -61,7 +106,7 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           lineWidth: 1,
         }
       })),
-      edges: data.links.map((l, i) => ({
+      edges: filteredData.links?.map((l: any, i: number) => ({
         id: `edge-${i}`,
         source: typeof l.source === 'object' ? (l.source as any).id : l.source,
         target: typeof l.target === 'object' ? (l.target as any).id : l.target,
@@ -72,7 +117,7 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           stroke: 'rgba(255, 255, 255, 0.15)',
           lineWidth: 1,
         }
-      }))
+      })) || []
     };
 
     // 2. 初始化图实例 (G6 v5.0)
@@ -82,13 +127,12 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
       height: height || containerRef.current.clientHeight || 600,
       data: g6Data,
       layout: {
-        type: 'gForce',
+        type: 'force',
         gpuEnabled: true,
         workerEnabled: true,
-        linkDistance: 120,
-        nodeStrength: 1000,
-        nodeSize: 30,
-        preventOverlap: true,
+        linkDistance: 150,
+        nodeStrength: -200,
+        edgeStrength: 0.5,
       },
       plugins: [
         {
@@ -107,6 +151,15 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           labelText: (d: any) => d.data.label,
           labelFontSize: 12,
           labelFill: token.colorText,
+        },
+        state: {
+          'impacted': {
+            fill: token.colorError,
+            stroke: token.colorError,
+            lineWidth: 3,
+            shadowBlur: 10,
+            shadowColor: token.colorError,
+          }
         }
       },
       edge: {
@@ -115,6 +168,13 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
           endArrow: true,
           strokeOpacity: 0.2,
           lineDash: [4, 4], // 开启虚线模式
+        },
+        state: {
+          'impacted-edge': {
+            stroke: token.colorError,
+            strokeOpacity: 1,
+            lineWidth: 2,
+          }
         }
       }
     });
@@ -124,8 +184,7 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
 
     // 3. 事件绑定
     graph.on('node:click', (evt: any) => {
-      const { target } = evt;
-      const nodeId = target.id;
+      const nodeId = evt.target.id;
       
       if (onNodeClick) {
           const nodeData = data.nodes.find(n => n.id === nodeId);
@@ -140,19 +199,75 @@ export const G6GraphVisualizer: React.FC<Props> = ({ data, width, height, onNode
     return () => {
       graph.destroy();
     };
-  }, [data, width, height, token, onNodeClick]);
+  }, [filteredData, width, height, token, onNodeClick, data.nodes]);
+
+  // --- [曝露方法给外部调用] ---
+  React.useImperativeHandle(ref, () => ({
+    zoomToNode: (nodeId: string) => {
+      if (!graphRef.current) return;
+      graphRef.current.zoomTo(1.5, { duration: 500 });
+      graphRef.current.focusElement(nodeId, { duration: 500 });
+    },
+    resetZoom: () => {
+      if (!graphRef.current) return;
+      // G6 v5 fitView doesn't take animation options in first arg
+      graphRef.current.fitView();
+    },
+    rippleImpact: (originId: string, impactNodeIds: string[]) => {
+      if (!graphRef.current) return;
+      const graph = graphRef.current;
+      
+      // 1. 先重置所有样式
+      const nodes = graph.getData().nodes || [];
+      const edges = graph.getData().edges || [];
+      nodes.forEach((n: any) => graph.setElementState(n.id, 'default'));
+      edges.forEach((e: any) => graph.setElementState(e.id, 'default'));
+
+      // 2. 聚焦起点
+      graph.focusElement(originId, { duration: 800 });
+      graph.zoomTo(1.2, { duration: 800 });
+
+      // 3. 逐层涟漪点亮 (Mock Sequential Delay)
+      impactNodeIds.forEach((id, idx) => {
+        setTimeout(() => {
+          graph.setElementState(id, 'impacted');
+          // 同时点亮入边 (指向该节点的边)
+          // In v5, we might need a different way to get related edges
+          // For now, let's keep it simple or use graph.getNeighbors
+          const relatedEdges = edges.filter((e: any) => e.target === id);
+          relatedEdges.forEach((e: any) => graph.setElementState(e.id, 'impacted-edge'));
+        }, idx * 150);
+      });
+
+      if (onImpactComplete) {
+        setTimeout(onImpactComplete, impactNodeIds.length * 150 + 1000);
+      }
+    }
+  }));
 
   return (
-    <div 
-      ref={containerRef} 
-      className="g6-graph-container"
-      style={{ 
-        width: '100%', 
-        height: '100%', 
-        minHeight: 400, 
-        background: 'transparent',
-        overflow: 'hidden'
-      }} 
-    />
+    <div className="g6-graph-wrapper" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="g6-graph-controls" style={{ padding: '8px 16px', background: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Space size="middle">
+          <Text type="secondary" style={{ fontSize: '12px' }}>显示节点类型:</Text>
+          <Checkbox.Group 
+            options={availableTypes} 
+            value={selectedTypes} 
+            onChange={(vals) => setSelectedTypes(vals as string[])} 
+          />
+        </Space>
+      </div>
+      <div 
+        ref={containerRef} 
+        className="g6-graph-container"
+        style={{ 
+          flex: 1,
+          width: '100%', 
+          minHeight: 400, 
+          background: 'transparent',
+          overflow: 'hidden'
+        }} 
+      />
+    </div>
   );
-};
+});

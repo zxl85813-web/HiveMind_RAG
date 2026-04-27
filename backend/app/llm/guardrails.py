@@ -7,6 +7,7 @@ Prompt 安全防护 — 注入检测 + 输出过滤。
     3. 上下文隔离: 确保系统 prompt 不被用户覆盖
 
 参见: REGISTRY.md > 后端 > llm > guardrails
+@covers REQ-012
 """
 
 import re

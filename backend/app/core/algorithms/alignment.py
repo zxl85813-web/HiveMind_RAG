@@ -1,3 +1,4 @@
+# @covers REQ-007
 from loguru import logger
 from pydantic import BaseModel, Field
 

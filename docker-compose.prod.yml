@@ -7,19 +7,22 @@ services:
     container_name: hivemind-postgres-prod
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-hivemind}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
-    # No ports exposed to host to avoid conflicts
+      POSTGRES_DB: hivemind
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d hivemind -c 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
 
   # === Cache (Redis) ===
   redis:
     image: redis:7-alpine
     container_name: hivemind-redis-prod
     restart: always
-    # No ports exposed to host
     volumes:
       - redis_data_prod:/data
 
@@ -28,7 +31,6 @@ services:
     image: chromadb/chroma:latest
     container_name: hivemind-chroma-prod
     restart: always
-    # No ports exposed to host
     volumes:
       - chroma_data_prod:/chroma/chroma
 
@@ -42,7 +44,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9010:9000" # Keep MinIO access if needed for management
+      - "9010:9000"
       - "9011:9011"
     volumes:
       - minio_data_prod:/data
@@ -55,24 +57,50 @@ services:
     container_name: hivemind-backend-prod
     restart: always
     depends_on:
-      - postgres
-      - redis
-      - chroma
-      - minio
-    # Remove ports for background access, now proxied by frontend
-    env_file:
-      - ./backend/.env.production
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      chroma:
+        condition: service_started
+      minio:
+        condition: service_started
     environment:
+      ENV: production
+      DEBUG: "false"
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hivemind
       REDIS_URL: redis://redis:6379/0
-    # Healthcheck: Docker 每 10s 检查一次，确认 backend 真正就绪后才允许 frontend 启动
-    # 使用 python stdlib urllib，避免 runtime 镜像中无 curl 的问题
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hivemind
+      SECRET_KEY: ${SECRET_KEY:-hivemind-prod-secret-fallback-888}
+      VECTOR_STORE_TYPE: chroma
+      CHROMA_HOST: chroma
+      EMBEDDING_PROVIDER: zhipu
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      LLM_PROVIDER: siliconflow
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./storage:/app/storage
+    command: >
+      sh -c "echo '--- Diagnostic Startup ---' &&
+             echo '1. Waiting for postgres port 5432...' &&
+             until nc -z postgres 5432; do sleep 1; done &&
+             echo '2. Database port is open. Running migrations...' &&
+             python -m alembic upgrade head || (echo '❌ Migrations failed!' && exit 1) &&
+             echo '3. Migrations successful. Starting server...' &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/api/v1/health/')" ]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
   # === Frontend (React / Vite / Nginx) ===
   frontend:
@@ -83,7 +111,6 @@ services:
     restart: always
     ports:
       - "80:80"
-    # 等待 backend 健康检查通过后才启动，确保 Nginx 能解析到 backend 主机名
     depends_on:
       backend:
         condition: service_healthy

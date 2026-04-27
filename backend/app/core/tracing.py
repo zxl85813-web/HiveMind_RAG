@@ -1,6 +1,8 @@
 """
 Backward Compatibility Proxy for app.core.tracing.
 Deprecated: Use app.sdk.core.get_tracer instead.
+
+@covers REQ-014
 """
 import warnings
 from app.sdk.core import get_tracer

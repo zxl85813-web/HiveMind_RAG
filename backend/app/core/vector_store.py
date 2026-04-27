@@ -47,7 +47,7 @@ class BaseVectorStore(abc.ABC):
 
     @abc.abstractmethod
     async def search(
-        self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default"
+        self, query: str, search_type: str = SearchType.HYBRID, k: int = 30, collection_name: str = "default"
     ) -> list[VectorDocument]:
         """Unified search method supporting Vector, BM25, and Hybrid modes."""
         pass
@@ -57,7 +57,7 @@ class BaseVectorStore(abc.ABC):
         """Delete documents from the vector store based on metadata."""
         pass
 
-    async def similarity_search(self, query: str, k: int = 4, collection_name: str = "default") -> list[VectorDocument]:
+    async def similarity_search(self, query: str, k: int = 30, collection_name: str = "default") -> list[VectorDocument]:
         """Legacy method for vector search."""
         return await self.search(query, SearchType.VECTOR, k, collection_name)
 
@@ -81,7 +81,7 @@ class MockVectorStore(BaseVectorStore):
         return ids
 
     async def search(
-        self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default"
+        self, query: str, search_type: str = SearchType.HYBRID, k: int = 30, collection_name: str = "default"
     ) -> list[VectorDocument]:
         docs = self._store.get(collection_name, [])
         if not docs:
@@ -185,7 +185,7 @@ class ElasticVectorStore(BaseVectorStore):
         return ids
 
     async def search(
-        self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default"
+        self, query: str, search_type: str = SearchType.HYBRID, k: int = 30, collection_name: str = "default"
     ) -> list[VectorDocument]:
         index_name = f"{settings.ES_INDEX_PREFIX}_{collection_name}".lower()
         if not await self.client.indices.exists(index=index_name):
@@ -268,7 +268,7 @@ class ChromaVectorStore(BaseVectorStore):
         return ids
 
     async def search(
-        self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default"
+        self, query: str, search_type: str = SearchType.HYBRID, k: int = 30, collection_name: str = "default"
     ) -> list[VectorDocument]:
         collection = self.client.get_or_create_collection(name=collection_name)
 

@@ -45,7 +45,7 @@ class WorkerAgent(BaseAgent):
 
         try:
             # 1. Logic Execution — now with Swarm Blackboard access
-            output, knowledge, signal = await self._run_logic(task)
+            output, knowledge, signal, memories = await self._run_logic(task)
             latency_ms = (time.time() - start_time) * 1000
 
             # 2. Reflection
@@ -62,7 +62,12 @@ class WorkerAgent(BaseAgent):
                     instruction=task.instruction,
                     output=str(output),
                     latency_ms=latency_ms,
-                    status=ObsStatus.SUCCESS
+                    status=ObsStatus.SUCCESS,
+                    details={
+                        "related_memories": memories or [],
+                        "reasoning_budget": task.context.get("reasoning_budget"),
+                        "model_variant": target_model
+                    }
                 ))
 
             return AgentResponse(
@@ -70,6 +75,7 @@ class WorkerAgent(BaseAgent):
                 output=str(output),
                 new_knowledge=knowledge or {},
                 signal=signal or {},
+                related_memories=memories or [],
                 status=self.status
             )
         except Exception as e:
@@ -89,8 +95,8 @@ class WorkerAgent(BaseAgent):
 
             return AgentResponse(task_id=task.id, output=f"Internal Error: {e}", status=self.status)
 
-    async def _run_logic(self, task: AgentTask) -> tuple[Any, dict[str, Any], dict[str, Any]]:
-        """Worker's specialized logic. Returns (Output, Knowledge, Signal)."""
+    async def _run_logic(self, task: AgentTask) -> tuple[Any, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+        """Worker's specialized logic. Returns (Output, Knowledge, Signal, RelatedMemories)."""
         raise NotImplementedError("Subclasses must implement _run_logic.")
 
     async def _reflect(self, task: AgentTask, output: Any) -> None:

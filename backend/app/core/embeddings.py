@@ -2,8 +2,6 @@
 Embeddings Service — Embed text using ZhipuAI.
 """
 
-from zhipuai import ZhipuAI
-
 from app.sdk.core import settings
 
 
@@ -17,10 +15,30 @@ class BaseEmbeddingService:
 
 class ZhipuEmbeddingService(BaseEmbeddingService):
     def __init__(self):
-        self.client = ZhipuAI(api_key=settings.EMBEDDING_API_KEY)
+        self._initialized = False
+        self._error: str | None = None
         self.model = settings.EMBEDDING_MODEL
+        
+        if not settings.EMBEDDING_API_KEY:
+            self._error = "EMBEDDING_API_KEY not configured - embedding service disabled"
+            print(f"⚠️ {self._error}")
+            return
+        
+        try:
+            from zhipuai import ZhipuAI
+            self.client = ZhipuAI(api_key=settings.EMBEDDING_API_KEY)
+            self._initialized = True
+        except ImportError:
+            self._error = "zhipuai package not installed - embedding service disabled"
+            print(f"⚠️ {self._error}")
+        except Exception as e:
+            self._error = f"Failed to initialize ZhipuAI client: {e}"
+            print(f"⚠️ {self._error}")
 
     def embed_query(self, text: str) -> list[float]:
+        if not self._initialized:
+            # Return zero vector fallback when service not initialized
+            return [0.0] * settings.EMBEDDING_DIMS
         return self._embed_with_cache(text)
 
     from functools import lru_cache

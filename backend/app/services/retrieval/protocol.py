@@ -19,8 +19,8 @@ class RetrievalContext(BaseModel):
     permission_cache: dict[str, bool] = Field(default_factory=dict)
 
     # Configuration
-    top_k: int = 20
-    top_n: int = 5
+    top_k: int = 30
+    top_n: int = 10
     search_type: str = SearchType.HYBRID
 
     # Query Understanding

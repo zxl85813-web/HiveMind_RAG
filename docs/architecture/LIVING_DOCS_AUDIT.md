@@ -1,0 +1,197 @@
+# 🛰️ Living Documentation Audit Report
+
+**Audit Date**: 2026-04-16 02:36:07
+
+## 1. Missing Traceability (Code without REQ)
+These core files exist but have no linked requirements in the graph.
+
+- [ ] `app/batch/pipeline.py`
+- [ ] `app/schemas/knowledge_protocol.py`
+- [ ] `app/services/rag_gateway.py`
+- [ ] `backend/app/__init__.py`
+- [ ] `backend/app/api/__init__.py`
+- [ ] `backend/app/api/deps.py`
+- [ ] `backend/app/api/routes/__init__.py`
+- [ ] `backend/app/api/routes/evaluation.py`
+- [ ] `backend/app/api/routes/finetuning.py`
+- [ ] `backend/app/api/routes/health.py`
+- [ ] `backend/app/api/routes/red_team.py`
+- [ ] `backend/app/api/routes/settings.py`
+- [ ] `backend/app/api/routes/tags.py`
+- [ ] `backend/app/batch/__init__.py`
+- [ ] `backend/app/batch/checkpointer.py`
+- [ ] `backend/app/batch/controller.py`
+- [ ] `backend/app/batch/engine.py`
+- [ ] `backend/app/batch/ingestion/chunking.py`
+- [ ] `backend/app/batch/ingestion/core.py`
+- [ ] `backend/app/batch/ingestion/protocol.py`
+- [ ] `backend/app/batch/worker_pool.py`
+- [ ] `backend/app/common/__init__.py`
+- [ ] `backend/app/common/base.py`
+- [ ] `backend/app/common/enums.py`
+- [ ] `backend/app/common/pagination.py`
+- [ ] `backend/app/common/protocol.py`
+- [ ] `backend/app/common/response.py`
+- [ ] `backend/app/core/__init__.py`
+- [ ] `backend/app/core/algorithms/__init__.py`
+- [ ] `backend/app/core/algorithms/alignment.py`
+- [ ] `backend/app/core/algorithms/chunking.py`
+- [ ] `backend/app/core/algorithms/classification.py`
+- [ ] `backend/app/core/algorithms/routing.py`
+- [ ] `backend/app/core/celery_app.py`
+- [ ] `backend/app/core/config.py`
+- [ ] `backend/app/core/database.py`
+- [ ] `backend/app/core/deps.py`
+- [ ] `backend/app/core/exceptions.py`
+- [ ] `backend/app/core/init_data.py`
+- [ ] `backend/app/core/redis.py`
+- [ ] `backend/app/core/semantic_id_mapper.py`
+- [ ] `backend/app/core/tracing.py`
+- [ ] `backend/app/main.py`
+- [ ] `backend/app/main_cli.py`
+- [ ] `backend/app/models/evolution.py`
+- [ ] `backend/app/prompts/dialect.py`
+- [ ] `backend/app/prompts/engine.py`
+- [ ] `backend/app/prompts/loader.py`
+- [ ] `backend/app/schemas/__init__.py`
+- [ ] `backend/app/schemas/artifact.py`
+- [ ] `backend/app/schemas/tags.py`
+- [ ] `backend/app/schemas/ws.py`
+- [ ] `backend/app/scripts/ab_benchmark_runner.py`
+- [ ] `backend/app/scripts/github_collab.py`
+- [ ] `backend/app/scripts/seed_security.py`
+- [ ] `backend/app/scripts/sync_github_issues.py`
+- [ ] `backend/app/sdk/__init__.py`
+- [ ] `backend/app/sdk/bootstrap.py`
+- [ ] `backend/app/sdk/core/__init__.py`
+- [ ] `backend/app/sdk/core/config.py`
+- [ ] `backend/app/sdk/core/exceptions.py`
+- [ ] `backend/app/sdk/core/tracing.py`
+- [ ] `backend/app/sdk/discovery/__init__.py`
+- [ ] `backend/app/sdk/discovery/scanner.py`
+- [ ] `backend/app/sdk/harness/__init__.py`
+- [ ] `backend/app/sdk/harness/engine.py`
+- [ ] `backend/app/sdk/harness/gate_l3_intelligence.py`
+- [ ] `backend/app/sdk/harness/policies.py`
+- [ ] `backend/app/sdk/harness/policy.py`
+- [ ] `backend/app/sdk/harness/verify_harness.py`
+- [ ] `backend/app/sdk/harness/verify_hive_policy.py`
+- [ ] `backend/app/sdk/spec_engine.py`
+- [ ] `backend/app/services/__init__.py`
+- [ ] `backend/app/services/agents/workers/red_team_factory.py`
+- [ ] `backend/app/services/cache_service.py`
+- [ ] `backend/app/services/dependency_circuit_breaker.py`
+- [ ] `backend/app/services/evaluation/__init__.py`
+- [ ] `backend/app/services/evaluation/ab_tracker.py`
+- [ ] `backend/app/services/evaluation/bias_mitigation.py`
+- [ ] `backend/app/services/evaluation/claim_extractor.py`
+- [ ] `backend/app/services/evaluation/graders/__init__.py`
+- [ ] `backend/app/services/evaluation/graders/base.py`
+- [ ] `backend/app/services/evaluation/graders/context.py`
+- [ ] `backend/app/services/evaluation/graders/correctness.py`
+- [ ] `backend/app/services/evaluation/graders/faithfulness.py`
+- [ ] `backend/app/services/evaluation/graders/instruction.py`
+- [ ] `backend/app/services/evaluation/graders/relevance.py`
+- [ ] `backend/app/services/evaluation/metrics.py`
+- [ ] `backend/app/services/evaluation/multi_grader.py`
+- [ ] `backend/app/services/evolution/experience_learner.py`
+- [ ] `backend/app/services/evolution/knowledge_distiller.py`
+- [ ] `backend/app/services/governance/red_team_campaign.py`
+- [ ] `backend/app/services/indexing.py`
+- [ ] `backend/app/services/ingestion/dispatcher.py`
+- [ ] `backend/app/services/insight_service.py`
+- [ ] `backend/app/services/knowledge/lifecycle.py`
+- [ ] `backend/app/services/sync_service.py`
+- [ ] `backend/app/services/tag_service.py`
+- [ ] `backend/app/services/write_event_bus.py`
+- [ ] `backend/app/services/ws_manager.py`
+- [ ] `backend/app/utils/__init__.py`
+- [ ] `backend/app/utils/datetime_utils.py`
+- [ ] `backend/app/utils/hash_utils.py`
+- [ ] `backend/app/workflow/__init__.py`
+- [ ] `backend/requirements.txt`
+- [ ] `frontend/package.json`
+- [ ] `frontend/src/App.tsx`
+- [ ] `frontend/src/components/canvas/G6SimpleGraph.tsx`
+- [ ] `frontend/src/components/canvas/X6SimpleCanvas.tsx`
+- [ ] `frontend/src/components/canvas/index.ts`
+- [ ] `frontend/src/components/chat/ChatPanel.tsx.bak`
+- [ ] `frontend/src/components/common/AppLayout.tsx`
+- [ ] `frontend/src/components/common/ConfirmAction.tsx`
+- [ ] `frontend/src/components/common/EmptyState.tsx`
+- [ ] `frontend/src/components/common/ErrorBoundary.tsx`
+- [ ] `frontend/src/components/common/ErrorDisplay.tsx`
+- [ ] `frontend/src/components/common/LoadingState.tsx`
+- [ ] `frontend/src/components/common/MockControl.tsx`
+- [ ] `frontend/src/components/common/PageContainer.tsx`
+- [ ] `frontend/src/components/common/StatCard.tsx`
+- [ ] `frontend/src/components/common/StaticHelperManager.tsx`
+- [ ] `frontend/src/components/common/StatusTag.tsx`
+- [ ] `frontend/src/components/common/index.ts`
+- [ ] `frontend/src/config/access.ts`
+- [ ] `frontend/src/config/appRoutes.ts`
+- [ ] `frontend/src/config/quickCommands.ts`
+- [ ] `frontend/src/config/routes/modules/protectedRoutes.ts`
+- [ ] `frontend/src/config/routes/modules/publicRoutes.ts`
+- [ ] `frontend/src/core/AppError.ts`
+- [ ] `frontend/src/core/BaselineProbe.ts`
+- [ ] `frontend/src/core/ConnectionManager.ts`
+- [ ] `frontend/src/core/IntentManager.ts`
+- [ ] `frontend/src/core/LocalEdgeEngine.ts`
+- [ ] `frontend/src/core/antdStatic.ts`
+- [ ] `frontend/src/core/schema/error.ts`
+- [ ] `frontend/src/guards/AccessGuard.tsx`
+- [ ] `frontend/src/hooks/queries/useSettingsQuery.ts`
+- [ ] `frontend/src/hooks/useWindowSize.ts`
+- [ ] `frontend/src/i18n/config.ts`
+- [ ] `frontend/src/i18n/locales/en-US.json`
+- [ ] `frontend/src/i18n/locales/zh-CN.json`
+- [ ] `frontend/src/main.tsx`
+- [ ] `frontend/src/mock/handlers.ts`
+- [ ] `frontend/src/mock/mockData.ts`
+- [ ] `frontend/src/mock/specialCases.ts`
+- [ ] `frontend/src/pages/AgentGovernancePage.tsx`
+- [ ] `frontend/src/pages/ArchitectureLabPage.tsx`
+- [ ] `frontend/src/pages/BatchPage.tsx`
+- [ ] `frontend/src/pages/CanvasLabPage.tsx`
+- [ ] `frontend/src/pages/EvalPage.tsx`
+- [ ] `frontend/src/pages/FineTuningPage.tsx`
+- [ ] `frontend/src/pages/ForbiddenPage.tsx`
+- [ ] `frontend/src/pages/KBAnalyticsPage.tsx`
+- [ ] `frontend/src/pages/SettingsPage.tsx`
+- [ ] `frontend/src/pages/StudioPage.tsx`
+- [ ] `frontend/src/pages/TracePage.tsx`
+- [ ] `frontend/src/services/api.ts`
+- [ ] `frontend/src/services/batchApi.ts`
+- [ ] `frontend/src/services/evalApi.ts`
+- [ ] `frontend/src/services/ftApi.ts`
+- [ ] `frontend/src/services/settingsApi.ts`
+- [ ] `frontend/src/services/tagApi.ts`
+- [ ] `frontend/src/stores/wsStore.ts`
+- [ ] `frontend/src/types/index.ts`
+- [ ] `frontend/src/utils/safe-api.ts`
+- [ ] `frontend/src/vite-env.d.ts`
+
+## 2. Design Drift (Stale Documentation)
+Files modified after their last design synchronization.
+
+✅ No drifts detected.
+
+## 3. Governance Gaps (REQ without DES)
+Requirements that lack a formal design document.
+
+- [ ] REQ-002: 共享记忆与自省机制
+- [ ] REQ-003: 对外学习机制
+- [ ] REQ-004: 多 LLM 路由
+- [ ] REQ-005: MCP 与 Skills 系统
+- [ ] REQ-006: 混合通信 (SSE + WebSocket)
+- [ ] REQ-008: RAG Pipeline 可配置化 & 数据质量体系
+- [ ] REQ-009: RAG 系统进阶能力 — 专家级完整方案
+- [ ] REQ-011: 变更履历 RAG (Changelog-Aware RAG)
+- [ ] REQ-026: ChatBubble 一键复制消息
+- [ ] REQ-027: Project Digital Twin Evolution (图谱孪生进化)
+- [ ] REQ-014: — P0 Architecture Hardening (Sandbox & Token)
+- [ ] REQ-015: — P1 Architecture Resilience (Enrichment & Persistence)
+
+---
+*Generated by HiveMind Living Docs Engine*

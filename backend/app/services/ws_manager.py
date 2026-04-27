@@ -1,5 +1,7 @@
 """
 WebSocket Connection Manager — manages persistent connections for push notifications.
+
+@covers REQ-006
 """
 
 from typing import Any

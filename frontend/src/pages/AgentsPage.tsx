@@ -1,5 +1,5 @@
 import React from 'react';
-import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, theme } from 'antd';
+import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, theme, Drawer, Divider, Timeline } from 'antd';
 import {
     ClusterOutlined,
     MessageOutlined,
@@ -10,7 +10,10 @@ import {
     SyncOutlined,
     BulbOutlined,
     CompassOutlined,
-    ShareAltOutlined
+    ShareAltOutlined,
+    DatabaseOutlined,
+    InfoCircleOutlined,
+    ToolOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { PageContainer, StatCard, ErrorBoundary } from '../components/common';
@@ -22,6 +25,8 @@ import {
     useSwarmTodos, 
     useSwarmTraces 
 } from '../hooks/queries/useSwarmQuery';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { SwarmChatPanel } from '../components/agents/SwarmChatPanel';
 import { useMonitor } from '../hooks/useMonitor';
 
@@ -43,6 +48,7 @@ export const AgentsPage: React.FC = () => {
     const { data: todos = [], isLoading: loadingTodos } = useSwarmTodos();
     const { data: dagData = { nodes: [], links: [] }, isLoading: loadingTraces, refetch, isRefetching } = useSwarmTraces();
     const { track } = useMonitor();
+    const [selectedTraceNode, setSelectedTraceNode] = React.useState<any>(null);
 
     React.useEffect(() => {
         track('system', 'page_load', { page: 'AgentsOverview' });
@@ -73,7 +79,11 @@ export const AgentsPage: React.FC = () => {
                         }
                         description={
                             <div style={{ marginTop: 8 }}>
-                                <Paragraph type="secondary" style={{ marginBottom: 8, fontSize: '13px' }}>{item.description}</Paragraph>
+                                <div className="markdown-todo-desc" style={{ marginBottom: 8, fontSize: '13px', color: 'var(--hm-color-text-tertiary)' }}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {item.description}
+                                    </ReactMarkdown>
+                                </div>
                                 <Space size="middle" separator={<Text type="secondary" style={{ fontSize: '10px' }}>|</Text>} wrap>
                                     <Text type="secondary" style={{ fontSize: '11px' }}>
                                         <BulbOutlined /> <Tag variant="filled" style={{ fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>{item.created_by}</Tag>
@@ -229,7 +239,11 @@ export const AgentsPage: React.FC = () => {
                         {dagData.nodes && dagData.nodes.length > 0 ? (
                             <ErrorBoundary fallback={<div style={{ padding: 20 }}><Empty description="图谱渲染发生冲突，请尝试刷新。" /></div>}>
                                 <React.Suspense fallback={<Flex align="center" justify="center" style={{ height: '100%', width: '100%' }}><SyncOutlined spin /> &nbsp; Loading Chart...</Flex>}>
-                                    <AgentDAGVisualizer data={dagData} height={590} />
+                                    <AgentDAGVisualizer 
+                                        data={dagData} 
+                                        height={590} 
+                                        onNodeClick={(node) => setSelectedTraceNode(node)}
+                                    />
                                 </React.Suspense>
                             </ErrorBoundary>
                         ) : (
@@ -264,6 +278,98 @@ export const AgentsPage: React.FC = () => {
                     </Card>
                 </Col>
             </Row>
+
+            {/* Trace Details Drawer */}
+            <Drawer
+                title={
+                    <Space>
+                        <Badge status={selectedTraceNode?.status?.toLowerCase().includes('success') ? 'success' : 'processing'} />
+                        <span style={{ color: token.colorPrimary }}>执行详情 (Execution Trace)</span>
+                    </Space>
+                }
+                placement="right"
+                width={550}
+                onClose={() => setSelectedTraceNode(null)}
+                open={!!selectedTraceNode}
+                styles={{
+                    header: { background: 'var(--hm-color-bg-elevated)', borderBottom: '1px solid var(--hm-border-subtle)' },
+                    body: { background: 'var(--hm-color-bg-layout)', padding: '16px' }
+                }}
+            >
+                {selectedTraceNode && (
+                    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                        <Card size="small" style={{ background: 'var(--hm-glass-bg)', borderColor: 'var(--hm-color-brand-dim)' }}>
+                            <Title level={5}>{selectedTraceNode.label}</Title>
+                            <Space wrap>
+                                <Tag color="blue"><ClusterOutlined /> {selectedTraceNode.agent}</Tag>
+                                <Tag color={selectedTraceNode.status?.toLowerCase().includes('success') || selectedTraceNode.status === 'DONE' ? 'success' : 'warning'}>{selectedTraceNode.status.toUpperCase()}</Tag>
+                                {selectedTraceNode.duration && <Tag color="default"><ClockCircleOutlined /> {selectedTraceNode.duration}</Tag>}
+                            </Space>
+                        </Card>
+
+                        {/* 🧠 Related Knowledge & Memories (NEW!) */}
+                        {(selectedTraceNode.details?.retrieved_doc_ids?.length > 0 || selectedTraceNode.details?.related_memories?.length > 0) && (
+                            <div style={{ background: 'var(--hm-color-brand-dim)15', padding: '12px', borderRadius: '8px' }}>
+                                <Text strong style={{ display: 'block', marginBottom: 8 }}><BulbOutlined /> 关联知识与背景 (Knowledge Context)</Text>
+                                <Space wrap>
+                                    {selectedTraceNode.details.related_memories?.map((m: any, i: number) => (
+                                        <Tag key={i} color="processing" style={{ borderRadius: 12 }}>记忆: {m.id.slice(0, 8)}</Tag>
+                                    ))}
+                                    {selectedTraceNode.details.retrieved_doc_ids?.map((id: string, i: number) => (
+                                        <Tag key={i} color="cyan" style={{ borderRadius: 12 }}>检索: {id.slice(0, 12)}...</Tag>
+                                    ))}
+                                </Space>
+                            </div>
+                        )}
+
+                        <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><BulbOutlined /> 决策逻辑 (Reasoning)</Divider>
+                        <div style={{ background: 'var(--hm-color-bg-elevated)', padding: '12px', borderRadius: '8px', border: '1px solid var(--hm-border-subtle)' }}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {selectedTraceNode.details?.reasoning || selectedTraceNode.details?.thought_log || "暂无内部思考详情"}
+                            </ReactMarkdown>
+                        </div>
+
+                        {selectedTraceNode.details?.instruction && (
+                            <>
+                                <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><MessageOutlined /> 任务指令 (Instruction)</Divider>
+                                <div style={{ fontSize: '12px', color: 'var(--hm-color-text-secondary)' }}>
+                                    {selectedTraceNode.details.instruction}
+                                </div>
+                            </>
+                        )}
+
+                        {selectedTraceNode.details?.tool_calls && selectedTraceNode.details.tool_calls.length > 0 && (
+                            <>
+                                <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><ToolOutlined /> 工具调用 (Tool Calls)</Divider>
+                                <Timeline
+                                    mode="left"
+                                    items={selectedTraceNode.details.tool_calls.map((tc: any, idx: number) => ({
+                                        color: 'blue',
+                                        children: (
+                                            <div key={idx}>
+                                                <Text strong>{tc.name}</Text>
+                                                <div style={{ marginTop: 4 }}>
+                                                    <Text code style={{ fontSize: '11px' }}>Args: {JSON.stringify(tc.args)}</Text>
+                                                </div>
+                                                <div style={{ marginTop: 6, fontSize: '12px', color: 'var(--hm-color-text-secondary)' }}>
+                                                    Result: {tc.result?.substring(0, 80)}...
+                                                </div>
+                                            </div>
+                                        )
+                                    }))}
+                                />
+                            </>
+                        )}
+
+                        <Divider orientation={"left" as any} style={{ margin: '8px 0' }}><DatabaseOutlined /> 原始元数据 (Raw JSON)</Divider>
+                        <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                             <pre style={{ fontSize: '10px', background: 'var(--hm-color-bg-elevated)', padding: '10px', borderRadius: '4px' }}>
+                                 {JSON.stringify(selectedTraceNode.details, null, 2)}
+                             </pre>
+                        </div>
+                    </Space>
+                )}
+            </Drawer>
         </PageContainer>
     );
 };

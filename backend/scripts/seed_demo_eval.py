@@ -134,58 +134,65 @@ HR_QA = [
 #  Model Configurations for Arena
 # ============================================================
 MODEL_CONFIGS = {
-    "gpt-4-turbo": {
-        "latency_range": (1200, 2800),
-        "cost_range": (0.03, 0.08),
+    "claude-4.6-thinking": {
+        "latency_range": (3500, 6500),
+        "cost_range": (0.08, 0.15),
+        "token_range": (1500, 4000),
+        "score_range": (0.94, 0.99),
+        "faith_range": (0.95, 1.0),
+        "relev_range": (0.94, 1.0),
+        "elo": 1504
+    },
+    "gemini-3.1-pro": {
+        "latency_range": (1200, 2500),
+        "cost_range": (0.03, 0.07),
+        "token_range": (1000, 3000),
+        "score_range": (0.91, 0.97),
+        "faith_range": (0.90, 0.98),
+        "relev_range": (0.92, 0.98),
+        "elo": 1492
+    },
+    "gpt-5.4-high": {
+        "latency_range": (1800, 3200),
+        "cost_range": (0.05, 0.12),
+        "token_range": (1200, 3500),
+        "score_range": (0.89, 0.96),
+        "faith_range": (0.88, 0.97),
+        "relev_range": (0.90, 0.96),
+        "elo": 1484
+    },
+    "grok-4.20-beta": {
+        "latency_range": (1000, 2200),
+        "cost_range": (0.02, 0.05),
         "token_range": (800, 2500),
-        "score_range": (0.82, 0.96),
-        "faith_range": (0.85, 0.98),
-        "relev_range": (0.88, 0.97),
+        "score_range": (0.86, 0.94),
+        "faith_range": (0.85, 0.95),
+        "relev_range": (0.88, 0.95),
+        "elo": 1486
     },
-    "gpt-3.5-turbo": {
-        "latency_range": (400, 900),
-        "cost_range": (0.002, 0.006),
-        "token_range": (500, 1800),
-        "score_range": (0.62, 0.82),
-        "faith_range": (0.60, 0.85),
-        "relev_range": (0.65, 0.85),
-    },
-    "claude-3-opus": {
-        "latency_range": (1500, 3500),
-        "cost_range": (0.04, 0.10),
-        "token_range": (900, 3000),
-        "score_range": (0.85, 0.97),
-        "faith_range": (0.88, 0.99),
-        "relev_range": (0.86, 0.96),
-    },
-    "deepseek-chat": {
+    "deepseek-v3.2": {
         "latency_range": (300, 700),
         "cost_range": (0.0005, 0.002),
         "token_range": (400, 1500),
-        "score_range": (0.70, 0.88),
-        "faith_range": (0.68, 0.88),
-        "relev_range": (0.72, 0.90),
-    },
-    "llama-3-8b": {
-        "latency_range": (200, 500),
-        "cost_range": (0.0001, 0.0005),
-        "token_range": (300, 1200),
-        "score_range": (0.55, 0.78),
-        "faith_range": (0.50, 0.80),
-        "relev_range": (0.55, 0.82),
+        "score_range": (0.82, 0.92),
+        "faith_range": (0.80, 0.91),
+        "relev_range": (0.84, 0.93),
+        "elo": 1465
     },
 }
+
 
 # ============================================================
 #  Model-specific answer generators (simulate quality)
 # ============================================================
 GOOD_ANSWER_TEMPLATES = {
-    "gpt-4-turbo": "根据最新政策规定,{gt_short} 这一标准适用于大多数场景。",
-    "claude-3-opus": "综合法律法规分析,{gt_short} 建议在实务操作中注意合规审查。",
-    "deepseek-chat": "{gt_short} 不过具体还需结合企业实际情况。",
-    "gpt-3.5-turbo": "大致来说,{gt_short}",
-    "llama-3-8b": "{gt_short_partial} 其余细节建议查阅相关法规。",
+    "claude-4.6-thinking": "根据最新政策规定,{gt_short} 这一标准适用于大多数场景。深度思考建议：关注长效合规性。",
+    "gemini-3.1-pro": "综合法律法规分析,{gt_short} 建议在实务操作中注意相关部门的准入要求。",
+    "gpt-5.4-high": "{gt_short} 此外，请注意该解读仅供参考，不构成正式法律建议。",
+    "grok-4.20-beta": "实时检索显示,{gt_short} 建议根据具体城市落地政策进一步对齐。",
+    "deepseek-v3.2": "{gt_short_partial} 本地优化结果显示该项执行效率最高。",
 }
+
 
 BAD_ANSWER_TEMPLATES = [
     "这个取决于具体情况,建议咨询专业人士。",
@@ -374,7 +381,14 @@ async def seed_eval_data():
                 avg_relev_1 = sum(d["relevance"] for d in details_1) / len(details_1)
                 avg_prec_1 = sum(d["context_precision"] for d in details_1) / len(details_1)
                 avg_recall_1 = sum(d["context_recall"] for d in details_1) / len(details_1)
-                score_1 = (avg_faith_1 + avg_relev_1 + avg_prec_1 + avg_recall_1) / 4
+                
+                # New Metrics calculation
+                avg_inst_1 = _rand(0.7, 0.99) if "thinking" in model_name else _rand(0.6, 0.9)
+                avg_hit_1 = _rand(0.8, 0.98)
+                avg_mrr_1 = _rand(0.6, 0.9)
+                avg_ndcg_1 = _rand(0.65, 0.92)
+                
+                score_1 = (avg_faith_1 + avg_relev_1 + avg_prec_1 + avg_recall_1 + avg_inst_1) / 5
 
                 reports.append(
                     EvaluationReport(
@@ -386,6 +400,12 @@ async def seed_eval_data():
                         answer_relevance=round(avg_relev_1, 4),
                         context_precision=round(avg_prec_1, 4),
                         context_recall=round(avg_recall_1, 4),
+                        # Injecting new metrics
+                        instruction_following=round(avg_inst_1, 4),
+                        hit_rate=round(avg_hit_1, 4),
+                        mrr=round(avg_mrr_1, 4),
+                        ndcg=round(avg_ndcg_1, 4),
+                        
                         total_score=round(score_1, 4),
                         latency_ms=round(_rand(*conf["latency_range"]), 1),
                         cost=round(_rand(*conf["cost_range"]), 4),
@@ -402,7 +422,13 @@ async def seed_eval_data():
                 avg_relev_hr = sum(d["relevance"] for d in details_hr) / len(details_hr)
                 avg_prec_hr = sum(d["context_precision"] for d in details_hr) / len(details_hr)
                 avg_recall_hr = sum(d["context_recall"] for d in details_hr) / len(details_hr)
-                score_hr = (avg_faith_hr + avg_relev_hr + avg_prec_hr + avg_recall_hr) / 4
+                
+                avg_inst_hr = _rand(0.7, 0.99) if "thinking" in model_name else _rand(0.6, 0.9)
+                avg_hit_hr = _rand(0.8, 0.98)
+                avg_mrr_hr = _rand(0.6, 0.9)
+                avg_ndcg_hr = _rand(0.65, 0.92)
+                
+                score_hr = (avg_faith_hr + avg_relev_hr + avg_prec_hr + avg_recall_hr + avg_inst_hr) / 5
 
                 reports.append(
                     EvaluationReport(
@@ -414,6 +440,12 @@ async def seed_eval_data():
                         answer_relevance=round(avg_relev_hr, 4),
                         context_precision=round(avg_prec_hr, 4),
                         context_recall=round(avg_recall_hr, 4),
+                        # Injecting new metrics
+                        instruction_following=round(avg_inst_hr, 4),
+                        hit_rate=round(avg_hit_hr, 4),
+                        mrr=round(avg_mrr_hr, 4),
+                        ndcg=round(avg_ndcg_hr, 4),
+                        
                         total_score=round(score_hr, 4),
                         latency_ms=round(_rand(*conf["latency_range"]), 1),
                         cost=round(_rand(*conf["cost_range"]), 4),
@@ -424,13 +456,19 @@ async def seed_eval_data():
                     )
                 )
 
-                # --- Finance KB Report #2 (recent, slightly different) ---
+                # --- Finance KB Report #2 (recent) ---
                 details_2 = _gen_detail(FINANCE_QA, model_name, conf)
                 avg_faith_2 = sum(d["faithfulness"] for d in details_2) / len(details_2)
                 avg_relev_2 = sum(d["relevance"] for d in details_2) / len(details_2)
                 avg_prec_2 = sum(d["context_precision"] for d in details_2) / len(details_2)
                 avg_recall_2 = sum(d["context_recall"] for d in details_2) / len(details_2)
-                score_2 = (avg_faith_2 + avg_relev_2 + avg_prec_2 + avg_recall_2) / 4
+                
+                avg_inst_2 = _rand(0.7, 0.99) if "thinking" in model_name else _rand(0.6, 0.9)
+                avg_hit_2 = _rand(0.8, 0.98)
+                avg_mrr_2 = _rand(0.6, 0.9)
+                avg_ndcg_2 = _rand(0.65, 0.92)
+                
+                score_2 = (avg_faith_2 + avg_relev_2 + avg_prec_2 + avg_recall_2 + avg_inst_2) / 5
 
                 reports.append(
                     EvaluationReport(
@@ -442,6 +480,12 @@ async def seed_eval_data():
                         answer_relevance=round(avg_relev_2, 4),
                         context_precision=round(avg_prec_2, 4),
                         context_recall=round(avg_recall_2, 4),
+                        # Injecting new metrics
+                        instruction_following=round(avg_inst_2, 4),
+                        hit_rate=round(avg_hit_2, 4),
+                        mrr=round(avg_mrr_2, 4),
+                        ndcg=round(avg_ndcg_2, 4),
+                        
                         total_score=round(score_2, 4),
                         latency_ms=round(_rand(*conf["latency_range"]), 1),
                         cost=round(_rand(*conf["cost_range"]), 4),
@@ -451,6 +495,7 @@ async def seed_eval_data():
                         created_at=datetime.utcnow() - timedelta(days=2, hours=random.randint(0, 23)),
                     )
                 )
+
 
             session.add_all(reports)
             t_logger.info(f"  📊 Created {len(reports)} evaluation reports across {len(MODEL_CONFIGS)} models")

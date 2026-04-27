@@ -4,6 +4,8 @@ import { chatApi } from '../services/chatApi';
 /**
  * 🛰️ [HMER Phase 4] Intent Manager (意图预测管理器)
  * 职责：感知用户交互趋势，主动触发数据预加载 (Prefetching)。
+ * 
+ * @covers REQ-027
  */
 
 export type IntentType = 'chat' | 'knowledge' | 'settings' | 'graph' | 'dashboard' | 'audit' | 'security' | 'ai_warmup';

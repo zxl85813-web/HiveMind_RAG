@@ -62,6 +62,22 @@ async def create_knowledge_base(
     return ApiResponse.ok(data=kb)
 
 
+@router.get("/governance/report", response_model=ApiResponse[dict[str, Any]])
+async def get_knowledge_health_report():
+    """获取知识库健康度与新鲜度报告。"""
+    from app.services.knowledge.freshness_service import knowledge_freshness_service
+    report = await knowledge_freshness_service.get_freshness_report()
+    return ApiResponse.ok(data=report)
+
+
+@router.post("/governance/purge", response_model=ApiResponse[dict[str, Any]])
+async def purge_expired_knowledge():
+    """清理所有已过期的知识文档，防止 RAG 污染。"""
+    from app.services.knowledge.lifecycle import knowledge_lifecycle_service
+    result = await knowledge_lifecycle_service.purge_expired_documents()
+    return ApiResponse.ok(data=result)
+
+
 @router.get(
     "",
     response_model=ApiResponse[Sequence[KnowledgeBase]],

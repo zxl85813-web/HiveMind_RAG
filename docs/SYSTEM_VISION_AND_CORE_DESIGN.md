@@ -64,9 +64,12 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    Code[源代码 AST] <--> Graph((知识图谱 Neo4j))
-    Docs[L0-L4 文档] <--> Graph
-    Code <--> Docs
+    Code["源代码 AST"] --> Graph((知识图谱 Neo4j))
+    Graph --> Code
+    Docs["L0-L4 文档"] --> Graph
+    Graph --> Docs
+    Code --> Docs
+    Docs --> Code
     
     style Graph fill:#f9f,stroke:#333,stroke-width:4px
 ```

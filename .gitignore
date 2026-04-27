@@ -61,6 +61,8 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 frontend/debug_symbols/
+frontend/report*.json
+frontend/playwright/.auth/
 query_db.py
 scenario_f_log*.txt
 tmp_report.txt
@@ -136,7 +138,14 @@ backend/scripts/run_evaluation_v2.py
 backend/scripts/run_evolution_benchmark.py
 backend/scripts/test_*.py
 backend/scripts/verify_scoped_state.py
-tmp_bad_cases.py
+tmp_*.py
+*.tmp
+*.old
+*.backup
+scratch/
+!scratch/graph_stats.py
+!scratch/govern_isolated_nodes.py
+!scratch/analyze_isolated.py
 
 # ==========================================
 # Skills Development & Evaluation Noise
@@ -153,3 +162,11 @@ skills/**/benchmark.md
 skills/**/assets/eval_review.html
 # Ignore bulky XML schemas in xlsx skill
 skills/xlsx/scripts/office/schemas/
+
+# ==========================================
+# External Projects / Submodules
+# ==========================================
+claude-code-main/
+
+# Deployment Exports
+export/

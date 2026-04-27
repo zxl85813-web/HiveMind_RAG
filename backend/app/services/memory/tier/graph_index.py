@@ -76,6 +76,13 @@ class GraphIndex:
             nodes = data.get("nodes", [])
             edges = data.get("edges", [])
             if nodes or edges:
+                # 🛡️ [P0-Hardening]: 注入元数据，解决资产清单 "Unknown" 问题
+                import time
+                current_ts = int(time.time() * 1000)
+                for n in nodes:
+                    if 'path' not in n: n['path'] = doc_id
+                    if 'created_at' not in n: n['created_at'] = current_ts
+                
                 # 在线程池中执行阻塞的图数据库写入，保护事件循环
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, lambda: self.store.import_subgraph(nodes, edges))
@@ -110,8 +117,7 @@ class GraphIndex:
         """
 
         try:
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(None, lambda: self.store.query(cypher, {"entities": safe_entities}))
+            results = await self.store.execute_query(cypher, {"entities": safe_entities})
 
             neighborhood_str = []
             for item in results:
@@ -224,8 +230,17 @@ class GraphIndex:
         nodes = []
         edges = []
 
+        import time
+        current_ts = int(time.time() * 1000)
+        
         # 1. 文件节点
-        nodes.append({"id": doc_id, "label": "CodeFile", "name": doc_id})
+        nodes.append({
+            "id": doc_id, 
+            "label": "CodeFile", 
+            "name": doc_id,
+            "path": doc_id,
+            "created_at": current_ts
+        })
 
         # 2. 类及其方法
         for cls in structure.get("classes", []):
@@ -235,13 +250,21 @@ class GraphIndex:
                 "label": "Class",
                 "name": cls['name'],
                 "docstring": cls.get("docstring") or "",
-                "lineno": cls.get("lineno")
+                "lineno": cls.get("lineno"),
+                "path": doc_id,
+                "created_at": current_ts
             })
             edges.append({"source": doc_id, "target": cid, "type": "CONTAINS_CLASS"})
 
             for m in cls.get("methods", []):
                 mid = f"{cid}::method::{m}"
-                nodes.append({"id": mid, "label": "Method", "name": m})
+                nodes.append({
+                    "id": mid, 
+                    "label": "Method", 
+                    "name": m,
+                    "path": doc_id,
+                    "created_at": current_ts
+                })
                 edges.append({"source": cid, "target": mid, "type": "HAS_METHOD"})
 
         # 3. 独立函数
@@ -253,7 +276,9 @@ class GraphIndex:
                 "name": fn['name'],
                 "docstring": fn.get("docstring") or "",
                 "lineno": fn.get("lineno"),
-                "params": ", ".join(fn.get("args", []))
+                "params": ", ".join(fn.get("args", [])) or "",
+                "path": doc_id,
+                "created_at": current_ts
             })
             edges.append({"source": doc_id, "target": fid, "type": "CONTAINS_FUNCTION"})
 
@@ -276,37 +301,45 @@ class GraphIndex:
         nodes = []
         edges = []
 
+        import time
+        current_ts = int(time.time() * 1000)
+
         # 1. 强化 Document 节点
         pulse = enrichment_data.get("pulse_summary", "")
-        # Use simple dictionary for nodes if we don't have a model here
-        # Note: id/label/name are standard for import_subgraph
         nodes.append({
             "id": doc_id,
             "label": "Document",
             "name": doc_id,
             "pulse_summary": pulse,
-            "kb_id": kb_id
+            "kb_id": kb_id,
+            "path": doc_id,
+            "created_at": current_ts
         })
 
         # 2. 语义标签 (Tags)
         for tag in enrichment_data.get("semantic_tags", []):
             tid = f"TAG_{tag}"
-            nodes.append({"id": tid, "label": "Tag", "name": tag})
+            nodes.append({
+                "id": tid, 
+                "label": "Tag", 
+                "name": tag,
+                "path": "MetadataSystem",
+                "created_at": current_ts
+            })
             edges.append({"source": doc_id, "target": tid, "type": "HAS_TAG"})
 
-        # 3. 时间实体 (Events)
-        for event in enrichment_data.get("temporal_entities", []):
-            date_str = event.get("date", "unknown")
-            desc = event.get("description", "")
-            eid = f"EVENT_{doc_id}_{date_str}"
+        # 3. 时间实体 (Temporal Entities)
+        for ent in enrichment_data.get("temporal_entities", []):
+            eid = f"TIME_{ent['entity']}_{ent['point']}"
             nodes.append({
                 "id": eid,
-                "label": "Event",
-                "name": date_str,
-                "date": date_str,
-                "description": desc
+                "label": "Timeline",
+                "name": ent['entity'],
+                "time_point": ent['point'],
+                "path": doc_id,
+                "created_at": current_ts
             })
-            edges.append({"source": doc_id, "target": eid, "type": "MENTIONS_EVENT"})
+            edges.append({"source": doc_id, "target": eid, "type": "MENTIONS_EPOCH"})
 
         # 4. 版本链 (Version Chain)
         v_chain = enrichment_data.get("version_chain")
@@ -327,6 +360,64 @@ class GraphIndex:
             logger.info(f"🧬 P1 Enrichment: Indexed {len(nodes)} semantic assets for doc: {doc_id}.")
         except Exception as e:
             logger.error(f"Enrichment indexing failed for {doc_id}: {e}")
+
+    async def get_impact_radius(self, node_id: str, depth: int = 3) -> dict[str, Any]:
+        """
+        [奇思妙想] 获取代码/资产变更的影响范围（爆炸半径）。
+        
+        沿着依赖关系的逆向链路（谁依赖我、谁实现了我、谁被我保护等）进行推演。
+        """
+        if not self._is_available():
+            return {"nodes": [], "links": []}
+
+        # 我们主要关注逆向依赖：如果 B 改变了，谁依赖 B 谁就会受影响
+        # 常见影响链路：
+        # - (File) <-[:DEPENDS_ON]- (File)
+        # - (File) <-[:HANDLED_BY]- (Endpoint)
+        # - (File) <-[:IMPLEMENTED_BY]- (Design)
+        # - (Design) <-[:ADDRESSES]- (Requirement)
+        # - (GateRule) <-[:GUARDED_BY]- (Endpoint)
+        
+        cypher = f"""
+        MATCH (start {{id: $nodeId}})
+        OPTIONAL MATCH path = (start)<-[r:DEPENDS_ON|HANDLED_BY|IMPLEMENTED_BY|ADDRESSES|GUARDED_BY|PROTECTS|IMPLEMENTS_GATE|COVERS_ENDPOINT|COVERS_PAGE*1..{depth}]-(m)
+        UNWIND nodes(path) as n
+        UNWIND relationships(path) as rel
+        WITH DISTINCT n, rel
+        RETURN 
+            collect(DISTINCT {{id: n.id, name: n.name, type: labels(n)[0]}}) as nodes,
+            collect(DISTINCT {{source: startNode(rel).id, target: endNode(rel).id, type: type(rel)}}) as links
+        """
+        
+        # 补充：也需要包含起始节点本身
+        cypher_start = """
+        MATCH (n {id: $nodeId})
+        RETURN {id: n.id, name: n.name, type: labels(n)[0]} as start_node
+        """
+
+        try:
+            results = await self.store.execute_query(cypher, {"nodeId": node_id})
+            start_res = await self.store.execute_query(cypher_start, {"nodeId": node_id})
+            
+            nodes = []
+            links = []
+            if start_res:
+                nodes.append(start_res[0]["start_node"])
+            
+            if results and results[0]["nodes"]:
+                nodes.extend(results[0]["nodes"])
+                links.extend(results[0]["links"])
+             
+            # 过滤重复节点
+            unique_nodes = {n["id"]: n for n in nodes if n}.values()
+            
+            return {
+                "nodes": list(unique_nodes),
+                "links": links
+            }
+        except Exception as e:
+            logger.error(f"Impact radius query failed: {e}")
+            return {"nodes": [], "links": []}
 
 
 # 单例访问

@@ -58,6 +58,18 @@ async def list_discoveries():
     return ApiResponse.ok(data=discoveries)
 
 
+@router.post("/discoveries/{discovery_id}/ingest", response_model=ApiResponse)
+async def ingest_discovery(discovery_id: str):
+    """将技术发现内化到共享记忆系统中。"""
+    try:
+        knowledge = await LearningService.ingest_discovery(discovery_id)
+        if not knowledge:
+            return ApiResponse.error("Discovery not found")
+        return ApiResponse.ok(message="Discovery ingested successfully into semantic memory")
+    except Exception as e:
+        return ApiResponse.error(f"Ingestion failed: {str(e)}")
+
+
 @router.post("/daily-cycle", response_model=ApiResponse)
 async def run_daily_cycle():
     """执行一次每日自省学习循环并生成学习报告。"""

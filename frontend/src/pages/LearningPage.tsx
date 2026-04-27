@@ -118,6 +118,16 @@ export const LearningPage: React.FC = () => {
         }
     };
 
+    const handleIngest = async (id: string) => {
+        try {
+            await learningApi.ingestDiscovery(id);
+            message.success("知识已成功内化进入群落记忆");
+            loadData();
+        } catch {
+            message.error("内化失败");
+        }
+    };
+
     return (
         <PageContainer
             title={t('learning.title')}
@@ -163,10 +173,22 @@ export const LearningPage: React.FC = () => {
                                         <Card
                                             hoverable
                                             title={item.title}
-                                            extra={<Tag color={item.relevance_score > 0.9 ? 'gold' : 'blue'}>关联度: {Math.round(item.relevance_score * 100)}%</Tag>}
+                                            extra={
+                                                <Space>
+                                                    {item.status === 'ingested' && <Tag color="green">已内化</Tag>}
+                                                    <Tag color={item.relevance_score > 0.9 ? 'gold' : 'blue'}>关联度: {Math.round(item.relevance_score * 100)}%</Tag>
+                                                </Space>
+                                            }
                                             actions={[
                                                 <Button type="link" icon={<GlobalOutlined />} onClick={() => window.open(item.url)}>查看原文</Button>,
-                                                <Button type="link" icon={<RocketOutlined />}>应用此技术</Button>
+                                                <Button 
+                                                    type="link" 
+                                                    icon={<RocketOutlined />} 
+                                                    disabled={item.status === 'ingested'}
+                                                    onClick={() => handleIngest(item.id)}
+                                                >
+                                                    {item.status === 'ingested' ? '已在库中' : '内化知识'}
+                                                </Button>
                                             ]}
                                         >
                                             <Paragraph ellipsis={{ rows: 2 }}>{item.summary}</Paragraph>

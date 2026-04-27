@@ -140,7 +140,14 @@ class BaseGrader(ABC):
         子类可覆盖以自定义解析逻辑。
         """
         try:
-            data = json.loads(response)
+            # Robust parsing: handle cases where LLM includes markdown code blocks
+            clean_response = response.strip()
+            if "```json" in clean_response:
+                clean_response = clean_response.split("```json")[1].split("```")[0].strip()
+            elif "```" in clean_response:
+                clean_response = clean_response.split("```")[1].split("```")[0].strip()
+            
+            data = json.loads(clean_response)
             score = float(data.get("score", 0.0))
             score = max(0.0, min(1.0, score))  # clamp
             reasoning = str(data.get("reasoning", ""))

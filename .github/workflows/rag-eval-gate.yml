@@ -1,0 +1,57 @@
+name: RAG Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/app/services/evaluation/**'
+      - 'backend/app/services/generation/**'
+      - 'backend/app/prompts/**'
+      - 'benchmarks/**'
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  rag-evaluation:
+    name: RAG Multidimensional Evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -e "."
+          pip install requests pydantic loguru sqlmodel aiosqlite
+
+      - name: Run RAG Evaluation Gate
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'siliconflow' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-ai/DeepSeek-V3' }}
+          DATABASE_URL: sqlite+aiosqlite:///./eval_temp.db
+        run: |
+          python scripts/rag_eval_cicd.py
+
+      - name: Publish Evaluation Report
+        if: always()
+        run: |
+          if [ -f rag_eval_report.md ]; then
+            cat rag_eval_report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Evaluation Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-evaluation-report
+          path: rag_eval_report.md
+          retention-days: 14

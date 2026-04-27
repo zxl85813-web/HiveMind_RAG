@@ -42,6 +42,7 @@ async def record_rag_trace(
     step_traces: list[str],
     user_id: str | None = None,
     is_error: bool = False,
+    quality_tier: str | None = None,
 ) -> None:
     """
     Persist a RAG query trace to PostgreSQL.
@@ -76,6 +77,7 @@ async def record_rag_trace(
                 is_error=is_error,
                 retrieved_doc_ids=retrieved_doc_ids,
                 step_traces=step_traces,
+                quality_tier=quality_tier,
                 p_hash=p_hash,
                 h_integrity=h_integrity
             )

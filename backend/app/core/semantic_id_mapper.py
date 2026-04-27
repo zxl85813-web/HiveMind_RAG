@@ -1,5 +1,6 @@
 """
 Semantic ID Mapper (2.1H)
+@covers REQ-008
 ==========================
 Converts opaque database UUIDs to human-readable [0]name, [1]name indexed
 identifiers in agent outputs, dramatically reducing model hallucination.

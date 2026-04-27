@@ -27,6 +27,7 @@ env
 tests/
 docs/
 *.md
+!README.md
 
 # CI/CD
 .github

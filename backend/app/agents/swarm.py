@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 import random
 from typing import Annotated, Any, Callable, Literal, TypedDict, Coroutine
@@ -137,7 +138,7 @@ class SwarmOrchestrator:
             "REFLECTION": "reflection", "FINISH": END, "supervisor": "supervisor"
         })
         
-        workflow.add_conditional_edges("reflection", self._route_after_reflection, {"supervisor": "supervisor", "FINISH": END})
+        workflow.add_conditional_edges("reflection", self._route_after_reflection, {"supervisor": "supervisor", "FINISH": END, "retrieval": "retrieval"})
         workflow.add_edge("parallel_worker", "consensus")
         workflow.add_edge("consensus", "reflection_decision")
 
@@ -181,9 +182,12 @@ class SwarmOrchestrator:
     
     def _create_agent_node(self, agent_def: AgentDefinition): return create_agent_node(self, agent_def)
     
-    def _route_after_reflection(self, state: SwarmState) -> Literal["supervisor", "FINISH"]:
+    def _route_after_reflection(self, state: SwarmState) -> Literal["supervisor", "FINISH", "retrieval"]:
         if state.get("reflection_count", 0) > 5: return "FINISH"
-        return state.get("next_step", "supervisor") if state.get("next_step") == "FINISH" else "supervisor"
+        step = state.get("next_step")
+        if step in ["FINISH", "retrieval", "supervisor"]:
+            return step
+        return "supervisor"
 
     async def invoke(self, user_message: str, conversation_id: str = "default") -> dict:
         await self.ensure_initialized()
@@ -216,6 +220,41 @@ class SwarmOrchestrator:
 
         async for event in self._graph.astream(initial_state, config=config, stream_mode="updates"):
             yield event
+
+    async def _execute_tool(self, tool_call: dict, available_tools: list, agent_name: str, state: dict) -> tuple[str, float]:
+        """Executes a single tool call with safety and timing tracking."""
+        t0 = time.monotonic()
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        
+        # 1. Find the tool
+        tool = next((t for t in available_tools if getattr(t, "name", "") == tool_name), None)
+        if not tool:
+            return f"Error: Tool '{tool_name}' not found.", 10.0
+
+        # 2. Safety Check: Destructive / Risky Actions (Claude Code inspired)
+        meta = getattr(tool, "_hive_meta", None)
+        if meta and meta.is_destructive:
+            logger.warning(f"⚠️ [Safety] {agent_name} attempted destructive action with {tool_name}")
+            # In a real system, we'd wait for user confirmation here.
+            # For now, we inject a system reminder into the result if not confirmed.
+            if not state.get("user_confirmed_destructive"):
+                return f"Error: The tool '{tool_name}' is marked as DESTRUCTIVE/RISKY. You must ask the user for explicit confirmation before executing this action.", 20.0
+
+        # 3. Execute
+        try:
+            logger.info(f"🛠️ [{agent_name}] Executing {tool_name}...")
+            # LangChain tools use ainvoke/invoke
+            if hasattr(tool, "ainvoke"):
+                result = await tool.ainvoke(tool_args)
+            else:
+                result = await tool(tool_args)
+            
+            duration = (time.monotonic() - t0) * 1000
+            return str(result), duration
+        except Exception as e:
+            logger.error(f"❌ Tool execution failed ({tool_name}): {e}")
+            return f"Error executing tool: {e!s}", (time.monotonic() - t0) * 1000
 
     def get_agents(self) -> dict[str, AgentDefinition]:
         """Return the dictionary of registered agents."""

@@ -1,0 +1,162 @@
+# RAG 质量评估流程 — 业务流程定义
+# 来源: Neo4j Knowledge Graph 自动生成 + 人工校准
+# 状态: APPROVED
+
+id: FLOW-EVAL-001
+name: RAG 质量评估流程
+description: 创建测试集 → 运行评估 → 查看报告 → 处理 Bad Case → 导出 SFT 数据的完整质量闭环。
+module: evaluation
+page: /evaluation
+generated_from: Neo4j Knowledge Graph (auto-generated + human-reviewed)
+review_status: APPROVED
+
+steps:
+  - seq: 1
+    name: 创建评估测试集
+    page: /evaluation
+    action: 点击"创建测试集"，填写名称和关联的知识库
+    api: POST /api/v1/evaluation/testset
+    handler: create_testset
+    request:
+      name: "V3 回归测试集"
+      kb_id: "{已有知识库 ID}"
+      description: "针对核心问答场景的回归测试"
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空"
+        - "data.kb_id == 请求中的 kb_id"
+    db_writes:
+      - table: evaluation_sets
+        assert: "新增一行"
+    permissions: [evaluation:run]
+    precondition: "用户已登录，至少有一个已索引的知识库"
+    output_variables:
+      set_id: "data.id"
+
+  - seq: 2
+    name: 运行评估
+    page: /evaluation
+    action: 选择测试集，点击"运行评估"
+    api: POST /api/v1/evaluation/{set_id}/evaluate
+    handler: run_evaluation
+    request:
+      set_id: "{step_1.set_id}"
+    response:
+      status_code: 200
+      assert:
+        - "data.id 不为空（report_id）"
+        - "data.status == 'completed'"
+    db_writes:
+      - table: evaluation_reports
+        assert: "新增一行，status 从 pending → running → completed"
+        initial_status: pending
+    state_transitions:
+      - entity: EvaluationReport
+        from: pending
+        to: running
+        trigger: "评估任务启动"
+      - entity: EvaluationReport
+        from: running
+        to: completed
+        trigger: "所有测试项评分完成"
+      - entity: EvaluationReport
+        from: running
+        to: failed
+        trigger: "评估过程异常"
+    permissions: [evaluation:run]
+    precondition: "step 1 完成，测试集中有评估项"
+    output_variables:
+      report_id: "data.id"
+
+  - seq: 3
+    name: 查看评估报告
+    page: /evaluation
+    action: 在报告列表中点击查看详情
+    api: GET /api/v1/evaluation/reports/{report_id}
+    handler: get_report_details
+    request:
+      report_id: "{step_2.report_id}"
+    response:
+      status_code: 200
+      assert:
+        - "data.faithfulness >= 0 且 <= 1"
+        - "data.answer_relevance >= 0 且 <= 1"
+        - "data.total_score >= 0 且 <= 1"
+        - "data.status == 'completed'"
+    permissions: [evaluation:run]
+    precondition: "step 2 完成且 status == 'completed'"
+
+  - seq: 4
+    name: 处理 Bad Case
+    page: /evaluation
+    action: 在 Bad Case 列表中标注人工修正答案
+    api: PUT /api/v1/evaluation/badcases/{case_id}
+    handler: update_badcase
+    request:
+      case_id: "{从报告中获取}"
+      expected_answer: "人工提供的正确答案"
+      status: "reviewed"
+    response:
+      status_code: 200
+    db_writes:
+      - table: bad_cases
+        assert: "status 从 pending → reviewed"
+    state_transitions:
+      - entity: BadCase
+        from: pending
+        to: reviewed
+        trigger: "人工标注正确答案"
+      - entity: BadCase
+        from: reviewed
+        to: added_to_dataset
+        trigger: "导出到 SFT 数据集"
+    precondition: "step 3 完成，存在 bad case"
+
+  - seq: 5
+    name: 导出到黄金测试集（触发认知学习）
+    page: /evaluation
+    action: 点击"提升到测试集"
+    api: POST /api/v1/evaluation/badcases/{case_id}/promote
+    handler: promote_badcase_to_gold
+    response:
+      status_code: 200
+      assert:
+        - "data.item_id 不为空"
+        - "data.message 包含 'Promoted'"
+    db_writes:
+      - table: bad_cases
+        assert: "status → added_to_dataset"
+      - table: evaluation_items
+        assert: "新增一行，question=原始问题, ground_truth=人工修正答案, category='hitl_correction'"
+      - table: evaluation_sets
+        assert: "如果不存在则自动创建"
+    state_transitions:
+      - entity: BadCase
+        from: reviewed
+        to: added_to_dataset
+        trigger: "promote 到黄金测试集"
+    side_effects:
+      - "BackgroundTask: experience_learner.learn_from_correction() 触发认知学习"
+    precondition: "step 4 完成，case 已有 expected_answer"
+
+error_paths:
+  - name: 测试集为空
+    at_step: 2
+    trigger: "evaluation_set 中没有 evaluation_items"
+    expected: "400 Bad Request 或返回空报告"
+
+  - name: 评估失败
+    at_step: 2
+    trigger: "LLM 调用异常或超时"
+    expected: "evaluation_reports.status = 'failed'"
+
+  - name: 权限不足
+    at_step: 1
+    trigger: "用户无 evaluation:run 权限"
+    expected: "403 Forbidden"
+
+  - name: 重复导出
+    at_step: 5
+    trigger: "bad_case.status 已经是 added_to_dataset"
+    expected: "操作被拒绝或幂等处理"

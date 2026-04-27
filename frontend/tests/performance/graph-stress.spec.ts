@@ -57,6 +57,34 @@ test.describe('GraphVisualizer Stress Test', () => {
       });
     });
 
+    // 🔒 [Auth Mock]: Bypass login wall
+    await page.addInitScript(() => {
+      const token = 'mock_token';
+      const userId = 'user_1';
+      localStorage.setItem('hm_access_token', token);
+      sessionStorage.setItem('hm_access_token', token);
+      localStorage.setItem('hm_active_user_id', userId);
+      sessionStorage.setItem('hm_active_user_id', userId);
+    });
+
+    await page.route('**/api/v1/auth/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: { id: 'user_1', username: 'admin', role: 'admin' }
+        })
+      });
+    });
+
+    await page.route('**/api/v1/auth/login', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ access_token: 'mock_token', token_type: 'bearer' })
+      });
+    });
+
     // Navigate to Knowledge Page (assuming routes)
     // 根据系统常见约定，访问知识库页面
     console.log('Navigating to app...');
@@ -78,10 +106,21 @@ test.describe('GraphVisualizer Stress Test', () => {
         const canvasVisibleTime = Date.now();
         
         console.log(`⏱️ Canvas DOM Mounted in: ${canvasVisibleTime - startTime}ms`);
+        
+        // 📊 [Metrics]: Capture browser performance state
+        const metrics = await page.metrics();
+        console.log(`📊 JSHeapUsedSize: ${(metrics.JSHeapUsedSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`📊 JSHeapTotalSize: ${(metrics.JSHeapTotalSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`📊 TaskDuration: ${metrics.TaskDuration}s`);
+        console.log(`📊 Nodes: ${metrics.Nodes}`);
 
         // 此时图谱引擎会开始解算力导向图结构 (D3-Force)
         // 给 5 秒钟的主线程运算时间，测试页面会不会崩溃
         await page.waitForTimeout(5000);
+
+        const finalMetrics = await page.metrics();
+        console.log(`📊 Final JSHeapUsedSize: ${(finalMetrics.JSHeapUsedSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`📊 Peak Memory Delta: ${((finalMetrics.JSHeapUsedSize - metrics.JSHeapUsedSize) / 1024 / 1024).toFixed(2)} MB`);
 
         // 如果没有抛出 pageerror 且 Canvas 依然在，说明引擎扛住了。
         const canvas = await page.$('canvas');

@@ -8,8 +8,8 @@ export const evalApi = {
     getTestsets: () =>
         api.get<ApiResponse<EvaluationSet[]>>('/evaluation/testsets'),
 
-    runEvaluation: (setId: string, modelName?: string) =>
-        api.post<ApiResponse<string>>(`/evaluation/${setId}/evaluate`, { model_name: modelName }),
+    runEvaluation: (setId: string, modelName?: string, applyReflection: boolean = false) =>
+        api.post<ApiResponse<string>>(`/evaluation/${setId}/evaluate`, { model_name: modelName, apply_reflection: applyReflection }),
 
     getReports: () =>
         api.get<ApiResponse<EvaluationReport[]>>('/evaluation/reports'),
@@ -27,7 +27,22 @@ export const evalApi = {
         api.delete<ApiResponse<string>>(`/evaluation/badcases/${caseId}`),
 
     getKBStats: (kbId: string) =>
-        api.get<ApiResponse<Record<string, unknown>>>(`/evaluation/stats/kb/${kbId}`)
+        api.get<ApiResponse<Record<string, unknown>>>(`/evaluation/stats/kb/${kbId}`),
+
+    promoteBadCase: (caseId: string) =>
+        api.post<ApiResponse<Record<string, any>>>(`/evaluation/badcases/${caseId}/promote`),
+
+    getDirectives: () =>
+        api.get<ApiResponse<any[]>>('/evaluation/directives'),
+
+    assistClaims: (answer: string) =>
+        api.post<ApiResponse<string[]>>('/evaluation/sme/assist-claims', { answer }),
+
+    verifySMEAnswer: (answer: string, context: string) =>
+        api.post<ApiResponse<{ is_consistent: boolean, issues: string[] }>>('/evaluation/sme/verify-consistency', { answer, context }),
+
+    submitSMEGoldCase: (question: string, answer: string, context?: string) =>
+        api.post<ApiResponse<string>>('/evaluation/sme/submit', { question, answer, context })
 };
 
 export default evalApi;

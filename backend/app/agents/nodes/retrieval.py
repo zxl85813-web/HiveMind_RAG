@@ -6,6 +6,8 @@ Extracted from swarm.py.
 import uuid
 from loguru import logger
 from app.agents.schemas import SwarmState
+from app.services.swarm_observability import record_swarm_span
+from app.models.observability import TraceStatus
 
 async def retrieval_node(orchestrator, state: SwarmState) -> dict:
     """
@@ -77,6 +79,24 @@ async def retrieval_node(orchestrator, state: SwarmState) -> dict:
         logger.warning(f"Retrieval work failed: {e}")
 
     node_id = f"retrieval_{uuid.uuid4().hex[:6]}"
+    
+    # --- 🔒 RECORD TRACE SPAN ---
+    trace_id = state.get("swarm_trace_id")
+    if trace_id:
+        import asyncio
+        asyncio.create_task(record_swarm_span(
+            trace_id=trace_id,
+            agent_name="retrieval",
+            instruction=f"Retrieve context for: {query[:50]}",
+            output=f"Found {len(retrieved_docs)} documents.",
+            latency_ms=0.0, # TODO: Track latency
+            status=TraceStatus.SUCCESS,
+            details={
+                "retrieved_doc_ids": [d.get("id") or d.get("metadata", {}).get("doc_id") for d in retrieved_docs],
+                "retrieval_trace": retrieval_trace
+            }
+        ))
+
     return {
         "context_data": context_str,
         "last_node_id": node_id,

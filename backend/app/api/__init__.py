@@ -26,6 +26,9 @@ from app.api.routes import (
     websocket,
     auth,
     governance,
+    red_team,
+    logs,
+    performance,
 )
 
 router = APIRouter()
@@ -51,3 +54,6 @@ router.include_router(llm_config.router, prefix="/settings/llm", tags=["LLM Gove
 router.include_router(observability.router, prefix="/observability", tags=["Observability"])
 router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(governance.router, prefix="/governance", tags=["Internal Governance"])
+router.include_router(red_team.router, prefix="/red-team", tags=["Red Team"])
+router.include_router(logs.router, prefix="/logs", tags=["Logs Ingestion"])
+router.include_router(performance.router, prefix="/performance", tags=["Performance & DB Lab"])

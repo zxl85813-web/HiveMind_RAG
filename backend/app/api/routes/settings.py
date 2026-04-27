@@ -3,6 +3,8 @@ Settings API — 平台内置知识库管理。
 
 提供 CRUD 接口读写 platform_knowledge.yaml,
 并在保存后自动 reload PromptEngine。
+
+@covers REQ-014
 """
 
 from pathlib import Path

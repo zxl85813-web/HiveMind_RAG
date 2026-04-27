@@ -128,6 +128,9 @@ class RAGQueryTrace(SQLModel, table=True):
     # Per-step trace log from RetrievalContext.trace_log
     step_traces: list[str] = Field(default_factory=list, sa_type=JSON)
 
+    # [AEC-G1] Quality Monitoring
+    quality_tier: str | None = Field(default=None, index=True) # EXCELLENT, GOOD, LOW_RELEVANCE, FAIL
+
     # Phase 1: Predictive Prefetching & Latency Governance
     prefetch_hit: bool = Field(default=False, index=True)
     intent_predicted: str | None = Field(default=None, index=True)
@@ -168,6 +171,7 @@ class SwarmTrace(SQLModel, table=True):
     # Quality feedback from Reflection
     quality_score: float | None = Field(default=None)
 
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
@@ -192,6 +196,7 @@ class SwarmSpan(SQLModel, table=True):
     tokens: int = Field(default=0)
     latency_ms: float = Field(default=0.0)
 
+    details: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 

@@ -1,6 +1,8 @@
 """
 Unified Knowledge Retrieval Protocol
 Defines the contract between retrieval services and consumers (Agents/UI).
+
+@covers REQ-008
 """
 
 from typing import Any
@@ -17,6 +19,13 @@ class KnowledgeFragment(BaseModel):
     chunk_index: int
 
 
+class KnowledgeQuality(BaseModel):
+    max_score: float = 0.0
+    avg_score: float = 0.0
+    is_satisfactory: bool = True
+    quality_tier: str = "GOOD"  # EXCELLENT, GOOD, LOW_RELEVANCE, FAIL
+
+
 class KnowledgeResponse(BaseModel):
     query: str
     fragments: list[KnowledgeFragment]
@@ -24,6 +33,7 @@ class KnowledgeResponse(BaseModel):
     processing_time_ms: float
     retrieval_strategy: str = "hybrid"
     context_summary: str | None = None
+    quality: KnowledgeQuality = Field(default_factory=KnowledgeQuality)
     warnings: list[str] = Field(default_factory=list)
     step_traces: list[str] = Field(default_factory=list)
 
