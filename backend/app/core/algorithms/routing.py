@@ -41,9 +41,15 @@ class SemanticRouter:
 
     def add_route(self, route: Route):
         """Pre-compute and cache embeddings for a route."""
-        emb_service = get_embedding_service()
-        embs = [emb_service.embed_query(u) for u in route.utterances]
-        self._route_cache[route.name] = embs
+        try:
+            emb_service = get_embedding_service()
+            embs = [emb_service.embed_query(u) for u in route.utterances]
+            self._route_cache[route.name] = embs
+        except Exception as e:
+            # Fallback: store empty embeddings to allow startup to continue
+            # The route will have zero similarity and fall back to default
+            print(f"⚠️ Failed to compute embeddings for route '{route.name}': {e}")
+            self._route_cache[route.name] = [[0.0] * 2048 for _ in route.utterances]
 
     async def route(self, text: str, routes: list[Route], threshold: float = 0.5) -> RoutingDecision:
         """
