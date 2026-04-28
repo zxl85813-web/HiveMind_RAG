@@ -1,3 +1,20 @@
+# =============================================================================
+# RAG Quality Gate — Policy-Controlled Evaluation
+# =============================================================================
+# 改造要点:
+#   1. 触发条件过滤：feature PR 使用 Mock，develop push 仅 RAG 核心路径变更时触发真实评估
+#   2. 预算检查：每日 80% / 每月 90% 时自动降级为 Mock 模式
+#   3. Mock 模式：零 LLM API 调用，仅验证流程完整性
+#   4. 成本追踪：每次真实评估后更新成本缓存
+#
+# 触发规则（与 harness/policies/rag_eval_trigger_policy.rego 保持一致）:
+#   workflow_dispatch → 始终真实评估
+#   main push         → 始终真实评估（预算充足时）
+#   release/* PR→main → 始终真实评估（预算充足时）
+#   develop push      → 仅 RAG 核心路径变更时真实评估
+#   feature PR→develop → Mock 评估（零成本）
+# =============================================================================
+
 name: RAG Quality Gate
 
 on:
@@ -7,30 +24,108 @@ on:
       - 'backend/app/services/evaluation/**'
       - 'backend/app/services/generation/**'
       - 'backend/app/prompts/**'
+      - 'backend/app/services/rag_gateway.py'
+      - 'backend/app/services/retrieval/**'
       - 'benchmarks/**'
+      - '.github/workflows/rag-eval-gate.yml'
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      force_real_eval:
+        description: "Force real LLM evaluation (ignore budget)"
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  # 预算上限（与 settings.py 中的 BUDGET_DAILY_LIMIT_USD 保持一致）
+  LLM_DAILY_LIMIT_USD: '10.0'
+  LLM_MONTHLY_LIMIT_USD: '100.0'
 
 jobs:
-  rag-evaluation:
-    name: RAG Multidimensional Evaluation
+  # ── Job 1: 预算检查 + 触发决策 ───────────────────────────────────────────
+  budget-guard:
+    name: 💰 Budget Guard & Trigger Policy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      eval_mode:         ${{ steps.guard.outputs.eval_mode }}
+      eval_reason:       ${{ steps.guard.outputs.eval_reason }}
+      should_run_real:   ${{ steps.guard.outputs.should_run_real }}
+      should_run_mock:   ${{ steps.guard.outputs.should_run_mock }}
+      daily_usage_pct:   ${{ steps.guard.outputs.daily_usage_pct }}
+      monthly_usage_pct: ${{ steps.guard.outputs.monthly_usage_pct }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # 需要 diff 来获取变更文件列表
+
+      - name: Get changed files
+        id: changed_files
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || echo "")
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          fi
+          echo "Changed files:"
+          echo "$CHANGED"
+          # 转为单行空格分隔，写入输出
+          CHANGED_ONELINE=$(echo "$CHANGED" | tr '\n' ' ')
+          echo "paths=${CHANGED_ONELINE}" >> $GITHUB_OUTPUT
+
+      - name: Restore cost cache
+        uses: actions/cache@v4
+        with:
+          path: .ci_cost_cache.json
+          key: llm-cost-cache-${{ github.repository }}
+          restore-keys: llm-cost-cache-
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
+      - name: Run Budget Guard
+        id: guard
         run: |
-          cd backend
-          pip install -e "."
-          pip install requests pydantic loguru sqlmodel aiosqlite
+          python scripts/ci/rag_eval_budget_guard.py \
+            --event "${{ github.event_name }}" \
+            --branch "${{ github.ref_name }}" \
+            --source-branch "${{ github.head_ref || '' }}" \
+            --changed-paths "${{ steps.changed_files.outputs.paths }}" \
+            --daily-limit ${{ env.LLM_DAILY_LIMIT_USD }} \
+            --monthly-limit ${{ env.LLM_MONTHLY_LIMIT_USD }} \
+            ${{ github.event.inputs.force_real_eval == 'true' && '--force-real' || '' }}
+        env:
+          CI_DAILY_LLM_COST_USD: ${{ vars.CI_DAILY_LLM_COST_USD || '0' }}
+          CI_MONTHLY_LLM_COST_USD: ${{ vars.CI_MONTHLY_LLM_COST_USD || '0' }}
+
+      - name: Save cost cache
+        if: steps.guard.outputs.should_run_real == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .ci_cost_cache.json
+          key: llm-cost-cache-${{ github.repository }}
+
+  # ── Job 2a: 真实 LLM 评估（仅在 budget-guard 决策为 real_eval 时运行）────
+  rag-real-evaluation:
+    name: 🔬 RAG Real Evaluation
+    needs: budget-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: needs.budget-guard.outputs.should_run_real == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend Setup
+        uses: ./.github/actions/backend-setup
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          install-extras: "requests pydantic loguru sqlmodel aiosqlite"
+          working-directory: backend
 
       - name: Run RAG Evaluation Gate
         env:
@@ -39,12 +134,17 @@ jobs:
           LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-ai/DeepSeek-V3' }}
           DATABASE_URL: sqlite+aiosqlite:///./eval_temp.db
         run: |
-          python scripts/rag_eval_cicd.py
+          cd backend
+          python ../scripts/rag_eval_cicd.py
 
       - name: Publish Evaluation Report
         if: always()
         run: |
           if [ -f rag_eval_report.md ]; then
+            echo "## 🔬 RAG Real Evaluation Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> Mode: **Real LLM** | Reason: ${{ needs.budget-guard.outputs.eval_reason }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             cat rag_eval_report.md >> $GITHUB_STEP_SUMMARY
           fi
 
@@ -52,6 +152,78 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rag-evaluation-report
+          name: rag-evaluation-report-real
           path: rag_eval_report.md
-          retention-days: 14
+          retention-days: 30
+
+  # ── Job 2b: Mock 评估（feature PR 或预算超出时）──────────────────────────
+  rag-mock-evaluation:
+    name: 🎭 RAG Mock Evaluation (Zero Cost)
+    needs: budget-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: needs.budget-guard.outputs.should_run_mock == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run Mock Evaluation
+        run: python scripts/ci/rag_eval_mock.py
+
+      - name: Publish Mock Report
+        if: always()
+        run: |
+          if [ -f rag_eval_report.md ]; then
+            echo "## 🎭 RAG Mock Evaluation Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> Mode: **Mock (Zero Cost)** | Reason: ${{ needs.budget-guard.outputs.eval_reason }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            cat rag_eval_report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Mock Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-evaluation-report-mock
+          path: rag_eval_report.md
+          retention-days: 7
+
+  # ── Job 3: 汇总（确保 PR Check 始终有结果）──────────────────────────────
+  eval-summary:
+    name: 📊 Evaluation Summary
+    needs: [budget-guard, rag-real-evaluation, rag-mock-evaluation]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write final summary
+        run: |
+          MODE="${{ needs.budget-guard.outputs.eval_mode }}"
+          REASON="${{ needs.budget-guard.outputs.eval_reason }}"
+          DAILY_PCT="${{ needs.budget-guard.outputs.daily_usage_pct }}"
+          MONTHLY_PCT="${{ needs.budget-guard.outputs.monthly_usage_pct }}"
+
+          REAL_RESULT="${{ needs.rag-real-evaluation.result }}"
+          MOCK_RESULT="${{ needs.rag-mock-evaluation.result }}"
+
+          echo "## 📊 RAG Evaluation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | \`${MODE}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Reason | ${REASON} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Daily Budget | ${DAILY_PCT}% of \$${{ env.LLM_DAILY_LIMIT_USD }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Monthly Budget | ${MONTHLY_PCT}% of \$${{ env.LLM_MONTHLY_LIMIT_USD }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$REAL_RESULT" == "failure" ]]; then
+            echo "::error::RAG real evaluation FAILED. Check the evaluation report."
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Evaluation pipeline completed." >> $GITHUB_STEP_SUMMARY

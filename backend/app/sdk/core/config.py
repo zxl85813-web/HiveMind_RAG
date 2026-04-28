@@ -150,6 +150,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     TAVILY_API_KEY: str = ""
 
+    # === Harness Feature Flags ===
+    # SDK Key 在 Harness UI → Feature Flags → Environments → SDK Keys 中获取
+    # 未配置时自动降级到 settings 环境变量
+    HARNESS_FF_SDK_KEY: str = ""
+
     # === External Learning ===
     LEARNING_FETCH_INTERVAL_HOURS: int = 6
     GITHUB_TOKEN: str = ""

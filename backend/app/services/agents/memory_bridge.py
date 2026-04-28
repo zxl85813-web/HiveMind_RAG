@@ -61,14 +61,38 @@ class SwarmMemoryBridge:
                 logger.warning(f"Memory search failed: {e}")
                 context = ""
 
-            # 3. Reflection Log Retrieval
+            # 3. Reflection Log Retrieval (M9.1.3: 向量语义匹配 + 关键词兜底)
             reflection_context = ""
             try:
-                reflections = await self.shared_mgr.get_reflections(limit=5)
+                reflections = await self.shared_mgr.get_reflections(limit=10)
+
+                # 尝试用向量语义匹配（如果 MemoryService 可用）
+                matched_reflections = []
+                try:
+                    # 用 MemoryService 做语义搜索，找到与 query 语义相关的反思
+                    semantic_results = await self.memory_svc.search(query, top_k=5)
+                    semantic_keywords = set()
+                    for sr in semantic_results:
+                        # 提取语义搜索结果中的关键词
+                        content = sr.get("content", "") if isinstance(sr, dict) else str(sr)
+                        semantic_keywords.update(w.lower() for w in content.split() if len(w) > 3)
+                except Exception:
+                    semantic_keywords = set()
+
                 for r in reflections:
-                    if any(kw in query.lower() for kw in (r.topic or "").lower().split()) or \
-                       any(kw in query.lower() for kw in (r.match_key or "").lower().split()):
-                        
+                    # 方式 1: 原始关键词匹配
+                    keyword_match = (
+                        any(kw in query.lower() for kw in (r.topic or "").lower().split()) or
+                        any(kw in query.lower() for kw in (r.match_key or "").lower().split())
+                    )
+                    # 方式 2: 语义关键词交叉匹配（M9.1.3 新增）
+                    semantic_match = False
+                    if semantic_keywords:
+                        r_words = set(w.lower() for w in (r.summary or "").split() if len(w) > 3)
+                        semantic_match = len(r_words & semantic_keywords) >= 2
+
+                    if keyword_match or semantic_match:
+                        matched_reflections.append(r)
                         reflection_context += f"\n- [Past Reflection/{r.signal_type}] {r.summary}"
                         if r.confidence_score < 0.6 or r.action_taken == "PENDING_TODO":
                             is_high_risk = True
@@ -76,6 +100,9 @@ class SwarmMemoryBridge:
                         directive = r.details.get("analysis", {}).get("cognitive_directive") or r.details.get("directive")
                         if directive:
                             directives.append(directive)
+
+                if matched_reflections:
+                    logger.info(f"[SwarmMemory] Matched {len(matched_reflections)} reflections (keyword+semantic)")
             except Exception as e:
                 logger.warning(f"Reflection lookup failed: {e}")
 

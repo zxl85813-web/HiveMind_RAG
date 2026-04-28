@@ -81,6 +81,14 @@ class SwarmOrchestrator:
             if not self._initialized:
                 await self.mcp.load_config(settings.MCP_SERVERS_CONFIG_PATH)
                 await self.mcp.connect_all()
+                # M9.4.2: 将 MCP 工具注册到 ToolIndex，使 Agent 可通过语义发现调用
+                mcp_tools = self.mcp.get_tools()
+                if mcp_tools:
+                    self.tool_index._tools.extend(mcp_tools)
+                    self.tool_index._index.update({
+                        getattr(t, "name", str(t)): t for t in mcp_tools
+                    })
+                    logger.info(f"🔧 [MCP→ToolIndex] Registered {len(mcp_tools)} MCP tools into ToolIndex")
                 await self.tool_index.initialize_embeddings()
                 await self.build_graph()
                 self._initialized = True

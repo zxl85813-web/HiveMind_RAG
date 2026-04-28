@@ -733,6 +733,31 @@ class LearningService:
             len(discoveries),
             min_score,
         )
+
+        # 🔗 M9.1.2: 自动触发 RAG 入库（fire-and-forget）
+        if discoveries:
+            import asyncio as _asyncio
+
+            async def _auto_ingest():
+                ingested = 0
+                for disc in discoveries:
+                    try:
+                        await LearningService.ingest_discovery(disc.id)
+                        ingested += 1
+                    except Exception as e:
+                        logger.debug(f"[ExternalCrawl] Auto-ingest skipped for {disc.id}: {e}")
+                if ingested:
+                    logger.info(f"[ExternalCrawl] Auto-ingested {ingested}/{len(discoveries)} discoveries into RAG.")
+
+            try:
+                loop = _asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(_auto_ingest())
+                else:
+                    await _auto_ingest()
+            except Exception as e:
+                logger.debug(f"[ExternalCrawl] Auto-ingest scheduling failed: {e}")
+
         return discoveries
 
     @staticmethod

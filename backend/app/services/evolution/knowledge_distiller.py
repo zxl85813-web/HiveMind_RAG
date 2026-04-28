@@ -1,4 +1,5 @@
 
+import asyncio
 import json
 from loguru import logger
 from sqlmodel import select, desc
@@ -124,6 +125,20 @@ class KnowledgeDistiller:
                     await session.commit()
                     distilled_count += 1
                     logger.success(f"✅ Distilled directive for {topic}")
+
+                    # 🛡️ M9.1.1: 自动转化为 HarnessPolicy 图谱节点
+                    try:
+                        from app.sdk.harness.graph_integration import directive_to_harness_policy
+
+                        directive_obj = existing if existing else new_directive
+                        asyncio.create_task(directive_to_harness_policy(
+                            directive_id=directive_obj.id,
+                            topic=topic,
+                            directive_text=data["directive"],
+                            confidence=data.get("confidence", 0.0),
+                        ))
+                    except Exception as graph_exc:
+                        logger.debug(f"HarnessPolicy graph write skipped: {graph_exc}")
                     
                 except Exception as e:
                     logger.error(f"Failed to distill group {topic}: {e}")

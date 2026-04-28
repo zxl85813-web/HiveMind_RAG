@@ -31,6 +31,7 @@ from app.services.observability_service import (
 )
 from app.services.rate_limit_governance import rate_limit_governance_center
 from app.services.service_governance import get_topology_snapshot
+from app.sdk.feature_flags import ff
 
 router = APIRouter()
 
@@ -155,6 +156,228 @@ async def update_claw_router_governance_config(
 ):
     updated = claw_router_governance.update_config(payload.model_dump(exclude_none=True))
     return ApiResponse.ok(data=updated)
+
+
+# ---------------------------------------------------------------------------
+# Feature Flags
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/feature-flags",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="Feature Flags 当前状态快照",
+)
+async def get_feature_flags_snapshot(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    返回所有 Feature Flag 的当前值、来源（harness | settings | default）和说明。
+
+    用于运维侧实时查看哪些 AI 功能开关处于什么状态，以及值来自哪一层。
+    """
+    return ApiResponse.ok(data=ff.get_snapshot())
+
+
+@router.post(
+    "/feature-flags/invalidate",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="清除 Feature Flags 本地缓存（强制从 Harness 重新拉取）",
+)
+async def invalidate_feature_flags_cache(
+    flag_key: str | None = Query(default=None, description="指定 flag key，为空则清除全部缓存"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    强制清除本地 TTL 缓存，下次请求时从 Harness FF 重新拉取最新值。
+    在 Harness 控制台修改 flag 后，可调用此接口立即生效（无需等待 30s TTL）。
+    """
+    ff.invalidate(flag_key)
+    # 🏗️ 同步清除 Prompt 缓存（Feature Flag 变更可能影响 Harness 规则）
+    try:
+        from app.sdk.harness.prompt_assembler import invalidate_prompt_cache
+        import asyncio
+        await invalidate_prompt_cache()
+    except Exception:
+        pass
+    return ApiResponse.ok(data={
+        "invalidated": flag_key or "all",
+        "message": "Cache cleared. Next request will fetch from Harness FF.",
+    })
+
+
+# ---------------------------------------------------------------------------
+# Harness Engine Observability (M8.2.1 / M8.2.2)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/harness/dashboard",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[M8.2.1] Harness Engine 仪表盘",
+)
+async def get_harness_dashboard(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    返回 Harness Engine 的运行时状态：
+
+    - 已注册的策略列表及其绑定的 Agent
+    - 图谱中的 HarnessCheck 统计（通过率、拦截率、Top 失败策略）
+    - 最近 24h 的检查记录摘要
+    """
+    from app.sdk.harness.engine import get_harness_engine
+
+    engine = get_harness_engine()
+
+    # 1. 策略注册表
+    policy_registry = []
+    for agent_name, policies in engine._agent_policies.items():
+        for p in policies:
+            policy_registry.append({
+                "agent": agent_name,
+                "policy": p.name,
+                "level": p.default_level,
+                "type": "agent_specific",
+            })
+    for p in engine._global_policies:
+        policy_registry.append({
+            "agent": "*",
+            "policy": p.name,
+            "level": p.default_level,
+            "type": "global",
+        })
+
+    # 2. 图谱统计（best-effort）
+    graph_stats = {"total_checks": 0, "passed": 0, "failed": 0, "top_failures": []}
+    try:
+        from app.sdk.core.graph_store import get_graph_store
+
+        store = get_graph_store()
+
+        # 总检查数和通过率
+        count_result = await store.execute_query(
+            "MATCH (hc:HarnessCheck) "
+            "WHERE hc.created_at > timestamp() - 86400000 "  # 24h in ms
+            "RETURN count(hc) as total, "
+            "       sum(CASE WHEN hc.passed THEN 1 ELSE 0 END) as passed, "
+            "       sum(CASE WHEN NOT hc.passed THEN 1 ELSE 0 END) as failed"
+        )
+        if count_result:
+            row = count_result[0]
+            graph_stats["total_checks"] = row.get("total", 0)
+            graph_stats["passed"] = row.get("passed", 0)
+            graph_stats["failed"] = row.get("failed", 0)
+
+        # Top 失败策略
+        top_result = await store.execute_query(
+            "MATCH (hc:HarnessCheck {passed: false})-[:ENFORCED_BY]->(hp:HarnessPolicy) "
+            "WHERE hc.created_at > timestamp() - 86400000 "
+            "RETURN hp.name as policy, count(hc) as fail_count "
+            "ORDER BY fail_count DESC LIMIT 5"
+        )
+        graph_stats["top_failures"] = [
+            {"policy": r.get("policy", ""), "count": r.get("fail_count", 0)}
+            for r in (top_result or [])
+        ]
+    except Exception:
+        pass  # 图谱不可用时返回空统计
+
+    return ApiResponse.ok(data={
+        "policy_registry": policy_registry,
+        "graph_stats": graph_stats,
+    })
+
+
+@router.post(
+    "/harness/steering/run",
+    response_model=ApiResponse[dict[str, Any]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[M8.2.3] 手动触发 Steering Loop",
+)
+async def run_harness_steering_loop(
+    window_hours: int = Query(default=24, ge=1, le=168, description="分析时间窗口（小时）"),
+    failure_threshold: int = Query(default=5, ge=1, le=100, description="高频失败阈值"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    手动触发 Harness Steering Loop：分析高频失败策略，自动生成新 Feedforward 规则。
+
+    流程:
+    1. 查询图谱中过去 N 小时的 HarnessCheck 失败记录
+    2. 按策略聚合，找出失败次数超过阈值的策略
+    3. 为高频失败的 Agent 自动生成新的 HarnessPolicy 节点
+    """
+    from app.sdk.harness.graph_integration import run_steering_loop
+
+    result = await run_steering_loop(
+        window_hours=window_hours,
+        failure_threshold=failure_threshold,
+    )
+    return ApiResponse.ok(data=result)
+
+
+@router.get(
+    "/harness/checks",
+    response_model=ApiResponse[list[dict[str, Any]]],
+    dependencies=[Depends(require_permission(Permission.SYSTEM_CONFIG))],
+    summary="[M8.2.2] Harness 检查记录查询",
+)
+async def get_harness_checks(
+    trace_id: str | None = Query(default=None, description="按 Swarm Trace ID 过滤"),
+    agent_name: str | None = Query(default=None, description="按 Agent 名称过滤"),
+    passed: bool | None = Query(default=None, description="按通过状态过滤"),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    查询图谱中的 HarnessCheck 记录。
+
+    支持按 trace_id、agent_name、passed 状态过滤。
+    返回检查详情及关联的 HarnessPolicy。
+    """
+    try:
+        from app.sdk.core.graph_store import get_graph_store
+
+        store = get_graph_store()
+
+        # 构建动态 WHERE 子句
+        conditions = []
+        params: dict[str, Any] = {"limit": limit}
+
+        if trace_id:
+            conditions.append("hc.trace_id = $trace_id")
+            params["trace_id"] = trace_id
+        if agent_name:
+            conditions.append("hc.agent_name = $agent_name")
+            params["agent_name"] = agent_name
+        if passed is not None:
+            conditions.append("hc.passed = $passed")
+            params["passed"] = passed
+
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+        cypher = f"""
+        MATCH (hc:HarnessCheck)
+        {where_clause}
+        OPTIONAL MATCH (hc)-[:ENFORCED_BY]->(hp:HarnessPolicy)
+        RETURN hc.id as id, hc.trace_id as trace_id, hc.agent_name as agent_name,
+               hc.task_id as task_id, hc.passed as passed,
+               hc.error_count as error_count, hc.warning_count as warning_count,
+               hc.latency_ms as latency_ms, hc.created_at as created_at,
+               collect(hp.name) as policies
+        ORDER BY hc.created_at DESC
+        LIMIT $limit
+        """
+
+        results = await store.execute_query(cypher, params)
+        return ApiResponse.ok(data=results or [])
+
+    except Exception as e:
+        return ApiResponse.ok(data=[], message=f"Graph query unavailable: {e}")
 
 
 # ---------------------------------------------------------------------------

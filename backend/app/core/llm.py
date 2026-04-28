@@ -18,6 +18,7 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.llm.tracker import TokenTracker
+from app.sdk.feature_flags import ff
 from app.services.claw_router_governance import claw_router_governance
 from app.services.dependency_circuit_breaker import breaker_manager
 from app.services.fallback_orchestrator import fallback_orchestrator
@@ -273,20 +274,23 @@ class LLMService:
 
             # For NVIDIA reasoning tier, inject thinking mode via extra_body
             if tier == "reasoning" and active_client is self._nvidia_client:
+                # 通过 Feature Flag 动态控制推理模式，无需重启服务
+                thinking_enabled = ff.get_bool("nvidia_thinking_enabled", default=settings.NVIDIA_THINKING_ENABLED)
+                reasoning_effort = ff.get_str("nvidia_reasoning_effort", default=settings.NVIDIA_REASONING_EFFORT)
                 extra_body = {
                     **(extra_body or {}),
                     "chat_template_kwargs": {
-                        "thinking": settings.NVIDIA_THINKING_ENABLED,
-                        "reasoning_effort": settings.NVIDIA_REASONING_EFFORT,
+                        "thinking": thinking_enabled,
+                        "reasoning_effort": reasoning_effort,
                     },
                 }
                 # NVIDIA NIM reasoning model overrides the ClawRouter model name
                 target_model = settings.NVIDIA_REASONING_MODEL
                 logger.info(
-                    "[LLMService] 🧠 NVIDIA NIM reasoning — model={} thinking={} effort={}",
+                    "[LLMService] 🧠 NVIDIA NIM reasoning — model={} thinking={} effort={} (source: ff)",
                     target_model,
-                    settings.NVIDIA_THINKING_ENABLED,
-                    settings.NVIDIA_REASONING_EFFORT,
+                    thinking_enabled,
+                    reasoning_effort,
                 )
 
             async def _invoke():
@@ -360,16 +364,18 @@ class LLMService:
 
             if tier == "reasoning" and active_client is self._nvidia_client:
                 target_model = settings.NVIDIA_REASONING_MODEL
+                thinking_enabled = ff.get_bool("nvidia_thinking_enabled", default=settings.NVIDIA_THINKING_ENABLED)
+                reasoning_effort = ff.get_str("nvidia_reasoning_effort", default=settings.NVIDIA_REASONING_EFFORT)
                 stream_extra_body = {
                     "chat_template_kwargs": {
-                        "thinking": settings.NVIDIA_THINKING_ENABLED,
-                        "reasoning_effort": settings.NVIDIA_REASONING_EFFORT,
+                        "thinking": thinking_enabled,
+                        "reasoning_effort": reasoning_effort,
                     }
                 }
                 logger.info(
-                    "[LLMService] 🧠 NVIDIA NIM streaming — model={} effort={}",
+                    "[LLMService] 🧠 NVIDIA NIM streaming — model={} effort={} (source: ff)",
                     target_model,
-                    settings.NVIDIA_REASONING_EFFORT,
+                    reasoning_effort,
                 )
 
             async def _invoke_stream_create():

@@ -1,5 +1,14 @@
-# develop 分支集成 CI (功能合并后 & develop 上直接 push 时触发)
-# 跑完整的 Lint + Type + Unit + Integration Test + 构建预览
+# =============================================================================
+# Develop CI — develop 分支集成检查
+# =============================================================================
+# 触发: push 到 develop（功能合并后 & develop 上直接 push）
+# 作用: 完整的 Lint + Type + Unit + Integration Test + 并行治理门禁
+#
+# Job 结构:
+#   backend-lint ──────────────────────────────────────────────┐
+#   backend-test (needs: backend-lint) ────────────────────────┤─→ governance (needs: backend-test)
+#   frontend-full (独立，与 backend 并行) ─────────────────────┘
+# =============================================================================
 name: Develop CI (Integration Check)
 
 on:
@@ -10,23 +19,16 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - '.github/workflows/develop-ci.yml'
+      - '.github/workflows/governance-gates.yml'
 
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '20'
-  SG7_MAX_ERROR_BUDGET: '0.65'
-  SG7_MAX_DEGRADE_TRIGGER_RATIO: '0.75'
-  SG7_MAX_MTTR_SEC: '60'
-  SG3_MIN_COST_REDUCTION_RATIO: '0.10'
-  SG3_MAX_QUALITY_REGRESSION: '0.03'
-  SG1_WINDOW_HOURS: '24'
-  SG1_MIN_REPORTS: '1'
-  SG1_MAX_GLOBAL_ERROR_BUDGET: '0.28'
-  SG1_MAX_STEADY_BLOCK_RATIO: '0.15'
 
 jobs:
-  backend-full:
-    name: 🐍 Backend Full CI (Lint + Type + Unit + Integration)
+  # ── Backend Lint ──────────────────────────────────────────────────────────
+  backend-lint:
+    name: 🔍 Backend Lint & Format
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,14 +36,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: pip
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]" && pip install types-aiofiles
+      - name: Install lint tools
+        run: pip install ruff black
 
       - name: Ruff (Linter)
         run: ruff check . --output-format=github
@@ -49,11 +51,49 @@ jobs:
       - name: Black (Formatter Check)
         run: black --check --diff .
 
+  # ── Backend Type Check（与 test 并行）────────────────────────────────────
+  backend-typecheck:
+    name: 🔎 Backend Type Check (mypy)
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" && pip install types-aiofiles
+
       - name: Mypy (Type Check)
         run: mypy app/ --ignore-missing-imports
         continue-on-error: true
-        # Note: mypy check is informational only (continue-on-error: true)
-        # Project uses strict=false in pyproject.toml due to incomplete stubs
+
+  # ── Backend Tests（门禁前提）─────────────────────────────────────────────
+  backend-test:
+    name: 🧪 Backend Full Tests (Unit + Integration)
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
 
       - name: Create test .env
         run: |
@@ -69,23 +109,8 @@ jobs:
           SECRET_KEY=ci-test-secret-key
           EOF
 
-      - name: Run Full Tests (Unit + Integration, Coverage > 80%)
+      - name: Run Full Tests (Coverage > 80%)
         run: pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
-
-      - name: Phase 5 Step-3 Gate (Circuit Breaker Convergence)
-        run: python scripts/validate_step3_circuit_breaker.py --deps llm es neo4j
-
-      - name: Phase 5 Step-6 Drill (SG-007)
-        run: python scripts/run_sg007_governance_drills.py --steady-requests 120 --spike-requests 260 --chaos-requests 80 --open-duration-sec 1.2 --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }}
-
-      - name: Phase 5 Step-5/6 Cost-Quality Gate (SG-3)
-        run: python scripts/validate_step5_sg3_cost_quality.py --samples 260 --baseline premium --min-cost-reduction-ratio ${{ env.SG3_MIN_COST_REDUCTION_RATIO }} --max-quality-regression ${{ env.SG3_MAX_QUALITY_REGRESSION }} --enforce
-
-      - name: Phase 5 GATE-SG-1 Rolling Window
-        run: python scripts/validate_gate_sg1_stability_window.py --window-hours ${{ env.SG1_WINDOW_HOURS }} --min-reports ${{ env.SG1_MIN_REPORTS }} --max-global-error-budget ${{ env.SG1_MAX_GLOBAL_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --enforce
-
-      - name: Phase 5 Step-7 Gate (Unified Go/No-Go)
-        run: python scripts/validate_step7_governance_gates.py --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --min-run-duration-sec 0 --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }} --max-convergence-ms 60000 --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --enforce
 
       - name: Upload Coverage Report
         if: always()
@@ -94,41 +119,7 @@ jobs:
           name: backend-coverage-develop
           path: backend/coverage.xml
 
-      - name: Upload Step-3 Gate Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step3-cb-report-develop
-          path: backend/logs/service_governance/
-
-      - name: Upload Step-6 Drill Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step6-sg007-report-develop
-          path: backend/logs/service_governance/sg007_drill_report*
-
-      - name: Upload SG-3 Cost-Quality Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step5-sg3-report-develop
-          path: backend/logs/service_governance/step5_sg3_cost_quality_report*
-
-      - name: Upload SG-1 Window Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gate-sg1-window-report-develop
-          path: backend/logs/service_governance/gate_sg1_window_report*
-
-      - name: Upload Step-7 Gate Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step7-gate-report-develop
-          path: backend/logs/service_governance/step7_gate_report*
-
+  # ── Frontend（与 backend 完全并行）───────────────────────────────────────
   frontend-full:
     name: ⚛️ Frontend Full CI (Lint + Type + Test + Build)
     runs-on: ubuntu-latest
@@ -138,11 +129,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
@@ -169,3 +160,13 @@ jobs:
         with:
           name: frontend-coverage-develop
           path: frontend/coverage/
+
+  # ── Governance Gates（并行，调用 reusable workflow）──────────────────────
+  governance:
+    name: 🛡️ Governance Gates
+    needs: backend-test
+    uses: ./.github/workflows/governance-gates.yml
+    with:
+      profile: develop
+      artifact_suffix: develop
+      run_closure_check: false

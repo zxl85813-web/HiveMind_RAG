@@ -66,6 +66,21 @@ class ExperienceLearner:
             await db.refresh(directive)
             
             logger.info(f"✨ [ExperienceLearner] New Directive Created: {directive.directive}")
+
+            # 🛡️ M9.1.1: 自动转化为 HarnessPolicy 图谱节点
+            try:
+                from app.sdk.harness.graph_integration import directive_to_harness_policy
+                import asyncio
+
+                asyncio.create_task(directive_to_harness_policy(
+                    directive_id=directive.id,
+                    topic=data['topic'],
+                    directive_text=data['directive'],
+                    confidence=data.get('confidence', 0.0),
+                ))
+            except Exception as graph_exc:
+                logger.debug(f"HarnessPolicy graph write skipped: {graph_exc}")
+
             return directive
         except Exception as e:
             logger.error(f"❌ [ExperienceLearner] Failed to learn from case {case_id}: {e}")

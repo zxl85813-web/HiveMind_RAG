@@ -188,13 +188,84 @@
 - [x] **P1: 工具响应 Token 预估**: 已为 RAG 工具增加 `concise` 模式
 - [x] **P2: 语义化 Skill 发现与 MCP 迁移**: 已落地 `ToolIndex` 向量化与 `DatabaseServer` MCP 实例
 - [ ] **RAG 环境补全**: 彻底修复后端 `.venv` 下的 `onnxruntime-directml` 路径冲突，或者全量迁移至远程 Embedding (M5.3)
-- [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发“重写查询并二次召回”的逻辑 (M5.2.5)
-| **评估层** | EvalPage | [x] RAG 6 指标质量评估引擎 + 报表导出 (M5.1~M5.2) | ✅ 已完成 |
-| **观测层** | SwarmTrace | [x] DAG 链路追踪可视化修复 (Nodes+Spans Linking) | ✅ 已修复 |
-| **治理层** | Governance | [x] L3 评测流水线 JSON 解析加固与 12 阶段索引同步 | 🚧 运行中 |
-| **协同层** | DebateOrchestrator| [x] L5 需求定界、多模型辩论引擎与优先级策略 (Priority & Multi-AI) | ✅ 已硬化 |
+- [ ] **幻觉熔断 (Hallucination Circuit Breaker)**: 在 `SelfCorrectionStep` 增加低分触发"重写查询并二次召回"的逻辑 (M5.2.5)
 
 ---
+
+### 🛡️ Harness Engine 升级 (Graph-Integrated Harness — M8)
+
+> **设计理念**: 把 Harness 从"悬空的检查器"升级为**图谱感知的运行时治理层**。
+> Agent 执行前从图谱加载约束 (Feedforward)，执行后把检查结果写回图谱 (Feedback)，
+> 图谱定期分析高频失败并自动生成新约束 (Steering Loop)。
+>
+> **参考**: Martin Fowler [Harness Engineering](https://martinfowler.com/articles/harness-engineering.html) (2026)
+> **图谱新增节点**: `:HarnessPolicy`, `:HarnessCheck`
+> **图谱新增关系**: `GOVERNED_BY`, `CHECKED_BY`, `ENFORCED_BY`, `SPAWNED`, `DERIVED_FROM`
+
+#### P0: 接入真实路径 + Computational Feedback
+
+- [x] **M8.0.1 HarnessEngine 接入 WorkerAgent**: 在 `WorkerAgent.execute()` 的 `_run_logic()` 和 `_reflect()` 之间插入 `harness.check_output()` + `harness.check_change()`，让已有的 `SecuritySentinelPolicy` 和 `HiveConformancePolicy` 真正生效
+- [x] **M8.0.2 Computational Sensors**: 新增 `backend/app/sdk/harness/computational_sensors.py` — `ASTValidationSensor` (语法检查) + `JSONSchemaSensor` (结构验证) + `IncompleteCodeSensor` (未完成标记检测)
+- [x] **M8.0.3 Warning vs Error 分级**: 扩展 `PolicyResult`，区分 warning（记录但放行）和 error（阻断并触发修正重试）
+- [x] **M8.0.4 verify_output() 实现**: 替换 `return True` 空实现，接入 Computational Sensors
+
+#### P1: Context-Aware Policy + 图谱集成
+
+- [x] **M8.1.1 Agent 类型策略分发**: 按 Agent 类型选择不同策略组合（CodeAgent→AST检查, ResearchAgent→引用验证, Reviewer→Schema验证）
+- [x] **M8.1.2 HarnessPolicy 图谱节点**: 新增 `:HarnessPolicy` 节点，建立 `APPLIES_TO → SwarmNode` 和 `DERIVED_FROM → GateRule` 关系
+- [x] **M8.1.3 HarnessCheck 图谱节点**: 每次检查结果写入图谱，建立 `SwarmSpan -[:CHECKED_BY]-> HarnessCheck -[:ENFORCED_BY]-> HarnessPolicy` 链路
+
+#### P2: 可观测性 + Steering Loop
+
+- [x] **M8.2.1 Harness 仪表盘 API**: `GET /api/v1/observability/harness/dashboard` — 策略命中率、拦截率、Top 5 高频失败
+- [x] **M8.2.2 Harness 检查记录查询**: `GET /api/v1/observability/harness/checks?trace_id=xxx`
+- [x] **M8.2.3 Steering Loop**: 定期查询图谱高频失败策略，从 `CognitiveDirective` 提取教训，自动生成新 Feedforward 规则 (`CognitiveDirective -[:SPAWNED]-> HarnessPolicy`)
+
+#### P3: Feedforward Inferential（动态规则注入）
+
+- [x] **M8.3.1 Feedforward 上下文加载**: `WorkerAgent.execute()` 执行前从图谱加载 `feedforward` 类型策略注入 system prompt
+- [x] **M8.3.2 Supervisor 级约束注入**: `SupervisorAgent._plan()` 中注入 Harness 全局约束
+
+---
+
+### 🔗 系统断链修复 (Broken Loop Reconnection — M9)
+
+> **诊断方法**: 用图谱查询找出"只有 publisher 没有 subscriber"、"只有写入没有读取"、"只有索引没有查询"的孤立节点。
+> **修复原则**: 不新建模块，只接线——把已有的组件连接到它们应该在的执行路径上。
+
+#### 断链 1: 学习闭环 (Learning → Action) — P0
+
+- [x] **M9.1.1 CognitiveDirective → HarnessPolicy 自动转化**: `ExperienceLearner` 生成教训后，自动创建对应的 `HarnessPolicy` 图谱节点 (`SPAWNED` 边)
+- [x] **M9.1.2 TechDiscovery → RAG 入库**: `LearningService.run_external_crawl()` 爬取的发现自动触发 `ingest_discovery()` 入库到 RAG 知识库
+- [x] **M9.1.3 ReflectionEntry 命中率优化**: `SwarmMemoryBridge` 加载反思记录时从关键词匹配升级为向量语义匹配
+
+#### 断链 2: 质量评估闭环 (Evaluation → Execution) — P1
+
+- [x] **M9.2.1 ClaimExtractor 接入 ResearchAgent**: 输出后自动提取事实声明，与 RAG 检索结果交叉验证
+- [ ] **M9.2.2 MultiGraderEval 接入 RAG 管线**: `SelfCorrectionStep` 低分时触发细粒度诊断
+- [ ] **M9.2.3 ABTracker 激活**: `EvalPage` 中实现 Swarm 策略 A/B 对比
+
+#### 断链 3: 事件驱动闭环 (Event → Reaction) — P1
+
+- [x] **M9.3.1 WriteEventBus 后端订阅者**: 为 `kb_write_events` 添加 `CacheInvalidationSubscriber` + `GraphUpdateSubscriber`
+- [x] **M9.3.2 Blackboard 订阅者**: 让 `SupervisorAgent` 能感知 telemetry insights 实时系统状态
+
+#### 断链 4: MCP 工具闭环 (MCP → Agent) — P2
+
+- [x] **M9.4.1 MCPManager 实现**: 补全 `load_config()` / `connect_all()` / `get_tools()` 方法
+- [x] **M9.4.2 MCP 工具注册到 Agent**: 结果注册到 `SwarmOrchestrator` 可用工具列表
+- [x] **M9.4.3 MCP 工具图谱索引**: 新增 `:MCPTool` 节点类型
+
+#### 断链 5: 前后端契约闭环 (API → UI) — P2
+
+- [ ] **M9.5.1 孤立端点审计**: 图谱新增 `FrontendComponent -[:CALLS]-> APIEndpoint` 边，查询无调用者端点
+- [ ] **M9.5.2 关键孤立端点补全**: Harness 看板、学习订阅管理、HITL Bad Case 审核面板
+
+#### 断链 6: 图谱自诊断 (Graph → Diagnosis) — P3
+
+- [x] **M9.6.1 图谱健康检查脚本**: `scripts/graph_health_check.py` — 自动诊断孤立节点/断边/缺失覆盖
+- [x] **M9.6.2 图谱健康门禁接入 CI**: 接入 `governance-gates.yml` 并行矩阵作为第 6 个门禁
+
 
 ## ✅ 已完成归档 (最近 Sprint)
  ...

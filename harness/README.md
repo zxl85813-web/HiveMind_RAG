@@ -192,8 +192,153 @@ tail -f /home/azureuser/HiveMind_RAG/logs/deploy/deploy_latest.log
 
 ---
 
-## 下一步（Step 2）
+## 下一步（Step 4）
 
 完成本步骤后，下一步是：  
-**用 Harness Feature Flags 替换 `SERVICE_GOVERNANCE_GRAY_PERCENT` 环境变量**，  
-实现 LLM Provider 切换、推理模式开关等 AI 功能的动态灰度控制。
+**RAG 评估门禁接入 Policy as Code 做成本控制**，防止 LLM API 费用失控。
+
+---
+
+## Step 2：Feature Flags 接入指南
+
+### 新增文件
+
+```
+backend/app/sdk/feature_flags/
+  ├── __init__.py      # 单例入口：from app.sdk.feature_flags import ff
+  ├── flags.py         # Flag 注册表（所有 flag 的定义、类型、降级字段）
+  └── service.py       # FeatureFlagService（优先级链 + 缓存 + 快照）
+```
+
+### 已接入的 Flag
+
+| Flag Key | 类型 | 替换的 settings 字段 | 说明 |
+|---|---|---|---|
+| `nvidia_thinking_enabled` | bool | `NVIDIA_THINKING_ENABLED` | NVIDIA NIM 推理模式开关 |
+| `nvidia_reasoning_effort` | string | `NVIDIA_REASONING_EFFORT` | 推理强度 low/medium/max |
+| `reasoning_provider` | string | `REASONING_PROVIDER` | 推理层 Provider 动态切换 |
+| `default_reasoning_model` | string | `DEFAULT_REASONING_MODEL` | 推理层模型名称 |
+| `default_complex_model` | string | `DEFAULT_COMPLEX_MODEL` | Complex 层模型名称 |
+| `service_gray_percent` | int | `SERVICE_GOVERNANCE_GRAY_PERCENT` | 服务治理灰度百分比 |
+| `service_topology_mode` | string | `SERVICE_TOPOLOGY_MODE` | 服务拓扑模式 |
+| `debate_mode_enabled` | bool | —（新增）| 多模型辩论引擎开关 |
+| `swarm_ab_test_enabled` | bool | —（新增）| Swarm A/B 测试开关 |
+| `rag_hallucination_breaker` | bool | —（新增）| 幻觉熔断器开关 |
+| `llm_cost_daily_limit_usd` | float | `BUDGET_DAILY_LIMIT_USD` | LLM 每日成本上限 |
+
+### 配置 Harness Feature Flags
+
+**1. 安装 SDK**
+```bash
+pip install harness-featureflags
+```
+
+**2. 在 `.env` 中添加 SDK Key**
+```bash
+HARNESS_FF_SDK_KEY=sdk-your-harness-ff-sdk-key
+```
+
+**3. 在 Harness UI 创建 Flag**
+
+进入 Harness → Feature Flags → New Feature Flag：
+- Flag Type: `Boolean` 或 `Multivariate`
+- Identifier: 与上表 Flag Key 完全一致
+- Default Rules: 按需配置
+
+**4. 验证接入**
+```bash
+# 查看所有 flag 当前值和来源
+curl -H "Authorization: Bearer <token>" \
+  http://localhost:8000/api/v1/observability/feature-flags
+
+# 修改 Harness 控制台后强制刷新缓存（无需等待 30s TTL）
+curl -X POST -H "Authorization: Bearer <token>" \
+  "http://localhost:8000/api/v1/observability/feature-flags/invalidate"
+```
+
+### 降级行为
+
+`HARNESS_FF_SDK_KEY` 未配置时，所有 flag 自动从 `settings` 环境变量读取，  
+行为与改造前完全一致，**不影响现有功能**。
+
+### 新增 Flag 的方法
+
+只需在 `backend/app/sdk/feature_flags/flags.py` 的 `REGISTRY` 中添加一条：
+
+```python
+"my_new_flag": FlagDefinition(
+    key="my_new_flag",
+    flag_type=FlagType.BOOL,
+    settings_fallback="MY_SETTINGS_FIELD",  # 降级字段，没有则填 ""
+    default=False,
+    description="说明这个 flag 控制什么",
+    tags=["ai-features"],
+),
+```
+
+无需修改其他任何文件。
+
+---
+
+## Step 4：RAG 评估门禁 Policy as Code
+
+### 新增文件
+
+```
+scripts/ci/
+  ├── rag_eval_budget_guard.py   # 预算守卫：触发策略 + 预算检查 → 决定 real/mock
+  └── rag_eval_mock.py           # Mock 评估：零 LLM 调用，验证流程完整性
+
+harness/policies/
+  ├── rag_eval_trigger_policy.rego  # OPA Policy：触发条件规则
+  └── rag_eval_budget_policy.rego   # OPA Policy：预算上限规则
+```
+
+### 改造文件
+
+- `.github/workflows/rag-eval-gate.yml` — 加入 budget-guard job，分离 real/mock 两条路径
+- `.github/workflows/hmer-architecture-eval.yml` — LLM 报告生成步骤加预算保护，后端启动改为健康检查等待
+
+### 触发决策矩阵
+
+| 触发场景 | 评估模式 | 原因 |
+|---|---|---|
+| `workflow_dispatch` | ✅ Real | 手动触发，始终真实 |
+| `push` → `main` | ✅ Real | 生产门禁 |
+| `release/*` PR → `main` | ✅ Real | 发布前验证 |
+| `push` → `develop` + RAG 核心路径变更 | ✅ Real | 核心逻辑变更 |
+| `push` → `develop` + 无 RAG 核心路径变更 | 🎭 Mock | 无关变更，节省成本 |
+| feature PR → `develop` | 🎭 Mock | 快速反馈，零成本 |
+| 日预算 ≥ 80% | 🎭 Mock（降级） | 预算保护 |
+| 月预算 ≥ 90% | 🎭 Mock（降级） | 预算保护 |
+
+### 成本追踪配置
+
+在 GitHub Repository → Settings → Variables 中设置（可选，用于跨 runner 共享成本数据）：
+
+| Variable | 说明 |
+|---|---|
+| `CI_DAILY_LLM_COST_USD` | 当日已消耗 LLM 成本（USD），由外部系统更新 |
+| `CI_MONTHLY_LLM_COST_USD` | 当月已消耗 LLM 成本（USD） |
+
+不设置时，使用本地 `.ci_cost_cache.json` 缓存（通过 `actions/cache` 跨 run 持久化）。
+
+### 接入 Harness OPA
+
+1. 进入 Harness → Project Settings → Policies → New Policy
+2. 分别上传 `rag_eval_trigger_policy.rego` 和 `rag_eval_budget_policy.rego`
+3. 在 Pipeline 的 RAG 评估 Stage 前添加 Policy Step，绑定上述两个 Policy
+4. Harness 会在 Pipeline 执行前自动评估 Policy，不通过时阻断执行
+
+本地测试 OPA Policy（需要安装 [opa CLI](https://www.openpolicyagent.org/docs/latest/#running-opa)）：
+```bash
+# 测试触发策略
+opa eval -d harness/policies/rag_eval_trigger_policy.rego \
+  -i '{"event":"push","branch":"develop","source_branch":"","changed_paths":["backend/app/prompts/system.txt"],"force_real":false}' \
+  "data.hivemind.rag_eval.trigger"
+
+# 测试预算策略
+opa eval -d harness/policies/rag_eval_budget_policy.rego \
+  -i '{"requested_mode":"real_eval","daily_cost_usd":8.5,"monthly_cost_usd":45.0,"daily_limit_usd":10.0,"monthly_limit_usd":100.0}' \
+  "data.hivemind.rag_eval.budget.allow"
+```
