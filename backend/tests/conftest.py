@@ -1,50 +1,24 @@
-import pytest
-from unittest.mock import AsyncMock, patch
-from typing import AsyncGenerator
-from fastapi.testclient import TestClient
-
-# Mock settings before app loading if necessary
+"""
+Root conftest — 仅放通用配置和 markers，不导入 app。
+具体 fixtures 按层级放在 unit/conftest.py 和 integration/conftest.py 中。
+"""
 import os
+import pytest
+
+# 确保测试环境标记在任何 app 导入之前设置
 os.environ["TESTING"] = "1"
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+os.environ.setdefault("LLM_API_KEY", "sk-test")
+os.environ.setdefault("LLM_PROVIDER", "siliconflow")
+os.environ.setdefault("LLM_MODEL", "test-model")
+os.environ.setdefault("LLM_BASE_URL", "https://example.com/v1")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci")
+os.environ.setdefault("VECTOR_STORE_TYPE", "chroma")
 
-from app.main import app
-from app.core.database import get_db_session
 
-# --- Pytest Fixtures ---
-
-@pytest.fixture(scope="session")
-def api_client():
-    """Returns a FastAPI TestClient instance."""
-    with TestClient(app) as client:
-        yield client
-
-@pytest.fixture
-def mock_llm_service():
-    """
-    A unified fixture to mock the LLM Service so tests do not consume real tokens.
-    Usage:
-    def test_logic(mock_llm_service):
-        mock_llm_service.chat_complete.return_value = '{"test": "ok"}'
-    """
-    with patch("app.core.llm.LLMService") as MockLLM:
-        mock_instance = MockLLM.return_value
-        mock_instance.chat_complete = AsyncMock()
-        mock_instance.stream_chat = AsyncMock() # You can define an async generator return if needed
-        
-        # Also patch the singleton getter
-        with patch("app.core.llm.get_llm_service", return_value=mock_instance):
-            yield mock_instance
-
-@pytest.fixture(autouse=True)
-def wipe_in_memory_stores():
-    """
-    Automatically wipe purely in-memory data structures between test runs
-    to prevent cross-test pollution.
-    """
-    from app.services.memory.tier.abstract_index import abstract_index
-    # Reset singleton state
-    abstract_index.doc_store.clear()
-    abstract_index.tag_index.clear()
-    abstract_index.type_index.clear()
-    abstract_index.date_index.clear()
-    yield
+def pytest_configure(config):
+    """注册自定义 markers。"""
+    config.addinivalue_line("markers", "unit: 单元测试 (快速, 无外部依赖)")
+    config.addinivalue_line("markers", "integration: 集成测试 (需要 DB)")
+    config.addinivalue_line("markers", "e2e: 端到端测试")
+    config.addinivalue_line("markers", "slow: 慢速测试 (> 5s)")

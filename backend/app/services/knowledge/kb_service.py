@@ -38,7 +38,7 @@ class KnowledgeService:
     async def get_kb(self, kb_id: str) -> KnowledgeBase:
         kb = await self.session.get(KnowledgeBase, kb_id)
         if not kb:
-            raise NotFoundError(resource="knowledge_base", id=kb_id)
+            raise NotFoundError(resource="knowledge_base", resource_id=kb_id)
         return kb
 
     async def list_kbs(self, current_user: User) -> Sequence[KnowledgeBase]:
@@ -117,7 +117,7 @@ class KnowledgeService:
     async def get_document(self, doc_id: str) -> Document:
         doc = await self.session.get(Document, doc_id)
         if not doc:
-            raise NotFoundError(resource="document", id=doc_id)
+            raise NotFoundError(resource="document", resource_id=doc_id)
         return doc
 
     async def link_document_to_kb(self, kb_id: str, doc_id: str) -> KnowledgeBaseDocumentLink:

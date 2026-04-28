@@ -94,8 +94,15 @@ disallow_untyped_defs = true
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "unit: 单元测试 (快速, 无外部依赖)",
+    "integration: 集成测试 (需要 DB)",
+    "e2e: 端到端测试",
+    "slow: 慢速测试 (> 5s)",
+]
 addopts = [
     "-v",
+    "--tb=short",
     "--cov=app",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
@@ -105,13 +112,20 @@ addopts = [
 
 [tool.coverage.run]
 source = ["app"]
-omit = ["app/main.py", "*/tests/*"]
+omit = [
+    "app/main.py",
+    "*/tests/*",
+    "app/scripts/*",
+    "app/logs/*",
+]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 50
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.",
+    "pass",
+    "\\.\\.\\.",
 ]

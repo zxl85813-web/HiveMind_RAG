@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.api.deps import get_current_user
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import PermissionError as ForbiddenError
 from app.models.chat import User
 from app.models.security import DocumentPermission
 
