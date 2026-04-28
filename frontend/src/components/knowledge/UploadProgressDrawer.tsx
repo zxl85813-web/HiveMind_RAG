@@ -22,7 +22,7 @@ import {
   ClockCircleOutlined, FileOutlined, ThunderboltOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import { useSSE } from '../../hooks/useSSE';
-import { useAuthStore } from '../../stores/authStore';
+import { tokenVault } from '../../core/auth/TokenVault';
 
 const { Text } = Typography;
 
@@ -100,7 +100,7 @@ const StatusTag: React.FC<{ status: FileUploadStatus }> = ({ status }) => {
 export const UploadProgressDrawer: React.FC<Props> = ({
   open, onClose, files, batchId, onFileStatusChange
 }) => {
-  const token = useAuthStore((s) => s.token);
+  const token = tokenVault.getAccessToken();
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   // 用 Map 追踪每个 doc_id → uid 的映射，SSE 事件只有 doc_id
   const docIdToUidRef = useRef<Map<string, string>>(new Map());
