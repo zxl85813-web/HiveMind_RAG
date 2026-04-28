@@ -5,10 +5,18 @@ from loguru import logger
 from app.core.llm import get_llm_service
 from app.services.memory.episodic_service import episodic_memory_service
 
+# [Fix-11] 并发蒸馏任务上限：防止高并发时后台任务堆积耗尽 LLM 配额
+_CONSOLIDATION_SEMAPHORE = asyncio.Semaphore(10)
+
+# [Fix-11] 低价值对话跳过蒸馏的阈值：消息数 < 此值时不蒸馏
+_MIN_MESSAGES_FOR_CONSOLIDATION = 3
+
+
 class MemoryConsolidator:
     """
     后台认知巩固器 (Phase 4).
     负责在会话结束后异步地提炼、去重和增强记忆。
+    [Fix-11] 添加并发信号量控制 + 低价值对话过滤。
     """
     
     def __init__(self):
@@ -23,35 +31,60 @@ class MemoryConsolidator:
                 logger.warning("Could not import get_swarm, reflection logic might be limited.")
         return self._swarm
     
-    async def consolidate_session(self, user_id: str, conversation_id: str, messages: List[dict], _run_sync: bool = False):
+    async def consolidate_session(
+        self,
+        user_id: str,
+        conversation_id: str,
+        messages: List[dict],
+        _run_sync: bool = False,
+    ):
         """
         核心合并逻辑：分析新会话，提取 Semantic 断言，并与现有 Episodic Memory 进行去重。
+
+        [Fix-11] 两层保护：
+        1. 消息数过少（< _MIN_MESSAGES_FOR_CONSOLIDATION）的低价值对话直接跳过
+        2. 信号量限制最多 10 个并发蒸馏任务，防止 LLM 配额耗尽
         """
-        logger.info(f"🧠 [Consolidator] Starting consolidation for session: {conversation_id} with {len(messages)} messages")
-        
-        try:
-            # 暂时复用 store_episode 来确保基础存储
-            episode = await episodic_memory_service.store_episode(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                messages=messages
+        # 低价值对话过滤：单轮简单问答不值得蒸馏
+        if len(messages) < _MIN_MESSAGES_FOR_CONSOLIDATION:
+            logger.debug(
+                f"[Consolidator] Skipping consolidation for {conversation_id}: "
+                f"only {len(messages)} messages (threshold={_MIN_MESSAGES_FOR_CONSOLIDATION})"
             )
-            
-            if not episode:
-                logger.warning(f"⚠️ [Consolidator] store_episode returned None (likely due to low value filter).")
-                return
-            
-            # In Phase 4, we might wait for vectorization in sync mode for critical tests
-            if _run_sync:
-                await episodic_memory_service._vectorize_episode(episode)
-                
-            # 3. 语义去重 (Semantic Deduplication)
-            # 逻辑：如果新提炼出的主题与旧的主题高度重合，我们可以考虑合并摘要或标记为 Overridden
-            await self._deduplicate_knowledge(user_id, episode)
-            
-            logger.info(f"✅ [Consolidator] Consolidation complete for {conversation_id}")
-        except Exception as e:
-            logger.error(f"❌ [Consolidator] Failed to consolidate session {conversation_id}: {e}")
+            return
+
+        # 信号量：如果当前已有 10 个蒸馏任务在跑，直接放弃本次（非阻塞）
+        if _CONSOLIDATION_SEMAPHORE.locked() and _CONSOLIDATION_SEMAPHORE._value == 0:
+            logger.warning(
+                f"[Consolidator] Semaphore full, skipping consolidation for {conversation_id}"
+            )
+            return
+
+        async with _CONSOLIDATION_SEMAPHORE:
+            logger.info(
+                f"🧠 [Consolidator] Starting consolidation for session: {conversation_id} "
+                f"with {len(messages)} messages"
+            )
+            try:
+                episode = await episodic_memory_service.store_episode(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    messages=messages,
+                )
+
+                if not episode:
+                    logger.warning(
+                        f"⚠️ [Consolidator] store_episode returned None (likely due to low value filter)."
+                    )
+                    return
+
+                if _run_sync:
+                    await episodic_memory_service._vectorize_episode(episode)
+
+                await self._deduplicate_knowledge(user_id, episode)
+                logger.info(f"✅ [Consolidator] Consolidation complete for {conversation_id}")
+            except Exception as e:
+                logger.error(f"❌ [Consolidator] Failed to consolidate session {conversation_id}: {e}")
 
     async def _deduplicate_knowledge(self, user_id: str, new_episode: Any):
         """

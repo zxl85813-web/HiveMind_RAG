@@ -48,3 +48,94 @@ def flush_trace_buffer():
         return 0
     finally:
         db.close()
+
+
+@celery_app.task(
+    name="app.services.observability.tasks.llm_quota_daily_report",
+    rate_limit="1/h",
+    ignore_result=True,
+)
+def llm_quota_daily_report():
+    """
+    LLM 配额日报任务（每天 08:00 UTC 由 Beat 触发）。
+
+    统计过去 24 小时的 LLM 调用情况：
+      - 各模型调用次数 / Token 消耗 / 费用估算
+      - ingestion_queue 积压量
+      - 如果消耗超过 BUDGET_DAILY_LIMIT_USD 的 80%，输出告警日志
+
+    输出到日志，可通过 Grafana / ELK 采集告警。
+    """
+    import asyncio
+    from datetime import datetime, timedelta, UTC
+
+    async def _report():
+        from sqlmodel import select, func
+        from app.core.database import async_session_factory
+        from app.models.observability import LLMMetric
+        from app.core.celery_app import get_queue_stats
+
+        since = datetime.now(UTC) - timedelta(hours=24)
+
+        async with async_session_factory() as session:
+            # 按模型聚合
+            stmt = (
+                select(
+                    LLMMetric.model_name,
+                    func.count(LLMMetric.id).label("calls"),
+                    func.sum(LLMMetric.tokens_input + LLMMetric.tokens_output).label("total_tokens"),
+                    func.sum(LLMMetric.cost).label("total_cost"),
+                    func.avg(LLMMetric.latency_ms).label("avg_latency_ms"),
+                    func.sum(LLMMetric.is_error.cast(int)).label("errors"),
+                )
+                .where(LLMMetric.created_at >= since)
+                .group_by(LLMMetric.model_name)
+            )
+            res = await session.execute(stmt)
+            rows = res.all()
+
+        total_cost = sum(r.total_cost or 0 for r in rows)
+        total_calls = sum(r.calls or 0 for r in rows)
+        total_errors = sum(r.errors or 0 for r in rows)
+
+        # 队列积压
+        queue_stats = get_queue_stats()
+
+        # 输出日报
+        logger.info(
+            f"📊 [LLM Quota Daily Report] "
+            f"calls={total_calls}, cost=${total_cost:.4f}, "
+            f"errors={total_errors}, queues={queue_stats}"
+        )
+        for r in rows:
+            logger.info(
+                f"  └─ {r.model_name}: calls={r.calls}, "
+                f"tokens={r.total_tokens}, cost=${r.total_cost:.4f}, "
+                f"avg_latency={r.avg_latency_ms:.0f}ms, errors={r.errors}"
+            )
+
+        # 配额告警
+        daily_limit = settings.BUDGET_DAILY_LIMIT_USD
+        alert_threshold = settings.BUDGET_ALERT_THRESHOLD
+        if total_cost >= daily_limit * alert_threshold:
+            logger.warning(
+                f"⚠️ [LLM Quota Alert] Daily cost ${total_cost:.4f} "
+                f"exceeds {alert_threshold*100:.0f}% of limit ${daily_limit:.2f}. "
+                f"Consider reducing CELERY_INGESTION_RATE_LIMIT."
+            )
+
+        # ingestion 队列积压告警
+        ingestion_backlog = queue_stats.get("ingestion_queue", 0)
+        if ingestion_backlog > 100:
+            logger.warning(
+                f"⚠️ [Queue Alert] ingestion_queue backlog={ingestion_backlog}. "
+                f"Consider increasing CELERY_WORKER_CONCURRENCY or reducing batch size."
+            )
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(_report())

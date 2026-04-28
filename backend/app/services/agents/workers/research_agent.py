@@ -75,4 +75,63 @@ class ResearchAgent(WorkerAgent):
         if "security" in synth_response.content.lower():
             signal["requires_audit"] = True
 
+        # 🔗 M9.2.1: 事实声明验证 — 检查合成结果中的关键声明是否有检索证据支持
+        try:
+            ungrounded = self._check_factual_grounding(synth_response.content, context_str)
+            if ungrounded:
+                signal["ungrounded_claims"] = ungrounded
+                signal["grounding_warning"] = True
+                logger.info(
+                    f"🔍 [ResearchAgent] {len(ungrounded)} potentially ungrounded claim(s) detected"
+                )
+        except Exception as e:
+            logger.debug(f"Factual grounding check skipped: {e}")
+
         return synth_response.content, {"doc_ids": doc_ids}, signal
+
+    @staticmethod
+    def _check_factual_grounding(synthesis: str, evidence: str) -> list[str]:
+        """
+        M9.2.1: 轻量级事实声明验证（Computational，不调用 LLM）。
+
+        检查合成文本中的数字、百分比、专有名词等"硬声明"是否出现在检索证据中。
+        返回未被证据支持的声明列表。
+        """
+        import re
+
+        ungrounded: list[str] = []
+        evidence_lower = evidence.lower()
+
+        # 提取合成文本中的"硬声明"模式
+        patterns = [
+            # 数字 + 单位（如 "99.9%", "10x", "3.5 billion"）
+            (r"\b\d+\.?\d*\s*[%xX×]\b", "numeric claim"),
+            # 年份引用（如 "in 2025", "since 2023"）
+            (r"\b(?:in|since|by|from)\s+20[2-3]\d\b", "temporal claim"),
+            # 引用特定工具/框架名（首字母大写的专有名词序列）
+            (r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b", "proper noun"),
+        ]
+
+        for pattern, claim_type in patterns:
+            matches = re.findall(pattern, synthesis)
+            for match in matches:
+                # 检查这个声明是否在检索证据中有支持
+                if match.lower() not in evidence_lower:
+                    # 对专有名词做更宽松的匹配（单词级）
+                    if claim_type == "proper noun":
+                        words = match.lower().split()
+                        if any(w in evidence_lower for w in words if len(w) > 3):
+                            continue  # 至少有一个关键词匹配，放行
+                    ungrounded.append(f"[{claim_type}] {match}")
+
+        # 去重并限制数量
+        seen = set()
+        result = []
+        for claim in ungrounded:
+            if claim not in seen:
+                seen.add(claim)
+                result.append(claim)
+            if len(result) >= 5:
+                break
+
+        return result

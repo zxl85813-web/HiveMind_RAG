@@ -17,7 +17,6 @@ import json
 from datetime import datetime
 from typing import Any
 
-import chromadb
 from loguru import logger
 from pydantic import BaseModel
 
@@ -57,16 +56,36 @@ class EpisodicMemoryService:
     """情节记忆服务 — 跨会话记忆的核心引擎。"""
 
     _chroma_collection = None
+    _chroma_init_lock: asyncio.Lock | None = None
 
     @classmethod
-    def _get_collection(cls):
-        if cls._chroma_collection is None:
-            # Use the same path as MemoryService for consistency
-            client = chromadb.PersistentClient(path="./start_data/chroma_db")
-            cls._chroma_collection = client.get_or_create_collection(
-                name="episodic_episodes", metadata={"hnsw:space": "cosine"}
-            )
+    def _get_init_lock(cls) -> asyncio.Lock:
+        """懒加载 Lock，避免在事件循环启动前创建。"""
+        if cls._chroma_init_lock is None:
+            cls._chroma_init_lock = asyncio.Lock()
+        return cls._chroma_init_lock
+
+    @classmethod
+    async def _get_collection_async(cls):
+        """异步获取 ChromaDB collection，加锁防止并发重复初始化。"""
+        if cls._chroma_collection is not None:
+            return cls._chroma_collection
+        async with cls._get_init_lock():
+            if cls._chroma_collection is None:
+                loop = asyncio.get_event_loop()
+                cls._chroma_collection = await loop.run_in_executor(
+                    None, cls._init_collection_sync
+                )
         return cls._chroma_collection
+
+    @staticmethod
+    def _init_collection_sync():
+        """同步初始化，在 executor 中运行避免阻塞事件循环。"""
+        import chromadb
+        client = chromadb.PersistentClient(path="./start_data/chroma_db")
+        return client.get_or_create_collection(
+            name="episodic_episodes", metadata={"hnsw:space": "cosine"}
+        )
 
     # ─────────────────────────────────────────────
     # 写入路径 (Write Path)
@@ -152,7 +171,7 @@ class EpisodicMemoryService:
         try:
             vector_text = f"{episode.summary}\nTopics: {', '.join(episode.topics)}\nIntent: {episode.user_intent}"
 
-            collection = self._get_collection()
+            collection = await self._get_collection_async()
             loop = asyncio.get_event_loop()
 
             await loop.run_in_executor(
@@ -222,7 +241,9 @@ class EpisodicMemoryService:
             logger.warning(f"[EpisodicMemory] Distillation failed: {e}")
             return None
 
-    async def _parse_or_generate_distill(self, existing_summary: str, messages: list[dict]) -> EpisodeDistillResult | None:
+    async def _parse_or_generate_distill(
+        self, existing_summary: str, messages: list[dict]
+    ) -> EpisodeDistillResult | None:
         """从已有摘要中提取结构化字段。"""
         try:
             llm = get_llm_service()
@@ -298,13 +319,16 @@ Summary: {existing_summary}
         result = merged[:limit]
 
         if result:
-            asyncio.create_task(self._update_recall_stats([e.id for e in result]))
+            task = asyncio.create_task(self._update_recall_stats([e.id for e in result]))
+            # 防止 GC 在任务完成前回收
+            _background_recall_tasks.add(task)
+            task.add_done_callback(_background_recall_tasks.discard)
 
         return result
 
     async def _recall_by_vector(self, user_id: str, query: str, limit: int) -> list[str]:
         try:
-            collection = self._get_collection()
+            collection = await self._get_collection_async()
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
                 None, lambda: collection.query(query_texts=[query], n_results=limit, where={"user_id": user_id})
@@ -317,7 +341,9 @@ Summary: {existing_summary}
             logger.warning(f"[EpisodicMemory] Vector recall failed: {e}. Falling back to SQL/Topic search.")
         return []
 
-    async def _recall_by_topics(self, user_id: str, query: str, limit: int, min_temperature: float) -> list[EpisodicMemory]:
+    async def _recall_by_topics(
+        self, user_id: str, query: str, limit: int, min_temperature: float
+    ) -> list[EpisodicMemory]:
         async with async_session_factory() as session:
             from sqlmodel import desc, select
 
@@ -356,17 +382,21 @@ Summary: {existing_summary}
 
 
     async def _update_recall_stats(self, episode_ids: list[str]) -> None:
-        async with async_session_factory() as session:
-            for ep_id in episode_ids:
-                from sqlmodel import select
+        """批量更新召回统计，避免 N 次独立查询。"""
+        from sqlalchemy import update
 
-                stmt = select(EpisodicMemory).where(EpisodicMemory.id == ep_id)
-                ep = (await session.execute(stmt)).scalar_one_or_none()
-                if ep:
-                    ep.recall_count += 1
-                    ep.last_recalled_at = datetime.utcnow()
-                    ep.temperature = min(1.0, ep.temperature + 0.1)
-                    session.add(ep)
+        from app.models.episodic import EpisodicMemory as _EpisodicMemory
+
+        async with async_session_factory() as session:
+            await session.execute(
+                update(_EpisodicMemory)
+                .where(_EpisodicMemory.id.in_(episode_ids))
+                .values(
+                    recall_count=_EpisodicMemory.recall_count + 1,
+                    last_recalled_at=datetime.utcnow(),
+                    temperature=_EpisodicMemory.temperature + 0.1,
+                )
+            )
             await session.commit()
 
     async def format_for_context(self, episodes: list[EpisodicMemory]) -> str:
@@ -387,3 +417,6 @@ Summary: {existing_summary}
 
 
 episodic_memory_service = EpisodicMemoryService()
+
+# 模块级 task 引用集合，防止 GC 提前回收后台任务
+_background_recall_tasks: set[asyncio.Task] = set()

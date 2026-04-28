@@ -1,7 +1,21 @@
+# =============================================================================
+# HMER Architecture Evaluation (E2E Stress)
+# =============================================================================
+# 改造要点:
+#   1. 加入预算守卫：LLM 报告生成步骤在预算超出时跳过
+#   2. 用 composite action 消除重复的环境初始化
+#   3. 后端启动改为健康检查等待，避免 sleep 5 的不确定性
+#   4. 触发条件收紧：只在 main push 或手动触发时运行
+# =============================================================================
 name: HMER Architecture Evaluation (E2E Stress)
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      skip_llm_report:
+        description: "Skip LLM report generation (save API cost)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -9,106 +23,195 @@ on:
       - 'frontend/src/hooks/useChat.ts'
       - 'frontend/tests/e2e/architecture/**'
 
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+  LLM_DAILY_LIMIT_USD: '10.0'
+  LLM_MONTHLY_LIMIT_USD: '100.0'
+
 jobs:
-  architecture-eval:
-    name: HMER Extreme Stress & Resilience Tests
+  # ── Job 1: 预算检查（LLM 报告生成是否允许）──────────────────────────────
+  budget-guard:
+    name: 💰 Budget Guard (LLM Report)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    outputs:
+      allow_llm_report: ${{ steps.guard.outputs.allow_llm_report }}
+      daily_usage_pct:  ${{ steps.guard.outputs.daily_usage_pct }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # --- 1. 后端环境准备 (用于支撑前端请求，除非全部 Mock) ---
-      - name: Set up Python
+      - name: Restore cost cache
+        uses: actions/cache@v4
+        with:
+          path: .ci_cost_cache.json
+          key: llm-cost-cache-${{ github.repository }}
+          restore-keys: llm-cost-cache-
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install backend dependencies
+      - name: Check LLM report budget
+        id: guard
         run: |
-          cd backend
-          pip install -e "."
+          python - << 'EOF'
+          import json, os
+          from pathlib import Path
 
-      - name: Start Background Backend
+          CACHE_FILE = Path(".ci_cost_cache.json")
+          DAILY_LIMIT = float("${{ env.LLM_DAILY_LIMIT_USD }}")
+          MONTHLY_LIMIT = float("${{ env.LLM_MONTHLY_LIMIT_USD }}")
+          SKIP_FLAG = "${{ github.event.inputs.skip_llm_report }}" == "true"
+
+          cache = {}
+          if CACHE_FILE.exists():
+              try:
+                  cache = json.loads(CACHE_FILE.read_text())
+              except Exception:
+                  pass
+
+          daily_cost = max(
+              float(os.environ.get("CI_DAILY_LLM_COST_USD", "0") or "0"),
+              cache.get("daily_cost_usd", 0.0),
+          )
+          monthly_cost = max(
+              float(os.environ.get("CI_MONTHLY_LLM_COST_USD", "0") or "0"),
+              cache.get("monthly_cost_usd", 0.0),
+          )
+
+          daily_pct = round(daily_cost / DAILY_LIMIT * 100, 1) if DAILY_LIMIT > 0 else 0
+
+          allow = not SKIP_FLAG and daily_pct < 80 and (monthly_cost / MONTHLY_LIMIT * 100) < 90
+
+          output_file = os.environ.get("GITHUB_OUTPUT", "")
+          if output_file:
+              with open(output_file, "a") as f:
+                  f.write(f"allow_llm_report={'true' if allow else 'false'}\n")
+                  f.write(f"daily_usage_pct={daily_pct}\n")
+
+          status = "ALLOWED" if allow else "SKIPPED (budget/flag)"
+          print(f"LLM Report: {status} | daily={daily_pct}% | skip_flag={SKIP_FLAG}")
+          EOF
         env:
-          # 🛰️ 关键点：从 GitHub Secrets 注入生产或测试用的 LLM Key
+          CI_DAILY_LLM_COST_USD: ${{ vars.CI_DAILY_LLM_COST_USD || '0' }}
+          CI_MONTHLY_LLM_COST_USD: ${{ vars.CI_MONTHLY_LLM_COST_USD || '0' }}
+
+  # ── Job 2: E2E 架构评测（不依赖 LLM，始终运行）──────────────────────────
+  architecture-eval:
+    name: 🏗️ HMER Extreme Stress & Resilience Tests
+    runs-on: ubuntu-latest
+    needs: budget-guard
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 后端环境 ──────────────────────────────────────────────────────────
+      - name: Backend Setup (for E2E support)
+        uses: ./.github/actions/backend-setup
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          working-directory: backend
+
+      - name: Start Backend (background)
+        env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'siliconflow' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-ai/DeepSeek-V3' }}
           DATABASE_URL: sqlite+aiosqlite:///./hmer_eval.db
         run: |
           cd backend
-          # 启动后端并置于后台
           nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
-          sleep 5 # 等待启动完成
+          echo "Backend PID: $!"
 
-      # --- 2. 前端环境准备 ---
-      - name: Setup Node.js
+      - name: Wait for backend health check
+        run: |
+          echo "Waiting for backend to become healthy..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/v1/health/ > /dev/null 2>&1; then
+              echo "✅ Backend is healthy (attempt ${i}/30)"
+              exit 0
+            fi
+            echo "  [${i}/30] Not ready yet, waiting 3s..."
+            sleep 3
+          done
+          echo "❌ Backend failed to start within 90s"
+          cat backend/backend.log | tail -50
+          exit 1
+
+      # ── 前端环境 ──────────────────────────────────────────────────────────
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm ci
+        working-directory: frontend
+        run: npm ci
 
       - name: Install Playwright Browsers
-        run: |
-          cd frontend
-          npx playwright install --with-deps chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
 
-      - name: Build and Start Frontend (Preview Mode)
+      - name: Build and Start Frontend (Preview)
+        working-directory: frontend
         env:
-          # 使用 127.0.0.1 避免 IPv6 导致的连接问题，并补全 /api/v1 路径
           VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
         run: |
-          cd frontend
           npm run build
-          # 使用 preview 模式启动并置于后台
           nohup npx vite preview --port 5173 > frontend.log 2>&1 &
-          sleep 15 # CI 机器较慢，给予充足启动时间
+          echo "Frontend PID: $!"
 
-      # --- 3. 执行 HMER 架构评测四部曲 ---
-      - name: Run HMER Capacity Stress (Phase 1)
+      - name: Wait for frontend health check
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:5173 > /dev/null 2>&1; then
+              echo "✅ Frontend is ready (attempt ${i}/20)"
+              exit 0
+            fi
+            echo "  [${i}/20] Not ready yet, waiting 3s..."
+            sleep 3
+          done
+          echo "❌ Frontend failed to start within 60s"
+          exit 1
+
+      # ── HMER 四阶段评测 ──────────────────────────────────────────────────
+      - name: Phase 1 — Capacity Stress (IndexedDB)
         id: phase1
         continue-on-error: true
-        run: |
-          cd frontend
-          npx playwright test tests/e2e/architecture/capacity-indexeddb.spec.ts
+        working-directory: frontend
+        run: npx playwright test tests/e2e/architecture/capacity-indexeddb.spec.ts
 
-      - name: Run HMER Chaos Engineering (Phase 2)
+      - name: Phase 2 — Chaos Engineering (Network Interceptor)
         id: phase2
         continue-on-error: true
-        run: |
-          cd frontend
-          npx playwright test tests/e2e/architecture/chaos-network-interceptor.spec.ts
+        working-directory: frontend
+        run: npx playwright test tests/e2e/architecture/chaos-network-interceptor.spec.ts
 
-      - name: Run HMER Endurance & Memory (Phase 3)
+      - name: Phase 3 — Endurance & Memory Leak
         id: phase3
         continue-on-error: true
-        run: |
-          cd frontend
-          npx playwright test tests/e2e/architecture/endurance-memory-leak.spec.ts
+        working-directory: frontend
+        run: npx playwright test tests/e2e/architecture/endurance-memory-leak.spec.ts
 
-      - name: Run HMER Telemetry Audit (Phase 4)
+      - name: Phase 4 — Telemetry Audit
         id: phase4
         continue-on-error: true
-        run: |
-          cd frontend
-          npx playwright test tests/e2e/architecture/telemetry-audit.spec.ts
+        working-directory: frontend
+        run: npx playwright test tests/e2e/architecture/telemetry-audit.spec.ts
 
-      # --- 4. 架构师 LLM 自动汇总报告 ---
-      - name: Generate Architecture Health Report
-        if: always()
+      # ── LLM 架构报告（预算允许时才运行）────────────────────────────────
+      - name: Generate Architecture Health Report (LLM)
+        if: needs.budget-guard.outputs.allow_llm_report == 'true'
         env:
           PHASE1_RESULT: ${{ steps.phase1.outcome }}
           PHASE2_RESULT: ${{ steps.phase2.outcome }}
           PHASE3_RESULT: ${{ steps.phase3.outcome }}
           PHASE4_RESULT: ${{ steps.phase4.outcome }}
-          # 🛰️ [Architecture-Gate]: 确保报告生成器与后端使用相同的 Provider 配置
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-v3-2-251201' }}
@@ -118,7 +221,23 @@ jobs:
           python scripts/generate_architecture_report.py
           cat architecture_report.md >> $GITHUB_STEP_SUMMARY
 
-      # --- 5. 上传报告 ---
+      - name: Generate Static Architecture Report (No LLM)
+        if: needs.budget-guard.outputs.allow_llm_report != 'true'
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🏗️ HMER Architecture Evaluation Summary
+
+          > ⚠️ LLM report skipped (budget ${needs.budget-guard.outputs.daily_usage_pct}% or skip flag set)
+
+          | Phase | Result |
+          |---|---|
+          | Phase 1 — Capacity Stress | ${{ steps.phase1.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |
+          | Phase 2 — Chaos Engineering | ${{ steps.phase2.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |
+          | Phase 3 — Endurance & Memory | ${{ steps.phase3.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |
+          | Phase 4 — Telemetry Audit | ${{ steps.phase4.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |
+          EOF
+
+      # ── 上传报告 ──────────────────────────────────────────────────────────
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -129,4 +248,6 @@ jobs:
             frontend/test-results/
             backend/backend.log
             frontend/frontend.log
+            architecture_report.md
+          if-no-files-found: ignore
           retention-days: 7

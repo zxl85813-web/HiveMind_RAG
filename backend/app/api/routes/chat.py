@@ -83,13 +83,24 @@ async def list_conversations(
 
 
 @router.get("/conversations/{conversation_id}", response_model=ApiResponse)
-async def get_conversation(conversation_id: str):
-    """获取单个会话详情。"""
-    conv = await ChatService.get_conversation(conversation_id)
+async def get_conversation(
+    conversation_id: str,
+    msg_limit: int = 50,
+    msg_offset: int = 0,
+):
+    """获取单个会话详情。
+
+    [Fix-09] 支持消息分页：msg_limit 控制每页条数（默认 50），
+    msg_offset 控制偏移量，用于向前翻页加载更早的消息。
+    """
+    conv = await ChatService.get_conversation(
+        conversation_id, msg_limit=msg_limit, msg_offset=msg_offset
+    )
     if not conv:
         return ApiResponse.error(message="Conversation not found", code=404)
 
-    # 将模型转为 Schema (TODO: 这里的转换逻辑在大型项目中通常放在 mapper 或 schema 内部)
+    # 使用分页后的消息列表（_paged_messages），而非触发全量 lazy load
+    messages = getattr(conv, "_paged_messages", [])
     return ApiResponse.ok(
         data={
             "id": conv.id,
@@ -102,10 +113,15 @@ async def get_conversation(conversation_id: str):
                     "role": m.role,
                     "content": m.content,
                     "created_at": m.created_at,
-                    "metadata": m.metadata_json,  # TODO: parse JSON if needed
+                    "metadata": m.metadata_json,
                 }
-                for m in conv.messages
+                for m in messages
             ],
+            "pagination": {
+                "limit": msg_limit,
+                "offset": msg_offset,
+                "has_more": len(messages) == msg_limit,
+            },
         }
     )
 

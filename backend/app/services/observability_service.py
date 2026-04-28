@@ -95,12 +95,20 @@ async def record_llm_metric(
     latency_ms: float,
     tokens_input: int = 0,
     tokens_output: int = 0,
+    tokens_cache_hit: int = 0,
     cost: float = 0.0,
+    cache_savings_usd: float = 0.0,
     is_error: bool = False,
     error_type: str | None = None,
     context: dict[str, Any] | None = None,
 ) -> None:
-    """Record detailed LLM performance metrics."""
+    """Record detailed LLM performance metrics.
+
+    Args:
+        tokens_cache_hit:   Input tokens served from prefix cache
+                            (from API response usage.prompt_cache_hit_tokens).
+        cache_savings_usd:  USD saved vs. full cache-miss billing.
+    """
     from app.core.database import async_session_factory
     try:
         async with async_session_factory() as session:
@@ -110,7 +118,9 @@ async def record_llm_metric(
                 latency_ms=latency_ms,
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
+                tokens_cache_hit=tokens_cache_hit,
                 cost=cost,
+                cache_savings_usd=cache_savings_usd,
                 is_error=is_error,
                 error_type=error_type,
                 context=context or {}

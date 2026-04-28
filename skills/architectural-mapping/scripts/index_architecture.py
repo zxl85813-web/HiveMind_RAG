@@ -1176,6 +1176,42 @@ class ArchitectureIndexer:
 
         logger.info(f"✅ Swarm topology: {len(set(graph_nodes))} nodes, {tool_count} tools, {skill_count} skills.")
 
+        # M9.4.3: Index MCP tools from mcp_servers.json
+        mcp_count = 0
+        mcp_config_path = BASE_DIR / "backend" / "mcp_servers.json"
+        if not mcp_config_path.exists():
+            mcp_config_path = BASE_DIR / "backend" / "app" / "mcp_servers.json"
+        if mcp_config_path.exists():
+            try:
+                import json as _json
+                mcp_data = _json.loads(mcp_config_path.read_text(encoding="utf-8"))
+                servers = mcp_data.get("mcpServers", mcp_data.get("servers", {}))
+                for srv_name, srv_config in servers.items():
+                    if srv_config.get("disabled", False):
+                        continue
+                    srv_id = f"MCP_SERVER:{srv_name}"
+                    self.run_query(
+                        "MERGE (ms:ArchNode:MCPServer {id: $id}) "
+                        "SET ms.name = $name, ms.type = 'MCPServer', "
+                        "    ms.transport = $transport, ms.command = $cmd",
+                        {
+                            "id": srv_id,
+                            "name": srv_name,
+                            "transport": srv_config.get("type", "stdio"),
+                            "cmd": srv_config.get("command", ""),
+                        }
+                    )
+                    # Link to supervisor node
+                    self.run_query(
+                        "MATCH (ms:MCPServer {id: $sid}), (sn:SwarmNode {name: 'supervisor'}) "
+                        "MERGE (sn)-[:USES_MCP]->(ms)",
+                        {"sid": srv_id}
+                    )
+                    mcp_count += 1
+                logger.info(f"✅ Indexed {mcp_count} MCP servers from config.")
+            except Exception as e:
+                logger.warning(f"MCP config indexing failed: {e}")
+
     def index_pipeline_definitions(self):
         """Parse Pipeline/Batch system: artifact types, engine stages."""
         import ast as _ast
@@ -1628,6 +1664,66 @@ class ArchitectureIndexer:
 
         total = perm_count + 5 + 4 + 4
         logger.info(f"✅ Indexed {total} governance gates.")
+
+    def index_harness_policies(self):
+        """M8.1.2: Index HarnessPolicy nodes and their APPLIES_TO relationships to SwarmNodes."""
+        logger.info("🛡️ Indexing Harness policies...")
+
+        # 1. Index built-in policies from engine.py AGENT_POLICY_MAP
+        from backend.app.sdk.harness.engine import AGENT_POLICY_MAP, GLOBAL_POLICIES
+
+        policy_count = 0
+
+        # Global policies (apply to all agents)
+        for policy in GLOBAL_POLICIES:
+            pid = f"HP:builtin:{policy.name}"
+            self.run_query(
+                "MERGE (hp:HarnessPolicy {id: $id}) "
+                "SET hp.name = $name, hp.type = 'policy', hp.agent_scope = 'all', "
+                "    hp.severity = $severity, hp.source = 'builtin', hp.is_active = true",
+                {"id": pid, "name": policy.name, "severity": policy.default_level}
+            )
+            # Link to all SwarmNodes
+            self.run_query(
+                "MATCH (hp:HarnessPolicy {id: $pid}), (sn:SwarmNode) "
+                "MERGE (sn)-[:GOVERNED_BY]->(hp)",
+                {"pid": pid}
+            )
+            policy_count += 1
+
+        # Agent-specific policies
+        for agent_name, policies in AGENT_POLICY_MAP.items():
+            for policy in policies:
+                pid = f"HP:builtin:{agent_name}:{policy.name}"
+                self.run_query(
+                    "MERGE (hp:HarnessPolicy {id: $id}) "
+                    "SET hp.name = $name, hp.type = $ptype, hp.agent_scope = $scope, "
+                    "    hp.severity = $severity, hp.source = 'builtin', hp.is_active = true",
+                    {
+                        "id": pid,
+                        "name": f"{agent_name}/{policy.name}",
+                        "ptype": getattr(policy, 'default_level', 'error'),
+                        "scope": agent_name,
+                        "severity": policy.default_level,
+                    }
+                )
+                # Link to specific SwarmNode
+                self.run_query(
+                    "MATCH (hp:HarnessPolicy {id: $pid}) "
+                    "MATCH (sn:SwarmNode) WHERE sn.name CONTAINS $agent "
+                    "MERGE (sn)-[:GOVERNED_BY]->(hp)",
+                    {"pid": pid, "agent": agent_name}
+                )
+                policy_count += 1
+
+        # 2. Link quality gates to harness policies (DERIVED_FROM)
+        self.run_query(
+            "MATCH (hp:HarnessPolicy), (g:GateRule {gate_type: 'quality_gate'}) "
+            "WHERE hp.source = 'builtin' "
+            "MERGE (hp)-[:DERIVED_FROM]->(g)"
+        )
+
+        logger.info(f"✅ Indexed {policy_count} Harness policies.")
 
     def index_test_coverage(self):
         """Map test files to API endpoints and state transitions they cover."""

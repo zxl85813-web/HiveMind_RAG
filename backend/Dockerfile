@@ -1,23 +1,26 @@
 # --- Build Stage ---
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies (includes libs needed by unstructured, pymupdf, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    libmagic1 \
+    libgl1 \
+    libglib2.0-0 \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install CPU-only PyTorch first (prevents pip from resolving the ~5GB CUDA variant)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Install project dependencies
+# Install project dependencies (cached layer — only rebuilds when pyproject.toml changes)
 COPY pyproject.toml README.md ./
-# Create dummy app to install dependencies first (caching)
 RUN mkdir app && touch app/__init__.py && \
-    pip install --no-cache-dir . && \
+    pip install --no-cache-dir . 2>&1 && \
     pip uninstall -y hivemind-rag && \
     rm -rf app
 
@@ -26,10 +29,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies (healthchecks, network diagnostics)
+# Install runtime dependencies (healthchecks, network diagnostics, doc processing)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     netcat-openbsd \
+    libmagic1 \
+    libgl1 \
+    libglib2.0-0 \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder

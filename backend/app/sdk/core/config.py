@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from pydantic_settings import BaseSettings
 
 # 计算后端根目录 (C:\Users\... \aiproject\backend)
@@ -14,19 +15,20 @@ class Settings(BaseSettings):
     BASE_DIR: Path = BASE_DIR
     DEBUG: bool = True
     ENV: str = "development"  # development | production | test
-    
+
     # 基于 BASE_DIR 的绝对存储路径
     STORAGE_DIR: Path = BASE_DIR / "storage"
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     CHECKPOINT_DB_PATH: Path = BASE_DIR / "storage" / "swarm_checkpoints.sqlite"
 
     # === Token Governance (P0 Hardening) ===
-    # Standard 32K context window budget (Reference: REQ-014)
-    CONTEXT_WINDOW_LIMIT: int = 32768
+    # V4 的 KV Cache 只有 V3 的 7-10%，1M 上下文成本大幅下降。
+    # 将上下文窗口从 32K 放宽到 64K，RAG 可塞入更多检索结果。
+    CONTEXT_WINDOW_LIMIT: int = 65536
     # Percentage-based budgets (Total must be <= 1.0)
-    BUDGET_SYSTEM_RATIO: float = 0.10
-    BUDGET_MEMORY_RATIO: float = 0.15
-    BUDGET_RAG_RATIO: float = 0.45
+    BUDGET_SYSTEM_RATIO: float = 0.08   # 系统 prompt 静态部分（缓存友好，比例可小）
+    BUDGET_MEMORY_RATIO: float = 0.12
+    BUDGET_RAG_RATIO: float = 0.50      # RAG 上下文：窗口放大后可塞更多检索结果
     BUDGET_HISTORY_RATIO: float = 0.20
     BUDGET_OUTPUT_RATIO: float = 0.10
 
@@ -77,6 +79,10 @@ class Settings(BaseSettings):
     # === Vector Store ===
     VECTOR_STORE_TYPE: str = "elasticsearch"  # chroma | milvus | qdrant | elasticsearch
 
+    # ChromaDB
+    CHROMA_HOST: str | None = None   # None = 本地模式；设置后连接远程容器
+    CHROMA_PORT: int = 8000
+
     # Elasticsearch (Matches .env keys)
     ES_HOST: str = "localhost"
     ES_PORT: int = 9200
@@ -111,10 +117,13 @@ class Settings(BaseSettings):
     MODEL_DEEPSEEK_V3: str = "Pro/deepseek-ai/DeepSeek-V3"
 
     # === ClawRouter 4-Tier Models (Cost Optimization) ===
-    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Factual lookups, greetings, translations (e.g. Gemini Flash)
-    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Summaries, explanations, data extraction (e.g. DeepSeek Chat)
-    DEFAULT_COMPLEX_MODEL: str = "Pro/zai-org/GLM-5"       # Code generation, multi-step analysis (e.g. Claude Opus)
-    DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"     # Proofs, formal logic, multi-step math (e.g. o3 / o1)
+    # Simple/Medium → V4-Flash: 缓存命中后仅 $0.028/M，适合问候、摘要、数据提取
+    # Complex       → V4-Pro:   缓存命中后 $0.145/M，适合代码生成、多步分析
+    # Reasoning     → NVIDIA NIM V4-Pro (带 chain-of-thought)
+    DEFAULT_SIMPLE_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
+    DEFAULT_MEDIUM_MODEL: str = "deepseek-ai/DeepSeek-V4-Flash"
+    DEFAULT_COMPLEX_MODEL: str = "deepseek-ai/DeepSeek-V4-Pro"
+    DEFAULT_REASONING_MODEL: str = "deepseek-reasoner"       # Proofs, formal logic
 
     # === Tier Specific Providers (Optional overrides) ===
     SIMPLE_PROVIDER: str | None = "siliconflow"
@@ -140,6 +149,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes (short-lived)
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     TAVILY_API_KEY: str = ""
+
+    # === Harness Feature Flags ===
+    # SDK Key 在 Harness UI → Feature Flags → Environments → SDK Keys 中获取
+    # 未配置时自动降级到 settings 环境变量
+    HARNESS_FF_SDK_KEY: str = ""
 
     # === External Learning ===
     LEARNING_FETCH_INTERVAL_HOURS: int = 6
@@ -188,6 +202,59 @@ class Settings(BaseSettings):
     ARK_API_KEY: str = ""
     ARK_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
     ARK_MODEL: str = "deepseek-v3-2-251201"
+
+    # === NVIDIA NIM (OpenAI-compatible, Free Tier) ===
+    # Provider: https://integrate.api.nvidia.com/v1
+    # Used for: Reasoning Tier (DeepSeek-V4-Pro with chain-of-thought)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_REASONING_MODEL: str = "deepseek-ai/deepseek-v4-pro"
+    # Enable DeepSeek thinking mode (chain-of-thought reasoning)
+    NVIDIA_THINKING_ENABLED: bool = True
+    NVIDIA_REASONING_EFFORT: str = "max"  # low | medium | max
+
+    # === AWS S3 Storage ===
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_S3_BUCKET_NAME: str = ""
+    AWS_S3_REGION: str = "us-east-1"
+    AWS_S3_ENDPOINT_URL: str | None = None   # None = 标准 AWS；填写则走兼容服务（MinIO/OSS/R2）
+    AWS_S3_PREFIX: str = "uploads/"          # Bucket 内的目录前缀
+    AWS_S3_PRESIGN_EXPIRES: int = 3600       # 预签名 URL 有效期（秒）
+
+    @property
+    def S3_ENABLED(self) -> bool:
+        """S3 是否已配置，用于在存储服务中做降级判断。"""
+        return bool(self.AWS_ACCESS_KEY_ID and self.AWS_S3_BUCKET_NAME)
+
+    # === Celery Worker & Rate Limiting ===
+    # Worker 并发数（IO 密集型任务建议 4-8，CPU 密集型建议 = CPU 核数）
+    CELERY_WORKER_CONCURRENCY: int = 4
+    # 预取倍数：1 = 每次只取 1 个任务，防止大任务堆积在单个 worker
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+
+    # ingestion_queue 任务限速：每分钟最多处理 N 个文档
+    # 主要目的：防止 LLM API 配额（TPM/RPM）被 Celery 瞬间耗尽
+    # 计算方式：LLM_RPM_LIMIT / 每文档平均 LLM 调用次数（约 3-5 次）
+    CELERY_INGESTION_RATE_LIMIT: str = "10/m"   # 格式: "N/s" | "N/m" | "N/h"
+
+    # maintenance_queue 任务限速（内存衰减等低优先级任务）
+    CELERY_MAINTENANCE_RATE_LIMIT: str = "2/m"
+
+    # 任务重试：最大重试次数 & 指数退避基数（秒）
+    CELERY_MAX_RETRIES: int = 3
+    CELERY_RETRY_BACKOFF_BASE: int = 30         # 第 N 次重试等待 base * 2^(N-1) 秒
+
+    # Beat 调度：内存衰减任务执行时间（UTC）
+    CELERY_MEMORY_DECAY_HOUR: int = 3
+    CELERY_MEMORY_DECAY_MINUTE: int = 0
+
+    # Beat 调度：可观测性 trace buffer 刷新间隔（秒）
+    CELERY_OBS_FLUSH_INTERVAL: float = 10.0
+
+    # Beat 调度：LLM 配额使用情况日报（UTC 每天 08:00）
+    CELERY_LLM_QUOTA_REPORT_HOUR: int = 8
+    CELERY_LLM_QUOTA_REPORT_MINUTE: int = 0
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True, "extra": "ignore"}
 

@@ -349,6 +349,7 @@ class LearningService:
         """
         爬取 Hacker News 高分技术贴（使用 Algolia HN Search API）。
         只拉 AI/ML/Python/Agent 相关关键词，减少噪音。
+        [Fix-02] 三个关键词查询并行发出，替代原来的串行 for 循环。
         """
         min_score = settings.LEARNING_HN_MIN_SCORE
         limit = max(1, min(settings.LEARNING_HN_LIMIT, 10))
@@ -358,38 +359,59 @@ class LearningService:
             "artificial intelligence machine learning",
         ]
 
-        signals: list[dict[str, str]] = []
+        async def _fetch_one_query(client: httpx.AsyncClient, q: str) -> list[dict[str, str]]:
+            try:
+                resp = await client.get(
+                    "https://hn.algolia.com/api/v1/search",
+                    params={
+                        "query": q,
+                        "tags": "story",
+                        "numericFilters": f"points>{min_score}",
+                        "hitsPerPage": limit,
+                    },
+                )
+                if resp.status_code != 200:
+                    return []
+                hits = []
+                for hit in resp.json().get("hits", []):
+                    title = hit.get("title") or ""
+                    story_url = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
+                    if title:
+                        hits.append(
+                            {
+                                "source": "hacker_news",
+                                "title": f"[HN] {title}",
+                                "url": story_url,
+                                "origin": "news.ycombinator.com",
+                                "hn_points": str(hit.get("points", 0)),
+                            }
+                        )
+                return hits
+            except Exception as e:
+                logger.debug("HN fetch error for query '{}': {}", q, e)
+                return []
+
         async with httpx.AsyncClient(timeout=20.0) as client:
-            for q in tech_queries:
-                if len(signals) >= limit:
-                    break
-                try:
-                    resp = await client.get(
-                        "https://hn.algolia.com/api/v1/search",
-                        params={
-                            "query": q,
-                            "tags": "story",
-                            "numericFilters": f"points>{min_score}",
-                            "hitsPerPage": limit,
-                        },
-                    )
-                    if resp.status_code != 200:
-                        continue
-                    for hit in resp.json().get("hits", []):
-                        title = hit.get("title") or ""
-                        story_url = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
-                        if title and not any(s["url"] == story_url for s in signals):
-                            signals.append(
-                                {
-                                    "source": "hacker_news",
-                                    "title": f"[HN] {title}",
-                                    "url": story_url,
-                                    "origin": "news.ycombinator.com",
-                                    "hn_points": str(hit.get("points", 0)),
-                                }
-                            )
-                except Exception as e:
-                    logger.debug("HN fetch error for query '{}': {}", q, e)
+            query_results = await asyncio.gather(
+                *[_fetch_one_query(client, q) for q in tech_queries],
+                return_exceptions=True,
+            )
+
+        # 合并结果并去重（按 URL）
+        seen_urls: set[str] = set()
+        signals: list[dict[str, str]] = []
+        for batch in query_results:
+            if isinstance(batch, Exception):
+                continue
+            for item in batch:
+                if item["url"] not in seen_urls:
+                    seen_urls.add(item["url"])
+                    signals.append(item)
+                    if len(signals) >= limit:
+                        break
+            if len(signals) >= limit:
+                break
+
         return signals[:limit]
 
     @staticmethod
@@ -645,14 +667,26 @@ class LearningService:
         """
         定时爬取入口：拉取 GitHub Trending + HN + ArXiv，
         经相关性评估后存入 _discoveries 并返回高质量发现列表。
+        [Fix-02] 三个外部源并行抓取，替代原来的串行调用。
         """
         import uuid
 
         logger.info("[ExternalCrawl] Starting crawl cycle...")
+
+        # [Fix-02] 并行抓取三个外部源，总延迟 = max(各源延迟) 而非 sum
+        results = await asyncio.gather(
+            LearningService._fetch_github_trending(),
+            LearningService._fetch_hacker_news(),
+            LearningService._fetch_arxiv(),
+            return_exceptions=True,
+        )
         raw: list[dict[str, str]] = []
-        raw += await LearningService._fetch_github_trending()
-        raw += await LearningService._fetch_hacker_news()
-        raw += await LearningService._fetch_arxiv()
+        source_names = ["github_trending", "hacker_news", "arxiv"]
+        for name, result in zip(source_names, results):
+            if isinstance(result, Exception):
+                logger.warning("[ExternalCrawl] {} fetch failed: {}", name, result)
+            else:
+                raw += result
 
         if not raw:
             logger.info("[ExternalCrawl] No signals fetched this cycle.")
@@ -699,6 +733,31 @@ class LearningService:
             len(discoveries),
             min_score,
         )
+
+        # 🔗 M9.1.2: 自动触发 RAG 入库（fire-and-forget）
+        if discoveries:
+            import asyncio as _asyncio
+
+            async def _auto_ingest():
+                ingested = 0
+                for disc in discoveries:
+                    try:
+                        await LearningService.ingest_discovery(disc.id)
+                        ingested += 1
+                    except Exception as e:
+                        logger.debug(f"[ExternalCrawl] Auto-ingest skipped for {disc.id}: {e}")
+                if ingested:
+                    logger.info(f"[ExternalCrawl] Auto-ingested {ingested}/{len(discoveries)} discoveries into RAG.")
+
+            try:
+                loop = _asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(_auto_ingest())
+                else:
+                    await _auto_ingest()
+            except Exception as e:
+                logger.debug(f"[ExternalCrawl] Auto-ingest scheduling failed: {e}")
+
         return discoveries
 
     @staticmethod
@@ -965,15 +1024,26 @@ class LearningService:
         """Run one daily self-learning cycle and persist a user-facing markdown report."""
         report_date = datetime.now(UTC).date().isoformat()
         local_materials = LearningService._collect_local_materials()
-        project_items = await LearningService._fetch_project_items()
-        issues = await LearningService._fetch_repo_issues()
         x_watchlist = LearningService._build_x_watchlist()
-        ai_feed_signals = await LearningService._fetch_ai_company_feed_signals()
-        github_repo_signals = await LearningService._fetch_github_watch_repo_signals()
-        # 实际爬取引擎 (2.4): GitHub Trending / HN / ArXiv
-        crawl_github = await LearningService._fetch_github_trending()
-        crawl_hn = await LearningService._fetch_hacker_news()
-        crawl_arxiv = await LearningService._fetch_arxiv()
+
+        # [Fix-02] 所有外部 IO 并行发出，总延迟 = max(各源) 而非 sum
+        (
+            project_items,
+            issues,
+            ai_feed_signals,
+            github_repo_signals,
+            crawl_github,
+            crawl_hn,
+            crawl_arxiv,
+        ) = await asyncio.gather(
+            LearningService._fetch_project_items(),
+            LearningService._fetch_repo_issues(),
+            LearningService._fetch_ai_company_feed_signals(),
+            LearningService._fetch_github_watch_repo_signals(),
+            LearningService._fetch_github_trending(),
+            LearningService._fetch_hacker_news(),
+            LearningService._fetch_arxiv(),
+        )
         external_signals = ai_feed_signals + github_repo_signals + x_watchlist + crawl_github + crawl_hn + crawl_arxiv
 
         analyst = LearningAnalystAgent()

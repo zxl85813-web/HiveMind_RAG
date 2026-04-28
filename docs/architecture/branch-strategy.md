@@ -30,7 +30,7 @@ main (生产保护)
 | **合并规则** | 必须 PR + CI 全绿 + 至少 1 人 Approve |
 | **合并策略** | `Merge commit`（保留完整发版历史） |
 | **直接 push** | 🚫 严格禁止（Branch Protection Rule） |
-| **触发 Pipeline** | `main-deploy.yml` — 构建容器镜像 → 推送到镜像仓库 |
+| **触发 Pipeline** | `deploy.yml` — SonarQube 扫描 → Harness CD 蓝绿部署（或 SSH 降级） |
 
 **说明**: `main` 始终对应一个可以在生产环境直接跑的稳定版本，每次合并进来都打 Git Tag (`v1.0.0`)。
 
@@ -90,7 +90,7 @@ main (生产保护)
 | **切自** | `main`（直接从生产基线） |
 | **合入** | **同时** 合入 `main` 和 `develop`（避免回归） |
 | **合并规则** | 必须 1 人紧急 Review + CI 通过 |
-| **触发 Pipeline** | `hotfix-ci.yml` — 最快速全量检查（快速 Lint + 核心 Unit Test） |
+| **触发 Pipeline** | `feature-ci.yml` — 最快速全量检查（快速 Lint + 核心 Unit Test） |
 | **发布** | 合入 `main` 后自动打 Patch Tag 如 `v1.0.1` |
 
 ---
@@ -136,13 +136,25 @@ main (生产保护)
 
 | 分支 | Workflow 文件 | Lint | Type | Unit Test | Integration | E2E | Build | Deploy |
 |------|-------------|------|------|-----------|-------------|-----|-------|--------|
-| `main` | `main-deploy.yml` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 镜像 | ✅ 生产 |
+| `main` | `backend-ci.yml` + `frontend-ci.yml` + `deploy.yml` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 镜像 | ✅ 生产 |
 | `develop` (push) | `develop-ci.yml` | ✅ | ✅ | ✅ | ✅ | - | ✅ 预览 | ✅ Dev环境 |
-| `feature/*` (PR→develop) | `feature-ci.yml` | ✅ | ✅ | ✅ | - | - | - | - |
+| `feature/*` (PR→develop) | `feature-ci.yml` | ✅ | ✅ | ✅ | - | - | ✅ | - |
 | `fix/*` (PR) | `feature-ci.yml` | ✅ | ✅ | ✅ | - | - | - | - |
 | `release/*` (PR→main) | `release-ci.yml` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ RC镜像 | - |
 | `hotfix/*` (PR) | `feature-ci.yml` | ✅ | ✅ | ✅ | - | - | - | - |
 | `experiment/*` | 无 CI | - | - | - | - | - | - | - |
+
+### 附加 Pipeline（跨分支或定时触发）
+
+| Workflow | 触发条件 | 用途 |
+|----------|---------|------|
+| `docker-compose-test.yml` | push → main/feature/feat, PR → main | 容器化全栈冒烟测试 |
+| `governance-gates.yml` | 被 backend-ci / develop-ci / feature-ci 调用 | 治理门禁（6 并行 + Step-7 Go/No-Go） |
+| `rag-eval-gate.yml` | push → main/develop, PR → develop | RAG 质量门禁（预算感知 real/mock 双模式） |
+| `sg1-stability-window.yml` | 每 2 小时定时 + 手动触发 | SG-007 演练 + SG-1 滚动窗口稳定性验证 |
+| `hmer-architecture-eval.yml` | push → main + 手动触发 | HMER 四阶段架构压测（Playwright E2E） |
+| `pr-auto-assign.yml` | PR opened/sync | 自动分配 Reviewer |
+| `pr-labeler.yml` | PR opened/sync | 自动打标签（backend/frontend/docs） |
 
 ---
 

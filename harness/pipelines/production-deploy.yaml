@@ -1,0 +1,283 @@
+pipeline:
+  # =============================================================================
+  # HiveMind RAG — Harness CD Production Pipeline
+  # =============================================================================
+  # 替代原 .github/workflows/deploy.yml 的裸 SSH 部署
+  #
+  # 部署策略: Blue/Green with Auto-Rollback
+  # 触发方式: 
+  #   - GitHub Actions 调用 Harness API (见 deploy.yml)
+  #   - Harness UI 手动触发
+  #   - Harness Trigger (Git webhook)
+  #
+  # 前置条件:
+  #   1. 在 Harness 中创建 SSH Credential (secrets.AZURE_SSH_KEY)
+  #   2. 在 Harness 中创建 Infrastructure Definition (Azure VM)
+  #   3. 在 Harness 中配置 Service (HiveMind RAG)
+  #   4. 服务器上已安装 Docker + Docker Compose V2
+  # =============================================================================
+  name: HiveMind RAG Production Deploy
+  identifier: hivemind_production_deploy
+  projectIdentifier: hivemind_rag
+  orgIdentifier: default
+  description: "Blue/Green deployment with auto-rollback for HiveMind RAG"
+  tags:
+    environment: production
+    strategy: blue-green
+
+  stages:
+    # ── Stage 1: Pre-Deploy Validation ─────────────────────────────────────────
+    - stage:
+        name: Pre-Deploy Validation
+        identifier: pre_deploy_validation
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: SonarQube Code Quality Gate
+                  identifier: sonarqube_gate
+                  type: Run
+                  spec:
+                    connectorRef: account.docker_hub
+                    image: sonarsource/sonar-scanner-cli:latest
+                    command: |
+                      sonar-scanner \
+                        -Dsonar.projectKey=hivemind-rag \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=<+secrets.getValue("sonar_host_url")> \
+                        -Dsonar.login=<+secrets.getValue("sonar_token")>
+                  timeout: 10m
+
+              - step:
+                  name: Verify Docker Image Build (Dry Run)
+                  identifier: verify_build
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: false
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Verifying deployment prerequisites..."
+                          # 检查服务器上的 Docker 和 Compose 版本
+                          docker version
+                          docker compose version
+                          # 检查项目目录存在
+                          test -d "<+pipeline.variables.project_dir>" || {
+                            echo "Project directory not found. Cloning..."
+                            git clone https://github.com/<+pipeline.variables.github_repo>.git \
+                              "<+pipeline.variables.project_dir>"
+                          }
+                          echo "Prerequisites verified."
+                    executionTarget:
+                      connectorRef: account.azure_prod_ssh
+                      host: <+secrets.getValue("azure_server_host")>
+                      workingDirectory: <+pipeline.variables.project_dir>
+                  timeout: 5m
+
+    # ── Stage 2: Blue/Green Deploy ──────────────────────────────────────────────
+    - stage:
+        name: Blue/Green Deploy
+        identifier: blue_green_deploy
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: Run Blue/Green Deploy Script
+                  identifier: run_deploy
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: false
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          set -euo pipefail
+                          cd <+pipeline.variables.project_dir>
+
+                          # 确保部署脚本有执行权限
+                          chmod +x scripts/deploy/blue_green_deploy.sh
+
+                          # 执行蓝绿部署
+                          DEPLOY_BRANCH="<+pipeline.variables.deploy_branch>" \
+                          ROLLBACK_KEEP_MINUTES="<+pipeline.variables.rollback_keep_minutes>" \
+                          SLACK_WEBHOOK_URL="<+secrets.getValue("slack_webhook_url")>" \
+                            ./scripts/deploy/blue_green_deploy.sh \
+                              --branch "<+pipeline.variables.deploy_branch>"
+                    executionTarget:
+                      connectorRef: account.azure_prod_ssh
+                      host: <+secrets.getValue("azure_server_host")>
+                      workingDirectory: <+pipeline.variables.project_dir>
+                  timeout: 30m
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: StageRollback
+
+              - step:
+                  name: Post-Deploy Health Check
+                  identifier: post_deploy_health
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: false
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          set -euo pipefail
+                          cd <+pipeline.variables.project_dir>
+                          chmod +x scripts/deploy/health_check.sh
+                          ./scripts/deploy/health_check.sh
+                    executionTarget:
+                      connectorRef: account.azure_prod_ssh
+                      host: <+secrets.getValue("azure_server_host")>
+                      workingDirectory: <+pipeline.variables.project_dir>
+                  timeout: 5m
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: StageRollback
+
+        rollbackSteps:
+          - step:
+              name: Auto Rollback
+              identifier: auto_rollback
+              type: ShellScript
+              spec:
+                shell: Bash
+                onDelegate: false
+                source:
+                  type: Inline
+                  spec:
+                    script: |
+                      set -euo pipefail
+                      cd <+pipeline.variables.project_dir>
+                      echo "🔴 Deployment failed. Initiating automatic rollback..."
+                      chmod +x scripts/deploy/rollback.sh
+                      ./scripts/deploy/rollback.sh
+                      echo "✅ Rollback completed."
+                executionTarget:
+                  connectorRef: account.azure_prod_ssh
+                  host: <+secrets.getValue("azure_server_host")>
+                  workingDirectory: <+pipeline.variables.project_dir>
+              timeout: 10m
+
+    # ── Stage 3: Post-Deploy Verification ──────────────────────────────────────
+    - stage:
+        name: Post-Deploy Verification
+        identifier: post_deploy_verification
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: Verify Active Slot
+                  identifier: verify_active_slot
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: false
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          ACTIVE_SLOT=$(cat <+pipeline.variables.project_dir>/.deploy_state)
+                          echo "Active slot after deployment: ${ACTIVE_SLOT}"
+
+                          # 输出到 Harness 变量供后续步骤使用
+                          export ACTIVE_SLOT
+                    executionTarget:
+                      connectorRef: account.azure_prod_ssh
+                      host: <+secrets.getValue("azure_server_host")>
+                      workingDirectory: <+pipeline.variables.project_dir>
+                  timeout: 2m
+
+              - step:
+                  name: Notify Deployment Success
+                  identifier: notify_success
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: false
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          ACTIVE_SLOT=$(cat <+pipeline.variables.project_dir>/.deploy_state)
+                          GIT_SHA=$(cd <+pipeline.variables.project_dir> && git rev-parse --short HEAD)
+
+                          echo "=========================================="
+                          echo "  ✅ Production Deployment Complete"
+                          echo "  Branch:      <+pipeline.variables.deploy_branch>"
+                          echo "  Git SHA:     ${GIT_SHA}"
+                          echo "  Active Slot: ${ACTIVE_SLOT}"
+                          echo "  Pipeline:    <+pipeline.name>"
+                          echo "  Execution:   <+pipeline.executionId>"
+                          echo "=========================================="
+
+                          # Slack 通知
+                          if [ -n "<+secrets.getValue("slack_webhook_url")>" ]; then
+                            curl -s -X POST "<+secrets.getValue("slack_webhook_url")>" \
+                              -H 'Content-type: application/json' \
+                              --data "{
+                                \"attachments\": [{
+                                  \"color\": \"good\",
+                                  \"title\": \"✅ HiveMind RAG Deployed\",
+                                  \"fields\": [
+                                    {\"title\": \"Branch\", \"value\": \"<+pipeline.variables.deploy_branch>\", \"short\": true},
+                                    {\"title\": \"SHA\", \"value\": \"${GIT_SHA}\", \"short\": true},
+                                    {\"title\": \"Slot\", \"value\": \"${ACTIVE_SLOT}\", \"short\": true}
+                                  ]
+                                }]
+                              }" || true
+                          fi
+                    executionTarget:
+                      connectorRef: account.azure_prod_ssh
+                      host: <+secrets.getValue("azure_server_host")>
+                      workingDirectory: <+pipeline.variables.project_dir>
+                  timeout: 2m
+
+  # ── Pipeline Variables ────────────────────────────────────────────────────────
+  variables:
+    - name: deploy_branch
+      type: String
+      default: main
+      description: "Git branch to deploy"
+
+    - name: project_dir
+      type: String
+      default: /home/azureuser/HiveMind_RAG
+      description: "Project root directory on the server"
+
+    - name: github_repo
+      type: String
+      default: zxl85813-web/HiveMind_RAG
+      description: "GitHub repository (owner/repo)"
+
+    - name: rollback_keep_minutes
+      type: Number
+      default: 10
+      description: "Minutes to keep old slot running for rollback window"
+
+  # ── Notification Rules ────────────────────────────────────────────────────────
+  notificationRules:
+    - name: Deployment Failure Alert
+      identifier: deployment_failure_alert
+      pipelineEvents:
+        - type: PipelineFailed
+        - type: StageFailed
+      notificationMethod:
+        type: Slack
+        spec:
+          webhookUrl: <+secrets.getValue("slack_webhook_url")>
+          userGroups: []
+      enabled: true

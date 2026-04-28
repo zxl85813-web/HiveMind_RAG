@@ -1,0 +1,66 @@
+# =============================================================================
+# Composite Action: Backend Setup
+# =============================================================================
+# 消除所有 workflow 中重复的 Python 环境初始化步骤：
+#   1. Set up Python
+#   2. Install dependencies (pip install -e ".[dev]")
+#   3. Create minimal test .env
+#
+# 使用方式:
+#   - uses: ./.github/actions/backend-setup
+#     with:
+#       python-version: '3.11'          # 可选，默认 3.11
+#       install-extras: 'types-aiofiles types-redis'  # 可选额外包
+#       working-directory: 'backend'    # 可选，默认 backend
+# =============================================================================
+name: Backend Setup
+description: "Set up Python environment, install dependencies, and create test .env"
+
+inputs:
+  python-version:
+    description: "Python version to use"
+    required: false
+    default: "3.11"
+  install-extras:
+    description: "Additional pip packages to install (space-separated)"
+    required: false
+    default: ""
+  working-directory:
+    description: "Working directory for backend"
+    required: false
+    default: "backend"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+
+    - name: Install project dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        pip install -e ".[dev]"
+        if [[ -n "${{ inputs.install-extras }}" ]]; then
+          pip install ${{ inputs.install-extras }}
+        fi
+
+    - name: Create test .env
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        cat > .env << 'EOF'
+        APP_NAME="HiveMind RAG Test"
+        DEBUG=true
+        DATABASE_URL=sqlite+aiosqlite:///./test.db
+        VECTOR_STORE_TYPE=chroma
+        LLM_PROVIDER=siliconflow
+        LLM_API_KEY=sk-test
+        LLM_MODEL=test-model
+        LLM_BASE_URL=https://example.com/v1
+        SECRET_KEY=ci-test-secret-key
+        EOF
+        echo "✅ Test .env created."

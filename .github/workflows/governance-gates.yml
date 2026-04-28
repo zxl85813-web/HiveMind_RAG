@@ -1,0 +1,391 @@
+# =============================================================================
+# Reusable Workflow: Governance Gates (Parallel)
+# =============================================================================
+# 将原来串行的 7 个治理门禁脚本重构为 3 个并行 Job + 1 个汇总 Job。
+#
+# 并行结构:
+#   ┌─────────────────────────────────────────────────────────┐
+#   │  Job: parallel-gates (matrix)                           │
+#   │  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  │
+#   │  │ circuit-      │ │ sg007-drill  │ │ sg3-cost-      │  │
+#   │  │ breaker (SG3) │ │ (SG-007)     │ │ quality        │  │
+#   │  └──────────────┘ └──────────────┘ └────────────────┘  │
+#   │  ┌──────────────┐ ┌──────────────┐                      │
+#   │  │ sg1-window   │ │ arch-audit   │                      │
+#   │  └──────────────┘ └──────────────┘                      │
+#   └─────────────────────────────────────────────────────────┘
+#              ↓ all pass
+#   ┌─────────────────────────────────────────────────────────┐
+#   │  Job: step7-unified-gate                                │
+#   │  (Step-7 Go/No-Go + Closure Readiness)                  │
+#   └─────────────────────────────────────────────────────────┘
+#
+# 预期 CI 时间节省: 原串行 ~18-25 min → 并行后 ~8-12 min (约 50% 提升)
+#
+# 调用方式 (在其他 workflow 中):
+#   jobs:
+#     governance:
+#       uses: ./.github/workflows/governance-gates.yml
+#       with:
+#         profile: main        # main | develop | feature
+#         artifact_suffix: main
+# =============================================================================
+
+name: Governance Gates (Parallel)
+
+on:
+  workflow_call:
+    inputs:
+      # 门禁严格程度配置文件: main > develop > feature
+      profile:
+        description: "Gate strictness profile (main | develop | feature)"
+        type: string
+        required: true
+        default: develop
+
+      # Artifact 名称后缀，避免同一 run 内多次调用时冲突
+      artifact_suffix:
+        description: "Suffix for artifact names (e.g. main, develop, feature)"
+        type: string
+        required: false
+        default: ""
+
+      # 是否跑 Step-7 Closure Readiness（只有 main 分支需要）
+      run_closure_check:
+        description: "Whether to run Step-7 Closure Readiness check"
+        type: boolean
+        required: false
+        default: false
+
+    outputs:
+      gates_passed:
+        description: "Whether all governance gates passed"
+        value: ${{ jobs.step7-unified-gate.outputs.passed }}
+
+env:
+  PYTHON_VERSION: '3.11'
+
+# =============================================================================
+# Profile 参数映射（通过 env 传递给各 job）
+# main:    最严格，生产门禁
+# develop: 中等，集成测试
+# feature: 宽松，快速反馈
+# =============================================================================
+
+jobs:
+  # ── Job 1: 解析 Profile 参数 ─────────────────────────────────────────────
+  resolve-profile:
+    name: 📋 Resolve Gate Profile
+    runs-on: ubuntu-latest
+    outputs:
+      sg7_max_error_budget:          ${{ steps.params.outputs.sg7_max_error_budget }}
+      sg7_max_degrade_trigger_ratio: ${{ steps.params.outputs.sg7_max_degrade_trigger_ratio }}
+      sg7_max_mttr_sec:              ${{ steps.params.outputs.sg7_max_mttr_sec }}
+      sg3_min_cost_reduction_ratio:  ${{ steps.params.outputs.sg3_min_cost_reduction_ratio }}
+      sg3_max_quality_regression:    ${{ steps.params.outputs.sg3_max_quality_regression }}
+      sg1_window_hours:              ${{ steps.params.outputs.sg1_window_hours }}
+      sg1_min_reports:               ${{ steps.params.outputs.sg1_min_reports }}
+      sg1_max_global_error_budget:   ${{ steps.params.outputs.sg1_max_global_error_budget }}
+      sg1_max_steady_block_ratio:    ${{ steps.params.outputs.sg1_max_steady_block_ratio }}
+      sg007_steady:                  ${{ steps.params.outputs.sg007_steady }}
+      sg007_spike:                   ${{ steps.params.outputs.sg007_spike }}
+      sg007_chaos:                   ${{ steps.params.outputs.sg007_chaos }}
+      sg007_open_duration:           ${{ steps.params.outputs.sg007_open_duration }}
+      sg3_samples:                   ${{ steps.params.outputs.sg3_samples }}
+      step7_closure_min_pass_count:  ${{ steps.params.outputs.step7_closure_min_pass_count }}
+    steps:
+      - name: Map profile to gate parameters
+        id: params
+        run: |
+          PROFILE="${{ inputs.profile }}"
+          echo "Resolving parameters for profile: ${PROFILE}"
+
+          case "${PROFILE}" in
+            main)
+              echo "sg7_max_error_budget=0.60"           >> $GITHUB_OUTPUT
+              echo "sg7_max_degrade_trigger_ratio=0.70"  >> $GITHUB_OUTPUT
+              echo "sg7_max_mttr_sec=60"                 >> $GITHUB_OUTPUT
+              echo "sg3_min_cost_reduction_ratio=0.12"   >> $GITHUB_OUTPUT
+              echo "sg3_max_quality_regression=0.02"     >> $GITHUB_OUTPUT
+              echo "sg1_window_hours=24"                 >> $GITHUB_OUTPUT
+              echo "sg1_min_reports=1"                   >> $GITHUB_OUTPUT
+              echo "sg1_max_global_error_budget=0.25"    >> $GITHUB_OUTPUT
+              echo "sg1_max_steady_block_ratio=0.10"     >> $GITHUB_OUTPUT
+              echo "sg007_steady=200"                    >> $GITHUB_OUTPUT
+              echo "sg007_spike=400"                     >> $GITHUB_OUTPUT
+              echo "sg007_chaos=120"                     >> $GITHUB_OUTPUT
+              echo "sg007_open_duration=1.5"             >> $GITHUB_OUTPUT
+              echo "sg3_samples=400"                     >> $GITHUB_OUTPUT
+              echo "step7_closure_min_pass_count=1"      >> $GITHUB_OUTPUT
+              ;;
+            develop)
+              echo "sg7_max_error_budget=0.65"           >> $GITHUB_OUTPUT
+              echo "sg7_max_degrade_trigger_ratio=0.75"  >> $GITHUB_OUTPUT
+              echo "sg7_max_mttr_sec=60"                 >> $GITHUB_OUTPUT
+              echo "sg3_min_cost_reduction_ratio=0.10"   >> $GITHUB_OUTPUT
+              echo "sg3_max_quality_regression=0.03"     >> $GITHUB_OUTPUT
+              echo "sg1_window_hours=24"                 >> $GITHUB_OUTPUT
+              echo "sg1_min_reports=1"                   >> $GITHUB_OUTPUT
+              echo "sg1_max_global_error_budget=0.28"    >> $GITHUB_OUTPUT
+              echo "sg1_max_steady_block_ratio=0.15"     >> $GITHUB_OUTPUT
+              echo "sg007_steady=120"                    >> $GITHUB_OUTPUT
+              echo "sg007_spike=260"                     >> $GITHUB_OUTPUT
+              echo "sg007_chaos=80"                      >> $GITHUB_OUTPUT
+              echo "sg007_open_duration=1.2"             >> $GITHUB_OUTPUT
+              echo "sg3_samples=260"                     >> $GITHUB_OUTPUT
+              echo "step7_closure_min_pass_count=1"      >> $GITHUB_OUTPUT
+              ;;
+            feature|*)
+              echo "sg7_max_error_budget=0.70"           >> $GITHUB_OUTPUT
+              echo "sg7_max_degrade_trigger_ratio=0.80"  >> $GITHUB_OUTPUT
+              echo "sg7_max_mttr_sec=60"                 >> $GITHUB_OUTPUT
+              echo "sg3_min_cost_reduction_ratio=0.10"   >> $GITHUB_OUTPUT
+              echo "sg3_max_quality_regression=0.03"     >> $GITHUB_OUTPUT
+              echo "sg1_window_hours=24"                 >> $GITHUB_OUTPUT
+              echo "sg1_min_reports=1"                   >> $GITHUB_OUTPUT
+              echo "sg1_max_global_error_budget=0.30"    >> $GITHUB_OUTPUT
+              echo "sg1_max_steady_block_ratio=0.20"     >> $GITHUB_OUTPUT
+              echo "sg007_steady=60"                     >> $GITHUB_OUTPUT
+              echo "sg007_spike=120"                     >> $GITHUB_OUTPUT
+              echo "sg007_chaos=30"                      >> $GITHUB_OUTPUT
+              echo "sg007_open_duration=1.0"             >> $GITHUB_OUTPUT
+              echo "sg3_samples=200"                     >> $GITHUB_OUTPUT
+              echo "step7_closure_min_pass_count=1"      >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+          echo "✅ Profile '${PROFILE}' resolved."
+
+  # ── Job 2: 并行门禁矩阵 ──────────────────────────────────────────────────
+  # 5 个门禁脚本完全并行，每个独占一个 runner
+  parallel-gates:
+    name: 🔬 Gate — ${{ matrix.gate.name }}
+    runs-on: ubuntu-latest
+    needs: resolve-profile
+    defaults:
+      run:
+        working-directory: backend
+
+    strategy:
+      fail-fast: false   # 一个门禁失败不立即取消其他门禁，收集完整报告
+      matrix:
+        gate:
+          - name: "Circuit Breaker (SG-3)"
+            id: circuit_breaker
+            script: >-
+              python scripts/validate_step3_circuit_breaker.py
+              --deps llm es neo4j
+            report_path: "logs/service_governance/"
+            artifact_name: "step3-cb-report"
+
+          - name: "SG-007 Stability Drill"
+            id: sg007_drill
+            script: >-
+              python scripts/run_sg007_governance_drills.py
+              --steady-requests $SG007_STEADY
+              --spike-requests $SG007_SPIKE
+              --chaos-requests $SG007_CHAOS
+              --open-duration-sec $SG007_OPEN_DURATION
+              --max-error-budget $SG7_MAX_ERROR_BUDGET
+              --max-degrade-trigger-ratio $SG7_MAX_DEGRADE_TRIGGER_RATIO
+              --max-mttr-sec $SG7_MAX_MTTR_SEC
+            report_path: "logs/service_governance/sg007_drill_report*"
+            artifact_name: "step6-sg007-report"
+
+          - name: "Cost-Quality Gate (SG-3)"
+            id: sg3_cost_quality
+            script: >-
+              python scripts/validate_step5_sg3_cost_quality.py
+              --samples $SG3_SAMPLES
+              --baseline premium
+              --min-cost-reduction-ratio $SG3_MIN_COST_REDUCTION_RATIO
+              --max-quality-regression $SG3_MAX_QUALITY_REGRESSION
+              --enforce
+            report_path: "logs/service_governance/step5_sg3_cost_quality_report*"
+            artifact_name: "step5-sg3-report"
+
+          - name: "SG-1 Rolling Window"
+            id: sg1_window
+            script: >-
+              python scripts/validate_gate_sg1_stability_window.py
+              --window-hours $SG1_WINDOW_HOURS
+              --min-reports $SG1_MIN_REPORTS
+              --max-global-error-budget $SG1_MAX_GLOBAL_ERROR_BUDGET
+              --max-steady-block-ratio $SG1_MAX_STEADY_BLOCK_RATIO
+              --enforce
+            report_path: "logs/service_governance/gate_sg1_window_report*"
+            artifact_name: "gate-sg1-window-report"
+
+          - name: "Architecture & Observability Audit"
+            id: arch_audit
+            script: >-
+              python scripts/sync_registry.py
+              --enforce
+              --max-unregistered 160
+              --max-unmonitored 180
+            report_path: "logs/"
+            artifact_name: "arch-audit-report"
+
+          - name: "Graph Health Check"
+            id: graph_health
+            script: >-
+              python ../scripts/graph_health_check.py
+              --max-orphans 20
+            report_path: "logs/graph_health_report.md"
+            artifact_name: "graph-health-report"
+
+    env:
+      # 从 resolve-profile job 的 outputs 注入参数
+      SG7_MAX_ERROR_BUDGET:          ${{ needs.resolve-profile.outputs.sg7_max_error_budget }}
+      SG7_MAX_DEGRADE_TRIGGER_RATIO: ${{ needs.resolve-profile.outputs.sg7_max_degrade_trigger_ratio }}
+      SG7_MAX_MTTR_SEC:              ${{ needs.resolve-profile.outputs.sg7_max_mttr_sec }}
+      SG3_MIN_COST_REDUCTION_RATIO:  ${{ needs.resolve-profile.outputs.sg3_min_cost_reduction_ratio }}
+      SG3_MAX_QUALITY_REGRESSION:    ${{ needs.resolve-profile.outputs.sg3_max_quality_regression }}
+      SG1_WINDOW_HOURS:              ${{ needs.resolve-profile.outputs.sg1_window_hours }}
+      SG1_MIN_REPORTS:               ${{ needs.resolve-profile.outputs.sg1_min_reports }}
+      SG1_MAX_GLOBAL_ERROR_BUDGET:   ${{ needs.resolve-profile.outputs.sg1_max_global_error_budget }}
+      SG1_MAX_STEADY_BLOCK_RATIO:    ${{ needs.resolve-profile.outputs.sg1_max_steady_block_ratio }}
+      SG007_STEADY:                  ${{ needs.resolve-profile.outputs.sg007_steady }}
+      SG007_SPIKE:                   ${{ needs.resolve-profile.outputs.sg007_spike }}
+      SG007_CHAOS:                   ${{ needs.resolve-profile.outputs.sg007_chaos }}
+      SG007_OPEN_DURATION:           ${{ needs.resolve-profile.outputs.sg007_open_duration }}
+      SG3_SAMPLES:                   ${{ needs.resolve-profile.outputs.sg3_samples }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend Setup
+        uses: ./.github/actions/backend-setup
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          working-directory: backend
+
+      - name: Run Gate — ${{ matrix.gate.name }}
+        run: ${{ matrix.gate.script }}
+
+      - name: Upload Gate Report — ${{ matrix.gate.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.gate.artifact_name }}-${{ inputs.artifact_suffix || inputs.profile }}
+          path: backend/${{ matrix.gate.report_path }}
+          if-no-files-found: ignore
+
+  # ── Job 3: Step-7 统一 Go/No-Go（依赖所有并行门禁通过）────────────────────
+  step7-unified-gate:
+    name: 🚦 Step-7 Unified Go/No-Go
+    runs-on: ubuntu-latest
+    needs: [resolve-profile, parallel-gates]
+    # 即使 parallel-gates 中有失败，也要运行（收集完整状态）
+    if: always()
+    defaults:
+      run:
+        working-directory: backend
+    outputs:
+      passed: ${{ steps.gate_result.outputs.passed }}
+
+    env:
+      SG7_MAX_ERROR_BUDGET:          ${{ needs.resolve-profile.outputs.sg7_max_error_budget }}
+      SG7_MAX_DEGRADE_TRIGGER_RATIO: ${{ needs.resolve-profile.outputs.sg7_max_degrade_trigger_ratio }}
+      SG7_MAX_MTTR_SEC:              ${{ needs.resolve-profile.outputs.sg7_max_mttr_sec }}
+      SG1_MAX_STEADY_BLOCK_RATIO:    ${{ needs.resolve-profile.outputs.sg1_max_steady_block_ratio }}
+      SG1_WINDOW_HOURS:              ${{ needs.resolve-profile.outputs.sg1_window_hours }}
+      STEP7_CLOSURE_MIN_PASS_COUNT:  ${{ needs.resolve-profile.outputs.step7_closure_min_pass_count }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend Setup
+        uses: ./.github/actions/backend-setup
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          working-directory: backend
+
+      - name: Check parallel gates result
+        id: check_parallel
+        run: |
+          PARALLEL_RESULT="${{ needs.parallel-gates.result }}"
+          echo "Parallel gates result: ${PARALLEL_RESULT}"
+          if [[ "$PARALLEL_RESULT" == "failure" ]]; then
+            echo "::warning::One or more parallel gates FAILED. Step-7 will still run to collect full report."
+          fi
+
+      - name: Step-7 Unified Gate (Go/No-Go)
+        id: step7_gate
+        run: |
+          python scripts/validate_step7_governance_gates.py \
+            --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} \
+            --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} \
+            --min-run-duration-sec 0 \
+            --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }} \
+            --max-convergence-ms 60000 \
+            --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} \
+            --enforce
+
+      - name: Step-7 Closure Readiness
+        if: inputs.run_closure_check == true
+        run: |
+          python scripts/validate_step7_closure_readiness.py \
+            --sg1-window-hours ${{ env.SG1_WINDOW_HOURS }} \
+            --sg1-min-pass-count ${{ env.STEP7_CLOSURE_MIN_PASS_COUNT }} \
+            --enforce
+
+      - name: Set gate result output
+        id: gate_result
+        if: always()
+        run: |
+          PARALLEL="${{ needs.parallel-gates.result }}"
+          STEP7="${{ steps.step7_gate.outcome }}"
+          if [[ "$PARALLEL" == "success" && "$STEP7" == "success" ]]; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ All governance gates PASSED."
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Governance gates FAILED. parallel=${PARALLEL}, step7=${STEP7}"
+          fi
+
+      - name: Upload Step-7 Gate Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step7-gate-report-${{ inputs.artifact_suffix || inputs.profile }}
+          path: backend/logs/service_governance/step7_gate_report*
+          if-no-files-found: ignore
+
+      - name: Upload Step-7 Closure Readiness Report
+        if: always() && inputs.run_closure_check == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: step7-closure-readiness-report-${{ inputs.artifact_suffix || inputs.profile }}
+          path: backend/logs/service_governance/step7_closure_readiness_report*
+          if-no-files-found: ignore
+
+      - name: Write Gate Summary
+        if: always()
+        run: |
+          echo "## 🚦 Governance Gates Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Gate | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Parallel Gates (5x) | ${{ needs.parallel-gates.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Step-7 Unified Gate | ${{ steps.step7_gate.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Profile**: \`${{ inputs.profile }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Error Budget**: ${{ needs.resolve-profile.outputs.sg7_max_error_budget }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SG-007 Load**: steady=${{ needs.resolve-profile.outputs.sg007_steady }} spike=${{ needs.resolve-profile.outputs.sg007_spike }}" >> $GITHUB_STEP_SUMMARY
+
+  # ── Job 4: 门禁失败时强制阻断（确保 CI 整体失败）────────────────────────
+  gate-enforcement:
+    name: 🛑 Gate Enforcement
+    runs-on: ubuntu-latest
+    needs: step7-unified-gate
+    if: always()
+    steps:
+      - name: Enforce gate result
+        run: |
+          PASSED="${{ needs.step7-unified-gate.outputs.passed }}"
+          if [[ "$PASSED" != "true" ]]; then
+            echo "::error::Governance gates did not pass. Blocking workflow."
+            exit 1
+          fi
+          echo "✅ All governance gates passed. Workflow unblocked."

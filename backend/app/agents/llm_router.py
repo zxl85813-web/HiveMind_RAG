@@ -13,7 +13,7 @@ from loguru import logger
 
 from app.core.algorithms.routing import Route, semantic_router
 from app.core.config import settings
-
+from app.sdk.feature_flags import ff
 
 from app.agents.schemas import ModelTier
 
@@ -100,17 +100,25 @@ class LLMRouter:
             # --- COMPLEX Tier ---
             try:
                 p = settings.COMPLEX_PROVIDER or global_provider
+                # Feature Flag 允许在不重启的情况下切换 Complex 层模型
+                complex_model = ff.get_str("default_complex_model", default=settings.DEFAULT_COMPLEX_MODEL)
                 self._instances[ModelTier.COMPLEX] = self._create_llm(
-                    model=settings.DEFAULT_COMPLEX_MODEL, provider=p, temperature=0.7
+                    model=complex_model, provider=p, temperature=0.7
                 )
             except Exception as e:
                 logger.error(f"❌ Failed to load COMPLEX tier: {e}")
 
             # --- REASONING Tier ---
             try:
-                p = settings.REASONING_PROVIDER or global_provider
+                # Feature Flag 允许动态切换推理层 Provider（moonshot → ark → nvidia）
+                p = ff.get_str("reasoning_provider", default=settings.REASONING_PROVIDER or global_provider)
+                reasoning_model = ff.get_str("default_reasoning_model", default=settings.DEFAULT_REASONING_MODEL)
                 self._instances[ModelTier.REASONING] = self._create_llm(
-                    model=settings.DEFAULT_REASONING_MODEL, provider=p, temperature=0.8
+                    model=reasoning_model, provider=p, temperature=0.8
+                )
+                logger.info(
+                    "🐝 [LLMRouter] REASONING tier: provider={} model={} (source: ff)",
+                    p, reasoning_model,
                 )
             except Exception as e:
                 logger.error(f"❌ Failed to load REASONING tier: {e}")

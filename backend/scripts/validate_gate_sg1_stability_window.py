@@ -202,8 +202,8 @@ def main() -> None:
     output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     output_md.write_text(render_markdown(report), encoding="utf-8")
 
-    t_logger.info(f"[GATE-SG-1] json report: {output_json}", action="export")
-    t_logger.info(f"[GATE-SG-1] markdown report: {output_md}", action="export")
+    t_logger.info("[GATE-SG-1] json report: {}", output_json, action="export")
+    t_logger.info("[GATE-SG-1] markdown report: {}", output_md, action="export")
 
     if not args.no_versioned:
         output_json_v = _versioned_path(output_json, run_key)
@@ -213,7 +213,8 @@ def main() -> None:
         t_logger.success(f"[GATE-SG-1] versioned json report: {output_json_v}")
 
     if args.enforce and not bool(report["gate_result"]["passed"]):
-        t_logger.error(f"[GATE-SG-1] gate failed: {report['gate_result']}", action="gate_failure")
+        gate_result_json = json.dumps(report["gate_result"], ensure_ascii=False)
+        t_logger.error("[GATE-SG-1] gate failed: {}", gate_result_json, action="gate_failure")
         raise SystemExit(2)
     
     t_logger.success("[GATE-SG-1] Stability validation passed", action="gate_pass")

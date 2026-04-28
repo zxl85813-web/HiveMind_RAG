@@ -24,10 +24,24 @@ class IngestionDispatcher:
     def __init__(self, db_session):
         self.db = db_session
 
-    async def dispatch_batch(self, file_paths: list[str], kb_id: str, description: str = "") -> str:
+    async def dispatch_batch(
+        self,
+        file_paths: list[str],
+        kb_id: str,
+        description: str = "",
+        doc_ids: list[str] | None = None,
+        folder_paths: list[str | None] | None = None,
+    ) -> str:
         """
         Takes raw inputs, creates an IngestionBatch, FileTraces, and shreds
         the workload onto Celery messaging workers immediately without blocking.
+
+        Args:
+            file_paths:   S3 key 或本地路径列表，供 Parser 读取文件
+            kb_id:        知识库 ID
+            description:  批次描述
+            doc_ids:      与 file_paths 一一对应的数据库 Document.id 列表
+            folder_paths: 与 file_paths 一一对应的原始文件夹路径列表
         """
         batch_id = str(uuid.uuid4())
 
@@ -40,26 +54,25 @@ class IngestionDispatcher:
             raise Exception(f"Swarm ingestion for KB {kb_id} is temporarily disabled due to high failure rates.")
 
         # 1. Create overarching batch observability record
-
         batch_record = IngestionBatch(id=batch_id, description=description, total_files=len(file_paths))
         self.db.add(batch_record)
 
         # 2. Shred tasks (Sharding) -> 1 File = 1 FileTrace = 1 Celery Task
         tasks_enqueued = 0
-        for path in file_paths:
-            # Create a localized trace block
+        for i, path in enumerate(file_paths):
             trace_id = str(uuid.uuid4())
             file_trace = FileTrace(id=trace_id, batch_id=batch_id, file_path=path, status=TraceStatus.PENDING)
             self.db.add(file_trace)
 
-            # Send shredded task to message broker (Redis/Celery)
             payload = {
                 "trace_id": trace_id,
-                "document_id": path,  # Map as document_id temporarily
+                "document_id": path,
                 "kb_id": kb_id,
+                # 图谱对齐：传递 doc_id 和 folder_path
+                "doc_id": doc_ids[i] if doc_ids and i < len(doc_ids) else None,
+                "folder_path": folder_paths[i] if folder_paths and i < len(folder_paths) else None,
             }
 
-            # celery_app.send_task puts the workload onto Redis, instantly unblocking API server
             celery_app.send_task(
                 "app.services.ingestion.tasks.process_document_chunk", args=[payload], queue="ingestion_queue"
             )

@@ -26,28 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Backend Setup
+        uses: ./.github/actions/backend-setup
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
-
-      - name: Create minimal .env for drill
-        run: |
-          cat > .env << 'EOF'
-          APP_NAME="HiveMind RAG Test"
-          DEBUG=true
-          DATABASE_URL=sqlite+aiosqlite:///./test.db
-          VECTOR_STORE_TYPE=chroma
-          LLM_PROVIDER=siliconflow
-          LLM_API_KEY=sk-test
-          LLM_MODEL=test-model
-          LLM_BASE_URL=https://example.com/v1
-          SECRET_KEY=ci-test-secret-key
-          EOF
+          working-directory: backend
 
       - name: Generate SG-007 Drill Evidence
         run: python scripts/run_sg007_governance_drills.py --steady-duration-sec 600 --steady-rps 2 --spike-requests 120 --chaos-requests 40 --open-duration-sec 1.2 --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }}

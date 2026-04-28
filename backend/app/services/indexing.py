@@ -46,7 +46,11 @@ async def index_document_task(kb_id: str, doc_id: str):
             async with async_session_factory() as async_db:
                 dispatcher = IngestionDispatcher(async_db)
                 batch_id = await dispatcher.dispatch_batch(
-                    file_paths=[doc.file_path], kb_id=kb_id, description=f"Automatic indexing for {doc.filename}"
+                    file_paths=[doc.file_path or doc.storage_path],
+                    kb_id=kb_id,
+                    description=f"Automatic indexing for {doc.filename}",
+                    doc_ids=[doc.id],                    # 传递数据库 Document.id
+                    folder_paths=[doc.folder_path],      # 传递文件夹路径，图谱对齐用
                 )
 
             # Update legacy link status

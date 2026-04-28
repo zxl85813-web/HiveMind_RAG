@@ -11,9 +11,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.api import router as api_router
 from app.core.config import settings
 from app.sdk.core.exceptions import register_exception_handlers
+
+# Diagnostic: detect which route module fails to import in Docker
+import importlib as _importlib
+_route_modules = [
+    "agents", "audit", "audit_v3", "chat", "evaluation", "finetuning",
+    "generation", "health", "knowledge", "learning", "llm_config", "memory",
+    "observability", "pipelines", "security", "settings", "tags", "telemetry",
+    "websocket", "auth", "governance", "red_team", "logs", "performance",
+]
+for _mod_name in _route_modules:
+    try:
+        _importlib.import_module(f"app.api.routes.{_mod_name}")
+    except Exception as _e:
+        logger.error("❌ Failed to import route module '{}': {}", _mod_name, _e)
+        import traceback; traceback.print_exc()
+
+from app.api import router as api_router
 
 
 @asynccontextmanager
@@ -120,6 +136,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("🚀 Learning Crawl Task scheduled.")
         except Exception as e:
             logger.error(f"❌ Learning Service failed to schedule: {e}")
+
+        # [Fix-06] 缓存维护定时任务：每小时清理过期的语义缓存 / 路由缓存 / Intent Cache
+        try:
+            from app.services.cache_service import CacheService
+            async def run_cache_maintenance_loop():
+                while True:
+                    await asyncio.sleep(3600)  # 每小时执行一次
+                    try:
+                        result = await CacheService.run_cache_maintenance()
+                        logger.info(f"🧹 Cache maintenance done: {result}")
+                    except Exception as e:
+                        logger.error(f"❌ Cache maintenance failed: {e}")
+
+            t = asyncio.create_task(run_cache_maintenance_loop())
+            _bg_tasks.append(t)
+            logger.info("🚀 Cache Maintenance Task scheduled (interval: 1h).")
+        except Exception as e:
+            logger.error(f"❌ Cache Maintenance Task failed to schedule: {e}")
 
     startup_task = asyncio.create_task(start_delayed_services())
     _bg_tasks.append(startup_task)

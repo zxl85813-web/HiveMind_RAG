@@ -24,13 +24,59 @@ export const knowledgeApi = {
     deletePermission: (kbId: string, permId: string) => api.delete<ApiResponse<{ status: string }>>(`/knowledge/${kbId}/permissions/${permId}`),
 
     // Global Documents
-    uploadDoc: (file: File) => {
+    uploadDoc: (file: File, folderPath?: string) => {
         const formData = new FormData();
         formData.append('file', file);
+        if (folderPath) formData.append('folder_path', folderPath);
         return api.post<Document>('/knowledge/documents', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
     },
+
+    /** 批量上传（每批最多 20 个文件），返回 batch_id 和各文件结果 */
+    uploadDocsBatch: (
+        files: File[],
+        folderPaths: (string | undefined)[],
+        onUploadProgress?: (percent: number) => void,
+    ) => {
+        const formData = new FormData();
+        files.forEach((f, i) => {
+            formData.append('files', f);
+            if (folderPaths[i]) {
+                formData.append(`folder_paths[${i}]`, folderPaths[i]!);
+            }
+        });
+        return api.post<{
+            total: number;
+            succeeded: number;
+            failed: number;
+            documents: Array<{
+                doc_id?: string;
+                filename: string;
+                folder_path?: string;
+                status: 'pending' | 'failed';
+                error?: string;
+            }>;
+        }>('/knowledge/documents/batch', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: onUploadProgress
+                ? (e) => {
+                    const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
+                    onUploadProgress(pct);
+                }
+                : undefined,
+        });
+    },
+
+    /** 批量关联到 KB，返回 batch_id 供 SSE 订阅 */
+    linkDocsBatch: (kbId: string, docIds: string[]) =>
+        api.post<{ batch_id: string; linked: number }>(`/knowledge/${kbId}/documents/batch`, { doc_ids: docIds }),
+
+    /** 获取批次进度快照（轮询备用） */
+    getBatchProgress: (batchId: string) =>
+        api.get<{ total: number; completed: number; failed: number; percent: number; status: string }>(
+            `/knowledge/batches/${batchId}/progress/snapshot`
+        ),
 
     // Knowledge Base Links
     linkDoc: (kbId: string, docId: string) => api.post<KBLink>(`/knowledge/${kbId}/documents/${docId}`, {}),

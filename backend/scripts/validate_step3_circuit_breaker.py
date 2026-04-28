@@ -125,7 +125,7 @@ async def _run_one_dependency(dep: DependencyName, open_duration_sec: float) -> 
     snapshot_open = cast(dict[str, Any], cb.snapshot().get(dep, {}))
     open_triggered = snapshot_open.get("state") == "OPEN"
 
-    t_logger.info(f"[Step3-Validate] [{dep}] snapshot-open: {{}}", snapshot_open)
+    t_logger.info("[Step3-Validate] [{}] snapshot-open: {}", dep, snapshot_open)
 
     t_logger.info(f"[Step3-Validate] [{dep}] Scenario 2: OPEN should block immediately")
     try:

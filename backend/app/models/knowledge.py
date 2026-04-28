@@ -47,7 +47,9 @@ class Document(SQLModel, table=True):
     filename: str
     file_type: str  # pdf | docx | txt | md | xlsx
     file_size: int  # bytes
-    storage_path: str  # Path in object storage
+    storage_path: str  # S3 key 或本地路径
+    file_path: str | None = Field(default=None)  # 与 storage_path 同义，供索引管道使用
+    folder_path: str | None = Field(default=None, index=True)  # 原始文件夹路径，用于还原目录树
     content_hash: str | None = Field(index=True)  # Content hash for deduplication
     chunk_count: int = 0
     status: str = "pending"  # Global parsing status: pending | processing | parsed | failed

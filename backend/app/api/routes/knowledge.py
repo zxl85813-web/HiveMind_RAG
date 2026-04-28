@@ -7,8 +7,9 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
-import aiofiles
+import aiofiles  # 保留：StorageService 内部降级到本地存储时仍需要
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -264,10 +265,11 @@ async def delete_knowledge_base_permission(
 async def upload_document_global(
     request: Request,
     file: UploadFile = File(...),
+    folder_path: str | None = None,   # 可选：前端传入原始文件夹路径，如 "技术文档/2024"
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a document to the global library (not linked to any KB yet)."""
+    """上传单个文件到全局文档库（尚未关联到任何 KB）。"""
     decision = rate_limit_governance_center.check(
         route=str(request.url.path),
         user_id=current_user.id,
@@ -284,47 +286,469 @@ async def upload_document_global(
             headers={"Retry-After": str(int(decision["retry_after_sec"]))},
         )
 
-    # 1. Save file to centralized storage (Reference: settings.UPLOAD_DIR)
-    upload_dir = settings.UPLOAD_DIR
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Generate unique filename to avoid collision
-    unique_filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = str(upload_dir / unique_filename)
+    from app.services.storage_service import StorageService
 
-    # Write file by chunks to avoid OOM
-    file_size = 0
-    async with aiofiles.open(file_path, "wb") as out_file:
-        while chunk := await file.read(1024 * 1024):  # 1MB chunks
-            await out_file.write(chunk)
-            file_size += len(chunk)
+    # 1. 流式读取文件内容（1MB 分块，防 OOM）
+    chunks = []
+    while chunk := await file.read(1024 * 1024):
+        chunks.append(chunk)
+    file_content = b"".join(chunks)
 
-    # 2. Extract metadata
-    file_type = file.filename.split(".")[-1].lower() if "." in file.filename else "unknown"
+    content_type = file.content_type or "application/octet-stream"
+    file_type = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "unknown"
 
-    # 3. Create Document record
+    # 2. 上传到 S3（或本地降级）
+    storage_path, file_size, content_hash = await StorageService.upload_file(
+        file_content=file_content,
+        filename=file.filename,
+        content_type=content_type,
+        folder_path=folder_path,
+    )
+
+    # 3. 创建 Document 记录
     doc = Document(
         filename=file.filename,
         file_type=file_type,
         file_size=file_size,
-        storage_path=file_path,
+        storage_path=storage_path,
+        file_path=storage_path,   # 保持同步，供索引管道使用
+        folder_path=folder_path,
+        content_hash=content_hash,
         status="pending",
-        # owner_id=current_user.id # TODO: Add owner to schema
     )
-
     service = KnowledgeService(db)
     doc = await service.create_document(doc)
     fire_and_forget_write_event(
         event_type="document_uploaded",
         kb_id="global",
         doc_id=doc.id,
-        payload={"filename": doc.filename, "file_type": doc.file_type},
+        payload={"filename": doc.filename, "file_type": doc.file_type, "folder_path": folder_path},
+    )
+    return ApiResponse.ok(data=doc)
+
+
+class BatchUploadItem(BaseModel):
+    """批量上传中单个文件的元数据（配合 multipart 使用）。"""
+    folder_path: str | None = None   # 该文件所在的原始文件夹路径
+
+
+class BatchUploadResult(BaseModel):
+    total: int
+    succeeded: int
+    failed: int
+    documents: list[dict]   # [{doc_id, filename, folder_path, status}]
+
+
+@router.post(
+    "/documents/batch",
+    response_model=ApiResponse[BatchUploadResult],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def upload_documents_batch(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    批量上传文件（支持文件夹结构）。
+
+    前端使用方式：
+      - 用 FormData 一次提交多个文件
+      - 每个文件的 folder_path 通过同名字段传入，例如：
+          files[0] = File(...)
+          folder_paths[0] = "技术文档/2024"
+      - 前端应控制每批 10-20 个文件，避免单次请求过大
+
+    后端处理：
+      - 并发上传到 S3（asyncio.gather）
+      - 批量创建 Document 记录
+      - 返回每个文件的处理结果
+    """
+    decision = rate_limit_governance_center.check(
+        route=str(request.url.path),
+        user_id=current_user.id,
+        api_key=request.headers.get("x-api-key"),
+    )
+    if not bool(decision["allowed"]):
+        raise HTTPException(
+            status_code=429,
+            detail={"message": "Rate limit exceeded", "reason_code": decision["reason_code"]},
+            headers={"Retry-After": str(int(decision["retry_after_sec"]))},
+        )
+
+    # 从 form data 中提取 folder_paths（与 files 一一对应）
+    form = await request.form()
+    folder_paths: list[str | None] = []
+    for i in range(len(files)):
+        fp = form.get(f"folder_paths[{i}]") or form.get("folder_path")
+        folder_paths.append(str(fp) if fp else None)
+
+    from app.services.storage_service import StorageService
+    import asyncio
+
+    async def _upload_one(file: UploadFile, folder_path: str | None) -> dict:
+        try:
+            chunks = []
+            while chunk := await file.read(1024 * 1024):
+                chunks.append(chunk)
+            content = b"".join(chunks)
+
+            content_type = file.content_type or "application/octet-stream"
+            file_type = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "unknown"
+
+            storage_path, file_size, content_hash = await StorageService.upload_file(
+                file_content=content,
+                filename=file.filename,
+                content_type=content_type,
+                folder_path=folder_path,
+            )
+            return {
+                "filename": file.filename,
+                "folder_path": folder_path,
+                "storage_path": storage_path,
+                "file_path": storage_path,
+                "file_type": file_type,
+                "file_size": file_size,
+                "content_hash": content_hash,
+                "error": None,
+            }
+        except Exception as e:
+            return {
+                "filename": file.filename,
+                "folder_path": folder_path,
+                "error": str(e),
+            }
+
+    # 并发上传（最多 10 个并发，防止 S3 限流）
+    semaphore = asyncio.Semaphore(10)
+
+    async def _upload_with_sem(file, fp):
+        async with semaphore:
+            return await _upload_one(file, fp)
+
+    upload_results = await asyncio.gather(
+        *[_upload_with_sem(f, fp) for f, fp in zip(files, folder_paths)],
+        return_exceptions=False,
+    )
+
+    # 批量创建 Document 记录
+    service = KnowledgeService(db)
+    documents = []
+    succeeded = 0
+    failed = 0
+
+    for result in upload_results:
+        if result.get("error"):
+            failed += 1
+            documents.append({
+                "filename": result["filename"],
+                "folder_path": result.get("folder_path"),
+                "status": "failed",
+                "error": result["error"],
+            })
+            continue
+
+        try:
+            doc = Document(
+                filename=result["filename"],
+                file_type=result["file_type"],
+                file_size=result["file_size"],
+                storage_path=result["storage_path"],
+                file_path=result["file_path"],
+                folder_path=result["folder_path"],
+                content_hash=result["content_hash"],
+                status="pending",
+            )
+            doc = await service.create_document(doc)
+            succeeded += 1
+            documents.append({
+                "doc_id": doc.id,
+                "filename": doc.filename,
+                "folder_path": doc.folder_path,
+                "status": "pending",
+            })
+        except Exception as e:
+            failed += 1
+            documents.append({
+                "filename": result["filename"],
+                "folder_path": result.get("folder_path"),
+                "status": "failed",
+                "error": str(e),
+            })
+
+    return ApiResponse.ok(data=BatchUploadResult(
+        total=len(files),
+        succeeded=succeeded,
+        failed=failed,
+        documents=documents,
+    ))
+
+
+@router.post(
+    "/documents/presign",
+    response_model=ApiResponse[dict],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def get_presigned_upload_url(
+    filename: str,
+    folder_path: str | None = None,
+    content_type: str = "application/octet-stream",
+    current_user: User = Depends(get_current_user),
+):
+    """
+    获取 S3 预签名上传 URL（用于大文件直传，绕过后端）。
+
+    前端流程：
+      1. 调用此接口获取 presigned POST URL + fields
+      2. 前端直接 POST 到 S3（不经过后端）
+      3. 上传完成后调用 POST /documents/confirm 通知后端创建记录
+    """
+    from app.services.storage_service import StorageService
+
+    result = StorageService.generate_presigned_upload_url(
+        filename=filename,
+        folder_path=folder_path,
+        content_type=content_type,
+    )
+    if not result:
+        raise HTTPException(status_code=503, detail="S3 未配置，无法生成预签名 URL")
+
+    return ApiResponse.ok(data=result)
+
+
+class PresignConfirmRequest(BaseModel):
+    s3_key: str
+    filename: str
+    file_size: int
+    file_type: str
+    folder_path: str | None = None
+    content_hash: str | None = None
+
+
+@router.post(
+    "/documents/confirm",
+    response_model=ApiResponse[DocumentResponse],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def confirm_presigned_upload(
+    body: PresignConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    确认预签名直传完成，在数据库中创建 Document 记录。
+    配合 /documents/presign 使用（大文件直传场景）。
+    """
+    service = KnowledgeService(db)
+    doc = Document(
+        filename=body.filename,
+        file_type=body.file_type,
+        file_size=body.file_size,
+        storage_path=body.s3_key,
+        file_path=body.s3_key,
+        folder_path=body.folder_path,
+        content_hash=body.content_hash,
+        status="pending",
+    )
+    doc = await service.create_document(doc)
+    fire_and_forget_write_event(
+        event_type="document_uploaded",
+        kb_id="global",
+        doc_id=doc.id,
+        payload={"filename": doc.filename, "s3_key": body.s3_key, "folder_path": body.folder_path},
+    )
+    return ApiResponse.ok(data=doc)
+
+
+# ── Multipart Upload（断点续传）────────────────────────────────────────────────
+
+class MultipartInitRequest(BaseModel):
+    filename: str
+    folder_path: str | None = None
+    content_type: str = "application/octet-stream"
+    file_size: int  # 字节数，用于前端计算分片数量
+
+
+class MultipartPartUrlRequest(BaseModel):
+    s3_key: str
+    upload_id: str
+    part_number: int   # 1-based
+    expires_in: int = 3600
+
+
+class MultipartCompleteRequest(BaseModel):
+    s3_key: str
+    upload_id: str
+    filename: str
+    file_size: int
+    file_type: str
+    folder_path: str | None = None
+    parts: list[dict]  # [{"PartNumber": 1, "ETag": "..."}, ...]
+
+
+class MultipartAbortRequest(BaseModel):
+    s3_key: str
+    upload_id: str
+
+
+@router.post(
+    "/documents/multipart/init",
+    response_model=ApiResponse[dict],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def init_multipart_upload(
+    body: MultipartInitRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    初始化 S3 Multipart Upload（断点续传第一步）。
+
+    前端流程：
+      1. 调用此接口获取 upload_id + s3_key
+      2. 将 {upload_id, s3_key, filename, completed_parts: []} 存入 localStorage
+      3. 逐片调用 /multipart/part-url 获取预签名 URL，直接 PUT 到 S3
+      4. 所有分片完成后调用 /multipart/complete 合并
+
+    分片大小建议：5MB（S3 最小分片限制），最后一片可以更小。
+    """
+    from app.services.storage_service import StorageService
+
+    result = StorageService.create_multipart_upload(
+        filename=body.filename,
+        folder_path=body.folder_path,
+        content_type=body.content_type,
+    )
+    if not result:
+        raise HTTPException(status_code=503, detail="S3 未配置或初始化失败")
+
+    # 计算建议的分片数量（5MB/片）
+    chunk_size = 5 * 1024 * 1024
+    total_parts = max(1, (body.file_size + chunk_size - 1) // chunk_size)
+
+    return ApiResponse.ok(data={
+        **result,
+        "chunk_size": chunk_size,
+        "total_parts": total_parts,
+    })
+
+
+@router.post(
+    "/documents/multipart/part-url",
+    response_model=ApiResponse[dict],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def get_part_presigned_url(
+    body: MultipartPartUrlRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    为指定分片生成预签名 PUT URL。
+    前端直接 PUT 分片数据到该 URL，响应头中的 ETag 需要保存用于 complete 步骤。
+    """
+    from app.services.storage_service import StorageService
+
+    if not (1 <= body.part_number <= 10000):
+        raise HTTPException(status_code=400, detail="part_number 必须在 1~10000 之间")
+
+    url = StorageService.generate_presigned_part_url(
+        s3_key=body.s3_key,
+        upload_id=body.upload_id,
+        part_number=body.part_number,
+        expires_in=body.expires_in,
+    )
+    if not url:
+        raise HTTPException(status_code=503, detail="S3 未配置或生成预签名 URL 失败")
+
+    return ApiResponse.ok(data={"url": url, "part_number": body.part_number})
+
+
+@router.post(
+    "/documents/multipart/list-parts",
+    response_model=ApiResponse[list],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def list_multipart_parts(
+    body: MultipartPartUrlRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    查询已上传的分片列表（断点续传恢复时调用）。
+    前端用此接口确认哪些分片已成功上传，跳过重传。
+    """
+    from app.services.storage_service import StorageService
+
+    parts = StorageService.list_uploaded_parts(
+        s3_key=body.s3_key,
+        upload_id=body.upload_id,
+    )
+    return ApiResponse.ok(data=parts)
+
+
+@router.post(
+    "/documents/multipart/complete",
+    response_model=ApiResponse[DocumentResponse],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def complete_multipart_upload(
+    body: MultipartCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    合并所有分片，完成 Multipart Upload，并在数据库中创建 Document 记录。
+    """
+    from app.services.storage_service import StorageService
+
+    result = StorageService.complete_multipart_upload(
+        s3_key=body.s3_key,
+        upload_id=body.upload_id,
+        parts=body.parts,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Multipart 合并失败，请重试")
+
+    service = KnowledgeService(db)
+    doc = Document(
+        filename=body.filename,
+        file_type=body.file_type,
+        file_size=body.file_size,
+        storage_path=body.s3_key,
+        file_path=body.s3_key,
+        folder_path=body.folder_path,
+        content_hash=result.get("etag"),
+        status="pending",
+    )
+    doc = await service.create_document(doc)
+    fire_and_forget_write_event(
+        event_type="document_uploaded",
+        kb_id="global",
+        doc_id=doc.id,
+        payload={"filename": doc.filename, "s3_key": body.s3_key, "multipart": True},
     )
     return ApiResponse.ok(data=doc)
 
 
 @router.post(
-    "/{kb_id}/documents/{doc_id}",
+    "/documents/multipart/abort",
+    response_model=ApiResponse[dict],
+    dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
+)
+async def abort_multipart_upload(
+    body: MultipartAbortRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    中止 Multipart Upload，清理 S3 临时分片（避免产生存储费用）。
+    用户取消上传时调用。
+    """
+    from app.services.storage_service import StorageService
+
+    ok = StorageService.abort_multipart_upload(
+        s3_key=body.s3_key,
+        upload_id=body.upload_id,
+    )
+    return ApiResponse.ok(data={"aborted": ok})
     response_model=ApiResponse[KnowledgeBaseDocumentLink],
     dependencies=[Depends(require_permission(Permission.KB_UPLOAD))],
 )
@@ -373,6 +797,70 @@ async def link_document(
     )
 
     return ApiResponse.ok(data=link)
+
+
+@router.get(
+    "/batches/{batch_id}/progress",
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
+async def stream_batch_progress(
+    batch_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    实时推送文档批次处理进度（Server-Sent Events）。
+
+    前端使用方式：
+      const es = new EventSource(`/api/v1/knowledge/batches/${batchId}/progress`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      es.addEventListener('progress',  e => updateUI(JSON.parse(e.data)))
+      es.addEventListener('file_done', e => markFileDone(JSON.parse(e.data)))
+      es.addEventListener('file_failed', e => markFileFailed(JSON.parse(e.data)))
+      es.addEventListener('batch_done', e => { showComplete(JSON.parse(e.data)); es.close() })
+      es.addEventListener('close', () => es.close())
+
+    事件类型：
+      progress     — 进度更新（total/completed/failed/percent）
+      file_done    — 单个文件处理完成
+      file_failed  — 单个文件处理失败
+      batch_done   — 整批完成
+      close        — 流结束信号
+    """
+    from app.services.ingestion.progress_service import stream_batch_progress as _stream
+
+    return StreamingResponse(
+        _stream(batch_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+@router.get(
+    "/batches/{batch_id}/progress/snapshot",
+    response_model=ApiResponse[dict],
+    dependencies=[Depends(require_permission(Permission.KB_VIEW))],
+)
+async def get_batch_progress_snapshot(
+    batch_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    获取批次进度快照（轮询备用方案，不需要 SSE 时使用）。
+    返回当前 total/completed/failed/percent/status。
+    """
+    from app.services.ingestion.progress_service import _get_batch_snapshot
+    snapshot = await _get_batch_snapshot(batch_id)
+    if not snapshot:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    return ApiResponse.ok(data=snapshot)
 
 
 @router.get(

@@ -64,11 +64,25 @@ class SupervisorAgent:
         if human_steer:
             steer_guidance = f"### 👑 HUMAN COMMANDER INTERVENTION: {human_steer}\nThis is your ABSOLUTE priority. Stop any diverging research and follow this direction NOW."
 
+        # 🛡️ M8.3.2: Harness Feedforward — 从缓存加载全局约束（KV Cache 优化）
+        harness_constraints = ""
+        try:
+            from app.sdk.harness.prompt_assembler import build_static_shell, build_warm_context
+
+            # 复用 Redis 缓存的 Layer 1+2，避免每次查图谱
+            shell = await build_static_shell("HVM-Supervisor")
+            warm = await build_warm_context("HVM-Supervisor")
+            if shell or warm:
+                harness_constraints = (shell + "\n" + warm).strip()
+        except Exception:
+            pass  # 缓存/图谱不可用时静默降级
+
         system_prompt = f"""
         You are the HVM-Supervisor, an expert in 'Recursive Multi-Agent Coordination'.
         
         {steer_guidance}
         {risk_guidance}
+        {harness_constraints}
         
         ### CONSTITUTIONAL GOVERNANCE (L4)
         Reference: docs/governance/L4_GOVERNANCE_STATUTES.md
