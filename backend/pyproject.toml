@@ -60,6 +60,8 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "pytest-html>=4.1.0",
+    "allure-pytest>=2.13.0",
     "ruff>=0.8.0",
     "black>=24.0.0",
     "mypy>=1.13.0",
@@ -90,7 +92,16 @@ disallow_untyped_defs = true
 # ── Pytest + Coverage ──────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--alluredir=allure-results",
+]
 
 [tool.coverage.run]
 source = ["app"]

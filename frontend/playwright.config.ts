@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * HiveMind E2E Test Configuration.
  * 
  * We primarily test against the MOCK environment for speed and reliability.
+ * CI 环境下同时输出 Allure 结果用于聚合报告。
  */
 export default defineConfig({
     testDir: './e2e',
@@ -11,7 +12,9 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
     workers: process.env.CI ? 1 : undefined,
-    reporter: 'html',
+    reporter: process.env.CI
+        ? [['html'], ['allure-playwright', { resultsDir: 'allure-results' }]]
+        : 'html',
     use: {
         /* Base URL should match Vite's default dev port */
         baseURL: 'http://localhost:5173',
