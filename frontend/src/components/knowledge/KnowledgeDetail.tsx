@@ -314,7 +314,7 @@ export const KnowledgeDetail: React.FC<Props> = ({ kb, open, onClose }) => {
         });
     }, [handleBatchUpload]);
 
-     = async (docId: string) => {
+    const handleUnlink = async (docId: string) => {
         if (!kb) return;
         try {
             await knowledgeApi.unlinkDoc(kb.id, docId);
