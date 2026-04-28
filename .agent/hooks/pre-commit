@@ -1,18 +1,50 @@
 #!/usr/bin/env bash
 
 # pre-commit git hook
-# Checks for hardcoded secrets and runs linters if possible.
+# 1. Auto-fix Python lint (ruff) on staged files
+# 2. Check for hardcoded secrets
+# 3. Check frontend theme consistency
 
 echo "🔍 [Pre-Commit] 运行系统与代码合规检查..."
 
-# 1. 检查是否存在硬编码的敏感词 (例如 sk-xxx, api_key=)
-# 这是一个简单的正则排查，防止将密钥等推入库中
+# ── 0. Auto-fix Python lint (ruff check --fix + ruff format) ──────────────
+# Only runs on staged .py files. Fixes are re-staged automatically.
+# This eliminates most F401/I001/W291/W293/E501 errors before they reach CI.
+PYTHON_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$' || true)
+
+if [ -n "$PYTHON_STAGED" ]; then
+    if command -v ruff &> /dev/null; then
+        echo "🐍 [Pre-Commit] Auto-fixing Python lint (ruff)..."
+
+        # Run ruff fix on staged files (safe fixes only)
+        echo "$PYTHON_STAGED" | xargs ruff check --fix --quiet 2>/dev/null || true
+
+        # Run ruff format on staged files
+        echo "$PYTHON_STAGED" | xargs ruff format --quiet 2>/dev/null || true
+
+        # Re-stage any auto-fixed files
+        echo "$PYTHON_STAGED" | xargs git add 2>/dev/null || true
+
+        # Final check — if unfixable errors remain, block the commit
+        RUFF_ERRORS=$(echo "$PYTHON_STAGED" | xargs ruff check --quiet 2>/dev/null || true)
+        if [ -n "$RUFF_ERRORS" ]; then
+            echo "❌ [Pre-Commit] Ruff 发现无法自动修复的 lint 错误:"
+            echo "$RUFF_ERRORS"
+            echo "👉 请手动修复后重新 commit。"
+            exit 1
+        fi
+    else
+        echo "⚠️ ruff 未安装，跳过本地 lint 自动修复（CI 会强制校验）。"
+    fi
+fi
+
+# ── 1. 检查是否存在硬编码的敏感词 ─────────────────────────────────────────
 FORBIDDEN_PATTERNS="sk-[a-zA-Z0-9]{32,}|api_key[ =]+['\"][^'\"]{8,}['\"]|password[ =]+['\"][^'\"]+['\"]"
 FORBIDDEN_FILES=$(git diff --cached --name-only | grep -E '\.(py|ts|tsx|js|jsx)$' || true)
 
 if [ -n "$FORBIDDEN_FILES" ]; then
     for file in $FORBIDDEN_FILES; do
-        if git show ":$file" | grep -iE "$FORBIDDEN_PATTERNS" > /dev/null; then
+        if git show ":$file" | grep -iE "$FORBIDDEN_PATTERNS" > /dev/null 2>&1; then
             echo "❌ 错误: 在 $file 中检测到疑似硬编码的密钥 (Secret/API Key)！"
             echo "👉 请将密钥提取到 .env 文件中，或从代码库中移除！"
             echo "如果你确认是误报，你可以使用 git commit --no-verify 强行提交 (但将会被 CI 记录)。"
@@ -21,7 +53,7 @@ if [ -n "$FORBIDDEN_FILES" ]; then
     done
 fi
 
-# 1.5 前端主题一致性检查（仅当前端文件有暂存改动时触发）
+# ── 1.5 前端主题一致性检查 ────────────────────────────────────────────────
 FRONTEND_CHANGED=$(git diff --cached --name-only | grep -E '^frontend/src/.*\.(ts|tsx|css)$' || true)
 if [ -n "$FRONTEND_CHANGED" ]; then
     echo "🎨 [Pre-Commit] 检查前端硬编码色值..."
@@ -36,12 +68,9 @@ if [ -n "$FRONTEND_CHANGED" ]; then
     fi
 fi
 
-# 2. 尝试运行本地快速脚本 (如果存在)
-# 使用 powershell 运行代码质量检查，此处仅为防线之一，CI 中会有更严格的验证
+# ── 2. 轻量级本地检查脚本 ────────────────────────────────────────────────
 if command -v powershell &> /dev/null && [ -f ".agent/checks/run_checks.ps1" ]; then
     echo "🛠️ 正在调用轻量级本地 Check (run_checks.ps1)..."
-    # 这里我们只调用脚本进行基础告警，不一定阻塞（否则执行太慢）
-    # 但实际项目中可以修改 -StopOnFailure
 fi
 
 echo "✅ [Pre-Commit] 检查通过!"
