@@ -26,9 +26,16 @@ jobs:
             echo "VITE_API_BASE_URL=/api/v1" > frontend/.env.production
           fi
 
-      - name: Build and Start Containers
+      - name: Build Containers
         run: |
-          docker compose -f docker-compose.prod.yml up -d --build 2>&1 || true
+          docker compose -f docker-compose.prod.yml build --progress=plain 2>&1
+        timeout-minutes: 20
+
+      - name: Start Containers
+        run: |
+          docker compose -f docker-compose.prod.yml up -d
+          echo "--- Running containers ---"
+          docker compose -f docker-compose.prod.yml ps
 
       - name: Wait for Backend Health Check
         run: |
@@ -41,8 +48,14 @@ jobs:
               exit 0
             fi
             if [ "$STATUS" = "not_found" ]; then
-              echo "Container not found, checking docker compose logs..."
-              docker compose -f docker-compose.prod.yml logs backend --tail=30
+              echo "Container not found or exited, checking logs..."
+              docker compose -f docker-compose.prod.yml ps -a
+              docker compose -f docker-compose.prod.yml logs backend --tail=50
+              exit 1
+            fi
+            if [ "$STATUS" = "unhealthy" ]; then
+              echo "Container is unhealthy, dumping logs..."
+              docker compose -f docker-compose.prod.yml logs backend --tail=50
             fi
             sleep 5
           done
