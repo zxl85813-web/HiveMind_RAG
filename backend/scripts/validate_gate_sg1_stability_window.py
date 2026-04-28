@@ -214,7 +214,7 @@ def main() -> None:
 
     if args.enforce and not bool(report["gate_result"]["passed"]):
         gate_result_json = json.dumps(report["gate_result"], ensure_ascii=False)
-        t_logger.error("[GATE-SG-1] gate failed: {}", gate_result_json, action="gate_failure")
+        t_logger.error("[GATE-SG-1] gate failed: " + gate_result_json, action="gate_failure")
         raise SystemExit(2)
     
     t_logger.success("[GATE-SG-1] Stability validation passed", action="gate_pass")
