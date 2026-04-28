@@ -31,9 +31,10 @@ jobs:
           docker compose -f docker-compose.prod.yml build --progress=plain 2>&1
         timeout-minutes: 20
 
-      - name: Start Containers
+      - name: Start Infrastructure & Backend
         run: |
-          docker compose -f docker-compose.prod.yml up -d
+          # Start infra + backend only (skip frontend to avoid depends_on blocking)
+          docker compose -f docker-compose.prod.yml up -d postgres redis chroma minio backend
           echo "--- Running containers ---"
           docker compose -f docker-compose.prod.yml ps
 
@@ -63,21 +64,42 @@ jobs:
           echo "--- Backend container logs ---"
           docker compose -f docker-compose.prod.yml logs backend --tail=100
           echo "--- Backend container inspect ---"
-          docker inspect hivemind-backend-prod | grep -A 20 '"Health"' || true
+          docker inspect hivemind-backend-prod | jq '.[0].State.Health' 2>/dev/null || \
+            docker inspect hivemind-backend-prod | grep -A 20 '"Health"' || true
           exit 1
-          
+
+      - name: Start Frontend
+        run: |
+          docker compose -f docker-compose.prod.yml up -d frontend
+          echo "--- All containers ---"
+          docker compose -f docker-compose.prod.yml ps
+
       - name: Verify Services
         run: |
           echo "--- Checking Frontend (Nginx) ---"
+          # Give nginx a moment to start
+          sleep 5
           curl -f http://localhost:80 || exit 1
+          echo ""
           echo "--- Checking Backend API ---"
           docker compose -f docker-compose.prod.yml exec -T backend curl -f http://localhost:8000/api/v1/health/ || exit 1
+          echo ""
           echo "--- Container Release Test Passed! ---"
 
       - name: Show Container Logs on Failure
         if: failure()
         run: |
-          docker compose -f docker-compose.prod.yml logs --tail=200
+          echo "=== ALL CONTAINER STATES ==="
+          docker compose -f docker-compose.prod.yml ps -a
+          echo ""
+          echo "=== BACKEND LOGS ==="
+          docker compose -f docker-compose.prod.yml logs backend --tail=200
+          echo ""
+          echo "=== FRONTEND LOGS ==="
+          docker compose -f docker-compose.prod.yml logs frontend --tail=50
+          echo ""
+          echo "=== POSTGRES LOGS ==="
+          docker compose -f docker-compose.prod.yml logs postgres --tail=30
 
       - name: Upload Logs as Artifact
         if: always()
