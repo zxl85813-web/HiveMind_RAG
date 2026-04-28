@@ -1,6 +1,9 @@
-# Production Gate — main 分支的后端最终门禁
-# 只在代码合入 main 后触发 (PR 检查由 feature-ci / develop-ci / release-ci 承担)
+# =============================================================================
+# Backend Production Gate — main 分支最终门禁
+# =============================================================================
+# 触发: push 到 main
 # 作用: 确保主干始终是可构建、可部署的干净状态
+# =============================================================================
 name: Backend Production Gate
 
 on:
@@ -15,7 +18,7 @@ env:
 
 jobs:
   lint:
-    name: Lint & Format
+    name: 🔍 Lint & Format
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,7 +41,7 @@ jobs:
         run: black --check --diff .
 
   typecheck:
-    name: Type Check (mypy)
+    name: 🔎 Type Check (mypy)
     runs-on: ubuntu-latest
     needs: lint
     defaults:
@@ -59,11 +62,9 @@ jobs:
 
       - name: Mypy
         run: mypy app/ --ignore-missing-imports
-        # Note: --ignore-missing-imports is used initially
-        # until all stubs are properly installed. Gradually remove.
 
   test:
-    name: Tests & Coverage
+    name: 🧪 Tests & Coverage
     runs-on: ubuntu-latest
     needs: lint
     defaults:
@@ -96,11 +97,35 @@ jobs:
           EOF
 
       - name: Run tests with coverage
-        run: pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+        run: |
+          pytest \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            --alluredir=allure-results \
+            -o "addopts="
 
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage
+          name: backend-coverage-main
           path: backend/coverage.xml
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-backend-main
+          path: backend/allure-results/
+          retention-days: 30
+
+  # ── Allure 聚合报告 ─────────────────────────────────────────────────────
+  allure-report:
+    name: 📊 Allure Report
+    needs: test
+    if: always()
+    uses: ./.github/workflows/test-report.yml
+    with:
+      report_suffix: main

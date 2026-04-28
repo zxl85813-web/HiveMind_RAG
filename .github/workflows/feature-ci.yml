@@ -1,12 +1,16 @@
-# 功能分支快速检查 CI (feature/fix/hotfix → develop 的 PR 触发)
-# 只跑 Lint + Type + Unit Test，快速反馈，不跑慢速的集成/E2E
+# =============================================================================
+# Feature CI — 功能分支快速检查
+# =============================================================================
+# 触发: feature/fix/hotfix → develop 的 PR
+# 作用: 快速反馈（Lint + Unit Test），不跑慢速集成/E2E
+# =============================================================================
 name: Feature CI (Fast Check)
 
 on:
   pull_request:
     branches:
-      - develop       # 功能分支合入 develop 时触发
-      - 'release/**'  # fix 分支合入 release 时也触发
+      - develop
+      - 'release/**'
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -17,6 +21,7 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  # ── Backend ──────────────────────────────────────────────────────────────
   backend-fast:
     name: 🐍 Backend Lint + Unit Test
     runs-on: ubuntu-latest
@@ -59,8 +64,23 @@ jobs:
           EOF
 
       - name: Run Unit Tests (Coverage > 80%)
-        run: pytest tests/unit/ --cov=app --cov-report=term-missing --cov-fail-under=80
+        run: |
+          pytest tests/unit/ \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            --alluredir=allure-results \
+            -o "addopts="
 
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-backend-feature
+          path: backend/allure-results/
+          retention-days: 5
+
+  # ── Frontend ─────────────────────────────────────────────────────────────
   frontend-fast:
     name: ⚛️ Frontend Lint + TypeCheck + Build
     runs-on: ubuntu-latest
@@ -86,5 +106,5 @@ jobs:
       - name: TypeScript Type Check
         run: npm run typecheck
 
-      - name: Build Check (确认能构建成功)
+      - name: Build Check
         run: npm run build

@@ -1,3 +1,6 @@
+# =============================================================================
+# Frontend Production Gate — main 分支前端门禁
+# =============================================================================
 name: Frontend CI
 
 on:
@@ -16,7 +19,7 @@ env:
 
 jobs:
   lint-and-typecheck:
-    name: Lint, Format & TypeCheck
+    name: 🔍 Lint, Format & TypeCheck
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,7 +44,7 @@ jobs:
         run: npm run typecheck
 
   build:
-    name: Production Build
+    name: 🏗️ Production Build
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
     defaults:
@@ -64,7 +67,7 @@ jobs:
         run: npm run build
 
   test:
-    name: Unit Tests & Coverage
+    name: 🧪 Unit Tests & Coverage
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
     defaults:
@@ -92,3 +95,11 @@ jobs:
         with:
           name: frontend-coverage
           path: frontend/coverage/
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-frontend-main
+          path: frontend/allure-results/
+          retention-days: 30

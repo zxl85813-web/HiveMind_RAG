@@ -1,5 +1,9 @@
-# develop 分支集成 CI (功能合并后 & develop 上直接 push 时触发)
-# 跑完整的 Lint + Type + Unit + Integration Test + 构建预览
+# =============================================================================
+# Develop CI — develop 分支集成检查
+# =============================================================================
+# 触发: push 到 develop（功能合并后 & develop 上直接 push）
+# 作用: 完整的 Lint + Type + Unit + Integration Test
+# =============================================================================
 name: Develop CI (Integration Check)
 
 on:
@@ -16,6 +20,7 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  # ── Backend ──────────────────────────────────────────────────────────────
   backend-full:
     name: 🐍 Backend Full CI (Lint + Type + Unit + Integration)
     runs-on: ubuntu-latest
@@ -58,7 +63,14 @@ jobs:
           EOF
 
       - name: Run Full Tests (Unit + Integration, Coverage > 80%)
-        run: pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+        run: |
+          pytest tests/ \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            --alluredir=allure-results \
+            -o "addopts="
 
       - name: Upload Coverage Report
         if: always()
@@ -67,6 +79,15 @@ jobs:
           name: backend-coverage-develop
           path: backend/coverage.xml
 
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-backend-develop
+          path: backend/allure-results/
+          retention-days: 10
+
+  # ── Frontend ─────────────────────────────────────────────────────────────
   frontend-full:
     name: ⚛️ Frontend Full CI (Lint + Type + Test + Build)
     runs-on: ubuntu-latest
@@ -104,3 +125,20 @@ jobs:
         with:
           name: frontend-coverage-develop
           path: frontend/coverage/
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-frontend-develop
+          path: frontend/allure-results/
+          retention-days: 10
+
+  # ── Allure 聚合报告 ─────────────────────────────────────────────────────
+  allure-report:
+    name: 📊 Allure Report
+    needs: [backend-full, frontend-full]
+    if: always()
+    uses: ./.github/workflows/test-report.yml
+    with:
+      report_suffix: develop

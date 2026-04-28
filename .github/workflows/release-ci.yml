@@ -1,11 +1,14 @@
-# Release 分支全量检查 CI (release/* → main 的 PR 触发)
-# 跑完整套件: Lint + Type + Unit + Integration + E2E + 安全扫描
+# =============================================================================
+# Release CI — release/* → main 的 PR 全量检查
+# =============================================================================
+# 跑完整套件: Lint + Type + Unit + Integration + 安全扫描
+# =============================================================================
 name: Release CI (Full Gate)
 
 on:
   pull_request:
     branches:
-      - main  # release/* 分支申请合入 main 时触发
+      - main
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -44,10 +47,10 @@ jobs:
         run: mypy app/ --ignore-missing-imports
 
       - name: "Security Bandit SAST Scan"
-        run: bandit -r app/ -ll  # Only high severity
+        run: bandit -r app/ -ll
 
       - name: "Security Safety Dependency CVE Scan"
-        run: safety check --json || true  # Report only, don't fail on advisory
+        run: safety check --json || true
 
       - name: Create test .env
         run: |
@@ -64,7 +67,14 @@ jobs:
           EOF
 
       - name: Run Full Tests (Coverage > 80%)
-        run: pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+        run: |
+          pytest tests/ \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            --alluredir=allure-results \
+            -o "addopts="
 
       - name: Upload Coverage
         if: always()
@@ -72,6 +82,14 @@ jobs:
         with:
           name: backend-coverage-release
           path: backend/coverage.xml
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-backend-release
+          path: backend/allure-results/
+          retention-days: 30
 
   frontend-release-gate:
     name: ⚛️ Frontend Release Gate
@@ -101,7 +119,7 @@ jobs:
       - name: Run Tests + Coverage
         run: npm run test:unit
 
-      - name: Production Build (Final验证)
+      - name: Production Build
         run: npm run build
 
       - name: Upload Coverage
@@ -110,6 +128,14 @@ jobs:
         with:
           name: frontend-coverage-release
           path: frontend/coverage/
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-frontend-release
+          path: frontend/allure-results/
+          retention-days: 30
 
   tag-on-merge:
     name: 🏷️ Auto Tag on Release Merge
