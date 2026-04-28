@@ -1,78 +1,237 @@
-name: Production Deployment & Analysis
+name: Production Deployment
+
+# =============================================================================
+# 部署策略: Blue/Green with Auto-Rollback
+# =============================================================================
+# 触发条件:
+#   - push 到 main 分支（经过 backend-ci.yml 门禁后）
+#   - 手动触发（workflow_dispatch），支持选择部署模式
+#
+# 部署模式 (deploy_mode):
+#   harness  — 通过 Harness CD Pipeline 执行蓝绿部署（推荐，有完整回滚）
+#   direct   — 直接 SSH 执行蓝绿部署脚本（Harness 未配置时的降级方案）
+#
+# 前置条件（harness 模式）:
+#   secrets.HARNESS_API_KEY       — Harness Personal Access Token
+#   secrets.HARNESS_ACCOUNT_ID    — Harness Account ID
+#   vars.HARNESS_ORG_ID           — Harness Org ID (默认 default)
+#   vars.HARNESS_PROJECT_ID       — Harness Project ID (默认 hivemind_rag)
+#   vars.HARNESS_PIPELINE_ID      — Harness Pipeline ID (hivemind_production_deploy)
+#
+# 前置条件（direct 模式）:
+#   secrets.SERVER_HOST           — Azure VM 公网 IP
+#   secrets.SERVER_USERNAME       — SSH 用户名 (azureuser)
+#   secrets.SERVER_SSH_KEY        — SSH 私钥
+#   secrets.SONAR_TOKEN           — SonarQube Token
+#   secrets.SONAR_HOST_URL        — SonarQube Host URL
+# =============================================================================
 
 on:
   push:
     branches:
-      - master
-      - feature/agent-shared-memory # 准备合入前，保留此触发用于验证 Sonar+Deploy 全流程
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docker-compose.prod.yml'
+      - 'scripts/deploy/**'
+      - '.github/workflows/deploy.yml'
+
+  workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: "Deployment mode"
+        required: true
+        default: "harness"
+        type: choice
+        options:
+          - harness
+          - direct
+      deploy_branch:
+        description: "Branch to deploy"
+        required: false
+        default: "main"
+      rollback_keep_minutes:
+        description: "Minutes to keep old slot for rollback"
+        required: false
+        default: "10"
+
+env:
+  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'harness' }}
+  DEPLOY_BRANCH: ${{ github.event.inputs.deploy_branch || github.ref_name }}
 
 jobs:
-  sonarQube-analysis:
+  # ── Job 1: SonarQube 代码质量扫描（始终执行）──────────────────────────────
+  sonarqube-analysis:
     name: 🛡️ SonarQube Code Quality Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Important for SonarQube to analyze history
+          fetch-depth: 0
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
+        uses: SonarSource/sonarqube-scan-action@v3.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-  deploy:
-    name: 🚀 Deploy to Azure Server
-    needs: sonarQube-analysis # Must pass Sonar scan before deploying
+  # ── Job 2a: Harness CD 触发（推荐模式）────────────────────────────────────
+  deploy-via-harness:
+    name: 🚀 Trigger Harness CD Pipeline
+    needs: sonarqube-analysis
     runs-on: ubuntu-latest
+    if: |
+      (github.event.inputs.deploy_mode == 'harness' || github.event.inputs.deploy_mode == '') &&
+      (secrets.HARNESS_API_KEY != '')
     steps:
-      - name: SSH and Deploy
-        uses: appleboy/ssh-action@master
+      - name: Trigger Harness Pipeline
+        id: trigger_harness
+        run: |
+          echo "Triggering Harness CD Pipeline..."
+          echo "  Pipeline: ${{ vars.HARNESS_PIPELINE_ID || 'hivemind_production_deploy' }}"
+          echo "  Branch:   ${DEPLOY_BRANCH}"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "https://app.harness.io/pipeline/api/pipeline/execute/${{ vars.HARNESS_PIPELINE_ID || 'hivemind_production_deploy' }}?accountIdentifier=${{ secrets.HARNESS_ACCOUNT_ID }}&orgIdentifier=${{ vars.HARNESS_ORG_ID || 'default' }}&projectIdentifier=${{ vars.HARNESS_PROJECT_ID || 'hivemind_rag' }}" \
+            -H "x-api-key: ${{ secrets.HARNESS_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "inputSetTemplateYaml": "pipeline:\n  identifier: hivemind_production_deploy\n  variables:\n    - name: deploy_branch\n      type: String\n      value: \"'"${DEPLOY_BRANCH}"'\"\n    - name: rollback_keep_minutes\n      type: Number\n      value: '"${{ github.event.inputs.rollback_keep_minutes || '10' }}"'\n"
+            }')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: ${HTTP_CODE}"
+          echo "Response: ${BODY}"
+
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::Failed to trigger Harness pipeline (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+
+          # 提取 execution ID 用于后续轮询
+          EXECUTION_ID=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('planExecution',{}).get('uuid','unknown'))" 2>/dev/null || echo "unknown")
+          echo "execution_id=${EXECUTION_ID}" >> $GITHUB_OUTPUT
+          echo "Harness execution ID: ${EXECUTION_ID}"
+
+      - name: Poll Harness Pipeline Status
+        run: |
+          EXECUTION_ID="${{ steps.trigger_harness.outputs.execution_id }}"
+          if [[ "$EXECUTION_ID" == "unknown" ]]; then
+            echo "::warning::Could not retrieve execution ID. Skipping status poll."
+            exit 0
+          fi
+
+          echo "Polling Harness pipeline status (execution: ${EXECUTION_ID})..."
+          MAX_POLLS=60   # 最多等待 30 分钟 (60 * 30s)
+          POLL_INTERVAL=30
+
+          for i in $(seq 1 $MAX_POLLS); do
+            STATUS_RESPONSE=$(curl -s \
+              "https://app.harness.io/pipeline/api/pipeline/execution/${EXECUTION_ID}?accountIdentifier=${{ secrets.HARNESS_ACCOUNT_ID }}&orgIdentifier=${{ vars.HARNESS_ORG_ID || 'default' }}&projectIdentifier=${{ vars.HARNESS_PROJECT_ID || 'hivemind_rag' }}" \
+              -H "x-api-key: ${{ secrets.HARNESS_API_KEY }}" || echo "{}")
+
+            STATUS=$(echo "$STATUS_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('pipelineExecutionSummary',{}).get('status','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+
+            echo "  [${i}/${MAX_POLLS}] Pipeline status: ${STATUS}"
+
+            case "$STATUS" in
+              "SUCCESS")
+                echo "✅ Harness pipeline completed successfully!"
+                exit 0
+                ;;
+              "FAILED"|"ABORTED"|"ERRORED"|"EXPIRED")
+                echo "::error::Harness pipeline ${STATUS}. Check Harness UI for details."
+                echo "Harness UI: https://app.harness.io/ng/account/${{ secrets.HARNESS_ACCOUNT_ID }}/cd/orgs/${{ vars.HARNESS_ORG_ID || 'default' }}/projects/${{ vars.HARNESS_PROJECT_ID || 'hivemind_rag' }}/pipelines/hivemind_production_deploy/executions/${EXECUTION_ID}"
+                exit 1
+                ;;
+              "RUNNING"|"ASYNC_WAITING"|"TASK_WAITING"|"PAUSED")
+                sleep $POLL_INTERVAL
+                ;;
+              *)
+                echo "  Unknown status '${STATUS}', continuing to poll..."
+                sleep $POLL_INTERVAL
+                ;;
+            esac
+          done
+
+          echo "::error::Timed out waiting for Harness pipeline to complete."
+          exit 1
+
+      - name: Output Harness Pipeline URL
+        if: always()
+        run: |
+          EXECUTION_ID="${{ steps.trigger_harness.outputs.execution_id }}"
+          echo "## 🚀 Harness Pipeline Execution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pipeline**: hivemind_production_deploy" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${DEPLOY_BRANCH}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Execution ID**: ${EXECUTION_ID}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Harness UI**: https://app.harness.io/ng/account/${{ secrets.HARNESS_ACCOUNT_ID }}/cd/orgs/${{ vars.HARNESS_ORG_ID || 'default' }}/projects/${{ vars.HARNESS_PROJECT_ID || 'hivemind_rag' }}/pipelines/hivemind_production_deploy/executions/${EXECUTION_ID}" >> $GITHUB_STEP_SUMMARY
+
+  # ── Job 2b: 直接 SSH 部署（降级方案，Harness 未配置时使用）────────────────
+  deploy-direct:
+    name: 🚀 Direct Blue/Green Deploy (Fallback)
+    needs: sonarqube-analysis
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.deploy_mode == 'direct' ||
+      (github.event.inputs.deploy_mode == '' && secrets.HARNESS_API_KEY == '')
+    steps:
+      - name: SSH — Blue/Green Deploy
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 35m
           script_stop: true
           script: |
+            set -euo pipefail
             PROJECT_DIR="/home/azureuser/HiveMind_RAG"
+
+            # 确保项目目录存在
             if [ ! -d "$PROJECT_DIR" ]; then
               git clone https://github.com/zxl85813-web/HiveMind_RAG.git "$PROJECT_DIR"
             fi
-            
+
             cd "$PROJECT_DIR"
-            git fetch origin
-            DEPLOY_BRANCH=${GITHUB_REF##*/}
-            git checkout $DEPLOY_BRANCH
-            git pull origin $DEPLOY_BRANCH
-            
-            # --- Container Management ---
-            # If backend/.env.production doesn't exist, use .env.example
-            if [ ! -f "backend/.env.production" ]; then
-              cp backend/.env.example backend/.env.production
-              echo "Created default backend/.env.production from example"
-            fi
-            
-            # Rebuild and restart all services using Docker Compose V2
-            echo "Checking Docker version..."
-            docker version
-            docker compose version
-            
-            echo "Building and restarting containers..."
-            # 使用 docker compose (V2)
-            # 先停止并清理旧容器，防止重名冲突 (Conflict)
-            docker compose -f docker-compose.prod.yml down --remove-orphans
-            
-            # 重新构建并后台启动
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-            
-            # --- Database Migration ---
-            # 启动后自动同步数据库表结构
-            echo "Running database migrations..."
-            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
-            
-            # Cleanup old unused images and builder cache to save space
-            docker image prune -f
-            docker builder prune -f
-            
-            echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"
+
+            # 确保部署脚本存在且可执行
+            chmod +x scripts/deploy/blue_green_deploy.sh
+            chmod +x scripts/deploy/rollback.sh
+            chmod +x scripts/deploy/health_check.sh
+
+            # 执行蓝绿部署
+            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}" \
+            ROLLBACK_KEEP_MINUTES="${{ github.event.inputs.rollback_keep_minutes || '10' }}" \
+              ./scripts/deploy/blue_green_deploy.sh \
+                --branch "${{ env.DEPLOY_BRANCH }}"
+
+      - name: SSH — Post-Deploy Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            cd /home/azureuser/HiveMind_RAG
+            ./scripts/deploy/health_check.sh
+
+      - name: Output Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Direct Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: Direct SSH (Blue/Green)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ env.DEPLOY_BRANCH }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rollback window**: ${{ github.event.inputs.rollback_keep_minutes || '10' }} minutes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To rollback manually, SSH into the server and run:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "cd /home/azureuser/HiveMind_RAG && ./scripts/deploy/rollback.sh" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
