@@ -1,0 +1,174 @@
+# =============================================================================
+# Allure 聚合测试报告 — 统一仪表盘
+# =============================================================================
+# 触发: 由其他 CI workflow 完成后自动调用 (workflow_call)，也支持手动触发
+#
+# 功能:
+#   1. 下载所有 test job 上传的 allure-results artifacts
+#   2. 从 gh-pages 分支拉取历史数据（趋势图）
+#   3. 生成聚合 Allure HTML 报告
+#   4. 发布到 GitHub Pages (gh-pages 分支)
+#
+# 访问地址: https://<org>.github.io/<repo>/
+# =============================================================================
+name: "📊 Allure Test Report"
+
+on:
+  # 被其他 workflow 调用
+  workflow_call:
+    inputs:
+      report_suffix:
+        description: "Report identifier suffix (e.g. develop, feature-42, release)"
+        type: string
+        required: false
+        default: ""
+
+  # 手动触发（调试用）
+  workflow_dispatch:
+    inputs:
+      report_suffix:
+        description: "Report identifier suffix"
+        required: false
+        default: "manual"
+
+# 确保同一时间只有一个部署到 gh-pages
+concurrency:
+  group: allure-pages-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write    # 推送到 gh-pages 分支
+  pages: write       # GitHub Pages 部署
+  id-token: write    # Pages OIDC
+  actions: read      # 下载 artifacts
+
+env:
+  ALLURE_VERSION: "2.32.0"
+
+jobs:
+  generate-report:
+    name: 📊 Generate Allure Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 1. 下载所有 allure-results artifacts ──────────────────────────────
+      - name: Download all Allure result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: allure-results-all
+          merge-multiple: false
+
+      # ── 2. 合并所有结果到统一目录 ─────────────────────────────────────────
+      - name: Merge Allure results
+        run: |
+          mkdir -p allure-results-merged
+          echo "=== Downloaded artifacts ==="
+          ls -la allure-results-all/ 2>/dev/null || echo "No artifacts found"
+
+          # 合并所有子目录中的结果文件
+          for dir in allure-results-all/*/; do
+            if [ -d "$dir" ]; then
+              echo "Merging results from: $dir"
+              cp -r "$dir"* allure-results-merged/ 2>/dev/null || true
+            fi
+          done
+
+          RESULT_COUNT=$(find allure-results-merged -name "*.json" -o -name "*.xml" 2>/dev/null | wc -l)
+          echo "Total result files merged: $RESULT_COUNT"
+
+          if [ "$RESULT_COUNT" -eq 0 ]; then
+            echo "::warning::No Allure results found. Generating placeholder report."
+            # 创建一个空的 environment 文件，确保 Allure 能生成报告
+            cat > allure-results-merged/environment.properties << 'EOF'
+          Project=HiveMind RAG
+          Note=No test results available for this run
+          EOF
+          fi
+
+      # ── 3. 添加环境信息 ──────────────────────────────────────────────────
+      - name: Add environment metadata
+        run: |
+          SUFFIX="${{ inputs.report_suffix || 'ci' }}"
+          cat > allure-results-merged/environment.properties << EOF
+          Project=HiveMind RAG
+          Branch=${GITHUB_REF_NAME}
+          Commit=${GITHUB_SHA:0:8}
+          Run=${GITHUB_RUN_NUMBER}
+          Trigger=${GITHUB_EVENT_NAME}
+          Profile=${SUFFIX}
+          Timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          EOF
+
+          # 添加 executor 信息（Allure 用于显示 CI 链接）
+          cat > allure-results-merged/executor.json << EOF
+          {
+            "name": "GitHub Actions",
+            "type": "github",
+            "buildName": "#${GITHUB_RUN_NUMBER} (${SUFFIX})",
+            "buildUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "reportUrl": "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/",
+            "buildOrder": ${GITHUB_RUN_NUMBER}
+          }
+          EOF
+
+      # ── 4. 拉取历史数据（趋势图）──────────────────────────────────────────
+      - name: Fetch Allure history from gh-pages
+        continue-on-error: true
+        run: |
+          git fetch origin gh-pages --depth=1 2>/dev/null || true
+          mkdir -p allure-results-merged/history
+
+          # 从 gh-pages 分支提取上一次的 history 目录
+          git show origin/gh-pages:history/history.json > allure-results-merged/history/history.json 2>/dev/null || true
+          git show origin/gh-pages:history/history-trend.json > allure-results-merged/history/history-trend.json 2>/dev/null || true
+          git show origin/gh-pages:history/categories-trend.json > allure-results-merged/history/categories-trend.json 2>/dev/null || true
+          git show origin/gh-pages:history/duration-trend.json > allure-results-merged/history/duration-trend.json 2>/dev/null || true
+          git show origin/gh-pages:history/retry-trend.json > allure-results-merged/history/retry-trend.json 2>/dev/null || true
+
+          echo "History files fetched:"
+          ls -la allure-results-merged/history/ 2>/dev/null || echo "No history"
+
+      # ── 5. 安装 Allure CLI ────────────────────────────────────────────────
+      - name: Install Allure CLI
+        run: |
+          curl -sL "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz" | tar xz
+          echo "$PWD/allure-${ALLURE_VERSION}/bin" >> $GITHUB_PATH
+
+      # ── 6. 生成 Allure HTML 报告 ──────────────────────────────────────────
+      - name: Generate Allure report
+        run: |
+          allure generate allure-results-merged -o allure-report --clean
+
+          # 保存 history 到报告根目录（下次构建用）
+          mkdir -p allure-report/history
+          cp -r allure-report/history/* allure-report/history/ 2>/dev/null || true
+
+          echo "Report generated. Files:"
+          ls -la allure-report/
+
+      # ── 7. 发布到 GitHub Pages ────────────────────────────────────────────
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: allure-report
+          keep_files: false
+          # 保留 history 目录用于趋势图
+          destination_dir: .
+
+      # ── 8. 输出报告链接 ──────────────────────────────────────────────────
+      - name: Report URL
+        run: |
+          REPORT_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          echo "## 📊 Allure Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **[View Report](${REPORT_URL})**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${GITHUB_REF_NAME}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${GITHUB_SHA:0:8}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Profile | \`${{ inputs.report_suffix || 'ci' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run | #${GITHUB_RUN_NUMBER} |" >> $GITHUB_STEP_SUMMARY
