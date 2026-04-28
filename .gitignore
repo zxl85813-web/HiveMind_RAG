@@ -45,6 +45,12 @@ traceback*.log
 error.log
 server_log*.txt
 
+# Allure Test Reports
+allure-results/
+allure-report/
+backend/allure-results/
+frontend/allure-results/
+
 # Ignore arbitrary text/test outputs generated during debugging
 debug*.txt
 test_out*.txt
@@ -106,3 +112,54 @@ backend/routes_output.txt
 backend/start_data/chroma_db/
 *.sqlite3
 .checkpoints/
+
+# ==========================================
+# Ad-hoc Debug / Test Scripts (root & backend)
+# ==========================================
+query_db.py
+backend/check_*.py
+backend/eval_*.py
+backend/test_*.py
+backend/scripts/debug_*.py
+backend/scripts/test_*.py
+backend/scripts/verify_*.py
+backend/scripts/re_test_*.py
+backend/scripts/test_consolidation.py
+backend/scripts/test_init_logic.py
+backend/scripts/test_l4_closed_loop.py
+backend/scripts/test_paging.py
+backend/scripts/test_s3_connection.py
+backend/scripts/test_temporal.py
+backend/scripts/test_vfs.py
+
+# ==========================================
+# Export / Data Artifacts
+# ==========================================
+data/
+export/
+exports/
+backend/exports/
+backend/benchmarks/
+
+# ==========================================
+# Frontend Test Artifacts
+# ==========================================
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/data/
+frontend/report*.json
+frontend/stats.html
+
+# ==========================================
+# AI Agent / Skill Workspaces
+# ==========================================
+claude-code-main/
+skills/
+scratch/
+scenario_f_log*.txt
+
+# ==========================================
+# Kiro IDE
+# ==========================================
+.kiro/
