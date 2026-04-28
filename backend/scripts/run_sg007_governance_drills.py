@@ -510,8 +510,8 @@ async def main() -> None:
     output_json.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     output_md.write_text(render_markdown(summary), encoding="utf-8")
 
-    t_logger.info(f"[SG-007] json report: {output_json}", action="export", meta={"format": "json", "path": str(output_json)})
-    t_logger.info(f"[SG-007] markdown report: {output_md}", action="export", meta={"format": "markdown", "path": str(output_md)})
+    t_logger.info("[SG-007] json report: {}", output_json, action="export", meta={"format": "json", "path": str(output_json)})
+    t_logger.info("[SG-007] markdown report: {}", output_md, action="export", meta={"format": "markdown", "path": str(output_md)})
 
     if not args.no_versioned:
         output_json_v = _versioned_path(output_json, run_key)
@@ -521,7 +521,8 @@ async def main() -> None:
         t_logger.success(f"[SG-007] versioned json report: {output_json_v}")
 
     if gate_enforcement["enabled"] and not gate_enforcement["passed"]:
-        t_logger.error(f"[SG-007] gate enforcement failed: {gate_enforcement['violations']}", action="gate_failure")
+        violations_json = json.dumps(gate_enforcement["violations"], ensure_ascii=False)
+        t_logger.error("[SG-007] gate enforcement failed: {}", violations_json, action="gate_failure")
         raise SystemExit(2)
     
     t_logger.success("[SG-007] Drill completed successfully", action="completed")
