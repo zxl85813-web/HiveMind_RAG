@@ -93,7 +93,7 @@ jobs:
           docker compose -f docker-compose.prod.yml ps -a
           echo ""
           echo "=== BACKEND LOGS ==="
-          docker compose -f docker-compose.prod.yml logs backend --tail=200
+          docker compose -f docker-compose.prod.yml logs backend --tail=500
           echo ""
           echo "=== FRONTEND LOGS ==="
           docker compose -f docker-compose.prod.yml logs frontend --tail=50

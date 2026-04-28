@@ -11,9 +11,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.api import router as api_router
 from app.core.config import settings
 from app.sdk.core.exceptions import register_exception_handlers
+
+# Diagnostic: detect which route module fails to import in Docker
+import importlib as _importlib
+_route_modules = [
+    "agents", "audit", "audit_v3", "chat", "evaluation", "finetuning",
+    "generation", "health", "knowledge", "learning", "llm_config", "memory",
+    "observability", "pipelines", "security", "settings", "tags", "telemetry",
+    "websocket", "auth", "governance", "red_team", "logs", "performance",
+]
+for _mod_name in _route_modules:
+    try:
+        _importlib.import_module(f"app.api.routes.{_mod_name}")
+    except Exception as _e:
+        logger.error("❌ Failed to import route module '{}': {}", _mod_name, _e)
+        import traceback; traceback.print_exc()
+
+from app.api import router as api_router
 
 
 @asynccontextmanager
