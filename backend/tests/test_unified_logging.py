@@ -3,17 +3,15 @@ Verification test for Unified Logging Protocol.
 Validates trace ID propagation, JSON schema compliance, and middleware integration.
 """
 
+import asyncio
 import json
 import sys
 import uuid
-import asyncio
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
-from contextvars import ContextVar
 
-import pytest
 import loguru
+import pytest
 
 # Windows console UTF-8 fix for standard outputs
 try:
@@ -28,8 +26,8 @@ except (AttributeError, Exception):
 BASE = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE / "backend"))
 
-from app.schemas.monitor import UnifiedLog, Platform, EventCategory, LogLevel
-from app.core.logging import trace_id_var, get_trace_logger
+from app.core.logging import get_trace_logger, trace_id_var  # noqa: E402
+from app.schemas.monitor import EventCategory, LogLevel, Platform, UnifiedLog  # noqa: E402
 
 # =============================================================================
 # [LOG-01] Pydantic Schema Validation
@@ -51,7 +49,7 @@ class TestUnifiedLogSchema:
         )
         assert log.platform == Platform.BE
         assert log.level == LogLevel.INFO
-        print(f"  [BE-LOG-01] Schema validation passed")
+        print("  [BE-LOG-01] Schema validation passed")
 
     def test_log_serializes_to_correct_json_keys(self):
         log = UnifiedLog(
@@ -68,7 +66,7 @@ class TestUnifiedLogSchema:
         required_keys = {"ts", "level", "trace_id", "platform", "category", "module", "action", "msg", "meta", "env"}
         missing = required_keys - set(data.keys())
         assert not missing, f"Missing keys: {missing}"
-        print(f"  [BE-LOG-01] JSON keys alignment passed")
+        print("  [BE-LOG-01] JSON keys alignment passed")
 
 # =============================================================================
 # [LOG-02] Trace ID Context Propagation
@@ -78,7 +76,7 @@ class TestTraceIdPropagation:
     def test_trace_id_var_default(self):
         current = trace_id_var.get("system-internal")
         assert current == "system-internal"
-        print(f"  [BE-LOG-02] Default trace_id check passed")
+        print("  [BE-LOG-02] Default trace_id check passed")
 
     def test_trace_id_isolation_between_contexts(self):
         results = {}
@@ -97,7 +95,7 @@ class TestTraceIdPropagation:
             )
             assert results["req_a"] == tid_a
             assert results["req_b"] == tid_b
-            print(f"  [BE-LOG-02] Concurrency isolation passed")
+            print("  [BE-LOG-02] Concurrency isolation passed")
 
         asyncio.run(run())
 
@@ -110,7 +108,7 @@ class TestGetTraceLogger:
         tid = "span-abc-123"
         token = trace_id_var.set(tid)
         captured_records = []
-        
+
         # Add a temporary subscriber to capture output
         handler_id = loguru.logger.add(
             lambda msg: captured_records.append(json.loads(str(msg))),
@@ -123,11 +121,11 @@ class TestGetTraceLogger:
             assert len(captured_records) > 0
             rec = captured_records[-1]["record"]
             extra = rec["extra"]
-            
+
             assert extra["trace_id"] == tid
             assert extra["module"] == "TestModule"
             assert extra["platform"] == "BE"
-            print(f"  [BE-LOG-03] TraceLogger field injection passed")
+            print("  [BE-LOG-03] TraceLogger field injection passed")
         finally:
             loguru.logger.remove(handler_id)
             trace_id_var.reset(token)
@@ -150,7 +148,7 @@ class TestJSONSerializationOutput:
             parsed = json.loads(content)
             assert "record" in parsed
             assert "text" in parsed
-            print(f"  [BE-LOG-04] JSON File serialization passed")
+            print("  [BE-LOG-04] JSON File serialization passed")
         finally:
             if handler_id is not None:
                 loguru.logger.remove(handler_id)
@@ -162,11 +160,11 @@ class TestJSONSerializationOutput:
 class TestTraceMiddleware:
     @pytest.mark.asyncio
     async def test_middleware_header_propagation(self):
-        from httpx import AsyncClient, ASGITransport
         from fastapi import FastAPI
         from fastapi.responses import JSONResponse
+        from httpx import ASGITransport, AsyncClient
         from starlette.middleware.base import BaseHTTPMiddleware
-        
+
         test_app = FastAPI()
 
         class MockTraceMiddleware(BaseHTTPMiddleware):
@@ -191,4 +189,4 @@ class TestTraceMiddleware:
             r = await client.get("/ping", headers={"X-Trace-Id": custom_tid})
             assert r.headers["X-Trace-Id"] == custom_tid
             assert r.json()["trace_id"] == custom_tid
-            print(f"  [BE-LOG-05] Middleware integration passed")
+            print("  [BE-LOG-05] Middleware integration passed")
