@@ -165,7 +165,9 @@ export const SecurityPage: React.FC = () => {
                 let rules: any = {};
                 try {
                     rules = JSON.parse(record.rules_json);
-                } catch { }
+                } catch {
+                    // rules_json 解析失败时使用空对象
+                }
                 return (
                     <Space size={[0, 8]} wrap>
                         {Object.entries(rules).map(([k, v]: [string, any]) => {

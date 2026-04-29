@@ -133,7 +133,9 @@ function generateReportHTML(
                         <tbody>${qaRows}</tbody>
                     </table>
                 `;
-            } catch { }
+            } catch {
+                // 表格渲染失败时静默降级
+            }
         }
     }
 
@@ -184,7 +186,7 @@ function generateReportHTML(
         <h1>🧠 HiveMind RAG 评估综合报告</h1>
         <div class="subtitle">基于 RAGAS (Retrieval Augmented Generation Assessment) 框架的全面质量评估</div>
         <div class="subtitle" style="margin-top:4px;">报告生成时间: ${exportTime}</div>
-        <div class="score-badge" style="background:${scoreBadge}">综合评级: ${scoreLevel}　—　${(avgScore * 100).toFixed(1)}%</div>
+        <div class="score-badge" style="background:${scoreBadge}">综合评级: ${scoreLevel} — ${(avgScore * 100).toFixed(1)}%</div>
     </div>
 
     <h2>📊 评估概览 (Executive Summary)</h2>
@@ -537,7 +539,9 @@ export const EvalPage: React.FC = () => {
         let details: any[] = [];
         try {
             details = JSON.parse(selectedReport.details_json || '[]');
-        } catch (e) { }
+        } catch {
+            // details_json 解析失败时使用空数组
+        }
 
         return (
             <Space direction="vertical" style={{ width: '100%' }} size="large">

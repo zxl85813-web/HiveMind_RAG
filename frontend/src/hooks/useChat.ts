@@ -63,7 +63,7 @@ export function useChat(options: UseChatOptions = {}) {
         setController(newController);
 
         let fullContent = '';
-        let statuses: string[] = [];
+        const statuses: string[] = [];
 
         await chatApi.streamChat({
             message: text,

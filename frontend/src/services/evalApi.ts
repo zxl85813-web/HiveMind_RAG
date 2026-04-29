@@ -1,5 +1,13 @@
 import api from './api';
 import type { ApiResponse, EvaluationSet, EvaluationReport } from '../types';
+import type { BadCase, BadCaseUpdate } from '../types/apiTypes';
+
+export interface KBEvalStats {
+    total_runs: number;
+    avg_score?: number | null;
+    last_run_at?: string | null;
+    [key: string]: unknown;
+}
 
 export const evalApi = {
     createTestset: (kbId: string, name: string, count: number = 10) =>
@@ -18,16 +26,16 @@ export const evalApi = {
         api.get<ApiResponse<EvaluationReport>>(`/evaluation/reports/${reportId}`),
 
     getBadCases: () =>
-        api.get<ApiResponse<any[]>>('/evaluation/badcases'),
+        api.get<ApiResponse<BadCase[]>>('/evaluation/badcases'),
 
     updateBadCase: (caseId: string, status: string, expectedAnswer?: string, reason?: string) =>
-        api.put<ApiResponse<any>>(`/evaluation/badcases/${caseId}`, { status, expected_answer: expectedAnswer, reason }),
+        api.put<ApiResponse<BadCaseUpdate>>(`/evaluation/badcases/${caseId}`, { status, expected_answer: expectedAnswer, reason }),
 
     deleteBadCase: (caseId: string) =>
         api.delete<ApiResponse<string>>(`/evaluation/badcases/${caseId}`),
 
     getKBStats: (kbId: string) =>
-        api.get<ApiResponse<any>>(`/evaluation/stats/kb/${kbId}`)
+        api.get<ApiResponse<KBEvalStats>>(`/evaluation/stats/kb/${kbId}`)
 };
 
 export default evalApi;

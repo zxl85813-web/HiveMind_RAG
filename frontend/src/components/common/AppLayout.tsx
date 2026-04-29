@@ -8,6 +8,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react';
+import type { MenuProps } from 'antd';
 import { Layout, Menu, Flex, Badge, Tooltip, App, Tag } from 'antd';
 import {
     AppstoreOutlined,
@@ -82,14 +83,16 @@ export const AppLayout: React.FC = () => {
         { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined />, module: 'core' },
     ];
 
-    /** 根据平台模式过滤导航项 */
-    const navItems = useMemo(() => {
-        return allNavItems.filter(item => {
-            if (item.module === 'core') return true;
-            if (item.module === 'rag') return ragEnabled;
-            if (item.module === 'agent') return agentEnabled;
-            return true;
-        });
+    /** 根据平台模式过滤导航项 (转换为 antd Menu items 类型) */
+    const navItems = useMemo<MenuProps['items']>(() => {
+        return allNavItems
+            .filter(item => {
+                if (item.module === 'core') return true;
+                if (item.module === 'rag') return ragEnabled;
+                if (item.module === 'agent') return agentEnabled;
+                return true;
+            })
+            .map(({ key, label, icon }) => ({ key, label, icon }));
     }, [ragEnabled, agentEnabled, t]);
 
     /** 平台模式标签 */

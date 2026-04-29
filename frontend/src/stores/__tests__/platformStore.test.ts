@@ -8,7 +8,7 @@
  *   4. 后端不可用时降级为 full
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { usePlatformStore } from '../platformStore';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test/mocks/server';

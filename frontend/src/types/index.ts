@@ -10,7 +10,7 @@
 //  Common
 // ==========================================
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
     success: boolean;
     data: T;
     message: string;
@@ -180,7 +180,7 @@ export interface Document {
     file_size: number;
     storage_path: string;
     status: 'pending' | 'processing' | 'parsed' | 'failed' | 'pending_review';
-    security_report?: any;
+    security_report?: import('./apiTypes').DesensitizationReportRead;
     tags?: Tag[];
     created_at: string;
     updated_at?: string;

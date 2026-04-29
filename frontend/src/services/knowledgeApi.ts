@@ -3,6 +3,21 @@
  */
 import api from './api';
 import type { ApiResponse, KnowledgeBase, Document, KBLink, KnowledgeBasePermission } from '../types';
+import type { DesensitizationReportRead, SearchResponse } from '../types/apiTypes';
+
+// 知识图谱节点/边（后端未提供严格 schema，使用最小结构约束）
+export interface KBGraphNode {
+    id: string;
+    label?: string;
+    type?: string;
+    [key: string]: unknown;
+}
+export interface KBGraphLink {
+    source: string;
+    target: string;
+    label?: string;
+    [key: string]: unknown;
+}
 
 export interface CreateKnowledgeBaseParams {
     name: string;
@@ -36,14 +51,14 @@ export const knowledgeApi = {
     linkDoc: (kbId: string, docId: string) => api.post<KBLink>(`/knowledge/${kbId}/documents/${docId}`, {}),
     listDocsInKB: (kbId: string) => api.get<Document[]>(`/knowledge/${kbId}/documents`),
     unlinkDoc: (kbId: string, docId: string) => api.delete<{ status: string }>(`/knowledge/${kbId}/documents/${docId}`),
-    getDocumentReport: (documentId: string) => api.get<ApiResponse<any>>(`/security/reports/document/${documentId}`),
+    getDocumentReport: (documentId: string) => api.get<ApiResponse<DesensitizationReportRead>>(`/security/reports/document/${documentId}`),
 
     // Knowledge Graph
-    getKBGraph: (kbId: string) => api.get<ApiResponse<{ nodes: any[], links: any[] }>>(`/knowledge/${kbId}/graph`),
+    getKBGraph: (kbId: string) => api.get<ApiResponse<{ nodes: KBGraphNode[], links: KBGraphLink[] }>>(`/knowledge/${kbId}/graph`),
 
     // Search
     searchKB: (kbId: string, query: string, search_type: string = 'hybrid', top_k: number = 5) =>
-        api.post<ApiResponse<{ results: any[], context_log: string[] }>>(`/knowledge/${kbId}/search`, { query, search_type, top_k }),
+        api.post<ApiResponse<SearchResponse>>(`/knowledge/${kbId}/search`, { query, search_type, top_k }),
 
     // Preview
     getDocumentPreview: (docId: string) => api.get<ApiResponse<{ text: string, job_id: string }>>(`/knowledge/documents/${docId}/preview`)

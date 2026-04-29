@@ -129,7 +129,7 @@ export const ChatPanel: React.FC = () => {
 
         setIsGenerating(true);
         let fullContent = '';
-        let thoughtChainItems: any[] = [];
+        const thoughtChainItems: any[] = [];
 
         try {
             await chatApi.streamChat({

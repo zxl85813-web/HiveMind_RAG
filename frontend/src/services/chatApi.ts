@@ -1,12 +1,19 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import api from './api';
+import type { ChatMessageMetadata } from '../types/chat';
+import type {
+    ChatSSEEvent,
+    ChatStreamMetrics,
+    SwarmInsight,
+} from '../types/sse';
+import type { ClientEventPayload } from '../types/chat';
 
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
     created_at: string;
-    metadata?: any;
+    metadata?: ChatMessageMetadata;
 }
 
 export interface ConversationDetail {
@@ -37,10 +44,10 @@ export const chatApi = {
         knowledgeBaseIds?: string[];
         onDelta: (delta: string) => void;
         onStatus?: (status: string) => void;
-        onInsight?: (data: any) => void;
+        onInsight?: (data: SwarmInsight) => void;
         onSessionCreated?: (id: string, title: string) => void;
-        onFinish?: (metrics?: { latency_ms?: number; is_cached?: boolean }) => void;
-        clientEvents?: any[];
+        onFinish?: (metrics?: ChatStreamMetrics) => void;
+        clientEvents?: ClientEventPayload[];
         onError?: (err: unknown) => void;
         controller?: AbortController;
     }) {
@@ -66,23 +73,30 @@ export const chatApi = {
 
                 onmessage(ev) {
                     try {
-                        const data = JSON.parse(ev.data);
+                        const data = JSON.parse(ev.data) as ChatSSEEvent;
 
-                        if (data.type === 'content') {
-                            onDelta(data.delta);
-                        } else if (data.type === 'status') {
-                            onStatus?.(data.content);
-                        } else if (data.type === 'insight') {
-                            onInsight?.(data.data);
-                        } else if (data.type === 'session_created') {
-                            onSessionCreated?.(data.id, data.title);
-                        } else if (data.type === 'done') {
-                            onFinish?.({
-                                latency_ms: data.latency_ms,
-                                is_cached: data.is_cached
-                            });
-                        } else if (data.type === 'error') {
-                            onError?.(new Error(data.message || data.content));
+                        switch (data.type) {
+                            case 'content':
+                                onDelta(data.delta);
+                                break;
+                            case 'status':
+                                onStatus?.(data.content);
+                                break;
+                            case 'insight':
+                                onInsight?.(data.data);
+                                break;
+                            case 'session_created':
+                                onSessionCreated?.(data.id, data.title);
+                                break;
+                            case 'done':
+                                onFinish?.({
+                                    latency_ms: data.latency_ms,
+                                    is_cached: data.is_cached,
+                                });
+                                break;
+                            case 'error':
+                                onError?.(new Error(data.message || data.content || 'SSE error'));
+                                break;
                         }
                     } catch (err) {
                         console.error('SSE parse error:', err);

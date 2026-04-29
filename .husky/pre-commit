@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# HiveMind 前端 pre-commit 守卫
+# 仅对 staged 文件运行 eslint --max-warnings=0
+# 老代码降级为 warn 不阻塞 CI，但任何被 touch 的文件必须 0 warning（boy-scout rule）
+
+# 仅当 staged 中有 frontend/src 改动时才运行
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^frontend/src/.*\.(ts|tsx)$' || true)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+cd frontend && npx lint-staged

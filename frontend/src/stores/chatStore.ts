@@ -13,12 +13,10 @@
 
 import { create } from 'zustand';
 import type { ChatMessage, ChatContext, AIAction } from '../types';
+import type { ChatMessageMetadata, ClientEventPayload } from '../types/chat';
 
-export interface ClientEvent {
-    name: string;
-    data: string;
-    timestamp: string;
-}
+/** @deprecated 保留向后兼容；新代码请使用 `ClientEventPayload` */
+export type ClientEvent = ClientEventPayload;
 
 /** 页面路由 → 上下文映射 */
 const PAGE_CONTEXT_MAP: Record<string, Omit<ChatContext, 'currentPage'>> = {
@@ -89,7 +87,7 @@ interface ChatState {
     setMessages: (messages: ChatMessage[]) => void;
     addMessage: (message: ChatMessage) => void;
     updateLastMessage: (content: string) => void;
-    updateLastMessageMetadata: (meta: any) => void;
+    updateLastMessageMetadata: (meta: Partial<ChatMessageMetadata>) => void;
     appendStatusToLastMessage: (status: string) => void;
     setGenerating: (value: boolean) => void;
     clearMessages: () => void;
@@ -111,7 +109,7 @@ interface ChatState {
 
     // === Client Event Logging ===
     clientEvents: ClientEvent[];
-    logEvent: (name: string, data?: any) => void;
+    logEvent: (name: string, data?: unknown) => void;
     clearEvents: () => void;
 }
 
@@ -203,7 +201,7 @@ export const useChatStore = create<ChatState>((set) => ({
             }
             return { messages: msgs };
         }),
-    updateLastMessageMetadata: (meta: any) =>
+    updateLastMessageMetadata: (meta: Partial<ChatMessageMetadata>) =>
         set((state) => {
             const msgs = [...state.messages];
             if (msgs.length > 0) {

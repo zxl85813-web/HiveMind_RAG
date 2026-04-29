@@ -66,7 +66,7 @@ export const batchApi = {
     /**
      * Create string and start a new batch job
      */
-    createJob: (payload: CreateBatchJobRequest): Promise<AxiosResponse<any>> => {
+    createJob: (payload: CreateBatchJobRequest): Promise<AxiosResponse<BatchJob>> => {
         return api.post('/agents/batch/jobs', payload);
     },
 
@@ -87,7 +87,7 @@ export const batchApi = {
     /**
      * Cancel running job
      */
-    cancelJob: (id: string): Promise<AxiosResponse<any>> => {
+    cancelJob: (id: string): Promise<AxiosResponse<{ status: string }>> => {
         return api.post(`/agents/batch/jobs/${id}/cancel`);
     }
 };
