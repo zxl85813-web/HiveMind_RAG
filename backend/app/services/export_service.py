@@ -32,13 +32,18 @@ from loguru import logger
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _load_export_pkg() -> ModuleType:
+def _load_export_pkg() -> ModuleType | None:
     """Load the repo-root ``scripts/_export`` package without colliding with
-    ``backend/scripts`` (the two share the name ``scripts`` on sys.path)."""
+    ``backend/scripts`` (the two share the name ``scripts`` on sys.path).
+
+    Returns ``None`` when the toolkit is not present — this is the expected
+    state inside an exported delivery package, where the packager source is
+    intentionally not bundled. Routes degrade to 503 in that case.
+    """
     pkg_dir = _REPO_ROOT / "scripts" / "_export"
     init_path = pkg_dir / "__init__.py"
     if not init_path.exists():
-        raise ImportError(f"hivemind export toolkit not found at {pkg_dir}")
+        return None
     # Register as a unique top-level module so re-imports don't fight with
     # backend/scripts/ on sys.path.
     spec = importlib.util.spec_from_file_location(
@@ -58,11 +63,30 @@ def _load_export_pkg() -> ModuleType:
     return module
 
 
+class ExportToolkitUnavailable(RuntimeError):
+    """Raised when an export-related operation runs in a deployment that did
+    not bundle the packager toolkit (e.g. a single-customer delivery package).
+    """
+
+
 _export_pkg = _load_export_pkg()
-Blueprint = _export_pkg.Blueprint
-Packager = _export_pkg.Packager
-PackagerProgress = _export_pkg.PackagerProgress
-scan_assets = _export_pkg.scan_assets
+if _export_pkg is not None:
+    Blueprint = _export_pkg.Blueprint
+    Packager = _export_pkg.Packager
+    PackagerProgress = _export_pkg.PackagerProgress
+    scan_assets = _export_pkg.scan_assets
+    EXPORT_TOOLKIT_AVAILABLE = True
+else:
+    logger.warning(
+        "export toolkit (scripts/_export) not found at {} — /api/v1/export/* "
+        "will return 503. This is normal inside an exported delivery package.",
+        _REPO_ROOT / "scripts" / "_export",
+    )
+    Blueprint = None  # type: ignore[assignment]
+    Packager = None  # type: ignore[assignment]
+    PackagerProgress = None  # type: ignore[assignment]
+    scan_assets = None  # type: ignore[assignment]
+    EXPORT_TOOLKIT_AVAILABLE = False
 
 
 # Where exported packages are written.
@@ -134,21 +158,32 @@ class ExportService:
         self._jobs: dict[str, ExportJob] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _require_toolkit() -> None:
+        if not EXPORT_TOOLKIT_AVAILABLE:
+            raise ExportToolkitUnavailable(
+                "scripts/_export not bundled — export endpoints are disabled "
+                "in this deployment."
+            )
+
     # ── Asset discovery ─────────────────────────────────────────────────
 
     def list_assets(self) -> dict[str, Any]:
         """Snapshot of skills/mcp servers/agent templates available right now."""
+        self._require_toolkit()
         return scan_assets(_REPO_ROOT).model_dump()
 
     # ── Validation ──────────────────────────────────────────────────────
 
-    def validate_blueprint(self, payload: dict[str, Any]) -> Blueprint:
+    def validate_blueprint(self, payload: dict[str, Any]) -> "Blueprint":
         """Validate a raw dict via the pydantic schema. Raises ValueError on bad input."""
+        self._require_toolkit()
         return Blueprint.model_validate(payload)
 
     # ── Job lifecycle ───────────────────────────────────────────────────
 
-    def submit(self, blueprint: Blueprint, *, make_zip: bool = True) -> ExportJob:
+    def submit(self, blueprint: "Blueprint", *, make_zip: bool = True) -> ExportJob:
+        self._require_toolkit()
         job_id = uuid.uuid4().hex[:12]
         output_dir = EXPORT_OUTPUT_ROOT / f"{blueprint.name}-{job_id}"
         job = ExportJob(

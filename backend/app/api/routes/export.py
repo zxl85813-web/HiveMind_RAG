@@ -17,15 +17,32 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
 from app.common.response import ApiResponse
-from app.services.export_service import export_service
+from app.services.export_service import ExportToolkitUnavailable, export_service
 
-router = APIRouter()
+
+def _toolkit_or_503() -> None:
+    """Reject the request with 503 when the export toolkit isn't bundled.
+
+    All endpoints in this router need the packager source under
+    ``scripts/_export`` — that directory is intentionally absent from exported
+    delivery packages, so we surface a clean error instead of leaking the
+    underlying ImportError.
+    """
+    try:
+        export_service._require_toolkit()
+    except ExportToolkitUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+# Every endpoint on this router requires the toolkit; one dependency on the
+# router covers them all without sprinkling Depends() on each handler.
+router = APIRouter(dependencies=[Depends(_toolkit_or_503)])
 
 
 # ── Request / response models ───────────────────────────────────────────────
