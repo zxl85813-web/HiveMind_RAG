@@ -57,7 +57,7 @@ graph TD
 | **大脑 (Brain)** | **`agents/`** | 决策与编排。负责意图识别、Agent 路由、多 Agent 协作。 | `SwarmOrchestrator`, `Supervisor` |
 | **四肢 (Action)** | **`batch/`** | 异步执行引擎。负责长时间运行的任务调度与 DAG 依赖管理。 | `JobManager` (LangGraph), `TaskQueue` |
 | **技能 (Skills)** | **`skills/`** | 动态工具箱。存放无状态的、可热插拔的业务逻辑函数。 | `SkillRegistry`, `StandardizedTools` |
-| **记忆 (Memory)** | **`services/retrieval/` + `services/rag_gateway.py` + `services/knowledge/` + `services/memory/`** | 知识检索与增强。检索流水线、统一 RAG 网关（多 KB 并行 + 熔断）、知识库管理、分层记忆。底层向量/图存储抽象见 `core/vector_store.py`、`core/graph_store.py`。<br>⚠️ 旧目录 `rag/` 仅作为弃用命名空间保留，请勿在该目录新增代码。 | `RAGGateway`, `RetrievalPipeline`, `KBService`, `MemoryService` |
+| **记忆 (Memory)** | **`services/retrieval/` + `services/rag_gateway.py` + `services/knowledge/` + `services/memory/`** | 知识检索与增强。检索流水线、统一 RAG 网关（多 KB 并行 + 熔断）、知识库管理、分层记忆。底层向量/图存储抽象见 `core/vector_store.py`、`core/graph_store.py`。 | `RAGGateway`, `RetrievalPipeline`, `KBService`, `MemoryService` |
 | **连接 (Connect)** | **`mcp/`** | 外部世界接口。通过 Model Context Protocol 连接文件系统或外部 API。 | `MCPClient` |
 | **中枢 (Infra)** | `llm/` | 语言模型网关。统一管理 Token、以及安全护栏 (Guardrails)。 | `LLMGateway` |
 
