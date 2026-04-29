@@ -16,12 +16,14 @@ import {
     Empty,
     Form,
     Input,
+    Popconfirm,
     Progress,
     Radio,
     Row,
     Select,
     Space,
     Steps,
+    Tabs,
     Tag,
     Typography,
     Alert,
@@ -30,8 +32,10 @@ import {
     Flex,
 } from 'antd';
 import {
+    DeleteOutlined,
     DownloadOutlined,
     PlayCircleOutlined,
+    PlusOutlined,
     ReloadOutlined,
     RocketOutlined,
 } from '@ant-design/icons';
@@ -106,7 +110,7 @@ function blueprintToYaml(draft: BlueprintDraft): string {
 
 /** Step 1 — Basics + LLM */
 const StepBasics: React.FC = () => {
-    const { draft, setDraft, upsertAgent } = useBlueprintStore();
+    const { draft, setDraft } = useBlueprintStore();
     return (
         <Form layout="vertical">
             <Row gutter={16}>
@@ -224,104 +228,245 @@ const StepBasics: React.FC = () => {
             </Row>
 
             <Divider orientation="left" plain>
-                默认 Agent
+                Agents
             </Divider>
-            <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="MVP 仅支持单个默认 Agent；后续会支持多 Agent。"
-            />
-            <Row gutter={16}>
-                <Col span={8}>
-                    <Form.Item label="Agent ID">
-                        <Input
-                            value={draft.agents[0]?.id || ''}
-                            onChange={(e) => {
-                                upsertAgent(0, { id: e.target.value });
-                                setDraft({ default_agent_id: e.target.value });
-                            }}
-                        />
-                    </Form.Item>
-                </Col>
-                <Col span={16}>
-                    <Form.Item label="名称">
-                        <Input
-                            value={draft.agents[0]?.name || ''}
-                            onChange={(e) => upsertAgent(0, { name: e.target.value })}
-                        />
-                    </Form.Item>
-                </Col>
-            </Row>
-            <Form.Item label="System Prompt">
-                <Input.TextArea
-                    rows={4}
-                    value={draft.agents[0]?.system_prompt || ''}
-                    onChange={(e) => upsertAgent(0, { system_prompt: e.target.value })}
-                    placeholder="你是 ACME 的销售报价助手……"
-                />
-            </Form.Item>
+            <AgentEditor />
         </Form>
     );
 };
 
-/** Step 2 — Asset picker (skills + MCP) */
+/** Multi-agent editor — editable-card Tabs with a per-agent inline form. */
+const AgentEditor: React.FC = () => {
+    const { draft, setDraft, upsertAgent, addAgent, removeAgent } = useBlueprintStore();
+    const [activeKey, setActiveKey] = useState<string>(draft.agents[0]?.id || '');
+    const isSingleAgent = draft.ui_mode === 'single_agent';
+    const defaultId = draft.default_agent_id || draft.agents[0]?.id || '';
+
+    // Keep activeKey valid when agents are added/removed/renamed.
+    useEffect(() => {
+        if (!draft.agents.some((a) => a.id === activeKey)) {
+            setActiveKey(draft.agents[0]?.id || '');
+        }
+    }, [draft.agents, activeKey]);
+
+    const onTabEdit = (
+        targetKey: React.MouseEvent | React.KeyboardEvent | string,
+        action: 'add' | 'remove'
+    ) => {
+        if (action === 'add') {
+            addAgent();
+            // Newly-added agent is always last; switch to it on next tick.
+            setTimeout(() => {
+                const latest = useBlueprintStore.getState().draft.agents;
+                setActiveKey(latest[latest.length - 1]?.id || '');
+            }, 0);
+        } else if (typeof targetKey === 'string') {
+            const idx = draft.agents.findIndex((a) => a.id === targetKey);
+            if (idx >= 0) removeAgent(idx);
+        }
+    };
+
+    return (
+        <>
+            {isSingleAgent && draft.agents.length > 1 && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message={`UI 模式为 single_agent — 仅 "${defaultId}" 会作为默认对话窗口；其余 Agent 仅作为 swarm 候选。`}
+                />
+            )}
+            <Form.Item label="默认 Agent (single_agent UI 模式下首屏打开的 Agent)">
+                <Select
+                    value={defaultId}
+                    onChange={(v) => setDraft({ default_agent_id: v })}
+                    options={draft.agents.map((a) => ({
+                        value: a.id,
+                        label: `${a.id} — ${a.name}`,
+                    }))}
+                    style={{ maxWidth: 360 }}
+                />
+            </Form.Item>
+
+            <Tabs
+                type="editable-card"
+                activeKey={activeKey}
+                onChange={setActiveKey}
+                onEdit={onTabEdit}
+                addIcon={<PlusOutlined />}
+                items={draft.agents.map((agent, idx) => ({
+                    key: agent.id,
+                    label: (
+                        <span>
+                            {agent.id}
+                            {agent.id === defaultId && (
+                                <Tag color="blue" style={{ marginLeft: 6 }}>
+                                    默认
+                                </Tag>
+                            )}
+                        </span>
+                    ),
+                    closable: draft.agents.length > 1,
+                    children: (
+                        <AgentForm
+                            agent={agent}
+                            onChange={(patch) => upsertAgent(idx, patch)}
+                            canDelete={draft.agents.length > 1}
+                            onDelete={() => removeAgent(idx)}
+                        />
+                    ),
+                }))}
+            />
+        </>
+    );
+};
+
+/** Per-agent form rendered inside one Tab pane. */
+const AgentForm: React.FC<{
+    agent: BlueprintDraft['agents'][number];
+    onChange: (patch: Partial<BlueprintDraft['agents'][number]>) => void;
+    canDelete: boolean;
+    onDelete: () => void;
+}> = ({ agent, onChange, canDelete, onDelete }) => (
+    <div>
+        <Row gutter={16}>
+            <Col span={8}>
+                <Form.Item label="Agent ID" required>
+                    <Input
+                        value={agent.id}
+                        onChange={(e) => onChange({ id: e.target.value })}
+                        placeholder="quote-bot"
+                    />
+                </Form.Item>
+            </Col>
+            <Col span={16}>
+                <Form.Item label="名称" required>
+                    <Input
+                        value={agent.name}
+                        onChange={(e) => onChange({ name: e.target.value })}
+                        placeholder="报价助手"
+                    />
+                </Form.Item>
+            </Col>
+        </Row>
+        <Form.Item label="System Prompt">
+            <Input.TextArea
+                rows={4}
+                value={agent.system_prompt || ''}
+                onChange={(e) => onChange({ system_prompt: e.target.value })}
+                placeholder="你是 ACME 的销售报价助手……"
+            />
+        </Form.Item>
+        {canDelete && (
+            <Popconfirm
+                title={`删除 Agent "${agent.id}"？`}
+                onConfirm={onDelete}
+                okText="删除"
+                cancelText="取消"
+            >
+                <Button danger size="small" icon={<DeleteOutlined />}>
+                    删除该 Agent
+                </Button>
+            </Popconfirm>
+        )}
+    </div>
+);
+
+/** Step 2 — Asset picker (skills + MCP), one Tab per agent. */
 const StepAssets: React.FC<{ catalog: AssetCatalog | null; loading: boolean }> = ({
     catalog,
     loading,
 }) => {
     const { draft, upsertAgent } = useBlueprintStore();
-    const agent = draft.agents[0];
+    const [activeKey, setActiveKey] = useState<string>(draft.agents[0]?.id || '');
+    const defaultId = draft.default_agent_id || draft.agents[0]?.id || '';
+
+    useEffect(() => {
+        if (!draft.agents.some((a) => a.id === activeKey)) {
+            setActiveKey(draft.agents[0]?.id || '');
+        }
+    }, [draft.agents, activeKey]);
 
     if (loading) return <Card loading />;
     if (!catalog) return <Empty description="资产清单加载失败" />;
 
+    const skillOptions = catalog.skills.map((s) => ({
+        value: s.id,
+        label: s.id,
+        title: s.description,
+    }));
+    const mcpOptions = catalog.mcp_servers.map((s) => ({
+        value: s.id,
+        label: s.id,
+        title: s.description,
+    }));
+
     return (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Card size="small" title={`Skills（已发现 ${catalog.skills.length} 个）`}>
-                <Select
-                    mode="multiple"
-                    style={{ width: '100%' }}
-                    value={agent.skills}
-                    onChange={(v) => upsertAgent(0, { skills: v })}
-                    placeholder="选择本 Agent 需要的 skill"
-                    optionFilterProp="label"
-                    options={catalog.skills.map((s) => ({
-                        value: s.id,
-                        label: s.id,
-                        title: s.description,
-                    }))}
-                />
-            </Card>
-
-            <Card size="small" title={`MCP Servers（已发现 ${catalog.mcp_servers.length} 个）`}>
-                <Select
-                    mode="multiple"
-                    style={{ width: '100%' }}
-                    value={agent.mcp_servers}
-                    onChange={(v) => upsertAgent(0, { mcp_servers: v })}
-                    placeholder="选择需要桥接的内部系统（ERP / CRM 等）"
-                    optionFilterProp="label"
-                    options={catalog.mcp_servers.map((s) => ({
-                        value: s.id,
-                        label: s.id,
-                        title: s.description,
-                    }))}
-                />
-            </Card>
+            <Tabs
+                activeKey={activeKey}
+                onChange={setActiveKey}
+                items={draft.agents.map((agent, idx) => ({
+                    key: agent.id,
+                    label: (
+                        <span>
+                            {agent.id}
+                            {agent.id === defaultId && (
+                                <Tag color="blue" style={{ marginLeft: 6 }}>
+                                    默认
+                                </Tag>
+                            )}
+                        </span>
+                    ),
+                    children: (
+                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                            <Card
+                                size="small"
+                                title={`Skills（已发现 ${catalog.skills.length} 个 · 已选 ${agent.skills.length}）`}
+                            >
+                                <Select
+                                    mode="multiple"
+                                    style={{ width: '100%' }}
+                                    value={agent.skills}
+                                    onChange={(v) => upsertAgent(idx, { skills: v })}
+                                    placeholder={`选择 "${agent.name}" 需要的 skill`}
+                                    optionFilterProp="label"
+                                    options={skillOptions}
+                                />
+                            </Card>
+                            <Card
+                                size="small"
+                                title={`MCP Servers（已发现 ${catalog.mcp_servers.length} 个 · 已选 ${agent.mcp_servers.length}）`}
+                            >
+                                <Select
+                                    mode="multiple"
+                                    style={{ width: '100%' }}
+                                    value={agent.mcp_servers}
+                                    onChange={(v) => upsertAgent(idx, { mcp_servers: v })}
+                                    placeholder="选择需要桥接的内部系统（ERP / CRM 等）"
+                                    optionFilterProp="label"
+                                    options={mcpOptions}
+                                />
+                            </Card>
+                        </Space>
+                    ),
+                }))}
+            />
 
             <Card
                 size="small"
                 title="额外路径"
-                extra={<Text type="secondary">可选</Text>}
+                extra={<Text type="secondary">可选 · 所有 Agent 共享</Text>}
             >
                 <Select
                     mode="tags"
                     style={{ width: '100%' }}
                     value={draft.extra_paths}
-                    onChange={(v) => useBlueprintStore.setState((s) => ({
-                        draft: { ...s.draft, extra_paths: v },
-                    }))}
+                    onChange={(v) =>
+                        useBlueprintStore.setState((s) => ({
+                            draft: { ...s.draft, extra_paths: v },
+                        }))
+                    }
                     placeholder="repo-relative 路径，如 prompts/quote_system.md"
                 />
             </Card>

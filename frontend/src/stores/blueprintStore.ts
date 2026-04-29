@@ -45,8 +45,20 @@ interface BlueprintStoreState {
     replaceDraft: (next: BlueprintDraft) => void;
     resetDraft: () => void;
     upsertAgent: (index: number, patch: Partial<BlueprintDraft['agents'][number]>) => void;
+    addAgent: (agent?: Partial<BlueprintDraft['agents'][number]>) => void;
+    removeAgent: (index: number) => void;
     setActiveJob: (job: ExportJob | null) => void;
     patchJob: (patch: Partial<ExportJob>) => void;
+}
+
+/** Generate an unused agent id like "agent-2", "agent-3", … */
+function nextAgentId(existing: BlueprintDraft['agents']): string {
+    const used = new Set(existing.map((a) => a.id));
+    for (let i = existing.length + 1; i < 1000; i++) {
+        const candidate = `agent-${i}`;
+        if (!used.has(candidate)) return candidate;
+    }
+    return `agent-${Date.now()}`;
 }
 
 export const useBlueprintStore = create<BlueprintStoreState>()(
@@ -62,8 +74,48 @@ export const useBlueprintStore = create<BlueprintStoreState>()(
                 set((s) => {
                     const agents = s.draft.agents.slice();
                     if (index < 0 || index >= agents.length) return s;
-                    agents[index] = { ...agents[index], ...patch };
-                    return { draft: { ...s.draft, agents } };
+                    const prev = agents[index];
+                    const next = { ...prev, ...patch };
+                    agents[index] = next;
+                    // If the renamed id was the default, follow it.
+                    const draft: BlueprintDraft = { ...s.draft, agents };
+                    if (
+                        patch.id !== undefined &&
+                        prev.id === s.draft.default_agent_id &&
+                        patch.id !== prev.id
+                    ) {
+                        draft.default_agent_id = patch.id;
+                    }
+                    return { draft };
+                }),
+            addAgent: (agent) =>
+                set((s) => {
+                    const id = agent?.id || nextAgentId(s.draft.agents);
+                    const newAgent = {
+                        id,
+                        name: agent?.name || id,
+                        system_prompt: agent?.system_prompt || '',
+                        skills: agent?.skills || [],
+                        mcp_servers: agent?.mcp_servers || [],
+                    };
+                    return {
+                        draft: {
+                            ...s.draft,
+                            agents: [...s.draft.agents, newAgent],
+                        },
+                    };
+                }),
+            removeAgent: (index) =>
+                set((s) => {
+                    if (s.draft.agents.length <= 1) return s; // keep at least one
+                    if (index < 0 || index >= s.draft.agents.length) return s;
+                    const removed = s.draft.agents[index];
+                    const agents = s.draft.agents.filter((_, i) => i !== index);
+                    const draft: BlueprintDraft = { ...s.draft, agents };
+                    if (s.draft.default_agent_id === removed.id) {
+                        draft.default_agent_id = agents[0]?.id || null;
+                    }
+                    return { draft };
                 }),
             setActiveJob: (job) => set({ activeJob: job }),
             patchJob: (patch) =>
