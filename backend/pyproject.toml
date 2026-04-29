@@ -68,6 +68,13 @@ dev = [
     "pre-commit>=4.0.0",
 ]
 
+# ── Setuptools package discovery ────────────────────────
+# Flat layout has multiple top-level dirs (app/data/alembic);
+# explicitly include only `app` so editable install works on CI.
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
+exclude = ["data*", "alembic*", "tests*", "scripts*", "benchmarks*", "logs*", "storage*", "exports*", "htmlcov*", "start_data*"]
+
 # ── Ruff (Linter) ──────────────────────────────
 [tool.ruff]
 target-version = "py311"
