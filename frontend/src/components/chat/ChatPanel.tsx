@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 
 import { useChatStore } from '../../stores/chatStore';
+import { usePlatformStore } from '../../stores/platformStore';
 import { ActionButton } from './ActionButton';
 import { chatApi } from '../../services/chatApi';
 import { memoryApi } from '../../services/memoryApi';
@@ -38,6 +39,7 @@ const { Text } = Typography;
 export const ChatPanel: React.FC = () => {
     const { t } = useTranslation();
     const { message } = App.useApp();
+    const { ragEnabled, agentEnabled } = usePlatformStore();
     const {
         viewMode,
         panelOpen,
@@ -98,7 +100,7 @@ export const ChatPanel: React.FC = () => {
 
     /** 快速命令匹配 */
     const tryQuickCommand = (input: string): boolean => {
-        const cmd = matchQuickCommand(input);
+        const cmd = matchQuickCommand(input, { ragEnabled, agentEnabled });
         if (!cmd) return false;
 
         setMessages(prev => [

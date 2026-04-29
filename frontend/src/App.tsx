@@ -1,13 +1,12 @@
 /**
- * App 根组件 — AI-First 架构。
+ * App 根组件 — AI-First 架构 + 平台模式适配。
  *
- * 核心变化:
- *   - Chat 不再是页面 (ChatPage 退役)，Chat 是永驻右侧面板
- *   - 默认首页: DashboardPage (概览)
- *   - ChatPanel 在 AppLayout 中始终渲染
+ * 根据后端 PLATFORM_MODE 动态注册路由:
+ *   - "rag"   → 知识库、评测、微调、Pipeline 等 RAG 页面
+ *   - "agent" → Agent 蜂巢、Studio、批处理等 Agent 页面
+ *   - "full"  → 全部页面
  *
  * @see docs/design/ai-first-frontend.md
- * @see skills/frontend-design/SKILL.md
  */
 
 import { lazy, Suspense } from 'react';
@@ -20,9 +19,9 @@ import { AppLayout } from './components/common/AppLayout';
 import { LoadingState } from './components/common/LoadingState';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MockControl } from './components/common/MockControl';
+import { usePlatformStore } from './stores/platformStore';
 
 // 🚀 [Architecture-Gate]: 路由级代码分割 (Code Splitting)
-// 所有页面组件采用 React.lazy 按需加载，优化首屏 TTI。
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
 const AgentsPage = lazy(() => import('./pages/AgentsPage').then(m => ({ default: m.AgentsPage })));
@@ -101,6 +100,8 @@ const appTheme = {
 };
 
 function App() {
+  const { ragEnabled, agentEnabled } = usePlatformStore();
+
   return (
     <XProvider>
       <ConfigProvider theme={appTheme} locale={zhCN}>
@@ -109,20 +110,33 @@ function App() {
             <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
               <Routes>
                 <Route path="/" element={<AppLayout />}>
-                  {/* Dashboard 是默认首页 */}
+                  {/* Dashboard — 始终可用 */}
                   <Route index element={<DashboardPage />} />
-                  {/* 功能页面 — Chat Panel 始终跟随 */}
-                  <Route path="knowledge" element={<KnowledgePage />} />
-                  <Route path="studio" element={<StudioPage />} />
-                  <Route path="agents" element={<AgentsPage />} />
-                  <Route path="batch" element={<BatchPage />} />
-                  <Route path="learning" element={<LearningPage />} />
+
+                  {/* SHARED — 始终可用 */}
                   <Route path="audit" element={<AuditPage />} />
                   <Route path="security" element={<SecurityPage />} />
-                  <Route path="evaluation" element={<EvalPage />} />
-                  <Route path="finetuning" element={<FineTuningPage />} />
-                  <Route path="pipelines" element={<PipelineBuilderPage />} />
                   <Route path="settings" element={<SettingsPage />} />
+
+                  {/* RAG MODULE — 知识库、评测、微调、Pipeline、学习 */}
+                  {ragEnabled && (
+                    <>
+                      <Route path="knowledge" element={<KnowledgePage />} />
+                      <Route path="evaluation" element={<EvalPage />} />
+                      <Route path="finetuning" element={<FineTuningPage />} />
+                      <Route path="pipelines" element={<PipelineBuilderPage />} />
+                      <Route path="learning" element={<LearningPage />} />
+                    </>
+                  )}
+
+                  {/* AGENT MODULE — Agent 蜂巢、Studio、批处理、生成 */}
+                  {agentEnabled && (
+                    <>
+                      <Route path="agents" element={<AgentsPage />} />
+                      <Route path="studio" element={<StudioPage />} />
+                      <Route path="batch" element={<BatchPage />} />
+                    </>
+                  )}
                 </Route>
               </Routes>
             </Suspense>

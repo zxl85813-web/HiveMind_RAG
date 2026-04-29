@@ -2,7 +2,17 @@
 Application configuration — loaded from environment variables / .env file.
 """
 
+from enum import Enum
+from typing import Literal
+
 from pydantic_settings import BaseSettings
+
+
+class PlatformMode(str, Enum):
+    """Platform deployment mode — controls which modules are activated."""
+    RAG = "rag"           # Pure RAG platform (knowledge retrieval only)
+    AGENT = "agent"       # Pure Agent platform (LLM orchestration only)
+    FULL = "full"         # RAG + Agent combined (default)
 
 
 class Settings(BaseSettings):
@@ -12,6 +22,23 @@ class Settings(BaseSettings):
     APP_NAME: str = "HiveMind RAG"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
+
+    # === Platform Mode ===
+    # Controls which modules are activated at startup.
+    # "rag"   → Knowledge base, retrieval, ingestion, evaluation (no Agent Swarm)
+    # "agent" → Agent Swarm, skills, MCP, tools (no RAG pipeline)
+    # "full"  → All modules enabled (default)
+    PLATFORM_MODE: PlatformMode = PlatformMode.FULL
+
+    @property
+    def rag_enabled(self) -> bool:
+        """Whether RAG modules should be activated."""
+        return self.PLATFORM_MODE in (PlatformMode.RAG, PlatformMode.FULL)
+
+    @property
+    def agent_enabled(self) -> bool:
+        """Whether Agent modules should be activated."""
+        return self.PLATFORM_MODE in (PlatformMode.AGENT, PlatformMode.FULL)
 
     # === CORS ===
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
