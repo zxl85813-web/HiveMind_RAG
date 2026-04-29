@@ -127,7 +127,7 @@ export const AppLayout: React.FC = () => {
     };
 
     /** 全局创建知识库处理 */
-    const handleCreateKB = async (values: Record<string, unknown>) => {
+    const handleCreateKB = async (values: Parameters<typeof createKBMutation.mutateAsync>[0]) => {
         try {
             await createKBMutation.mutateAsync(values);
             message.success(t('knowledge.createSuccess') || "知识库申请已提交并就绪");

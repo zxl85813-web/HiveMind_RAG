@@ -32,7 +32,8 @@ export const useConversationDetails = (id: string | null) => {
             if (!id) return null;
             const res = await chatApi.getConversation(id);
             // 归一化后端消息格式
-            return res.data.messages.map((m: Record<string, unknown> & { metadata?: unknown }) => ({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- backend payload shape varies across providers
+            return res.data.messages.map((m: any) => ({
                 id: m.id,
                 role: m.role,
                 content: m.content,
