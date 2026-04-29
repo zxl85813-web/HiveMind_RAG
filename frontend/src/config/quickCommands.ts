@@ -7,6 +7,7 @@
  *   - 快捷操作
  *
  * 新增指令只需在此文件添加一行，前端 ChatPanel 和后端 Supervisor 都会自动生效。
+ * 指令通过 `module` 字段标记所属模块，运行时根据 PLATFORM_MODE 自动过滤。
  *
  * @module config
  * @see docs/design/ai-first-frontend.md
@@ -31,6 +32,8 @@ export interface QuickCommand {
     category: 'navigate' | 'modal' | 'action';
     /** 是否启用 */
     enabled: boolean;
+    /** 所属模块: 'core' 始终可用, 'rag' RAG 模式, 'agent' Agent 模式 */
+    module: 'core' | 'rag' | 'agent';
 }
 
 // ============================================================
@@ -38,7 +41,7 @@ export interface QuickCommand {
 // ============================================================
 
 export const QUICK_COMMANDS: QuickCommand[] = [
-    // === 知识库 ===
+    // === 知识库 (RAG) ===
     {
         id: 'create_kb',
         keywords: ['创建知识库', '新建知识库', 'create kb', 'create knowledge base'],
@@ -46,6 +49,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'open_modal', target: 'create_kb', label: '立刻创建', variant: 'primary' }],
         category: 'modal',
         enabled: true,
+        module: 'rag',
     },
     {
         id: 'nav_knowledge',
@@ -54,6 +58,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/knowledge', label: '打开知识库', icon: 'DatabaseOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
     {
         id: 'upload_doc',
@@ -62,9 +67,10 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/knowledge', label: '去上传文档', icon: 'UploadOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
 
-    // === 评测 ===
+    // === 评测 (RAG) ===
     {
         id: 'nav_eval',
         keywords: ['去评测', '运行评测', '跳转评测', 'evaluation', '评测中心'],
@@ -72,9 +78,10 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/evaluation', label: '前往评测中心', icon: 'ExperimentOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
 
-    // === 安全 ===
+    // === 安全 (Core) ===
     {
         id: 'nav_security',
         keywords: ['安全中心', '安全审计', 'security', '脱敏'],
@@ -82,6 +89,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/security', label: '前往安全中心', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'core',
     },
     {
         id: 'nav_audit',
@@ -90,6 +98,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/audit', label: '查看审计日志', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'core',
     },
 
     // === Agent ===
@@ -100,6 +109,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/agents', label: '查看 Agent', icon: 'ClusterOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'agent',
     },
 
     // === 其他页面 ===
@@ -110,6 +120,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/settings', label: '打开设置', icon: 'SettingOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'core',
     },
     {
         id: 'nav_finetuning',
@@ -118,6 +129,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/finetuning', label: '前往微调', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
     {
         id: 'nav_pipelines',
@@ -126,6 +138,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/pipelines', label: '前往 Pipeline', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
     {
         id: 'nav_studio',
@@ -134,6 +147,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/studio', label: '打开工作台', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'agent',
     },
     {
         id: 'nav_batch',
@@ -142,6 +156,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/batch', label: '前往批处理', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'agent',
     },
     {
         id: 'nav_learning',
@@ -150,6 +165,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/learning', label: '查看动态', icon: 'BulbOutlined', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'rag',
     },
     {
         id: 'nav_dashboard',
@@ -158,6 +174,7 @@ export const QUICK_COMMANDS: QuickCommand[] = [
         actions: [{ type: 'navigate', target: '/', label: '回到首页', variant: 'primary' }],
         category: 'navigate',
         enabled: true,
+        module: 'core',
     },
 ];
 
@@ -167,12 +184,23 @@ export const QUICK_COMMANDS: QuickCommand[] = [
 
 /**
  * 尝试匹配用户输入到快捷指令。
- * 返回匹配到的指令或 null。
+ * 根据平台模式过滤不可用的指令。
  */
-export function matchQuickCommand(input: string): QuickCommand | null {
+export function matchQuickCommand(
+    input: string,
+    options?: { ragEnabled?: boolean; agentEnabled?: boolean },
+): QuickCommand | null {
+    const rag = options?.ragEnabled ?? true;
+    const agent = options?.agentEnabled ?? true;
     const lower = input.toLowerCase().trim();
+
     for (const cmd of QUICK_COMMANDS) {
         if (!cmd.enabled) continue;
+
+        // 按平台模式过滤
+        if (cmd.module === 'rag' && !rag) continue;
+        if (cmd.module === 'agent' && !agent) continue;
+
         if (cmd.keywords.some(kw => lower.includes(kw.toLowerCase()))) {
             return cmd;
         }

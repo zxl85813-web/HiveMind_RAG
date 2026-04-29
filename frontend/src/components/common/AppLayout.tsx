@@ -1,9 +1,14 @@
 /**
- * AppLayout — AI-First 全局布局 (修正版)。
+ * AppLayout — AI-First 全局布局 + 平台模式适配。
+ *
+ * 侧边栏导航项根据 PLATFORM_MODE 动态过滤:
+ *   - "rag"   → 隐藏 Agent、Studio、Batch
+ *   - "agent" → 隐藏 Knowledge、Evaluation、FineTuning、Pipelines、Learning
+ *   - "full"  → 全部显示
  */
 
-import React, { useEffect } from 'react';
-import { Layout, Menu, Flex, Badge, Tooltip, App } from 'antd';
+import React, { useEffect, useMemo } from 'react';
+import { Layout, Menu, Flex, Badge, Tooltip, App, Tag } from 'antd';
 import {
     AppstoreOutlined,
     DatabaseOutlined,
@@ -23,12 +28,22 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/chatStore';
+import { usePlatformStore } from '../../stores/platformStore';
 import { ChatPanel } from '../chat/ChatPanel';
 import { CreateKBModal } from '../knowledge/CreateKBModal';
 import { useCreateKnowledgeBase } from '../../hooks/useDashboardData';
 import styles from './AppLayout.module.css';
 
 const { Sider, Content } = Layout;
+
+// ── 导航项定义 + 模块归属 ──────────────────────────────────
+// module: 'core' = 始终显示, 'rag' = RAG 模式, 'agent' = Agent 模式
+interface NavItem {
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    module: 'core' | 'rag' | 'agent';
+}
 
 export const AppLayout: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -46,24 +61,39 @@ export const AppLayout: React.FC = () => {
         setCreateKBModalOpen
     } = useChatStore();
 
+    const { ragEnabled, agentEnabled, mode } = usePlatformStore();
+
     const isAIMode = viewMode === 'ai';
     const createKBMutation = useCreateKnowledgeBase();
 
-    /** 导航项 */
-    const navItems = [
-        { key: '/', label: t('nav.dashboard'), icon: <AppstoreOutlined /> },
-        { key: '/knowledge', label: t('nav.knowledge'), icon: <DatabaseOutlined /> },
-        { key: '/audit', label: t('nav.audit'), icon: <SafetyCertificateOutlined /> },
-        { key: '/security', label: t('nav.security'), icon: <LockOutlined /> },
-        { key: '/evaluation', label: t('nav.evaluation'), icon: <LineChartOutlined /> },
-        { key: '/finetuning', label: t('nav.finetuning'), icon: <FolderOpenOutlined /> },
-        { key: '/pipelines', label: t('nav.pipelines'), icon: <SisternodeOutlined /> },
-        { key: '/studio', label: t('nav.studio'), icon: <RocketOutlined /> },
-        { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined /> },
-        { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined /> },
-        { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined /> },
-        { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined /> },
+    /** 全量导航项定义 (带模块标记) */
+    const allNavItems: NavItem[] = [
+        { key: '/', label: t('nav.dashboard'), icon: <AppstoreOutlined />, module: 'core' },
+        { key: '/knowledge', label: t('nav.knowledge'), icon: <DatabaseOutlined />, module: 'rag' },
+        { key: '/audit', label: t('nav.audit'), icon: <SafetyCertificateOutlined />, module: 'core' },
+        { key: '/security', label: t('nav.security'), icon: <LockOutlined />, module: 'core' },
+        { key: '/evaluation', label: t('nav.evaluation'), icon: <LineChartOutlined />, module: 'rag' },
+        { key: '/finetuning', label: t('nav.finetuning'), icon: <FolderOpenOutlined />, module: 'rag' },
+        { key: '/pipelines', label: t('nav.pipelines'), icon: <SisternodeOutlined />, module: 'rag' },
+        { key: '/studio', label: t('nav.studio'), icon: <RocketOutlined />, module: 'agent' },
+        { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined />, module: 'agent' },
+        { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined />, module: 'agent' },
+        { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined />, module: 'rag' },
+        { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined />, module: 'core' },
     ];
+
+    /** 根据平台模式过滤导航项 */
+    const navItems = useMemo(() => {
+        return allNavItems.filter(item => {
+            if (item.module === 'core') return true;
+            if (item.module === 'rag') return ragEnabled;
+            if (item.module === 'agent') return agentEnabled;
+            return true;
+        });
+    }, [ragEnabled, agentEnabled, t]);
+
+    /** 平台模式标签 */
+    const modeLabel = mode === 'rag' ? 'RAG' : mode === 'agent' ? 'Agent' : null;
 
     const toggleLang = () => {
         const current = i18n.language;
@@ -114,6 +144,14 @@ export const AppLayout: React.FC = () => {
                         }}>
                             <span className={styles.logoMark}>⬡</span>
                             <span className={styles.logoText}>HiveMind</span>
+                            {modeLabel && (
+                                <Tag
+                                    color={mode === 'rag' ? 'blue' : 'green'}
+                                    style={{ marginLeft: 8, fontSize: 10, lineHeight: '16px' }}
+                                >
+                                    {modeLabel}
+                                </Tag>
+                            )}
                         </div>
                         <Menu
                             mode="inline"
