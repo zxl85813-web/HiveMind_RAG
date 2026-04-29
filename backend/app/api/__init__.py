@@ -24,13 +24,14 @@ router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
 
 # ── SHARED: Available in all modes ──────────────────────────
-from app.api.routes import memory, tags, security, audit, audit_v3
+from app.api.routes import memory, tags, security, audit, audit_v3, export
 
 router.include_router(memory.router, prefix="/memory", tags=["Memory"])
 router.include_router(tags.router, prefix="/tags", tags=["Knowledge Tags"])
 router.include_router(security.router, prefix="/security", tags=["Security & Desensitization"])
 router.include_router(audit.router, prefix="/audit", tags=["Data Quality Audit"])
 router.include_router(audit_v3.router, prefix="/audit/v3", tags=["V3 Swarm Audit"])
+router.include_router(export.router, prefix="/export", tags=["Blueprint Export"])
 
 # ── RAG MODULE: Knowledge retrieval, ingestion, evaluation ──
 if settings.rag_enabled:

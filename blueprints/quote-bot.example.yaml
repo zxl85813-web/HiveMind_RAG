@@ -1,0 +1,38 @@
+# Example: a single-agent quotation bot delivered to a customer "ACME".
+#
+# Validate:   python scripts/export_blueprint.py blueprints/quote-bot.example.yaml --dry-run
+# Export:     python scripts/export_blueprint.py blueprints/quote-bot.example.yaml \
+#               --output dist/quote-bot --zip --overwrite
+
+name: quote-bot
+version: 1.0.0
+customer: ACME
+description: |
+  Sales quotation assistant. Looks up SKU prices, applies tiered customer discounts,
+  checks live stock via the ACME ERP MCP bridge, and renders a PDF quote.
+
+platform_mode: agent
+ui_mode: single_agent
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  # base_url: http://intranet-vllm:8000/v1   # uncomment for fully-offline LLM
+
+agents:
+  - id: quote-bot
+    name: 报价助手
+    system_prompt: |
+      你是 ACME 公司的销售报价助手。请使用提供的工具查询价格、库存、折扣，
+      最终用 generate_quote_pdf 工具输出报价单。所有金额以人民币计价。
+    skills: []         # add skill names here once they are scaffolded under skills/
+    mcp_servers: []    # add e.g. "commerce-server" once configured
+
+default_agent_id: quote-bot
+
+knowledge_bases: []
+extra_paths: []
+
+env_overrides:
+  EMBEDDING_PROVIDER: bge-local
+  DISABLE_TELEMETRY: true

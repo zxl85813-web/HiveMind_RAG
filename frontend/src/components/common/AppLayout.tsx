@@ -24,7 +24,8 @@ import {
     FolderOpenOutlined,
     SisternodeOutlined,
     RobotOutlined,
-    DesktopOutlined
+    DesktopOutlined,
+    ExportOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -80,6 +81,7 @@ export const AppLayout: React.FC = () => {
         { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined />, module: 'agent' },
         { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined />, module: 'agent' },
         { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined />, module: 'rag' },
+        { key: '/export', label: t('nav.export', '导出交付包'), icon: <ExportOutlined />, module: 'core' },
         { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined />, module: 'core' },
     ];
 
@@ -93,6 +95,8 @@ export const AppLayout: React.FC = () => {
                 return true;
             })
             .map(({ key, label, icon }) => ({ key, label, icon }));
+        // allNavItems is rebuilt every render via t() — depending on it would loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ragEnabled, agentEnabled, t]);
 
     /** 平台模式标签 */
@@ -123,7 +127,7 @@ export const AppLayout: React.FC = () => {
     };
 
     /** 全局创建知识库处理 */
-    const handleCreateKB = async (values: any) => {
+    const handleCreateKB = async (values: Record<string, unknown>) => {
         try {
             await createKBMutation.mutateAsync(values);
             message.success(t('knowledge.createSuccess') || "知识库申请已提交并就绪");
@@ -131,7 +135,7 @@ export const AppLayout: React.FC = () => {
             if (location.pathname !== '/knowledge') {
                 navigate('/knowledge');
             }
-        } catch (e) {
+        } catch {
             message.error("创建知识库失败，请检查连接");
         }
     };

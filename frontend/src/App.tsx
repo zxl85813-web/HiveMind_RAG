@@ -34,6 +34,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const BatchPage = lazy(() => import('./pages/BatchPage').then(m => ({ default: m.BatchPage })));
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
+const ExportWizardPage = lazy(() => import('./pages/ExportWizardPage').then(m => ({ default: m.ExportWizardPage })));
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -117,6 +118,7 @@ function App() {
                   <Route path="audit" element={<AuditPage />} />
                   <Route path="security" element={<SecurityPage />} />
                   <Route path="settings" element={<SettingsPage />} />
+                  <Route path="export" element={<ExportWizardPage />} />
 
                   {/* RAG MODULE — 知识库、评测、微调、Pipeline、学习 */}
                   {ragEnabled && (

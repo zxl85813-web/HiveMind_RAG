@@ -1592,6 +1592,316 @@
         }
       }
     },
+    "/api/v1/export/assets": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "List Assets",
+        "description": "Return skills / MCP servers / agent templates the wizard can pick from.",
+        "operationId": "list_assets_api_v1_export_assets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/blueprints/validate": {
+      "post": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Validate Blueprint",
+        "description": "Run the blueprint through the pydantic schema and report errors.",
+        "operationId": "validate_blueprint_api_v1_export_blueprints_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlueprintPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Validate Blueprint Api V1 Export Blueprints Validate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/jobs": {
+      "post": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Submit Job",
+        "description": "Validate the blueprint and kick off a background export job.",
+        "operationId": "submit_job_api_v1_export_jobs_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobSubmitPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "List Jobs",
+        "operationId": "list_jobs_api_v1_export_jobs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job_api_v1_export_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Delete Job",
+        "operationId": "delete_job_api_v1_export_jobs__job_id__delete",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/jobs/{job_id}/stream": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Stream Job",
+        "description": "Server-Sent Events stream of job progress.",
+        "operationId": "stream_job_api_v1_export_jobs__job_id__stream_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/jobs/{job_id}/download": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Download Job",
+        "operationId": "download_job_api_v1_export_jobs__job_id__download_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/knowledge": {
       "get": {
         "tags": [
@@ -4200,6 +4510,22 @@
         ],
         "title": "BadCaseUpdate"
       },
+      "BlueprintPayload": {
+        "properties": {
+          "blueprint": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Blueprint",
+            "description": "Raw blueprint document."
+          }
+        },
+        "type": "object",
+        "required": [
+          "blueprint"
+        ],
+        "title": "BlueprintPayload",
+        "description": "Untyped wrapper around a raw blueprint dict.\n\nWe accept ``dict`` rather than the full ``Blueprint`` schema directly so\nthe OpenAPI surface stays stable when the schema evolves; validation is\nperformed inside the service and surfaces detailed pydantic errors."
+      },
       "Body_upload_document_global_api_v1_knowledge_documents_post": {
         "properties": {
           "file": {
@@ -5197,6 +5523,27 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "JobSubmitPayload": {
+        "properties": {
+          "blueprint": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Blueprint",
+            "description": "Raw blueprint document."
+          },
+          "make_zip": {
+            "type": "boolean",
+            "title": "Make Zip",
+            "description": "Produce a downloadable .zip artefact.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "blueprint"
+        ],
+        "title": "JobSubmitPayload"
       },
       "KBPermissionInput": {
         "properties": {

@@ -13,7 +13,13 @@ export const useConversations = () => {
         queryKey: ['conversations'],
         queryFn: async () => {
             const res = await chatApi.getConversations();
-            return res.data;
+            // Backend wraps lists in ApiResponse.ok([...]) → unwrap if present.
+            const body = res.data as unknown;
+            if (Array.isArray(body)) return body;
+            if (body && typeof body === 'object' && Array.isArray((body as { data?: unknown }).data)) {
+                return (body as { data: unknown[] }).data;
+            }
+            return [];
         },
     });
 };
@@ -26,7 +32,7 @@ export const useConversationDetails = (id: string | null) => {
             if (!id) return null;
             const res = await chatApi.getConversation(id);
             // 归一化后端消息格式
-            return res.data.messages.map((m: any) => ({
+            return res.data.messages.map((m: Record<string, unknown> & { metadata?: unknown }) => ({
                 id: m.id,
                 role: m.role,
                 content: m.content,
