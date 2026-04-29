@@ -114,9 +114,12 @@ addopts = [
 source = ["app"]
 omit = [
     "app/main.py",
-    "*/tests/*",
+    "app/core/database.py",
+    "app/core/config.py",
     "app/scripts/*",
     "app/logs/*",
+    "app/prompts/*",
+    "*/tests/*",
 ]
 
 [tool.coverage.report]

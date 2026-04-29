@@ -1,11 +1,12 @@
 """
 Unit test conftest — 提供轻量级 mock fixtures。
-所有外部依赖 (DB, LLM, Redis, Vector Store) 均被 mock。
+所有外部依赖 (DB, LLM, Redis, Celery, Neo4j, Vector Store) 均被 mock。
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import List, Dict, Any
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +91,134 @@ def mock_redis():
     r.expire = AsyncMock(return_value=True)
     r.keys = AsyncMock(return_value=[])
     return r
+
+
+# ---------------------------------------------------------------------------
+# Celery Mock (eager mode)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_celery_app():
+    """
+    模拟 Celery app（eager 模式），任务同步执行不经过 broker。
+    用法:
+        def test_dispatch(mock_celery_app):
+            mock_celery_app.send_task("some.task", args=[payload])
+    """
+    app = MagicMock()
+    app.send_task = MagicMock(return_value=MagicMock(id="mock-task-id"))
+
+    # eager 模式配置
+    app.conf = MagicMock()
+    app.conf.task_always_eager = True
+    app.conf.task_eager_propagates = True
+
+    # AsyncResult mock
+    async_result = MagicMock()
+    async_result.id = "mock-task-id"
+    async_result.status = "SUCCESS"
+    async_result.result = None
+    async_result.ready.return_value = True
+    async_result.successful.return_value = True
+    async_result.failed.return_value = False
+    app.AsyncResult = MagicMock(return_value=async_result)
+
+    return app
+
+
+@pytest.fixture
+def patch_celery_app(mock_celery_app):
+    """
+    Patch `app.core.celery_app.celery_app` 为 mock，
+    适用于测试 IngestionDispatcher 等依赖 celery_app 的模块。
+    """
+    with patch("app.core.celery_app.celery_app", mock_celery_app):
+        yield mock_celery_app
+
+
+# ---------------------------------------------------------------------------
+# Neo4j Mock
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_neo4j_store():
+    """
+    模拟 Neo4jStore，覆盖 query / add_triples / import_subgraph / close。
+    用法:
+        def test_graph(mock_neo4j_store):
+            mock_neo4j_store.query.return_value = [{"name": "Alice"}]
+    """
+    store = MagicMock()
+    store.driver = MagicMock()  # 标记为可用
+
+    store.query = MagicMock(return_value=[])
+    store.add_triples = MagicMock()
+    store.import_subgraph = MagicMock()
+    store.close = MagicMock()
+
+    return store
+
+
+@pytest.fixture
+def patch_graph_store(mock_neo4j_store):
+    """
+    Patch `app.core.graph_store.get_graph_store` 返回 mock，
+    适用于测试 GraphRetrievalStep / GraphIndex 等模块。
+    """
+    with patch("app.core.graph_store.get_graph_store", return_value=mock_neo4j_store):
+        yield mock_neo4j_store
+
+
+# ---------------------------------------------------------------------------
+# Vector Store Mock
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_vector_store():
+    """
+    模拟 BaseVectorStore 接口（add_documents / search / delete_documents / similarity_search）。
+    默认 search 返回空列表，可通过 return_value 覆盖。
+    用法:
+        async def test_retrieval(mock_vector_store):
+            mock_vector_store.search.return_value = [VectorDocument(...)]
+    """
+    store = MagicMock()
+    store.add_documents = AsyncMock(return_value=[])
+    store.search = AsyncMock(return_value=[])
+    store.delete_documents = AsyncMock()
+    store.similarity_search = AsyncMock(return_value=[])
+    return store
+
+
+@pytest.fixture
+def make_vector_store():
+    """
+    工厂 fixture: 创建可定制的 Vector Store mock。
+    用法:
+        async def test_search(make_vector_store):
+            store = make_vector_store(search_results=[doc1, doc2])
+    """
+    def _make(
+        search_results: List[Any] | None = None,
+        add_ids: List[str] | None = None,
+    ):
+        store = MagicMock()
+        store.add_documents = AsyncMock(return_value=add_ids or [])
+        store.search = AsyncMock(return_value=search_results or [])
+        store.delete_documents = AsyncMock()
+        store.similarity_search = AsyncMock(return_value=search_results or [])
+        return store
+    return _make
+
+
+@pytest.fixture
+def patch_vector_store(mock_vector_store):
+    """
+    Patch `app.core.vector_store.get_vector_store` 返回 mock，
+    适用于测试 CacheService / RetrievalStep 等模块。
+    """
+    with patch("app.core.vector_store.get_vector_store", return_value=mock_vector_store):
+        yield mock_vector_store
 
 
 # ---------------------------------------------------------------------------
