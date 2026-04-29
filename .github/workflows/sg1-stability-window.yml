@@ -26,6 +26,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore SG-007 Evidence Window
+        # 跨工作流持久化最近 ~26h 的 SG-007 报告，避免每次只见到 1 份新报告导致 enough_reports=false。
+        # key 含 run_id 保证每次都写入新副本；restore-keys 回退到任何带 'sg1-evidence-' 前缀的最新缓存。
+        uses: actions/cache@v4
+        with:
+          path: backend/logs/service_governance
+          key: sg1-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sg1-evidence-
+
       - name: Backend Setup
         uses: ./.github/actions/backend-setup
         with:
@@ -34,6 +44,12 @@ jobs:
 
       - name: Generate SG-007 Drill Evidence
         run: python scripts/run_sg007_governance_drills.py --steady-duration-sec 600 --steady-rps 2 --spike-requests 120 --chaos-requests 40 --open-duration-sec 1.2 --max-error-budget ${{ env.SG7_MAX_ERROR_BUDGET }} --max-degrade-trigger-ratio ${{ env.SG7_MAX_DEGRADE_TRIGGER_RATIO }} --max-mttr-sec ${{ env.SG7_MAX_MTTR_SEC }}
+
+      - name: Prune Stale Evidence Outside Window
+        # 只保留 26h 内的报告（窗口 24h + 2h 缓冲），避免 cache 无限增长
+        run: |
+          find logs/service_governance -name 'sg007_drill_report_*.json' -mmin +1560 -delete || true
+          ls -lh logs/service_governance/ || true
 
       - name: Validate SG1 Rolling Window
         run: python scripts/validate_gate_sg1_stability_window.py --window-hours ${{ env.SG1_WINDOW_HOURS }} --min-reports ${{ env.SG1_MIN_REPORTS }} --max-global-error-budget ${{ env.SG1_MAX_GLOBAL_ERROR_BUDGET }} --max-steady-block-ratio ${{ env.SG1_MAX_STEADY_BLOCK_RATIO }} --enforce
