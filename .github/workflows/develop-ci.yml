@@ -72,6 +72,14 @@ jobs:
             --alluredir=allure-results \
             -o "addopts="
 
+      - name: OpenAPI Contract Drift Check
+        run: |
+          python -m scripts.export_openapi --mode all
+          if ! git diff --exit-code -- ../shared/openapi/; then
+            echo "::error::OpenAPI 契约已过期。请在本地运行 'cd backend; python -m scripts.export_openapi --mode all' 并提交更新。"
+            exit 1
+          fi
+
       - name: Upload Coverage Report
         if: always()
         uses: actions/upload-artifact@v4
