@@ -155,7 +155,7 @@ frontend/stats.html
 # AI Agent / Skill Workspaces
 # ==========================================
 claude-code-main/
-skills/
+/skills/
 scratch/
 scenario_f_log*.txt
 

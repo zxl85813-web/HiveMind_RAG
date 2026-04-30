@@ -16,13 +16,14 @@ from app.core.config import settings
 router = APIRouter()
 
 # ── CORE: Always available ──────────────────────────────────
-from app.api.routes import health, chat, websocket, settings as settings_routes, tenants
+from app.api.routes import health, chat, websocket, settings as settings_routes, tenants, quotes
 
 router.include_router(health.router, prefix="/health", tags=["Health"])
 router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
 router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
+router.include_router(quotes.router, prefix="/quotes", tags=["Quote Intelligence"])
 
 # ── SHARED: Available in all modes ──────────────────────────
 from app.api.routes import memory, tags, security, audit, audit_v3, export
