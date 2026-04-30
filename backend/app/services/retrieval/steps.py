@@ -118,19 +118,30 @@ class RerankingStep(BaseRetrievalStep):
     """
     Precision Phase (Ranking): Re-rank candidates using Cross-Encoder.
     This ensures Top N results are highly relevant.
+
+    Implements the Anthropic-recommended staged flow:
+    ``Top K Recall (e.g. 100-150) → Cross-Encoder Rerank → Top N Inject``.
+    Tracing emits explicit ``recall=X rerank=Y`` markers so the gateway
+    can surface them as observability extensions.
     """
     async def execute(self, ctx: RetrievalContext):
         if not ctx.candidates:
             ctx.final_results = []
+            ctx.log("Rerank", "recall=0 rerank=0 — no candidates to rerank")
             return
 
+        recall_n = len(ctx.candidates)
         reranker = get_reranker()
-        
+
         # Rerank
         ranked = await reranker.rerank(
             query=ctx.query,
             documents=ctx.candidates,
             top_n=ctx.top_n
+        )
+        ctx.log(
+            "Rerank",
+            f"recall={recall_n} rerank={len(ranked)} model=cross-encoder",
         )
         
         # --- Lost in the Middle Optimization (Phase 4) ---

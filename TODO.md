@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-03-07
+> 📅 最后更新: 2026-04-30
 
 ---
 
@@ -41,6 +41,59 @@
 ---
 
 ## 二、🏗️ 后端 — 待完成功能
+
+### 2.0 多租户 / SaaS 化 (P0 #1) — 2026-04-30 本轮新增
+
+- ✅ **Tenant + TenantQuota 模型** — `app/models/tenant.py`，`DEFAULT_TENANT_ID="default"` 兜底向后兼容
+- ✅ **ContextVar 租户上下文** — `app/core/tenant_context.py`，跨 `asyncio.create_task` 自动继承
+- ✅ **核心表加 `tenant_id`** — users / conversations / knowledge_bases / documents（migration `a1b2c3d4e5f6`）
+- ✅ **可观测/审计加 `tenant_id`** — obs_ingestion_batches / obs_file_traces / obs_agent_spans / obs_hitl_tasks / audit_logs（migration `b2c3d4e5f6a7`）
+- ✅ **请求边界绑定** — `get_current_user` 解析 JWT 后 `set_current_tenant(user.tenant_id)`
+- ✅ **Swarm 入口** — `SwarmState.tenant_id` + `tenant_scope()` 包 `ainvoke / astream`
+- ✅ **服务层 ACL** — `KnowledgeService.get_kb / list_kbs / check_kb_access` 强制 `tenant_id` 比较；跨租户返回 404 不泄露存在性；`ChatService` 同样
+- ✅ **`require_admin` + `assert_tenant_owns`** — `app/api/deps.py` 新增辅助函数
+- ✅ **Tenant 管理 API** — `/api/tenants` (admin) + `/api/tenants/_me/current`
+- ✅ **三大单例 keyed-by-tenant** — `SemanticIdMapper / FlowMonitor / SkillMiner`
+- ✅ **治理单例 keyed-by-tenant** — `RainbowRouter / ShadowEvalSampler`
+- ⬜ **剩余模型 tenant_id 补强**（次优先级，按需补）：tags、evaluation、finetuning、pipeline_config、sync、security 子表（DesensitizationPolicy 等）
+- ⬜ **Vector store collection 加租户前缀**（避免 ChromaDB 泄露）
+- ⬜ **MCP 服务器按租户隔离**（每租户独立子进程或 namespace）
+- ⬜ **Tenant 中间件** — 给非 JWT 路由（如 webhook）提供显式 `X-Tenant-Id` 解析
+- ⬜ **前端租户切换** UI（`/api/tenants/_me/current` 已就绪）
+
+### 2.0b 成本归因 + 预算闸门 (P0 #3) — 2026-04-30 本轮新增
+
+- ✅ **TenantUsageDaily 模型 + migration** — `c3d4e5f6a7b8`，按 (tenant_id, date) 累计 prompt/completion/total/request/cost_usd_micro
+- ✅ **TokenAccountant** — 进程内 `defaultdict` 计数器，零锁热路径；后台 30s flush 一次（`UPSERT … GREATEST` 防重复计数）
+- ✅ **BudgetGate** — 在 `SwarmOrchestrator.invoke / invoke_stream` 入口检查 `max_tokens_per_day`，超额抛 `BudgetExceededError` (HTTP 429)；`default` 租户永不限制
+- ✅ **BudgetCallbackHandler** — LangChain callback，自动从 ContextVar 读 tenant_id，`on_llm_end` 记录 `token_usage`
+- ✅ **LLMRouter 接入** — 所有 `_create_llm` 实例都注入 `BudgetCallbackHandler`，跨 tier 全覆盖
+- ✅ **后台 flusher** — `start_background_flusher / stop_background_flusher` 通过 `lifespan` 生命周期管理；shutdown 强制 final flush
+- ✅ **配额缓存** — 60s TTL 内存缓存，避免每次 LLM 调用都查库；`PUT /tenants/{id}/quota` 自动失效缓存
+- ✅ **Usage API** — `GET /tenants/_me/usage`、`GET /tenants/{id}/usage` (admin)、`POST /tenants/{id}/usage/flush` (admin)
+- ✅ **Smoke test 验证** — 配额内放行 / 超额熔断 / 兄弟租户隔离 / default 不受限 / UPSERT 持久化 / 幂等 re-flush
+- ✅ **Cost 计算精化** — `model_cost_table.py` 内置 30+ 主流模型 (GPT/Claude/Gemini/DeepSeek/Qwen/Kimi/local)，支持别名/前缀/大小写/未知 fallback；`BudgetCallbackHandler` 在 `on_llm_start` 捕获 model_name → `on_llm_end` 按真实价格计费
+- ✅ **预算预警** — `TenantQuota.warn_threshold_pct` (default 80%)，跨阈值时写入 `audit_logs.action='budget_warning'` + 触发可注册的 `set_warning_sink(callback)`，每 (tenant, day) 仅 fire-once
+- ✅ **$-spend 双路熔断** — `TenantQuota.max_cost_usd_micro_per_day` 与 `max_tokens_per_day` 任一触达即熔断 (HTTP 429)；migration `d4e5f6a7b8c9`
+- ✅ **滑动窗口限流** — `app/services/governance/rate_limiter.py` `SlidingWindowRateLimiter`（deque[float] + cutoff），`TenantQuota.max_rpm/max_rps` 配置；`BudgetGate.check` 第 1 层防御（RPS/RPM），HTTP 429 + `Retry-After` header；migration `f6a7b8c9d0e1`
+- ✅ **per-user / per-conversation 二级配额** — `TenantQuota.max_tokens_per_user_per_day` (按日) + `max_tokens_per_conversation` (lifetime)；`TokenAccountant._user_buckets / _conv_buckets` in-memory 计数；`BudgetCallbackHandler` 自动从 ContextVar 读 user_id/conv_id；`tenant_scope(..., user_id=, conversation_id=)` 在 swarm 入口绑定
+- ✅ **前端 Usage 仪表盘** — `pages/UsagePage.tsx`，AntD `Progress` 进度条（token + $ 双轨，到阈值变橙、超限变红），`/api/tenants/_me/usage/history?days=30` 30 天 SVG sparkline（无图表库依赖），30s 自动刷新；侧边栏 `/usage` 入口
+- ✅ **Smoke test 验证 (rate)** — 9/9 PASS：sliding window 触发/复位/隔离/disabled、gate 第 1 层 RPS 触发、per-user 触发但 sibling 未受影响、per-conversation 触发、default 租户始终通过
+
+### 2.0c 租户密钥管理 (P0 #2) — 2026-04-30 本轮新增
+
+- ✅ **`SecretBackend` 抽象** — `app/services/governance/secret_manager.py`，可插拔（默认 Fernet，预留 Vault/KMS 接口）
+- ✅ **Fernet 加密 backend** — Master key 用 HKDF-SHA256 从 `settings.SECRET_KEY` 派生（可被 `SECRETS_MASTER_KEY` env 直接覆盖）；密文 + `hint` (`sk-...AbCd`) 入库，明文从不落盘
+- ✅ **`tenant_secrets` 表 + migration `e5f6a7b8c9d0`** — 复合主键 `(tenant_id, key_name)`，受 `tenants.id` FK 约束
+- ✅ **5 分钟内存缓存** — `get_secret_cached_only` 提供 sync 热路径访问；PUT/DELETE 自动失效；`ensure_loaded` 在 `get_current_user` 里预热当前请求的全部 provider key
+- ✅ **LLMRouter 按租户注入** — `_tier_specs` 记录每 tier 的 (model, provider, temperature)；`get_model` 命中租户 → 查缓存 → 命中即返回 per-tenant `ChatOpenAI` 实例（按 `(tenant_id, tier)` 缓存复用）；`invalidate_tenant` 在密钥轮转时清掉旧实例
+- ✅ **管理 API（write-only）** — `GET/PUT/DELETE /api/tenants/{id}/secrets[/{key_name}]`；`key_name` 白名单 `^[a-z][a-z0-9_]*(\.[a-z0-9_]+){1,3}$`；写后自动 `invalidate_tenant`
+- ✅ **Smoke test 验证** — 9/9 PASS：encrypt/decrypt 往返、hint 掩码、PUT+GET、预热缓存、密钥轮转 + 缓存失效、LIST 仅返回掩码、DELETE 幂等、跨租户隔离、provider→secret-key 映射去重
+- ⬜ **HashiCorp Vault backend** — 实现 `VaultBackend(SecretBackend)`，按 `set_backend()` 切换
+- ⬜ **AWS KMS backend** — 同上
+- ⬜ **审计** — 写 `audit_logs.action='secret_put|secret_delete'`，记录操作人 + 受影响 key_name（不含值）
+- ⬜ **前端密钥管理 UI** — 仅显示 `hint` + `updated_at`，「rotate」按钮调用 PUT
+- ⬜ **Master key 轮转 runbook** — 旧 key 解密 → 新 key 重加密的迁移脚本
 
 ### 2.1 知识库 RAG 核心
 
@@ -266,9 +319,9 @@
 - [ ] ** EnrichmentStep 实现**: 在 Ingestion Pipeline 中增加语义增强步 (自动摘要、关键词提取、版本标记)
 
 #### Phase 2: 三端消费者改造 (P1)
-- ⬜ **Agent 内部改造**: 重构 `SwarmOrchestrator._retrieval_node`，注入结构化 `KnowledgeResponse`
-- ⬜ **Skill Tool 升级**: 改造 `search_knowledge_base` tool，走 RAGGateway 链路并返回结构化文本
-- ⬜ **API 增强**: 将 `/{kb_id}/search` 升级为返回完整协议，新增 `POST /knowledge/retrieve` 智能检索接口
+- ✅ **Agent 内部改造**: 重构 `SwarmOrchestrator._do_retrieval_work`，注入结构化 `KnowledgeResponse`（带 citations + confidence）
+- ✅ **Skill Tool 升级**: 改造 `search_knowledge_base` tool，走 RAGGateway，返回带 `[^citation_id]` 标签的结构化文本
+- ✅ **API 增强**: `/{kb_id}/search` 返回完整 `KnowledgeResponse`；新增 `POST /knowledge/retrieve` 智能多 KB 检索接口
 
 #### Phase 3: 高级微服务治理 (P2)
 - [x] ** KB 级熔断器**: 在 RAGGateway 中实现熔断逻辑，当某个 KB 连续失败时自动降级
@@ -305,31 +358,31 @@
 - ✅ **Dynamic Tool Loading**: 实现 `search_available_tools` 模式，降低 Context 负载
 - ✅ **Programmatic Tool Execution**: 实现 `python_interpreter` 供 Agent 批量编排工具
 - ✅ **Think Tool Integration**: 为所有 Agent 注入专用 `think` 工具，用于在执行复杂工具链前记录显式推理逻辑和多步计划。
-- ⬜ **Progressive Skill Disclosure**: 优化 `.agent/skills/` 结构，引导 Agent 先读取目录 metadata，再按需通过 `cat` 读取详细文档，支持超大规模 Skill 库。
-- ⬜ **Semantic Identifier Mapping**: 改造 Skill 输出，将数据库 UUID 自动映射为语义化名称或 0-indexed ID，降低模型幻觉。
-- ⬜ **Context Compaction Node**: 在 Swarm 流程中增加自动摘要压缩节点，当消息记录过长时自动触发，防止 Token 爆炸。
-- ⬜ **Hybrid Reflection**: 在 Reflection 节点中集成 Linter、Schema 校验等硬规则验证，不完全依赖 LLM 裁判。
-- ⬜ **Contextual BM25 Integration**: 基于增强后的 Situational Chunks 构建高精度关键词索引，实现 Hybrid 检索的最佳性能（Recall@20 指标对齐 Anthropic 实验室数据）。
-- ⬜ **Search Subagents**: 实现子智能体并行检索模式，用于处理大规模、高模糊度的知识搜索任务。
-- ⬜ **Contextual Reranking (P0)**: 将 Reranking 提升为核心检索组件，支持 `Top 150 Retrieve -> Cross-Encoder Rerank -> Top 20 Inject` 的分段式高精度检索流。
-- ⬜ **Tool Result Clearing (Advanced Compaction)**: 在 Swarm 会话滚动中，对旧的 Tool 调用结果进行“选择性擦除”，仅保留结果摘要和状态变更，防止长会话下的 Context 污染。
-- ⬜ **Just-in-Time (JIT) Context Navigation**: 完善 Agent 的文件系统/Web 动态探索路径，优先使用 `glob`/`grep`/`head` 定向加载上下文，而非暴力检索全库。
+- ✅ **Progressive Skill Disclosure**: SkillRegistry 解析 SKILL.md frontmatter，提供 Tier1 catalog / Tier2 inspect / Tier3 callable 三层；新增 `inspect_skill` Agent 工具与 `GET /agents/skills/{name}` 端点。
+- ✅ **Semantic Identifier Mapping**: 新增 `app/services/semantic_id_mapper.py`，提供进程全局双向别名注册表 (sticky + bucketed counters + LRU)；UUID 转化为语义别名 `doc-rfc-2119-1` / `kb-marketing-2`，不同 slug 分桶计数保证可读。接入：`RAGGateway._make_citation` 发出的 `Citation.citation_id` 从 `kb8chars:src12chars#chunk` 换为 `doc-{slug}-{n}#chunk`；JIT 导航工具 (`kb_doc_head` / `kb_doc_chunk_range` / `kb_doc_grep`) 在边界调用 `mapper.resolve()`，Agent 传别名或原 UUID 均可；`kb_list_documents` 输出只露别名。烟雾测试：警潜 stickiness / bucketing / round-trip / citation 集成 6 项全通过。
+- ✅ **Context Compaction Node**: Supervisor 节点调用 FAST LLM，把超过阈值的旧消息折叠为单条 SystemMessage 摘要 (`_compact_history`)。
+- ✅ **Hybrid Reflection**: 在 Reflection 节点中集成 Linter、Schema 校验等硬规则验证，不完全依赖 LLM 裁判 (见 hard_rules.py)。
+- ✅ **Contextual BM25 Integration**: 基于增强后的 Situational Chunks 构建高精度关键词索引。实现：`bm25_step.py` 走 weighted 融合 (dense=0.4 sparse=0.6) + CJK bigram。
+- ✅ **Search Subagents**: 实现子智能体并行检索模式 (见 search_subagents.py + spawn_search_subagents 工具)。
+- ✅ **Contextual Reranking (P0)**: RAGGateway 默认 `recall=max(top_k*20, 100)≤150`，pipeline RerankingStep 输出 `recall=X rerank=Y` 追踪。
+- ✅ **Tool Result Clearing (Advanced Compaction)**: `_prune_messages` 已对 head ToolMessage 做 >150 字符摘要替换，仅保留 tool_call_id + 长度信息。
+- ✅ **Just-in-Time (JIT) Context Navigation**: 新增 KB 级 `kb_doc_head` / `kb_doc_chunk_range` / `kb_doc_grep` / `kb_list_documents` 工具，引用扩展无需再走 RAG。
 
-### 2.1J Agent 安全沙箱与生产治理 (Sandboxing & Reliability) ⬜
+### 2.1J Agent 安全沙箱与生产治理 (Sandboxing & Reliability) ✅
 
 - [x] ** Sandboxed Skill Runtime**: 基于 `SecuritySanitizer` 和 `ToolAuditor` 实现简单的沙箱规则。
-- [ ] ** Rainbow Deployment for Agents**: 参考 Anthropic 生产实践，建立“彩虹发布”机制。
-- ⬜ **Production Shadow Evals**: 在生产环境匿名运行“影子评估”，对比真实用户反馈与自动化评分的差异，快速捕捉如“模型理解退化”或“基础设施导致的随机错误”。
-- ⬜ **Sensitivity Monitoring**: 改进内部可观测性，监控 Agent 决策模式（不看内容看逻辑流），识别循环死结或工具滥用。
+- [x] ** Rainbow Deployment for Agents**: 参考 Anthropic 生产实践，建立“彩虹发布”机制 (见 governance/rainbow_router.py: sticky-by-conversation 哈希 + 加权环分配)。
+- ✅ **Production Shadow Evals**: 在生产环境匹名运行“影子评估” (见 governance/shadow_eval.py: 不阻塞采样重跑 MultiGrader，ring-aware，进 audit log)。
+- ✅ **Sensitivity Monitoring**: 改进内部可观测性，监控 Agent 决策模式 (见 governance/flow_monitor.py: 节点循环 / 工具滥用 / 重复同参检测，不看内容只看逻辑流)。
 
-### 2.1I Agent 长期任务稳定性与可靠性 (Long-Horizon & Reliability) ⬜
+### 2.1I Agent 长期任务稳定性与可靠性 (Long-Horizon & Reliability) ✅ (除 Visual Verification)
 
 - ✅ **Feature-based Scaffolding**: 实现基于数据库的任务记录器。Supervisor 初始化任务清单并持久化到 `swarm_todos` 表，Agent 强制按清单增量执行。
 - ✅ **LangGraph State Checkpointing**: 集成 `MemorySaver` 为 SwarmOrchestrator 提供 Checkpoints，支持 `thread_id` (Conversation ID) 级别的状态持久化。
-- ⬜ **MCP "Code Mode" Bridge**: 建立 MCP 的代码执行网关，允许 Agent 编写 Python 脚本对海量工具返回的数据（如 1000 行 CSV）进行端内过滤聚合，而非全部传输。
-- ⬜ **Self-Evolving Skills**: 实现“技能沉淀”机制，当 Agent 发现一种通用的工具编排模式时，自动将其保存为新的 `Skill` 并写入 `.agent/skills/` 目录。
+- ✅ **MCP "Code Mode" Bridge**: AST 验证 + ctypes 强中断的 Python 沙箱 (`app/services/sandbox/code_mode.py`)，替换不安全的 `exec()`；拦截 `import`/dunder/`open`，捕获 stdout，可注入大型工具返回数据供脚本过滤聊合。`python_interpreter` 工具已走新 runner。
+- ✅ **Self-Evolving Skills**: `app/services/governance/skill_miner.py` 从成功会话的工具调用序列中挖含重复子串，生成带 `status: draft` frontmatter 的 SKILL.md 草稿到 `skills/_drafts/`，供人工审核后提升。
 - ⬜ **End-to-End Visual Verification**: 为 Coding/UI Agent 集成 Puppeteer 视觉反馈，确保功能不仅“代码绿”而且“运行绿”。
-- ⬜ **Observability Trace Analytics**: 统计分析 Agent 的决策链路 (Thought -> Tool -> Result)，自动识别并标记“低效工具调用”或“逻辑循环陷阱”。
+- ✅ **Observability Trace Analytics**: `app/services/governance/trace_analytics.py` 在 FlowMonitor 上层输出 `TraceReport` (supervisor thrash / tool redundancy / cycle / runaway)；`GET /trace/{conversation_id}` API 暴露。
 
 ### 2.1K Code Vault (代码资产知识库) (P1) — REQ-012 ⬜
 
@@ -528,6 +581,27 @@ npm install i18next react-i18next i18next-browser-languagedetector
 
 ## 八、📝 变更日志 (按日期倒序)
 
+### 2026-04-30
+- ✅ **2.1I Long-Horizon 三件套**:
+  - **MCP Code Mode Bridge** (`app/services/sandbox/code_mode.py`): AST 验证的 Python 沙箱，在语法树层拒绝 `import` / dunder 属性访问 / `open()` / `exec()` / `eval()` / `__builtins__`；只露安全 builtins 白名单 (math/json/re/datetime/itertools/statistics + 基础型)；stdout 重定向捕获；独立线程 + ctypes `PyThreadState_SetAsyncExc` 硬中断超时脚本 (`while True: pass` 300ms 可杀)；`run(code, inject={}, timeout_s=5)` 允许注入大型工具返回数据让脚本过滤。替换原不安全的 `python_interpreter` 实现。
+  - **Trace Analytics** (`app/services/governance/trace_analytics.py`): 从 FlowMonitor 话题里提取 `TraceReport`，检测 supervisor thrash (访问多但 unique agent 少)、tool redundancy (同工具 args 重复)、继承 FlowMonitor 已报的 cycle / runaway / abuse 事件；`GET /trace/{conversation_id}` API 暴露 (路由挂载在 `/api/v1/trace/{conv_id}`)。
+  - **Self-Evolving Skill Miner** (`app/services/governance/skill_miner.py`): 记录会话级工具调用序列；面向成功会话挖长度 2-5 重复子串 (默认 support ≥ 2 会话)；优先输出较长高支持模式；`flush_to_drafts()` 生成带 `status: draft` frontmatter 的 SKILL.md 到 `skills/_drafts/<slug>/`，以人工审核为闸门。全部三个模块的烟雾测试都跳的是本地代码路径，无需网络 / 模型调用。
+
+### 2026-04-29
+- ✅ **2.1G Phase 2 三端协议统一**: Knowledge Protocol 升级到 v2 (citations + confidence + extensions)；RAGGateway 接入真实 RetrievalPipeline (此前 `_retrieve_from_single_kb` 为 stub 假数据)；Swarm `_do_retrieval_work` 改走 Gateway 并保留结构化 fragments；`search_knowledge_base` tool 输出带 `[^citation_id]` 的可引用 markdown；新增 `POST /knowledge/retrieve` 多 KB 智能检索端点。
+- ✅ **2.1H Anthropic 增强 Wave 1**:
+  - **Contextual Reranking (P0)**: Gateway 默认召回提升至 `min(top_k×20, 150)`；RerankingStep 输出 `recall=X rerank=Y` 追踪标记。
+  - **JIT Context Navigation**: 新增 `kb_doc_head` / `kb_doc_chunk_range` / `kb_doc_grep` / `kb_list_documents` 四个 KB 级 JIT 工具，Agent 引用扩展无需再走 RAG。
+  - **Progressive Skill Disclosure**: SkillRegistry 解析 SKILL.md frontmatter，提供 Tier1 catalog / Tier2 inspect / Tier3 callable 三层；新增 `inspect_skill` Agent 工具与 `GET /agents/skills/{name}` 端点。
+  - **Context Compaction Node**: Supervisor 节点新增 `_compact_history`，超过 18 条消息或 14k 字符时调用 FAST LLM 把旧消息折叠为单条 SystemMessage 摘要。
+- ✅ **2.1H Anthropic 增强 Wave 2**:
+  - **C3 Search Subagents**: 新增 `app/agents/search_subagents.py`，提供 `SubagentSpec` / `SubagentReport` 协议与 `run_search_subagents` 驱动；用 `asyncio.gather` 并行 fan-out 隔离上下文的子 Agent，每个子 Agent 拥有独立短工具循环 (默认 3 turn) 与基线 RAG 召回兜底；通过 `spawn_search_subagents` LangChain 工具暴露给 Supervisor，主 Agent 在遇到 2-6 个独立子问题时直接 fork。NATIVE_TOOLS 总数 12 → 13。
+  - **Hybrid Reflection (反同源偏差)**: 新增 `app/services/evaluation/hard_rules.py`，提供 6 条确定性硬规则 (非空 / 协议词泄漏 / JSON 块合法性 / PII 泄漏 / 长度 / 引用 ID 解析)；MultiGraderEval 在 LLM 评分前先跑硬规则，失败则强制 `verdict=FAIL` 并阻止该响应进入语义缓存；`_reflection_node` 把 `state.retrieval_trace.citations` 的 ID 集合传入校验，杜绝悬空引用。烟雾测试覆盖 PII / 引用合法性 4 用例全通过。
+  - **C6b Contextual BM25 (Anthropic Contextual Retrieval)**: 新增 `app/services/retrieval/bm25_step.py`，自包含 Okapi BM25 (k1=1.5, b=0.75, 无新依赖)；分词器同时输出英文词 token 和 CJK 字符二元组，让中文查询也能拿到稀疏信号；支持 `metadata.contextual_summary` 作为可选上下文前缀，给后续摄入侧 contextual prefixing 留接口；rank fusion 用 weighted normalized score (dense=0.4, sparse=0.6) 而非朴素 RRF —— 在 5–150 的小召回池上 RRF 无法让单个强稀疏命中翻盘，这套方案能让 RFC-2119 / 错误码 / 中文 keyword 等精确命中真正爬到首位。装在 `Hybrid → ContextualBM25 → ACL → Rerank` 之间，把更好的初始顺序喂给 cross-encoder。烟雾测试 EN+CN 双场景命中文档均正确升至 #1。  - **C7 Semantic Identifier Mapping**: 新增 `app/services/semantic_id_mapper.py` 进程全局双向别名注册表 (sticky / bucketed counters / LRU 5000)，UUID 与语义别名双向转换。`Citation.citation_id` 从 `kb8chars:src12chars#chunk` 换为 `doc-rfc-2119-3#chunk`——同一 raw UUID 总是解析为同一别名，模型复折不崩；`kb_list_documents` 只输出别名，`kb_doc_head/chunk_range/grep` 在边界反向解析，Agent 传别名或原 UUID 都能调。灭火 UUID 呱这类幻觉源头。
+- ✅ **2.1J 生产治理三件套**:
+  - **Rainbow Deployment Router** (`governance/rainbow_router.py`): 多版本模型“彩虹环”路由 (stable / canary / rollback)，sha1(conversation_id) 哈希到 ring 保证同一会话不会中途换模；加权分配可表达任意切法 (80/15/5 、 95/5/0)；烟雾测试 5000 conv id 分布 81.3%/14.0%/4.6%，stickiness 验证通过。关闭时透明回落 default LLMRouter。
+  - **Production Shadow Evals** (`governance/shadow_eval.py`): 在 `_reflection_node` FINISH 分支按 `SHADOW_EVAL_SAMPLE_RATE` (默认 5%) 异步 fire-and-forget 重跑 MultiGraderEval；ring-aware（拼接当前 ring 名到 audit 事件），供后续做版本间质量对比；出错只警告不阐。
+  - **Sensitivity Flow Monitor** (`governance/flow_monitor.py`): 装在 supervisor / reflection / tool 调用边界，只看节点序列不看内容；检测三类异常 —— 同节点过频重入 (cycle)、同工具过量调用 (tool_abuse)、同 (tool, args) 重复 (duplicate_args / 循环死结)；烟雾测试 cycle/abuse/dup_args 三环均成功警报。LRU 1000 话题。
 ### 2026-03-07
 - 🚧 **架构重构规划** — 生成 V3 版分布式数据入库流转集群架构，产出 `DEV-REQ-013` 拆解方案，决议剥离 Langfuse、全面替换线型管道。
 

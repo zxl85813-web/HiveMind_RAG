@@ -24,6 +24,9 @@ class KnowledgeBase(SQLModel, table=True):
     __tablename__ = "knowledge_bases"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(
+        default="default", foreign_key="tenants.id", index=True
+    )
     name: str = Field(index=True)
     description: str = ""
     owner_id: str = Field(foreign_key="users.id", index=True)
@@ -43,6 +46,9 @@ class Document(SQLModel, table=True):
     __tablename__ = "documents"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(
+        default="default", foreign_key="tenants.id", index=True
+    )
     # owner_id: str = Field(foreign_key="users.id", index=True) # TODO: Add owner for global ownership
     filename: str
     file_type: str  # pdf | docx | txt | md | xlsx

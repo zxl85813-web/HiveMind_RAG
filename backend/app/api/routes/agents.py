@@ -180,39 +180,25 @@ async def get_mcp_tools():
     return ApiResponse.ok(data=result)
 
 @router.get("/skills")
-async def get_skills():
-    """Get all registered skills from SkillRegistry."""
-    # Assuming SkillRegistry is global or we can parse it from directories
-    # For now, let's just use the file system since it's dynamic
-    from pathlib import Path
-    import yaml
-    
-    skills_dir = Path("app/skills")
-    if not skills_dir.exists():
-        return ApiResponse.ok(data=[])
-        
-    skills = []
-    for d in skills_dir.iterdir():
-        if d.is_dir() and not d.name.startswith("__"):
-            skill_md = d / "SKILL.md"
-            if skill_md.exists():
-                # Extract basic info
-                try:
-                    content = skill_md.read_text(encoding="utf-8")
-                    if content.startswith("---"):
-                        frontmatter = content.split("---")[1]
-                        meta = yaml.safe_load(frontmatter)
-                        skills.append({
-                            "name": meta.get("name", d.name),
-                            "description": meta.get("description", ""),
-                            "version": meta.get("version", "0.1.0"),
-                            "status": "active"
-                        })
-                except Exception:
-                    skills.append({
-                        "name": d.name,
-                        "description": "Failed to parse SKILL.md",
-                        "status": "error"
-                    })
-                    
-    return ApiResponse.ok(data=skills)
+async def get_skills(query: str | None = None, limit: int = 50):
+    """List all registered skills (Tier 1 catalog)."""
+    from app.skills.registry import get_skill_registry
+
+    registry = get_skill_registry()
+    if not registry.list_skills():
+        await registry.load_all()
+    return ApiResponse.ok(data=registry.catalog(query=query, limit=limit))
+
+
+@router.get("/skills/{name}")
+async def get_skill_detail(name: str):
+    """Return Tier 2 detail for a single skill (full SKILL.md + tools)."""
+    from app.skills.registry import get_skill_registry
+
+    registry = get_skill_registry()
+    if not registry.list_skills():
+        await registry.load_all()
+    detail = registry.inspect(name)
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return ApiResponse.ok(data=detail)

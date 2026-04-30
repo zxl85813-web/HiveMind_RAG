@@ -29,6 +29,7 @@ class IngestionBatch(SQLModel, table=True):
     __tablename__ = "obs_ingestion_batches"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(default="default", foreign_key="tenants.id", index=True)
     description: str = Field(default="")
     total_files: int = Field(default=0)
     completed_files: int = Field(default=0)
@@ -44,6 +45,7 @@ class FileTrace(SQLModel, table=True):
     __tablename__ = "obs_file_traces"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)  # trace_id
+    tenant_id: str = Field(default="default", foreign_key="tenants.id", index=True)
     batch_id: str | None = Field(default=None, index=True)
     file_path: str = Field(index=True)
     status: TraceStatus = Field(default=TraceStatus.PENDING, index=True)
@@ -77,6 +79,7 @@ class AgentSpan(SQLModel, table=True):
     __tablename__ = "obs_agent_spans"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)  # span_id
+    tenant_id: str = Field(default="default", foreign_key="tenants.id", index=True)
     trace_id: str = Field(foreign_key="obs_file_traces.id", index=True)
     
     agent_name: str = Field(index=True)  # e.g., CodeAgentNode, CriticNode
@@ -100,6 +103,7 @@ class HITLTask(SQLModel, table=True):
     __tablename__ = "obs_hitl_tasks"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(default="default", foreign_key="tenants.id", index=True)
     trace_id: str = Field(foreign_key="obs_file_traces.id", index=True)
     
     # Snapshot of the extraction for user to verify

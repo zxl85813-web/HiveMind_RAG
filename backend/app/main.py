@@ -76,12 +76,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("📚 RAG background services SKIPPED (mode={})", mode)
 
+    # ── Token accountant flusher (multi-tenant cost tracking) ───
+    try:
+        from app.services.governance.token_accountant import start_background_flusher
+        start_background_flusher()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Token accountant flusher not started: {}", exc)
+
     logger.info("🐝 HiveMind ready — mode={}, rag={}, agent={}", mode, settings.rag_enabled, settings.agent_enabled)
 
     yield
 
     # ── Shutdown ────────────────────────────────────────────
     logger.info("🐝 HiveMind shutting down...")
+    try:
+        from app.services.governance.token_accountant import stop_background_flusher, get_token_accountant
+        from app.core.database import get_db_session
+        # Final flush so we don't lose the last 30s of usage data on shutdown
+        async for session in get_db_session():
+            await get_token_accountant().flush(session)
+            break
+        await stop_background_flusher()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Token accountant shutdown skipped: {}", exc)
     if sync_svc:
         await sync_svc.stop()
     await close_db()

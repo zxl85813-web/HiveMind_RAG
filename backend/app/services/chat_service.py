@@ -17,6 +17,7 @@ from sqlmodel import desc, select
 from loguru import logger
 
 from app.core.database import get_db_session
+from app.core.tenant_context import get_current_tenant
 from app.models.chat import Conversation, Message
 from app.models.evaluation import BadCase
 from app.schemas.chat import ChatMessage, ChatRequest, ConversationListItem
@@ -29,7 +30,7 @@ class ChatService:
     async def create_conversation(user_id: str, title: str = "New Chat") -> Conversation:
         """创建新会话。"""
         async for session in get_db_session():
-            conv = Conversation(user_id=user_id, title=title)
+            conv = Conversation(user_id=user_id, title=title, tenant_id=get_current_tenant())
             session.add(conv)
             await session.commit()
             await session.refresh(conv)
@@ -40,11 +41,13 @@ class ChatService:
     async def get_conversations(user_id: str, limit: int = 20, offset: int = 0) -> list[ConversationListItem]:
         """获取用户的会话列表 (优化 N+1 查询)。"""
         from sqlalchemy import func
+        tenant_id = get_current_tenant()
         async for session in get_db_session():
-            # 1. Fetch conversations
+            # 1. Fetch conversations — tenant scoped
             stmt = (
                 select(Conversation)
                 .where(Conversation.user_id == user_id)
+                .where(Conversation.tenant_id == tenant_id)
                 .order_by(desc(Conversation.updated_at))
                 .offset(offset)
                 .limit(limit)
@@ -92,8 +95,12 @@ class ChatService:
     @staticmethod
     async def get_conversation(conv_id: str) -> Conversation | None:
         """获取单个会话及其所有消息。"""
+        tenant_id = get_current_tenant()
         async for session in get_db_session():
-            statement = select(Conversation).where(Conversation.id == conv_id)
+            statement = select(Conversation).where(
+                Conversation.id == conv_id,
+                Conversation.tenant_id == tenant_id,
+            )
             result = await session.exec(statement)
             conv = result.first()
             if conv:
@@ -104,8 +111,12 @@ class ChatService:
     @staticmethod
     async def delete_conversation(conv_id: str) -> bool:
         """删除会话及其关联消息。"""
+        tenant_id = get_current_tenant()
         async for session in get_db_session():
-            conv_statement = select(Conversation).where(Conversation.id == conv_id)
+            conv_statement = select(Conversation).where(
+                Conversation.id == conv_id,
+                Conversation.tenant_id == tenant_id,
+            )
             conv_result = await session.exec(conv_statement)
             conv = conv_result.first()
             if not conv:

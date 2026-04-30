@@ -1,4 +1,6 @@
 # Database models (SQLModel)
+from .tenant import Tenant, TenantQuota, DEFAULT_TENANT_ID
+from .usage import TenantUsageDaily
 from .chat import User, Conversation, Message
 from .knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
 from .agents import TodoItem, ReflectionEntry

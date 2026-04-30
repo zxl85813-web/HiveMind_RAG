@@ -130,6 +130,9 @@ class SwarmState(TypedDict):
     # --- Phase 7: Permission Guard ---
     user_id: str | None
 
+    # --- Multi-Tenant: tenant id propagated through every node ---
+    tenant_id: str | None
+
 
 # ============================================================
 #  Structured Outputs
@@ -366,7 +369,10 @@ class SwarmOrchestrator:
         绝对不要把这里的 Fast Path 逻辑给删掉，也不要强行用 LLM覆盖这个兜底逻辑。如果需要新增快速匹配命令，请在 `PLATFORM_INTENTS` 数组中追加。
         """
         # --- Context Compaction (2.1H) ---
+        # Step 1: heuristic prune (count / budget / tool-result clearing).
         state["messages"] = self._prune_messages(state["messages"])
+        # Step 2: LLM-driven summarisation when history is still large.
+        state["messages"] = await self._compact_history(state["messages"])
         
         messages = state["messages"]
         user_query = str(state.get("original_query", "") or (messages[-1].content if messages else ""))
@@ -503,6 +509,15 @@ class SwarmOrchestrator:
 
         logger.info(f"🗺️ Supervisor planned {len(decision.planned_steps)} steps")
 
+        # Sensitivity flow monitor — record supervisor visit (passive).
+        try:
+            from app.services.governance import get_flow_monitor
+            get_flow_monitor().record_node(
+                state.get("conversation_id", "") or "", "supervisor"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
         import uuid
         node_id = f"supervisor_{uuid.uuid4().hex[:6]}"
 
@@ -604,7 +619,18 @@ class SwarmOrchestrator:
                             result = "Error: Tool call blocked by security policy."
                         else:
                             result = await tool_obj.ainvoke(tool_args)
-                            
+
+                        # Sensitivity monitor — passive tool-call counting.
+                        try:
+                            from app.services.governance import get_flow_monitor
+                            get_flow_monitor().record_tool(
+                                state.get("conversation_id", "") or "",
+                                tool_name,
+                                tool_args if isinstance(tool_args, dict) else None,
+                            )
+                        except Exception:  # noqa: BLE001
+                            pass
+
                         current_messages.append(ToolMessage(
                             tool_call_id=tool_call["id"],
                             content=str(result)
@@ -716,11 +742,28 @@ class SwarmOrchestrator:
         eval_result = await evaluator.evaluate(
             query=state.get("original_query", ""),
             response=last_message.content,
-            context=state.get("context_data", "")
+            context=state.get("context_data", ""),
+            known_citation_ids=[
+                c.get("citation_id") if isinstance(c, dict) else getattr(c, "citation_id", None)
+                for c in (state.get("retrieval_trace", {}) or {}).get("citations", [])
+                if c
+            ] or None,
         )
 
+        # Hybrid Reflection: a hard-rule veto must NOT be cached and must
+        # short-circuit the loop so we don't waste turns flattering a bad
+        # response.
+        if eval_result.hard_rule_vetoed:
+            logger.warning(
+                f"🚦 [HardRules] VETO — forcing revision ({eval_result.hard_rule_summary})"
+            )
+
         # --- Automatic Semantic Caching (Phase 4) ---
-        if eval_result.verdict in ["PASS", "EXCELLENT"] and eval_result.composite_score >= 0.8:
+        if (
+            eval_result.verdict in ["PASS", "EXCELLENT"]
+            and eval_result.composite_score >= 0.8
+            and not eval_result.hard_rule_vetoed
+        ):
             from app.services.cache_service import CacheService
             import asyncio
             # background task to cache the result
@@ -736,11 +779,45 @@ class SwarmOrchestrator:
             next_step = "FINISH"
         else:
             next_step = "supervisor" # REVISE
-            
+
         logger.info(
             f"🧪 [MultiGrader] Verdict: {eval_result.verdict} "
             f"(score={eval_result.composite_score:.2f})"
         )
+
+        # --- Production Governance (2.1J) ---
+        # 1. Sensitivity flow monitoring — passive, never blocks.
+        # 2. Shadow eval sampler — only fires on FINISH (real production
+        #    response), and only for the configured sample rate.
+        try:
+            from app.services.governance import (
+                get_flow_monitor,
+                get_shadow_eval_sampler,
+                get_rainbow_router,
+            )
+
+            conv_id = state.get("conversation_id", "") or ""
+            monitor = get_flow_monitor()
+            monitor.record_node(conv_id, "reflection")
+
+            if next_step == "FINISH" and conv_id:
+                ring = get_rainbow_router().pick_ring(conv_id)
+                get_shadow_eval_sampler().maybe_evaluate(
+                    conversation_id=conv_id,
+                    query=state.get("original_query", ""),
+                    response=last_message.content,
+                    context=state.get("context_data", ""),
+                    known_citation_ids=[
+                        c.get("citation_id") if isinstance(c, dict)
+                        else getattr(c, "citation_id", None)
+                        for c in (state.get("retrieval_trace", {}) or {}).get("citations", [])
+                        if c
+                    ] or None,
+                    ring=ring.name if ring else None,
+                )
+        except Exception as gov_err:  # noqa: BLE001
+            # Governance must never fail a real request.
+            logger.debug(f"governance hooks skipped: {gov_err}")
 
         import uuid
         node_id = f"reflection_{uuid.uuid4().hex[:6]}"
@@ -778,74 +855,99 @@ class SwarmOrchestrator:
         return await self._do_retrieval_work(state)
 
     async def _do_retrieval_work(self, state: SwarmState) -> dict:
-        """Core retrieval logic shared by node and pre-warmer."""
+        """Core retrieval logic shared by node and pre-warmer.
+
+        Goes through the unified ``RAGGateway`` so Agents share the exact
+        protocol consumed by the REST API and Skill tools. The gateway
+        returns a structured ``KnowledgeResponse``; we keep ``context_data``
+        as a pre-rendered prompt block (with citation tags) for backward
+        compatibility with downstream agent prompts, and additionally
+        stash the structured fragments in ``retrieved_docs`` for any
+        agent / UI that wants to render them.
+        """
         query = str(state.get("original_query", ""))
-        display_query = query[:40] + "..." if len(query) > 40 else query
-        
+
         context_str = ""
         kb_ids = state.get("kb_ids", [])
-        retrieval_trace = []
-        retrieved_docs = []
+        retrieval_trace: List[str] = []
+        retrieved_docs: List[dict] = []
+        knowledge_res = None
 
         try:
-            from app.services.retrieval.pipeline import get_retrieval_service
-            if not self._retriever:
-                self._retriever = get_retrieval_service()
-            
+            # 1. Auto-route KBs if none specified.
             if not kb_ids:
                 from app.services.retrieval.routing import KnowledgeBaseSelector
                 selector = KnowledgeBaseSelector()
                 selected_kbs = await selector.select_kbs(query)
                 kb_ids = [kb.id for kb in selected_kbs]
-                
+
             if kb_ids:
-                # Optimized Session lookup
-                from sqlalchemy.ext.asyncio import AsyncSession
+                # 2. Resolve DB KB ids → vector collection names + ACL filter.
                 from app.core.database import async_session_factory
                 from app.models.knowledge import KnowledgeBase
                 from app.models.chat import User
                 from app.services.knowledge.kb_service import KnowledgeService
-                
-                collection_names = []
+
+                collection_to_kb: dict[str, str] = {}
                 async with async_session_factory() as db_session:
                     user_id = state.get("user_id")
-                    
-                    # 1. If user context exists, get accessible KBs to filter
+
                     accessible_kbs = None
                     if user_id:
                         user = await db_session.get(User, user_id)
                         if user:
                             svc = KnowledgeService(db_session)
                             accessible_kbs = await svc.get_user_accessible_kbs(user)
-                    
-                    # 2. Add collection names for allowed KBs
+
                     for kid in kb_ids:
                         if accessible_kbs is not None and kid not in accessible_kbs:
-                            logger.warning(f"Skipping KB {kid} due to missing permissions for user {user_id}")
+                            logger.warning(
+                                f"Skipping KB {kid} (no permission for user {user_id})"
+                            )
                             continue
-                            
                         kb = await db_session.get(KnowledgeBase, kid)
                         if kb and kb.vector_collection:
-                            collection_names.append(kb.vector_collection)
-                
-                if collection_names:
-                    docs, trace_logs = await self._retriever.run(
+                            collection_to_kb[kb.vector_collection] = kid
+
+                # 3. Drive the unified RAGGateway.
+                if collection_to_kb:
+                    from app.services.rag_gateway import get_rag_gateway
+
+                    gateway = get_rag_gateway()
+                    knowledge_res = await gateway.retrieve(
                         query=query,
-                        collection_names=collection_names,
-                        top_k=5,
-                        top_n=3
+                        kb_ids=list(collection_to_kb.keys()),
+                        top_k=3,
+                        recall_top_k=20,
+                        strategy="hybrid",
+                        user_id=str(state.get("user_id")) if state.get("user_id") else None,
                     )
-                    
-                    retrieval_trace = trace_logs
-                    retrieved_docs = [d.dict() for d in docs]
-                    
-                    if docs:
-                        context_str += "--- DEEP CONTEXT (RAG) ---\n"
-                        for i, d in enumerate(docs):
-                            fname = d.metadata.get("file_name", "Unknown File")
-                            pg = d.metadata.get("page", "?")
-                            context_str += f"[{i+1}] {fname} (p.{pg}):\n{d.page_content}\n\n"
-        except Exception as e:
+
+                    # Map gateway's "kb_id" (=collection_name) back to the
+                    # public DB id so downstream consumers don't see internals.
+                    for frag in knowledge_res.fragments:
+                        public_kb = collection_to_kb.get(frag.kb_id)
+                        if public_kb:
+                            frag.kb_id = public_kb
+                            if frag.citation:
+                                frag.citation.kb_id = public_kb
+
+                    retrieval_trace = knowledge_res.extensions.get("trace", []) or []
+                    retrieval_trace.extend(knowledge_res.warnings)
+                    retrieved_docs = [f.model_dump() for f in knowledge_res.fragments]
+
+                    if knowledge_res.fragments:
+                        context_str = (
+                            "--- DEEP CONTEXT (RAG) ---\n"
+                            + knowledge_res.to_prompt_context()
+                        )
+                        if knowledge_res.citations:
+                            context_str += "\n\n--- CITATIONS ---\n" + "\n".join(
+                                f"[^{c.citation_id}] {c.document_title or c.source_id}"
+                                + (f" (p.{c.page})" if c.page else "")
+                                for c in knowledge_res.citations
+                            )
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Retrieval work failed: {e}")
 
         import uuid
@@ -854,12 +956,90 @@ class SwarmOrchestrator:
             "context_data": context_str,
             "last_node_id": node_id,
             "retrieval_trace": retrieval_trace,
-            "retrieved_docs": retrieved_docs
+            "retrieved_docs": retrieved_docs,
         }
 
     # ============================================================
     #  Context Compaction Utilities (2.1H)
     # ============================================================
+
+    async def _compact_history(
+        self,
+        messages: List[BaseMessage],
+        *,
+        trigger_message_count: int = 18,
+        trigger_char_count: int = 14000,
+        keep_recent: int = 6,
+    ) -> List[BaseMessage]:
+        """LLM-driven summarisation of stale history.
+
+        When the conversation gets long enough that the cheap heuristic
+        prune can no longer keep us under budget, we ask the FAST tier
+        LLM to fold the older non-system messages into a single
+        ``SystemMessage`` summary. The most recent ``keep_recent``
+        messages are preserved verbatim so the agent retains short-term
+        focus and tool call/response coherence.
+
+        Failure of the summarisation call is non-fatal: we fall back to
+        returning the input unchanged.
+        """
+        if not messages:
+            return messages
+
+        non_system = [m for m in messages if not isinstance(m, SystemMessage)]
+        total_chars = sum(len(str(m.content)) for m in non_system)
+        if (
+            len(non_system) <= trigger_message_count
+            and total_chars <= trigger_char_count
+        ):
+            return messages
+
+        # Slice off the older window to compact.
+        if len(non_system) <= keep_recent:
+            return messages
+        head = non_system[:-keep_recent]
+        tail = non_system[-keep_recent:]
+        if not head:
+            return messages
+
+        # Render head into a compact transcript for the summariser.
+        transcript_lines = []
+        for m in head:
+            role = type(m).__name__.replace("Message", "").lower()
+            content = str(m.content)
+            if len(content) > 1200:
+                content = content[:1200] + "…"
+            transcript_lines.append(f"[{role}] {content}")
+        transcript = "\n".join(transcript_lines)
+
+        try:
+            llm = self.router.get_model(ModelTier.FAST)
+            prompt = (
+                "You are a context compactor. Summarise the following "
+                "agent/user transcript in <= 200 words. Preserve: user "
+                "goals, decisions made, tool outputs that affect future "
+                "steps, and any pending TODOs. Drop chit-chat.\n\n"
+                f"TRANSCRIPT:\n{transcript}\n\nSUMMARY:"
+            )
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            summary = str(getattr(response, "content", "") or "").strip()
+            if not summary:
+                return messages
+            logger.info(
+                f"🗜️ [Compaction] Folded {len(head)} msgs "
+                f"({total_chars} chars) → {len(summary)}-char summary."
+            )
+            system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+            digest = SystemMessage(
+                content=(
+                    "[Conversation summary so far — older history was "
+                    f"compacted to save tokens]\n{summary}"
+                )
+            )
+            return system_msgs + [digest] + tail
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Context compaction failed, keeping raw history: {e}")
+            return messages
 
     def _prune_messages(self, messages: List[BaseMessage], max_messages: int = 25, char_budget: int = 24000) -> List[BaseMessage]:
         """
@@ -961,6 +1141,37 @@ class SwarmOrchestrator:
             content = content.split("```")[1].split("```")[0].strip()
         return content.strip()
 
+    async def _enforce_budget(
+        self,
+        tenant_id: str,
+        *,
+        user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+    ) -> None:
+        """Trip the budget circuit-breaker if today's tenant spend is over quota.
+
+        Raises ``BudgetExceededError`` (-> HTTP 429). Best-effort: failure to
+        check the gate (e.g. DB unavailable) does NOT block the call.
+        """
+        try:
+            from app.core.database import get_db_session
+            from app.services.governance.token_accountant import get_budget_gate
+            gate = get_budget_gate()
+            async for session in get_db_session():
+                await gate.check(
+                    session, tenant_id,
+                    user_id=user_id, conversation_id=conversation_id,
+                )
+                break
+        except ImportError:
+            return
+        except Exception as exc:
+            from app.core.exceptions import BudgetExceededError
+            from app.services.governance.rate_limiter import RateLimitExceeded
+            if isinstance(exc, (BudgetExceededError, RateLimitExceeded)):
+                raise
+            logger.warning("Budget gate check failed (allowing): {}", exc)
+
     # ============================================================
     #  Main Entry Point
     # ============================================================
@@ -1006,12 +1217,27 @@ class SwarmOrchestrator:
             "status_update": None,
             "thought_log": None,
             "user_id": context.get("user_id") if context else None,
+            "tenant_id": (context or {}).get("tenant_id"),
         }
+
+        # Bind tenant for the lifetime of this graph run so every
+        # singleton (FlowMonitor / SemanticIdMapper / SkillMiner / ...)
+        # reads tenant-scoped state. Falls back to the active context
+        # tenant (set by the FastAPI dependency) when caller didn't pass one.
+        from app.core.tenant_context import (
+            get_current_tenant,
+            tenant_scope,
+        )
+        tenant_id = initial_state["tenant_id"] or get_current_tenant()
+        initial_state["tenant_id"] = tenant_id
+        user_id = initial_state.get("user_id")
 
         # Execute the graph with config for checkpointer
         config = {"configurable": {"thread_id": conversation_id}}
         assert self._graph is not None, "Graph must be compiled"
-        final_state = await self._graph.ainvoke(initial_state, config=config)
+        with tenant_scope(tenant_id, user_id=user_id, conversation_id=conversation_id):
+            await self._enforce_budget(tenant_id, user_id=user_id, conversation_id=conversation_id)
+            final_state = await self._graph.ainvoke(initial_state, config=config)
         return final_state
 
     async def invoke_stream(
@@ -1060,11 +1286,22 @@ class SwarmOrchestrator:
             "status_update": None,
             "thought_log": None,
             "user_id": context.get("user_id") if context else None,
+            "tenant_id": (context or {}).get("tenant_id"),
         }
+
+        from app.core.tenant_context import (
+            get_current_tenant,
+            tenant_scope,
+        )
+        tenant_id = initial_state["tenant_id"] or get_current_tenant()
+        initial_state["tenant_id"] = tenant_id
+        user_id = initial_state.get("user_id")
 
         # Use LangGraph's streaming mode with config
         config = {"configurable": {"thread_id": conversation_id}}
         assert self._graph is not None, "Graph must be compiled before invocation"
-        async for output in self._graph.astream(initial_state, config=config):
-            # output is a dict like {'node_name': {state_updates}}
-            yield output
+        with tenant_scope(tenant_id, user_id=user_id, conversation_id=conversation_id):
+            await self._enforce_budget(tenant_id, user_id=user_id, conversation_id=conversation_id)
+            async for output in self._graph.astream(initial_state, config=config):
+                # output is a dict like {'node_name': {state_updates}}
+                yield output

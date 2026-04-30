@@ -7,11 +7,16 @@ from datetime import datetime
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.models.tenant import DEFAULT_TENANT_ID
+
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(
+        default=DEFAULT_TENANT_ID, foreign_key="tenants.id", index=True
+    )
     username: str = Field(unique=True, index=True)
     email: str = Field(unique=True, index=True)
     hashed_password: str
@@ -27,6 +32,9 @@ class Conversation(SQLModel, table=True):
     __tablename__ = "conversations"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(
+        default=DEFAULT_TENANT_ID, foreign_key="tenants.id", index=True
+    )
     title: str = Field(default="New Conversation")
     user_id: str = Field(foreign_key="users.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

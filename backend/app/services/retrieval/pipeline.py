@@ -4,6 +4,7 @@ Retrieval Pipeline — Orchestrator for RAG Retrieval.
 from typing import List
 from .protocol import RetrievalContext
 from .steps import BaseRetrievalStep, HybridRetrievalStep, RerankingStep, ParentChunkExpansionStep, GraphRetrievalStep, AclFilterStep, PromptInjectionFilterStep, ContextualCompressionStep
+from .bm25_step import ContextualBM25Step
 from .preprocessing import QueryPreProcessingStep
 from app.core.vector_store import VectorDocument, SearchType
 
@@ -12,10 +13,13 @@ class RetrievalPipeline:
     Standard RAG Retrieval Pipeline.
     Steps:
     1. Query Analysis & Expansion
-    2. Hybrid Retrieval (Recall)
-    3. Cross-Encoder Reranking (Precision)
-    4. Parent Chunk Expansion (Contextualization)
-    5. Contextual Compression (Optimization)
+    2. Hybrid Retrieval (Recall — dense)
+    3. Contextual BM25 + RRF fusion (sparse complement over recall pool)
+    4. ACL filtering
+    5. Cross-Encoder Reranking (Precision)
+    6. Parent Chunk Expansion (Contextualization)
+    7. Contextual Compression (Optimization)
+    8. Prompt Injection guard
     """
     
     def __init__(self):
@@ -24,6 +28,7 @@ class RetrievalPipeline:
             QueryPreProcessingStep(use_hyde=True, rewrite_query=True),
             GraphRetrievalStep(),  # Inject Graph Facts first
             HybridRetrievalStep(),
+            ContextualBM25Step(),  # Sparse re-ordering of recall pool (Anthropic Contextual Retrieval)
             AclFilterStep(),       # 权限校验 (ACL Document Filtering)
             RerankingStep(),
             ParentChunkExpansionStep(),

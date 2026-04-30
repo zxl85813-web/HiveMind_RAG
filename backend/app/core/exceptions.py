@@ -114,6 +114,21 @@ class ExternalServiceError(AppError):
         )
 
 
+class BudgetExceededError(AppError):
+    """Tenant has consumed its daily token budget — circuit-breaker tripped."""
+
+    def __init__(self, tenant_id: str, used: int, limit: int):
+        super().__init__(
+            error_code="BUDGET_EXCEEDED",
+            message=(
+                f"Tenant '{tenant_id}' exceeded its daily token budget "
+                f"({used:,} / {limit:,} tokens). Try again tomorrow or upgrade your plan."
+            ),
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"tenant_id": tenant_id, "used": used, "limit": limit},
+        )
+
+
 # ==========================================
 #  全局异常处理器注册
 # ==========================================
@@ -142,6 +157,37 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "detail": exc.detail,
             },
         )
+
+    # Rate limiter raises a non-AppError exception so we wrap it explicitly.
+    try:
+        from app.services.governance.rate_limiter import RateLimitExceeded
+
+        @app.exception_handler(RateLimitExceeded)
+        async def rate_limit_handler(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
+            logger.warning(
+                "RateLimitExceeded: scope={} key={} {}/{}/{}s",
+                exc.scope, exc.key, exc.observed, exc.limit, exc.window_sec,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "error_code": "RATE_LIMITED",
+                    "message": (
+                        f"Rate limit exceeded ({exc.observed}/{exc.limit} per "
+                        f"{exc.window_sec}s). Slow down."
+                    ),
+                    "detail": {
+                        "scope": exc.scope,
+                        "limit": exc.limit,
+                        "window_sec": exc.window_sec,
+                        "observed": exc.observed,
+                    },
+                },
+                headers={"Retry-After": str(max(1, exc.window_sec))},
+            )
+    except Exception:  # noqa: BLE001
+        # rate_limiter module not importable in minimal envs — skip silently
+        pass
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:

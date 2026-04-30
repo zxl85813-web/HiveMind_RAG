@@ -25,7 +25,8 @@ import {
     SisternodeOutlined,
     RobotOutlined,
     DesktopOutlined,
-    ExportOutlined
+    ExportOutlined,
+    DashboardOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -82,6 +83,7 @@ export const AppLayout: React.FC = () => {
         { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined />, module: 'agent' },
         { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined />, module: 'rag' },
         { key: '/export', label: t('nav.export', '导出交付包'), icon: <ExportOutlined />, module: 'core' },
+        { key: '/usage', label: t('nav.usage', '用量与配额'), icon: <DashboardOutlined />, module: 'core' },
         { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined />, module: 'core' },
     ];
 

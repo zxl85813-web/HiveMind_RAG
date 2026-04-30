@@ -79,23 +79,64 @@ async def record_reflection(
 @tool
 async def search_knowledge_base(
     query: str,
-    top_k: int = 3
+    top_k: int = 3,
+    kb_ids: Optional[list[str]] = None,
 ) -> str:
-    """
-    Search the deep knowledge base (Vector Store) for specific technical details.
-    Use this if the initial context provided is insufficient.
+    """Search the unified knowledge gateway for relevant chunks.
+
+    Args:
+        query: Natural-language question.
+        top_k: How many top fragments to return (1-10).
+        kb_ids: Optional explicit knowledge base ids; omit to search all.
+
+    Returns a markdown block where every chunk is prefixed with a
+    ``[^citation_id]`` tag. The same ids are listed in a "Sources"
+    section at the bottom so the LLM can produce citation-aware answers
+    without inventing references.
     """
     try:
-        from app.services.retrieval import get_retrieval_service
-        retriever = get_retrieval_service()
-        docs = await retriever.retrieve(query, top_k=top_k)
-        if not docs:
-            return "No matching documents found in deep storage."
-        
-        results = []
-        for d in docs:
-            results.append(f"SOURCE: {d.metadata.get('source', 'Unknown')}\nCONTENT: {d.page_content}")
-        return "\n\n---\n\n".join(results)
+        from app.services.rag_gateway import get_rag_gateway
+
+        gateway = get_rag_gateway()
+        # If no explicit kb_ids, treat as "search all collections" — the
+        # gateway tolerates an empty list by returning a clear warning.
+        target_kbs = kb_ids or []
+        if not target_kbs:
+            try:
+                from app.services.retrieval.routing import KnowledgeBaseSelector
+                selected = await KnowledgeBaseSelector().select_kbs(query)
+                # Note: selector returns DB KB objects; their `vector_collection`
+                # is what the pipeline actually queries.
+                target_kbs = [
+                    kb.vector_collection
+                    for kb in selected
+                    if getattr(kb, "vector_collection", None)
+                ]
+            except Exception as routing_err:  # noqa: BLE001
+                logger.warning(f"KB routing fallback: {routing_err}")
+                target_kbs = []
+
+        response = await gateway.retrieve(
+            query=query,
+            kb_ids=target_kbs,
+            top_k=max(1, min(top_k, 10)),
+            strategy="hybrid",
+        )
+
+        if not response.fragments:
+            note = "; ".join(response.warnings) if response.warnings else ""
+            return f"No matching documents found in deep storage. {note}".strip()
+
+        body = response.to_prompt_context(max_chars=4000)
+        sources = "\n".join(
+            f"- [^{c.citation_id}] {c.document_title or c.source_id}"
+            + (f" (p.{c.page})" if c.page else "")
+            for c in response.top_sources(limit=top_k)
+        )
+        confidence_pct = round(response.confidence * 100)
+        return (
+            f"{body}\n\n--- Sources (confidence ~{confidence_pct}%) ---\n{sources}"
+        )
     except Exception as e:
         logger.error(f"Error in search_knowledge_base: {e}")
         return f"Retrieval error: {str(e)}"
@@ -113,42 +154,97 @@ async def web_search(
     return f"Default search result for '{query}': (Mock result) DeepSeek-V3 and GPT-4o are current state-of-the-art models as of February 2026."
 
 @tool
-async def search_available_tools(
-    query: str
-) -> str:
+async def search_available_tools(query: str) -> str:
+    """Search the SkillRegistry catalogue for tools matching ``query``.
+
+    This is the Tier 1 step of progressive disclosure: returns only
+    name + summary + tags, so the Agent can decide whether to drill in
+    via ``inspect_skill``.
     """
-    Search for specialized tools or skills in the platform catalog.
-    Use this if NATIVE_TOOLS are insufficient for the task.
-    Returns tool names and descriptions.
+    try:
+        from app.skills.registry import get_skill_registry
+
+        registry = get_skill_registry()
+        if not registry.list_skills():
+            await registry.load_all()
+        rows = registry.catalog(query=query, limit=8)
+        if not rows:
+            return f"No skills match '{query}'."
+        lines = []
+        for r in rows:
+            tags = f" #{' #'.join(r['tags'])}" if r.get("tags") else ""
+            lines.append(
+                f"- **{r['name']}** (v{r['version']}, {r['tool_count']} tools){tags}\n"
+                f"  {r['summary']}"
+            )
+        return "Found candidate skills:\n" + "\n".join(lines)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"search_available_tools failed: {e}")
+        return f"Skill catalog error: {e}"
+
+
+@tool
+async def inspect_skill(name: str) -> str:
+    """Tier 2 progressive disclosure: read the full SKILL.md + tool list.
+
+    Call this only after ``search_available_tools`` identifies a
+    candidate. Returns markdown documentation describing how to invoke
+    each tool the skill ships.
     """
-    logger.info(f"🔍 [ToolDiscovery] Searching for: {query}")
-    # In a real impl, this would query MCPManager and SkillRegistry metadata
-    return (
-        "Found specialized tools:\n"
-        "- 'sql_query_executor': Execute read-only SQL queries on the production DB.\n"
-        "- 'image_generator': Generate visual assets from text prompts.\n"
-        "- 'artifact_publisher': Create and publish versioned artifacts to the team."
-    )
+    try:
+        from app.skills.registry import get_skill_registry
+
+        registry = get_skill_registry()
+        if not registry.list_skills():
+            await registry.load_all()
+        detail = registry.inspect(name)
+        if not detail:
+            return f"Skill `{name}` not found."
+        tools_md = "\n".join(
+            f"- `{t['name']}` — {t.get('description', '')}" for t in detail["tools"]
+        ) or "(no tools)"
+        body = (detail.get("details") or "").strip()
+        if len(body) > 4000:
+            body = body[:4000] + "\n…[truncated]"
+        return (
+            f"# {detail['name']} (v{detail['version']})\n"
+            f"{detail['summary']}\n\n"
+            f"## Tools\n{tools_md}\n\n"
+            f"## Documentation\n{body}"
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"inspect_skill failed: {e}")
+        return f"Inspect error: {e}"
 
 @tool
 async def python_interpreter(
-    code: str
+    code: str,
+    timeout_seconds: float = 5.0,
 ) -> str:
+    """Execute Python in a sandboxed runtime — Anthropic Code Mode.
+
+    Use this to filter / aggregate large tool returns (CSV rows, JSON
+    arrays, search hits) **without** dragging the raw payload through
+    your context window. The runtime:
+
+    - allows `json`, `re`, `math`, `statistics` and pure builtins;
+    - blocks `import`, `open`, `eval`, `exec`, file IO and dunder
+      access (validated via AST before running);
+    - captures `print()` output and the value of the trailing
+      expression (REPL-style);
+    - enforces a wall-clock timeout (default 5s, max 30s).
+
+    Returns a brief markdown report with stdout, the trailing value,
+    and elapsed time.
     """
-    Execute Python code in a sandboxed-like environment. 
-    Use this for complex calculations, data transformation, or programmatic tool orchestration.
-    The code has access to 'logger' and 'json'.
-    """
-    logger.info(f"🐍 [PythonExecutor] Running code block...")
-    # Simulation of a REPL. In production, use a secure sandbox like E2B or Modal.
-    try:
-        # Restricted globals
-        safe_globals = {"logger": logger, "json": json}
-        # In a real impl, we'd capture stdout
-        exec(code, safe_globals)
-        return "Code executed successfully. Check logs for outputs if any."
-    except Exception as e:
-        return f"Error executing Python: {str(e)}"
+    from app.services.sandbox import get_code_mode_runner
+
+    timeout = max(0.5, min(float(timeout_seconds), 30.0))
+    logger.info(f"🐍 [CodeMode] Running snippet (timeout={timeout:g}s)...")
+    result = get_code_mode_runner().run(code, timeout_s=timeout)
+    if not result.ok:
+        logger.warning(f"🐍 [CodeMode] {result.error}")
+    return result.to_text()
 
 @tool
 async def think(
@@ -166,4 +262,18 @@ async def think(
     return "Thought recorded. You may now proceed with your planned actions."
 
 # Export tools
-NATIVE_TOOLS = [add_collective_todo, record_reflection, search_knowledge_base, web_search, think, search_available_tools, python_interpreter]
+from app.agents.jit_navigation import KB_JIT_TOOLS
+from app.agents.search_subagents import spawn_search_subagents
+
+NATIVE_TOOLS = [
+    add_collective_todo,
+    record_reflection,
+    search_knowledge_base,
+    web_search,
+    think,
+    search_available_tools,
+    inspect_skill,
+    python_interpreter,
+    spawn_search_subagents,
+    *KB_JIT_TOOLS,
+]

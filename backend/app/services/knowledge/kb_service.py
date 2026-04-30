@@ -11,13 +11,22 @@ from sqlmodel import select, or_
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink
 from app.models.security import KnowledgeBasePermission
 from app.models.chat import User
+from app.models.tenant import DEFAULT_TENANT_ID
 from app.core.exceptions import NotFoundError
+from app.core.tenant_context import get_current_tenant
+
+
+def _tenant_of(obj) -> str:
+    return getattr(obj, "tenant_id", None) or DEFAULT_TENANT_ID
 
 class KnowledgeService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def create_kb(self, kb: KnowledgeBase) -> KnowledgeBase:
+        # Stamp the active tenant if the caller didn't supply one.
+        if not getattr(kb, "tenant_id", None):
+            kb.tenant_id = get_current_tenant()
         self.session.add(kb)
         await self.session.commit()
         await self.session.refresh(kb)
@@ -37,14 +46,17 @@ class KnowledgeService:
 
     async def get_kb(self, kb_id: str) -> KnowledgeBase:
         kb = await self.session.get(KnowledgeBase, kb_id)
-        if not kb:
+        # Treat cross-tenant hits as not-found so we don't leak existence.
+        if not kb or _tenant_of(kb) != get_current_tenant():
             raise NotFoundError(resource="knowledge_base", resource_id=kb_id)
         return kb
 
     async def list_kbs(self, current_user: User) -> Sequence[KnowledgeBase]:
         """List all knowledge bases that the user has read access to."""
+        tenant_id = _tenant_of(current_user)
         if current_user.role == "admin":
-            statement = select(KnowledgeBase)
+            # Admin is scoped to their own tenant — never cross tenants.
+            statement = select(KnowledgeBase).where(KnowledgeBase.tenant_id == tenant_id)
         else:
             # Accessible if user is owner, or public, or has read permission based on user/role/department
             conditions = [
@@ -63,7 +75,10 @@ class KnowledgeService:
             )
             conditions.append(KnowledgeBase.id.in_(acl_stmt))
             
-            statement = select(KnowledgeBase).where(or_(*conditions))
+            statement = select(KnowledgeBase).where(
+                KnowledgeBase.tenant_id == tenant_id,
+                or_(*conditions),
+            )
             
         res = await self.session.execute(statement)
         return res.scalars().all()
@@ -75,12 +90,16 @@ class KnowledgeService:
         
     async def check_kb_access(self, kb_id: str, user: User, level: str = "read") -> bool:
         """Check if user has specific access level to KB."""
-        if user.role == "admin":
-            return True
-            
         kb = await self.session.get(KnowledgeBase, kb_id)
         if not kb:
             return False
+
+        # Tenant boundary: cross-tenant access is denied even for admins.
+        if _tenant_of(kb) != _tenant_of(user):
+            return False
+
+        if user.role == "admin":
+            return True
             
         if kb.is_public and level == "read":
             return True
@@ -109,6 +128,8 @@ class KnowledgeService:
 
     async def create_document(self, doc: Document) -> Document:
         """Create a new global document entry."""
+        if not getattr(doc, "tenant_id", None):
+            doc.tenant_id = get_current_tenant()
         self.session.add(doc)
         await self.session.commit()
         await self.session.refresh(doc)
@@ -116,7 +137,7 @@ class KnowledgeService:
         
     async def get_document(self, doc_id: str) -> Document:
         doc = await self.session.get(Document, doc_id)
-        if not doc:
+        if not doc or _tenant_of(doc) != get_current_tenant():
             raise NotFoundError(resource="document", resource_id=doc_id)
         return doc
 

@@ -16,12 +16,13 @@ from app.core.config import settings
 router = APIRouter()
 
 # ── CORE: Always available ──────────────────────────────────
-from app.api.routes import health, chat, websocket, settings as settings_routes
+from app.api.routes import health, chat, websocket, settings as settings_routes, tenants
 
 router.include_router(health.router, prefix="/health", tags=["Health"])
 router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
+router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 
 # ── SHARED: Available in all modes ──────────────────────────
 from app.api.routes import memory, tags, security, audit, audit_v3, export
@@ -32,6 +33,10 @@ router.include_router(security.router, prefix="/security", tags=["Security & Des
 router.include_router(audit.router, prefix="/audit", tags=["Data Quality Audit"])
 router.include_router(audit_v3.router, prefix="/audit/v3", tags=["V3 Swarm Audit"])
 router.include_router(export.router, prefix="/export", tags=["Blueprint Export"])
+
+# ── GOVERNANCE: Trace analytics, rainbow ops ────────────────
+from app.services.governance import trace_router
+router.include_router(trace_router, tags=["Governance"])
 
 # ── RAG MODULE: Knowledge retrieval, ingestion, evaluation ──
 if settings.rag_enabled:

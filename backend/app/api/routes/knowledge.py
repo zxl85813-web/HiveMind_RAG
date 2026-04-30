@@ -21,8 +21,12 @@ from app.common.response import ApiResponse
 from app.core.database import engine
 from app.core.exceptions import AppError, NotFoundError
 from app.services.retrieval.pipeline import get_retrieval_service
-from app.services.rag_gateway import RAGGateway
-from app.schemas.knowledge_protocol import KnowledgeResponse, KBStatus
+from app.services.rag_gateway import RAGGateway, get_rag_gateway
+from app.schemas.knowledge_protocol import (
+    KnowledgeResponse,
+    KBStatus,
+    KnowledgeRetrieveRequest,
+)
 
 router = APIRouter()
 
@@ -72,58 +76,127 @@ class SearchRequest(BaseModel):
     top_k: int = 5
     search_type: str = "hybrid"  # vector, bm25, hybrid
 
-class SearchResponse(BaseModel):
-    results: list[dict[str, Any]]
-    context_log: list[str]
 
-@router.post("/{kb_id}/search", response_model=ApiResponse[SearchResponse])
+@router.post("/{kb_id}/search", response_model=ApiResponse[KnowledgeResponse])
 async def search_knowledge_base(
     kb_id: str,
     request: SearchRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Search a specific knowledge base using the Retrieval Pipeline.
-    This replaces the raw vector store search, incorporating query rewrite and reranking.
+    """Search a single knowledge base via the unified RAG Gateway.
+
+    Returns the v2 ``KnowledgeResponse`` protocol (fragments + citations
+    + confidence). Front-ends should read ``data.fragments`` for the
+    chunk list and ``data.citations`` for source pointers.
     """
     from app.core.database import async_session_factory
+
     async with async_session_factory() as session:
         kb = await session.get(KnowledgeBase, kb_id)
         if not kb:
             raise NotFoundError(resource="Knowledge Base", id=kb_id)
-        
+
         service = KnowledgeService(session)
         if not await service.check_kb_access(kb_id, current_user, level="read"):
-            raise HTTPException(status_code=403, detail="Not authorized to search this knowledge base")
+            raise HTTPException(
+                status_code=403,
+                detail="Not authorized to search this knowledge base",
+            )
+        collection_name = kb.vector_collection or kb_id
 
-    gateway = RAGGateway()
-    
+    gateway = get_rag_gateway()
     knowledge_res = await gateway.retrieve(
         query=request.query,
-        kb_ids=[kb_id],
+        kb_ids=[collection_name],
         top_k=request.top_k,
-        strategy=request.search_type
+        strategy=request.search_type,
+        user_id=str(current_user.id) if current_user else None,
+        is_admin=getattr(current_user, "is_admin", False),
     )
-    
+    # Echo the public KB id so consumers can correlate (gateway only sees collections).
+    for frag in knowledge_res.fragments:
+        if frag.kb_id == collection_name:
+            frag.kb_id = kb_id
+            if frag.citation:
+                frag.citation.kb_id = kb_id
+    knowledge_res.kb_ids = [kb_id]
     return ApiResponse.ok(data=knowledge_res)
+
+
+@router.post("/retrieve", response_model=ApiResponse[KnowledgeResponse])
+async def smart_retrieve(
+    request: KnowledgeRetrieveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Smart multi-KB retrieval through the RAG Gateway.
+
+    - When ``kb_ids`` is provided, retrieval is scoped to those KBs.
+    - When omitted, the gateway falls back to all KBs the caller can read.
+    - Returns the unified ``KnowledgeResponse`` protocol.
+    """
+    service = KnowledgeService(db)
+    if request.kb_ids:
+        # Filter out KBs the user has no access to so we don't leak.
+        allowed: list[str] = []
+        for kb_id in request.kb_ids:
+            if await service.check_kb_access(kb_id, current_user, level="read"):
+                allowed.append(kb_id)
+        target_kb_ids = allowed
+    else:
+        all_kbs = await service.list_kbs(current_user)
+        target_kb_ids = [kb.id for kb in all_kbs]
+
+    if not target_kb_ids:
+        raise HTTPException(
+            status_code=403,
+            detail="No accessible knowledge base for this query.",
+        )
+
+    # Resolve KB ids -> vector collection names for the retrieval pipeline.
+    kb_id_to_collection: dict[str, str] = {}
+    for kid in target_kb_ids:
+        kb = await db.get(KnowledgeBase, kid)
+        if kb and kb.vector_collection:
+            kb_id_to_collection[kid] = kb.vector_collection
+
+    if not kb_id_to_collection:
+        raise HTTPException(
+            status_code=404, detail="No KB has a backing vector collection."
+        )
+
+    gateway = get_rag_gateway()
+    knowledge_res = await gateway.retrieve(
+        query=request.query,
+        kb_ids=list(kb_id_to_collection.values()),
+        top_k=request.top_k,
+        strategy=request.strategy,
+        user_id=str(current_user.id) if current_user else None,
+        is_admin=getattr(current_user, "is_admin", False),
+        max_context_chars=request.max_context_chars,
+    )
+    # Map collection names back to public KB ids for caller convenience.
+    collection_to_kb = {v: k for k, v in kb_id_to_collection.items()}
+    for frag in knowledge_res.fragments:
+        public_kb = collection_to_kb.get(frag.kb_id)
+        if public_kb:
+            frag.kb_id = public_kb
+            if frag.citation:
+                frag.citation.kb_id = public_kb
+    knowledge_res.kb_ids = list(kb_id_to_collection.keys())
+    return ApiResponse.ok(data=knowledge_res)
+
 
 @router.get("/{kb_id}/health", response_model=ApiResponse[KBStatus])
 async def get_kb_health(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    """Get the health status and circuit breaker state of a KB."""
-    gateway = RAGGateway()
-    # Mocking score calculation for now
-    is_tripped = gateway._is_circuit_open(kb_id)
-    
-    return ApiResponse.ok(data=KBStatus(
-        kb_id=kb_id,
-        is_healthy=not is_tripped,
-        score_avg=0.95,
-        circuit_tripped=is_tripped
-    ))
+    """Per-KB health snapshot from the gateway breaker."""
+    gateway = get_rag_gateway()
+    status = await gateway.health(kb_id)
+    return ApiResponse.ok(data=status)
 
 @router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBase])
 async def get_knowledge_base(

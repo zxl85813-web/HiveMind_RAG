@@ -13,13 +13,14 @@ from alembic import context
 from sqlmodel import SQLModel
 
 # 导入所有 Model 以便 Alembic 正确识别 Schema 变更
+from app.models.tenant import Tenant, TenantQuota
+from app.models.usage import TenantUsageDaily
 from app.models.chat import User, Conversation, Message
 from app.models.knowledge import KnowledgeBase, Document, KnowledgeBaseDocumentLink, DocumentChunk
 from app.models.agents import TodoItem, ReflectionEntry
 from app.models.tags import Tag, TagCategory, DocumentTagLink
 from app.models.security import DesensitizationPolicy, DesensitizationReport, SensitiveItem, DocumentPermission, AuditLog
 from app.models.evaluation import EvaluationSet, EvaluationItem, EvaluationReport, BadCase
-from app.models.pipeline_log import PipelineJob, PipelineStageLog
 from app.models.pipeline_config import PipelineConfig
 from app.core.config import settings
 

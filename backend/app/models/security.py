@@ -130,6 +130,7 @@ class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_logs"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tenant_id: str = Field(default="default", foreign_key="tenants.id", index=True)
     user_id: Optional[str] = Field(default=None, index=True)
     action: str = Field(index=True) # E.g., read_document, delete_kb, update_acl, detect_injection
     resource_type: str # document, knowledge_base, query
