@@ -26,7 +26,8 @@ import {
     RobotOutlined,
     DesktopOutlined,
     ExportOutlined,
-    DashboardOutlined
+    DashboardOutlined,
+    ApartmentOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +80,9 @@ export const AppLayout: React.FC = () => {
         { key: '/finetuning', label: t('nav.finetuning'), icon: <FolderOpenOutlined />, module: 'rag' },
         { key: '/pipelines', label: t('nav.pipelines'), icon: <SisternodeOutlined />, module: 'rag' },
         { key: '/studio', label: t('nav.studio'), icon: <RocketOutlined />, module: 'agent' },
+        { key: '/studio/builder', label: t('nav.builder', 'Agent 助手'), icon: <RobotOutlined />, module: 'agent' },
         { key: '/agents', label: t('nav.agents'), icon: <ClusterOutlined />, module: 'agent' },
+        { key: '/capabilities', label: t('nav.capabilities', '能力中心'), icon: <ApartmentOutlined />, module: 'agent' },
         { key: '/batch', label: t('nav.batch'), icon: <ClusterOutlined />, module: 'agent' },
         { key: '/learning', label: t('nav.learning'), icon: <BulbOutlined />, module: 'rag' },
         { key: '/export', label: t('nav.export', '导出交付包'), icon: <ExportOutlined />, module: 'core' },

@@ -12,3 +12,4 @@ from .sync import SyncTask
 from .pipeline_config import PipelineConfig
 from .observability import IngestionBatch, FileTrace, AgentSpan
 from .quote import Quote
+from .builder import AgentConfig, BuilderSession, EvalHarness, SandboxSession

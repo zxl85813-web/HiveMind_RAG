@@ -89,6 +89,68 @@ if (import.meta.env.VITE_USE_MOCK === 'true') {
                     });
                 }
             }
+
+            // DELETE /agents/mcp/servers/{name} → return synthetic success (mock-only)
+            if (pureUrl && config.method?.toUpperCase() === 'DELETE'
+                && /^\/agents\/mcp\/servers\/[^/]+$/.test(pureUrl)) {
+                const name = decodeURIComponent(pureUrl.split('/').pop() || '');
+                console.log(`🎯 [Mock] Dynamic DELETE: ${key}`);
+                await sleep(400);
+                config.adapter = async () => ({
+                    data: { success: true, data: { name, deleted: true }, message: 'Deleted (mock)' },
+                    status: 200,
+                    statusText: 'OK',
+                    headers: {},
+                    config,
+                });
+            }
+
+            // DELETE /agents/swarm/agents/{name} → return synthetic success (mock-only)
+            if (pureUrl && config.method?.toUpperCase() === 'DELETE'
+                && /^\/agents\/swarm\/agents\/[^/]+$/.test(pureUrl)) {
+                const name = decodeURIComponent(pureUrl.split('/').pop() || '');
+                console.log(`🎯 [Mock] Dynamic DELETE agent: ${key}`);
+                await sleep(300);
+                config.adapter = async () => ({
+                    data: { success: true, data: { name, deleted: true }, message: 'Deleted (mock)' },
+                    status: 200,
+                    statusText: 'OK',
+                    headers: {},
+                    config,
+                });
+            }
+
+            // DELETE /agents/skills/{name} → mock uninstall
+            if (pureUrl && config.method?.toUpperCase() === 'DELETE'
+                && /^\/agents\/skills\/[^/]+$/.test(pureUrl)) {
+                const name = decodeURIComponent(pureUrl.split('/').pop() || '');
+                console.log(`🎯 [Mock] Dynamic DELETE skill: ${key}`);
+                await sleep(300);
+                config.adapter = async () => ({
+                    data: { success: true, data: { name, deleted: true, files_removed: true }, message: 'Skill uninstalled (mock)' },
+                    status: 200,
+                    statusText: 'OK',
+                    headers: {},
+                    config,
+                });
+            }
+
+            // POST /agents/skills/{name}/toggle → mock enable/disable
+            if (pureUrl && config.method?.toUpperCase() === 'POST'
+                && /^\/agents\/skills\/[^/]+\/toggle/.test(pureUrl)) {
+                const path = pureUrl.split('?')[0];
+                const name = decodeURIComponent(path.split('/').slice(-2)[0] || '');
+                const enabled = /enabled=true/i.test(pureUrl);
+                console.log(`🎯 [Mock] Dynamic POST toggle skill: ${key}`);
+                await sleep(200);
+                config.adapter = async () => ({
+                    data: { success: true, data: { name, enabled }, message: 'Skill toggled (mock)' },
+                    status: 200,
+                    statusText: 'OK',
+                    headers: {},
+                    config,
+                });
+            }
         }
         return config;
     });

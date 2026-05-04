@@ -95,6 +95,42 @@ class MCPManager:
         self._tools.clear()
         logger.info("Disconnected from all MCP servers")
 
+    async def reconnect_all(self, config_path: str | None = None) -> None:
+        """
+        Disconnect everything and reconnect from a (possibly updated) config file.
+        Used by the management API after CRUD changes.
+        """
+        try:
+            await self.disconnect_all()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Disconnect during reconnect raised: {e}")
+        # Reset exit stack since aclose() invalidated the previous one
+        self._exit_stack = AsyncExitStack()
+        if config_path:
+            await self.load_config(config_path)
+        await self.connect_all()
+        logger.info("🔁 MCP servers reconnected after config change")
+
+    def get_servers_config(self) -> dict[str, dict]:
+        """Return the in-memory copy of all server configs."""
+        return dict(self._servers)
+
+    def update_server_config(self, name: str, config: dict) -> None:
+        """Add or replace a single server's config (in-memory only)."""
+        self._servers[name] = config
+
+    def remove_server_config(self, name: str) -> bool:
+        """Remove a single server config (in-memory only). Returns True if existed."""
+        return self._servers.pop(name, None) is not None
+
+    @staticmethod
+    def persist_config(config_path: str, servers: dict[str, dict]) -> None:
+        """Write the merged servers map back to the JSON file."""
+        path = Path(config_path)
+        payload = {"mcpServers": servers}
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info(f"💾 Persisted {len(servers)} MCP server(s) to {config_path}")
+
     def get_tools(self, server_name: str | None = None) -> list[Any]:
         """
         Get available tools, optionally filtered by server.

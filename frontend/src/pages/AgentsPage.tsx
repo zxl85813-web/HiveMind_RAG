@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex } from 'antd';
+import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, Button, Modal, Form, Input, Select, message } from 'antd';
 import {
     ClusterOutlined,
     MessageOutlined,
@@ -10,14 +10,17 @@ import {
     SyncOutlined,
     BulbOutlined,
     CompassOutlined,
-    ShareAltOutlined
+    ShareAltOutlined,
+    ApartmentOutlined,
+    PlusOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { PageContainer, StatCard } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
 import { AgentDAGVisualizer } from '../components/agents/AgentDAGVisualizer';
+import { SwarmTopologyMap } from '../components/agents/SwarmTopologyMap';
 import type { DAGData } from '../components/agents/AgentDAGVisualizer';
-import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats, type TodoItem } from '../services/agentApi';
+import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats, type TodoItem, type TopologyData } from '../services/agentApi';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -34,6 +37,14 @@ export const AgentsPage: React.FC = () => {
     const [todos, setTodos] = useState<TodoItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [dagData, setDagData] = useState<DAGData>({ nodes: [], links: [] });
+    const [topologyData, setTopologyData] = useState<TopologyData>({ nodes: [], links: [] });
+    const [topologyLoading, setTopologyLoading] = useState(false);
+
+    // === Agent CRUD ===
+    const [agentModalOpen, setAgentModalOpen] = useState(false);
+    const [agentModalMode, setAgentModalMode] = useState<'create' | 'update'>('create');
+    const [agentSubmitting, setAgentSubmitting] = useState(false);
+    const [agentForm] = Form.useForm<{ name: string; description: string; model_hint: string; skillsText: string }>();
 
     const fetchData = async () => {
         setLoading(true);
@@ -65,8 +76,74 @@ export const AgentsPage: React.FC = () => {
         }
     };
 
+    const fetchTopology = async () => {
+        setTopologyLoading(true);
+        try {
+            const res = await agentApi.getTopology();
+            setTopologyData(res.data.data || { nodes: [], links: [] });
+        } catch (err) {
+            console.error('Failed to fetch topology:', err);
+        } finally {
+            setTopologyLoading(false);
+        }
+    };
+
+    const openCreateAgent = () => {
+        setAgentModalMode('create');
+        agentForm.resetFields();
+        agentForm.setFieldsValue({ model_hint: 'balanced' });
+        setAgentModalOpen(true);
+    };
+
+    const openEditAgent = (agent: AgentInfo) => {
+        setAgentModalMode('update');
+        agentForm.setFieldsValue({
+            name: agent.name,
+            description: agent.description,
+            model_hint: agent.model_hint || 'balanced',
+            skillsText: (agent.skills || []).join(', '),
+        });
+        setAgentModalOpen(true);
+    };
+
+    const submitAgent = async () => {
+        const values = await agentForm.validateFields();
+        const skills = values.skillsText
+            ? values.skillsText.split(/[,、\s]+/).filter(Boolean)
+            : [];
+        setAgentSubmitting(true);
+        try {
+            await agentApi.upsertAgent({
+                name: values.name.trim(),
+                description: values.description.trim(),
+                skills,
+                model_hint: values.model_hint || null,
+            });
+            message.success(`Agent 已${agentModalMode === 'create' ? '创建' : '更新'}`);
+            setAgentModalOpen(false);
+            await Promise.all([fetchData(), fetchTopology()]);
+        } catch (e: any) {
+            message.error(e?.response?.data?.detail || '保存失败');
+            console.error(e);
+        } finally {
+            setAgentSubmitting(false);
+        }
+    };
+
+    const deleteAgent = async (name: string) => {
+        try {
+            await agentApi.deleteAgent(name);
+            message.success(`已删除 Agent: ${name}`);
+            await Promise.all([fetchData(), fetchTopology()]);
+        } catch (e: any) {
+            message.error(e?.response?.data?.detail || '删除失败');
+            console.error(e);
+        }
+    };
+
     useEffect(() => {
         fetchData();
+        fetchTopology();
         const timer = setInterval(fetchData, 10000); // Refresh every 10s
         return () => clearInterval(timer);
     }, []);
@@ -192,12 +269,17 @@ export const AgentsPage: React.FC = () => {
             </Row>
 
             {/* Agent 列表 */}
-            <Title level={4} style={{ marginTop: '24px' }}>
-                <Badge dot status="processing" offset={[10, 0]}>
-                    <ClusterOutlined /> {t('agents.clusters')}
-                </Badge>
-            </Title>
-            <Row gutter={[16, 16]}>
+            <Flex justify="space-between" align="center" style={{ marginTop: '24px' }}>
+                <Title level={4} style={{ margin: 0 }}>
+                    <Badge dot status="processing" offset={[10, 0]}>
+                        <ClusterOutlined /> {t('agents.clusters')}
+                    </Badge>
+                </Title>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreateAgent}>
+                    添加 Agent
+                </Button>
+            </Flex>
+            <Row gutter={[16, 16]} style={{ marginTop: 12 }}>
                 {agents.map((agent) => (
                     <Col key={agent.name} xs={24} sm={12} lg={8}>
                         <AgentCard
@@ -205,10 +287,48 @@ export const AgentsPage: React.FC = () => {
                             description={agent.description}
                             icon={agent.icon}
                             status={agent.status}
+                            skills={agent.skills}
+                            tools={agent.tools}
+                            model_hint={agent.model_hint}
+                            built_in={agent.built_in}
+                            onEdit={() => openEditAgent(agent)}
+                            onDelete={() => deleteAgent(agent.name)}
                         />
                     </Col>
                 ))}
             </Row>
+
+            {/* 能力拓扑图 */}
+            <Title level={4} style={{ marginTop: '36px' }}>
+                <Badge dot status="warning" offset={[10, 0]}>
+                    <ApartmentOutlined /> 能力拓扑图 (Capability Topology)
+                </Badge>
+            </Title>
+            <Card
+                title={
+                    <Space split={<Text type="secondary" style={{ fontWeight: 'normal' }}>|</Text>}>
+                        <span style={{ color: '#a855f7' }}><ApartmentOutlined /> Agent → Skill → Tool 关系图谱</span>
+                        <Text type="secondary" style={{ fontSize: '12px', fontWeight: 'normal' }}>
+                            可视化展示每个 Agent 绑定的 Skill 能力包与可调用的 MCP 工具
+                        </Text>
+                    </Space>
+                }
+                extra={
+                    <Tooltip title="刷新拓扑">
+                        <SyncOutlined spin={topologyLoading} onClick={fetchTopology} style={{ cursor: 'pointer', color: '#a855f7' }} />
+                    </Tooltip>
+                }
+                style={{ borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid #1f1f1f' }}
+                styles={{ body: { padding: 0, height: '480px', overflow: 'hidden', borderRadius: '0 0 12px 12px' } }}
+            >
+                {topologyData.nodes.length > 0 ? (
+                    <SwarmTopologyMap data={topologyData} height={480} />
+                ) : (
+                    <Flex justify="center" align="center" style={{ height: '100%' }}>
+                        <Empty description="暂无能力拓扑数据 (Agent 未注册 Skill 或 Tool)" />
+                    </Flex>
+                )}
+            </Card>
 
             <Title level={4} style={{ marginTop: '36px' }}>
                 <Badge dot status="success" offset={[10, 0]}>
@@ -260,6 +380,56 @@ export const AgentsPage: React.FC = () => {
                     </Card>
                 </Col>
             </Row>
+
+            {/* Agent 添加/编辑 Modal */}
+            <Modal
+                title={<Space><PlusOutlined /> {agentModalMode === 'create' ? '添加 Agent' : '编辑 Agent'}</Space>}
+                open={agentModalOpen}
+                onCancel={() => setAgentModalOpen(false)}
+                onOk={submitAgent}
+                confirmLoading={agentSubmitting}
+                okText={agentModalMode === 'create' ? '创建' : '保存'}
+                width={580}
+                destroyOnClose
+            >
+                <Form form={agentForm} layout="vertical" preserve={false}>
+                    <Form.Item
+                        name="name"
+                        label="Agent 名称"
+                        rules={[
+                            { required: true, message: '请输入 agent 名称' },
+                            { pattern: /^[a-z][a-z0-9_]*$/i, message: '只允许字母/数字/下划线，且字母开头' },
+                        ]}
+                        extra="作为 Supervisor 路由时的唯一标识"
+                    >
+                        <Input placeholder="data_analyst" disabled={agentModalMode === 'update'} />
+                    </Form.Item>
+                    <Form.Item
+                        name="description"
+                        label="能力描述"
+                        rules={[{ required: true, message: '请输入描述' }]}
+                        extra="Supervisor 会根据这段描述决定何时调度该 Agent，请尽量准确"
+                    >
+                        <Input.TextArea rows={3} placeholder="负责数据分析、统计建模和图表生成。" />
+                    </Form.Item>
+                    <Form.Item name="model_hint" label="模型层级" initialValue="balanced">
+                        <Select
+                            options={[
+                                { value: 'fast', label: 'Fast — 低延迟轻量模型' },
+                                { value: 'balanced', label: 'Balanced — 通用模型 (默认)' },
+                                { value: 'reasoning', label: 'Reasoning — 推理增强模型' },
+                            ]}
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        name="skillsText"
+                        label="绑定的 Skills (用逗号分隔)"
+                        extra="Skill 名称需在能力中心存在，否则将被忽略"
+                    >
+                        <Input placeholder="rag_qa, doc_summary" />
+                    </Form.Item>
+                </Form>
+            </Modal>
         </PageContainer>
     );
 };

@@ -13,11 +13,11 @@ export const mockKBs = Array.from({ length: 25 }).map((_, i) => ({
 
 // 2. Agents Mock Data (Full Team)
 export const mockAgents = [
-    { name: 'Supervisor', description: '集群总控编排器，负责复杂任务分解与全局状态监控', status: 'idle', icon: '🐝' },
-    { name: 'RAG-Specialist', description: '知识库检索专家，负责 Hybrid Search 与 Rerank 优化', status: 'processing', icon: '📚' },
-    { name: 'Code-Architect', description: '代码生成专家，精通多语言高性能系统架构设计', status: 'idle', icon: '🏗️' },
-    { name: 'Critic-Agent', description: '质量与合规性审查 Agent，负责生成的最后一道防线', status: 'reflecting', icon: '⚖️' },
-    { name: 'Discovery-Bot', description: '开源情报搜集器，负责监控 GitHub/Reddit 技术趋势', status: 'idle', icon: '🔭' }
+    { name: 'Supervisor', description: '集群总控编排器，负责复杂任务分解与全局状态监控', status: 'idle', icon: '🐝', skills: [], tools: [], model_hint: 'balanced', built_in: true },
+    { name: 'RAG-Specialist', description: '知识库检索专家，负责 Hybrid Search 与 Rerank 优化', status: 'processing', icon: '📚', skills: ['rag_qa', 'doc_summary'], tools: ['hybrid_search', 'rerank', 'read_file'], model_hint: 'balanced', built_in: true },
+    { name: 'Code-Architect', description: '代码生成专家，精通多语言高性能系统架构设计', status: 'idle', icon: '🏗️', skills: ['code_review'], tools: ['write_file', 'list_directory'], model_hint: 'reasoning', built_in: true },
+    { name: 'Critic-Agent', description: '质量与合规性审查 Agent，负责生成的最后一道防线', status: 'reflecting', icon: '⚖️', skills: ['rag_qa'], tools: [], model_hint: 'fast', built_in: true },
+    { name: 'Discovery-Bot', description: '开源情报搜集器，负责监控 GitHub/Reddit 技术趋势', status: 'idle', icon: '🔭', skills: [], tools: ['web_search'], model_hint: 'fast', built_in: false }
 ];
 
 // 3. Reflection Logs (60 records for pagination/volume tests)

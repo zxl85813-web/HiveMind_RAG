@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_ANTHROPIC_BASE_URL: str = "https://api.deepseek.com/anthropic/v1"
+
+    # DeepSeek V4 Models
+    MODEL_DEEPSEEK_V4_FLASH: str = "deepseek-v4-flash"
+    MODEL_DEEPSEEK_V4_PRO: str = "deepseek-v4-pro"
 
     # Default LLM for different tasks (HVM - HiveMind Architecture)
     DEFAULT_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V3.2"  # Flagship Balanced
@@ -117,7 +122,12 @@ class Settings(BaseSettings):
     LEARNING_FETCH_INTERVAL_HOURS: int = 6
     GITHUB_TOKEN: str = ""
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "case_sensitive": True, "extra": "ignore"}
+    model_config = {
+        "env_file": [".env", "../.env"], 
+        "env_file_encoding": "utf-8", 
+        "case_sensitive": True, 
+        "extra": "ignore"
+    }
 
     def __init__(self, **data):
         super().__init__(**data)

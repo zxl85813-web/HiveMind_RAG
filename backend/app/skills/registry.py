@@ -76,6 +76,7 @@ class Skill:
         *,
         summary: str = "",
         tags: list[str] | None = None,
+        search_hints: list[str] | None = None,
         details: str = "",
         path: str | None = None,
     ):
@@ -87,6 +88,7 @@ class Skill:
         self.prompts = prompts or {}
         self.config = config or {}
         self.tags = tags or []
+        self.search_hints = search_hints or []
         self.details = details
         self.path = path
         self.enabled = True
@@ -205,11 +207,153 @@ class SkillRegistry:
             del self._skills[name]
 
     # ------------------------------------------------------------------
+    # Lifecycle: install / uninstall / toggle / reload
+    # ------------------------------------------------------------------
+    def reload(self) -> int:
+        """Force reload of every skill from disk. Returns count loaded."""
+        import asyncio
+        self._skills.clear()
+        try:
+            asyncio.get_event_loop().run_until_complete(self.load_all())
+        except RuntimeError:
+            # We are inside an event loop; the caller should `await reload_async()`
+            raise
+        return len(self._skills)
+
+    async def reload_async(self) -> int:
+        """Async-safe variant of ``reload``."""
+        self._skills.clear()
+        await self.load_all()
+        return len(self._skills)
+
+    def toggle(self, name: str, enabled: bool) -> bool:
+        """Enable or disable a skill in-place. Returns True on success."""
+        skill = self._skills.get(name)
+        if not skill:
+            return False
+        skill.enabled = enabled
+        logger.info(f"Skill '{name}' {'enabled' if enabled else 'disabled'}")
+        return True
+
+    def uninstall(self, name: str, *, delete_files: bool = True) -> bool:
+        """Remove a skill from registry and optionally delete its directory.
+
+        Returns True if the skill existed.
+        """
+        import shutil
+        skill = self._skills.pop(name, None)
+        if not skill:
+            return False
+        if delete_files and skill.path:
+            target = Path(skill.path)
+            try:
+                if target.exists() and target.is_dir():
+                    # Safety: refuse to delete anything outside skills_dir
+                    skills_root = self._skills_dir.resolve()
+                    if skills_root in target.resolve().parents or target.resolve() == skills_root:
+                        shutil.rmtree(target)
+                        logger.info(f"🗑️ Deleted skill directory: {target}")
+                    else:
+                        logger.warning(
+                            f"Refused to delete '{target}' (outside skills_dir)"
+                        )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Failed to delete skill directory '{target}': {e}")
+        return True
+
+    async def install_from_zip(self, zip_bytes: bytes, *, overwrite: bool = False) -> dict[str, Any]:
+        """
+        Install a Skill from a ZIP archive.
+
+        The ZIP must contain a top-level folder with a ``SKILL.md`` file.
+        Layout example:
+            my-skill/
+                SKILL.md
+                tools.py            (optional)
+                ...
+
+        Returns metadata about the installed skill.
+        """
+        import io
+        import zipfile
+
+        if not self._skills_dir.exists():
+            self._skills_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+        except zipfile.BadZipFile as e:
+            raise ValueError(f"Invalid ZIP archive: {e}")
+
+        names = [n for n in zf.namelist() if not n.startswith("__MACOSX/")]
+        if not names:
+            raise ValueError("ZIP archive is empty")
+
+        # Identify root folder; flat ZIPs are not supported
+        roots = {n.split("/", 1)[0] for n in names if "/" in n or not n.endswith("/")}
+        roots = {r for r in roots if r and not r.endswith(".md")}
+        if len(roots) != 1:
+            raise ValueError(
+                f"ZIP must contain exactly one top-level folder (got {len(roots)})"
+            )
+        root = next(iter(roots))
+
+        # Validate SKILL.md presence
+        skill_md_name = f"{root}/SKILL.md"
+        if skill_md_name not in zf.namelist():
+            raise ValueError(f"ZIP missing required file: {skill_md_name}")
+
+        # Path-traversal guard
+        skills_root = self._skills_dir.resolve()
+        target_dir = (self._skills_dir / root).resolve()
+        if skills_root not in target_dir.parents:
+            raise ValueError("Resolved target path escapes the skills directory")
+
+        if target_dir.exists():
+            if not overwrite:
+                raise ValueError(f"Skill '{root}' already exists. Use overwrite=true to replace.")
+            import shutil
+            shutil.rmtree(target_dir)
+
+        # Extract — but reject any path that would escape the skill folder
+        for member in zf.infolist():
+            if member.is_dir():
+                continue
+            member_path = (self._skills_dir / member.filename).resolve()
+            # Member must live strictly inside target_dir (not just inside skills_root,
+            # otherwise "hello_skill/../evil.txt" would silently escape the package).
+            if target_dir != member_path and target_dir not in member_path.parents:
+                raise ValueError(f"Refusing to extract suspicious entry: {member.filename}")
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(member) as src, open(member_path, "wb") as dst:
+                dst.write(src.read())
+
+        # Reload everything so new tools.py imports cleanly
+        await self.reload_async()
+        installed = self._skills.get(root)
+        if not installed:
+            # Try matching by SKILL.md frontmatter `name`
+            for s in self._skills.values():
+                if s.path and Path(s.path).name == root:
+                    installed = s
+                    break
+        return {
+            "installed": True,
+            "name": installed.name if installed else root,
+            "directory": root,
+            "version": installed.version if installed else None,
+            "tool_count": len(installed.tools) if installed else 0,
+        }
+
+    # ------------------------------------------------------------------
     # Progressive Disclosure surface
     # ------------------------------------------------------------------
     def catalog(self, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        """Return Tier 1 catalog rows, optionally filtered by keyword."""
-        rows = [s.to_catalog_entry() for s in self._skills.values() if s.enabled]
+        """Return Tier 1 catalog rows, optionally filtered by keyword.
+
+        Includes disabled skills so management UIs can re-enable them.
+        """
+        rows = [s.to_catalog_entry() for s in self._skills.values()]
         if query:
             q = query.lower()
             rows = [
@@ -222,9 +366,9 @@ class SkillRegistry:
         return rows[:limit]
 
     def inspect(self, name: str) -> dict[str, Any] | None:
-        """Return Tier 2 detail for a single skill, or None."""
+        """Return Tier 2 detail for a single skill (regardless of enabled flag)."""
         skill = self._skills.get(name)
-        return skill.to_detail() if skill and skill.enabled else None
+        return skill.to_detail() if skill else None
 
     def discover(self, query: str, limit: int = 5) -> list[Skill]:
         """Discover skills relevant to a given task description.
@@ -242,7 +386,7 @@ class SkillRegistry:
             if not skill.enabled:
                 continue
             haystack = " ".join(
-                [skill.name, skill.summary, skill.description, *skill.tags]
+                [skill.name, skill.summary, skill.description, *skill.tags, *skill.search_hints]
             ).lower()
             score = sum(1 for tok in q_tokens if tok in haystack)
             if score > 0:

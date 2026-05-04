@@ -22,7 +22,7 @@ All agents share a common memory space.
 
 import asyncio
 import json
-from typing import Annotated, Any, Literal, TypedDict, AsyncGenerator, List
+from typing import Annotated, Any, Literal, Optional, TypedDict, AsyncGenerator, List
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.language_models import BaseChatModel
@@ -66,12 +66,14 @@ class AgentDefinition:
         skills: list[str] | None = None,
         tools: list[Any] | None = None,
         model_hint: str | None = None,
+        built_in: bool = False,
     ):
         self.name = name
         self.description = description
         self.skills = skills or []
         self.tools = tools or []
         self.model_hint = model_hint  # 从 PromptEngine YAML 或手动指定
+        self.built_in = built_in  # True for hard-coded defaults from main.py
 
 
 # ============================================================
@@ -248,17 +250,76 @@ class SwarmOrchestrator:
             agent.model_hint = self.prompt_engine.get_model_hint(agent.name)
 
         self._agents[agent.name] = agent
+        # Force graph rebuild on next request
+        self._graph = None
         logger.info(f"Agent registered: {agent.name} (model_hint={agent.model_hint})")
 
     def unregister_agent(self, name: str) -> None:
         """Remove an agent from the swarm."""
         if name in self._agents:
             self._agents.pop(name, None)
+            self._graph = None
             logger.info(f"Agent unregistered: {name}")
 
     def list_agents(self) -> list[AgentDefinition]:
         """List all registered agents."""
         return list(self._agents.values())
+
+    # ============================================================
+    #  Custom Agent Persistence (runtime-added agents)
+    # ============================================================
+
+    @staticmethod
+    def _custom_agents_path() -> Any:
+        """Resolve the JSON file used to persist user-added agents."""
+        from pathlib import Path
+        from app.core.config import settings as _settings
+        data_dir = Path(getattr(_settings, "DATA_DIR", "data"))
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / "custom_agents.json"
+
+    def load_custom_agents(self) -> int:
+        """Load and register custom agents from disk. Returns count loaded."""
+        import json
+        path = self._custom_agents_path()
+        if not path.exists():
+            return 0
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Failed to read custom agents file: {e}")
+            return 0
+        loaded = 0
+        for entry in raw if isinstance(raw, list) else []:
+            try:
+                self.register_agent(AgentDefinition(
+                    name=entry["name"],
+                    description=entry.get("description", ""),
+                    skills=entry.get("skills", []),
+                    model_hint=entry.get("model_hint"),
+                    built_in=False,
+                ))
+                loaded += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Skipped invalid custom agent entry: {e}")
+        return loaded
+
+    def persist_custom_agents(self) -> None:
+        """Write all non-built-in agents to disk."""
+        import json
+        path = self._custom_agents_path()
+        items = [
+            {
+                "name": a.name,
+                "description": a.description,
+                "skills": a.skills,
+                "model_hint": a.model_hint,
+            }
+            for a in self._agents.values()
+            if not getattr(a, "built_in", False)
+        ]
+        path.write_text(json.dumps(items, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info(f"💾 Persisted {len(items)} custom agent(s) to {path}")
 
     # ============================================================
     #  Graph Construction

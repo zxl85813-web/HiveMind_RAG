@@ -99,6 +99,29 @@ pre,
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* --- Premium Glassmorphism & Animations --- */
+.glass-card {
+  background: rgba(17, 24, 39, 0.7) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-card:hover {
+  border-color: rgba(6, 214, 160, 0.3) !important;
+  transition: all 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.builder-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+
 /* === Ant Design 全局覆盖 (最小化) === */
 .ant-card {
   transition: all var(--hm-duration-normal) var(--hm-ease-out) !important;

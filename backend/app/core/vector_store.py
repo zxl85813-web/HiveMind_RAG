@@ -176,8 +176,10 @@ class ElasticVectorStore(BaseVectorStore):
             }
             actions.append(action)
             
-        await helpers.async_bulk(self.client, actions)
-        logger.info(f"indexed {len(documents)} docs to ES index {index_name}")
+        success, errors = await helpers.async_bulk(self.client, actions, raise_on_error=False)
+        if errors:
+            logger.error(f"Failed to index {len(errors)} docs: {errors}")
+        logger.info(f"indexed {success} docs to ES index {index_name}")
         return ids
 
     async def search(self, query: str, search_type: str = SearchType.HYBRID, k: int = 4, collection_name: str = "default") -> List[VectorDocument]:

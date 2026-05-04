@@ -41,11 +41,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             name="web",
             description="Able to search the internet for the most up-to-date information.",
             model_hint="fast",
+            built_in=True,
         ))
         _swarm.register_agent(AgentDefinition(
             name="code",
             description="Specialized in writing, debugging, and explaining code in various programming languages.",
             model_hint="reasoning",
+            built_in=True,
         ))
 
         # RAG agent only makes sense when RAG is also enabled
@@ -54,12 +56,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 name="rag",
                 description="Knowledge Expert. Use this for ANY factual questions, knowledge base lookups, or internal documentation queries.",
                 model_hint="balanced",
+                built_in=True,
             ))
             _swarm.register_agent(AgentDefinition(
                 name="eval_architect",
                 description="Expert in RAG evaluation systems. Helps users design testsets, expand data with AI, and diagnose quality issues.",
                 model_hint="reasoning",
+                built_in=True,
             ))
+
+        # Load any user-added agents from disk
+        try:
+            loaded = _swarm.load_custom_agents()
+            if loaded:
+                logger.info("📦 Loaded {} custom agent(s) from disk", loaded)
+        except Exception as e:
+            logger.warning("Custom agent loading failed: {}", e)
 
         agent_names = [a.name for a in _swarm._agents.values()] if hasattr(_swarm, '_agents') else []
         logger.info("🤖 Agent Swarm initialized with agents: {}", agent_names)

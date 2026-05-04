@@ -253,6 +253,8 @@ export const SettingsPage: React.FC = () => {
                                         { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
                                         { value: 'gpt-4o', label: 'GPT-4o' },
                                         { value: 'deepseek-v3', label: 'DeepSeek V3' },
+                                        { value: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+                                        { value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
                                         { value: 'deepseek-r1', label: 'DeepSeek R1 (推理)' },
                                         { value: 'qwen-turbo', label: '通义千问 Turbo' },
                                     ]}
@@ -263,6 +265,7 @@ export const SettingsPage: React.FC = () => {
                                     defaultValue="deepseek-r1"
                                     options={[
                                         { value: 'deepseek-r1', label: 'DeepSeek R1' },
+                                        { value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
                                         { value: 'gpt-4o', label: 'GPT-4o' },
                                     ]}
                                 />

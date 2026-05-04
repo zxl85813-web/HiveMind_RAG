@@ -29,6 +29,7 @@ _PROVIDER_SECRET_KEYS: Dict[str, str] = {
     "kimi": "llm.kimi.api_key",
     "openai": "llm.openai.api_key",
     "deepseek": "llm.deepseek.api_key",
+    "deepseek-anthropic": "llm.deepseek.api_key",
 }
 
 
@@ -154,8 +155,11 @@ class LLMRouter:
             config["api_key"] = settings.OPENAI_API_KEY
             config["base_url"] = settings.OPENAI_BASE_URL
         elif p == "deepseek":
+            config["api_key"] = settings.DEEPSEEK_API_KEY or settings.LLM_API_KEY
+            config["base_url"] = settings.DEEPSEEK_BASE_URL or settings.LLM_BASE_URL
+        elif p == "deepseek-anthropic":
             config["api_key"] = settings.DEEPSEEK_API_KEY
-            config["base_url"] = settings.DEEPSEEK_BASE_URL
+            config["base_url"] = settings.DEEPSEEK_ANTHROPIC_BASE_URL
         else:
             # Generic fallback
             config["api_key"] = settings.LLM_API_KEY or settings.OPENAI_API_KEY

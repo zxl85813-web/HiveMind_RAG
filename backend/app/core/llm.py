@@ -5,32 +5,49 @@ from openai import AsyncOpenAI
 from app.core.config import settings
 from typing import List, Dict, Any, AsyncGenerator
 import json
+from loguru import logger
 
 class LLMService:
     def __init__(self):
+        p = settings.LLM_PROVIDER.lower()
+        if p == "deepseek":
+            api_key = settings.DEEPSEEK_API_KEY
+            base_url = settings.DEEPSEEK_BASE_URL
+        elif p == "deepseek-anthropic":
+            api_key = settings.DEEPSEEK_API_KEY
+            base_url = settings.DEEPSEEK_ANTHROPIC_BASE_URL
+        else:
+            api_key = settings.LLM_API_KEY
+            base_url = settings.LLM_BASE_URL
+
         self.client = AsyncOpenAI(
-            api_key=settings.LLM_API_KEY,
-            base_url=settings.LLM_BASE_URL
+            api_key=api_key,
+            base_url=base_url
         )
         self.model = settings.LLM_MODEL
+        logger.info(f"🧠 LLM Service initialized with provider: {p}, model: {self.model}")
         # print(f"🧠 LLM Service initialized with model: {self.model} at {settings.LLM_BASE_URL}")
 
     def _route_model(self, messages: List[Dict[str, str]]) -> str:
         """
         Intelligence Router: Select model based on prompt content.
-        - GLM-5: Complex reasoning, architecture, design, multi-role.
-        - DeepSeek-V3: Coding, testing, general chat.
         """
+        p = settings.LLM_PROVIDER.lower()
+        
+        # If provider is DeepSeek official, use the configured model
+        if p == "deepseek":
+            return settings.LLM_MODEL
+
         # Extract full text for keyword analysis
         full_text = " ".join([m.get("content", "").lower() for m in messages])
         
-        # High-complexity keywords (Priority: GLM-5)
+        # High-complexity keywords (Priority: GLM-5 or V4-Pro)
         reasoning_keywords = ["架构", "设计", "流程", "why", "reasoning", "swarm", "蜂群", "思维", "分析"]
         if any(kw in full_text for kw in reasoning_keywords):
-            return settings.MODEL_GLM5
+            return settings.MODEL_DEEPSEEK_V4_PRO if "deepseek" in p else settings.MODEL_GLM5
             
-        # Coding/Standard keywords (Default: DeepSeek-V3)
-        return settings.MODEL_DEEPSEEK_V3
+        # Coding/Standard keywords (Default: DeepSeek-V3 or V4-Flash)
+        return settings.MODEL_DEEPSEEK_V4_FLASH if "deepseek" in p else settings.MODEL_DEEPSEEK_V3
 
     async def chat_complete(
         self, 
@@ -62,7 +79,8 @@ class LLMService:
             response = await self.client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
-            print(f"❌ LLM Error: {e}")
+            # Use ASCII-safe error logging
+            logger.error(f"!! LLM Error: {e}")
             return str(e)
 
     async def stream_chat(

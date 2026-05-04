@@ -25,6 +25,7 @@ import { usePlatformStore } from './stores/platformStore';
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
 const AgentsPage = lazy(() => import('./pages/AgentsPage').then(m => ({ default: m.AgentsPage })));
+const CapabilitiesPage = lazy(() => import('./pages/CapabilitiesPage').then(m => ({ default: m.CapabilitiesPage })));
 const StudioPage = lazy(() => import('./pages/StudioPage').then(m => ({ default: m.StudioPage })));
 const LearningPage = lazy(() => import('./pages/LearningPage').then(m => ({ default: m.LearningPage })));
 const AuditPage = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })));
@@ -36,6 +37,7 @@ const SecurityPage = lazy(() => import('./pages/SecurityPage').then(m => ({ defa
 const PipelineBuilderPage = lazy(() => import('./pages/PipelineBuilderPage').then(m => ({ default: m.PipelineBuilderPage })));
 const ExportWizardPage = lazy(() => import('./pages/ExportWizardPage').then(m => ({ default: m.ExportWizardPage })));
 const UsagePage = lazy(() => import('./pages/UsagePage').then(m => ({ default: m.UsagePage })));
+const AgentBuilderPage = lazy(() => import('./pages/AgentBuilderPage').then(m => ({ default: m.AgentBuilderPage })));
 
 /**
  * Ant Design 全局主题 — Cyber-Refined。
@@ -137,7 +139,9 @@ function App() {
                   {agentEnabled && (
                     <>
                       <Route path="agents" element={<AgentsPage />} />
+                      <Route path="capabilities" element={<CapabilitiesPage />} />
                       <Route path="studio" element={<StudioPage />} />
+                      <Route path="studio/builder" element={<AgentBuilderPage />} />
                       <Route path="batch" element={<BatchPage />} />
                     </>
                   )}

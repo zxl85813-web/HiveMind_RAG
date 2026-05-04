@@ -74,10 +74,59 @@ export const mockHandlers: Record<string, any> = {
     },
     'GET:/agents/skills': {
         success: true, data: [
-            { name: 'rag_qa', version: '1.0.0', description: 'Knowledge base Q&A with citation', status: 'active' },
-            { name: 'doc_summary', version: '1.0.0', description: 'Summarize long documents', status: 'active' },
-            { name: 'code_review', version: '0.9.0', description: 'Review code quality and suggest improvements', status: 'inactive' },
+            { name: 'rag_qa', version: '1.0.0', summary: 'Knowledge base Q&A with citation', tool_count: 2, enabled: true },
+            { name: 'doc_summary', version: '1.0.0', summary: 'Summarize long documents', tool_count: 1, enabled: true },
+            { name: 'code_review', version: '0.9.0', summary: 'Review code quality and suggest improvements', tool_count: 0, enabled: false },
         ], message: 'Success'
+    },
+    'POST:/agents/skills/upload': {
+        success: true,
+        data: { installed: true, name: 'mock_skill', directory: 'mock_skill', version: '0.1.0', tool_count: 0 },
+        message: 'Skill installed (mock)'
+    },
+    'POST:/agents/skills/reload': {
+        success: true, data: { reloaded: true, skill_count: 3 }, message: 'Skills reloaded (mock)'
+    },
+    'POST:/agents/mcp/servers': {
+        success: true, data: { name: 'mock', saved: true }, message: 'MCP server saved (mock)'
+    },
+    'POST:/agents/mcp/reconnect': {
+        success: true, data: { reconnected: true }, message: 'MCP servers reconnected (mock)'
+    },
+    'POST:/agents/swarm/agents': {
+        success: true, data: { name: 'mock', saved: true }, message: 'Agent saved (mock)'
+    },
+    'GET:/agents/swarm/topology': {
+        success: true, message: 'Success', data: {
+            nodes: [
+                { id: 'agent:Supervisor',      label: 'Supervisor',    type: 'agent', icon: '🐝', model_hint: 'balanced' },
+                { id: 'agent:RAG-Specialist',  label: 'RAG-Specialist',type: 'agent', icon: '📚', model_hint: 'balanced' },
+                { id: 'agent:Code-Architect',  label: 'Code-Architect',type: 'agent', icon: '🏗️', model_hint: 'reasoning' },
+                { id: 'agent:Critic-Agent',    label: 'Critic-Agent',  type: 'agent', icon: '⚖️', model_hint: 'fast' },
+                { id: 'agent:Discovery-Bot',   label: 'Discovery-Bot', type: 'agent', icon: '🔭', model_hint: 'fast' },
+                { id: 'skill:rag_qa',          label: 'rag_qa',        type: 'skill' },
+                { id: 'skill:doc_summary',     label: 'doc_summary',   type: 'skill' },
+                { id: 'skill:code_review',     label: 'code_review',   type: 'skill' },
+                { id: 'tool:read_file',        label: 'read_file',     type: 'tool' },
+                { id: 'tool:write_file',       label: 'write_file',    type: 'tool' },
+                { id: 'tool:list_directory',   label: 'list_directory',type: 'tool' },
+                { id: 'tool:web_search',       label: 'web_search',    type: 'tool' },
+                { id: 'tool:hybrid_search',    label: 'hybrid_search', type: 'tool' },
+                { id: 'tool:rerank',           label: 'rerank',        type: 'tool' },
+            ],
+            links: [
+                { source: 'agent:RAG-Specialist', target: 'skill:rag_qa',        rel: 'uses' },
+                { source: 'agent:RAG-Specialist', target: 'skill:doc_summary',   rel: 'uses' },
+                { source: 'agent:RAG-Specialist', target: 'tool:hybrid_search',  rel: 'has_tool' },
+                { source: 'agent:RAG-Specialist', target: 'tool:rerank',         rel: 'has_tool' },
+                { source: 'agent:RAG-Specialist', target: 'tool:read_file',      rel: 'has_tool' },
+                { source: 'agent:Code-Architect', target: 'skill:code_review',   rel: 'uses' },
+                { source: 'agent:Code-Architect', target: 'tool:write_file',     rel: 'has_tool' },
+                { source: 'agent:Code-Architect', target: 'tool:list_directory', rel: 'has_tool' },
+                { source: 'agent:Critic-Agent',   target: 'skill:rag_qa',        rel: 'uses' },
+                { source: 'agent:Discovery-Bot',  target: 'tool:web_search',     rel: 'has_tool' },
+            ],
+        }
     },
 
     // Platform Knowledge (Settings page)

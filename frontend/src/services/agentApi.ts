@@ -37,6 +37,10 @@ export interface AgentInfo {
     status: 'idle' | 'processing' | 'reflecting';
     icon: string;
     currentTask?: string;
+    skills?: string[];
+    tools?: string[];
+    model_hint?: string | null;
+    built_in?: boolean;
 }
 
 export interface SwarmStats {
@@ -61,9 +65,26 @@ export interface McpTool {
 
 export interface SkillInfo {
     name: string;
-    description: string;
+    summary?: string;
+    description?: string;
     version: string;
-    status: 'active' | 'error';
+    tags?: string[];
+    tool_count?: number;
+    enabled?: boolean;
+    /** Legacy field used by older mocks; mapped from `enabled` when missing */
+    status?: 'active' | 'inactive' | 'error';
+}
+
+export interface SkillDetail {
+    name: string;
+    summary?: string;
+    description?: string;
+    version?: string;
+    tags?: string[];
+    body?: string;
+    tools?: { name: string; description?: string }[];
+    path?: string;
+    [key: string]: any;
 }
 
 export interface DAGNode {
@@ -83,6 +104,25 @@ export interface DAGData {
     links: DAGLink[];
 }
 
+export interface TopologyNode {
+    id: string;
+    label: string;
+    type: 'agent' | 'skill' | 'tool';
+    icon?: string;
+    model_hint?: string | null;
+}
+
+export interface TopologyLink {
+    source: string;
+    target: string;
+    rel: 'uses' | 'has_tool';
+}
+
+export interface TopologyData {
+    nodes: TopologyNode[];
+    links: TopologyLink[];
+}
+
 export const agentApi = {
     /**
      * Get recent reflections from the swarm manager
@@ -96,6 +136,25 @@ export const agentApi = {
      */
     getAgents: (): Promise<AxiosResponse<ApiResponse<AgentInfo[]>>> => {
         return api.get<ApiResponse<AgentInfo[]>>('/agents/swarm/agents');
+    },
+
+    /**
+     * Add or update a runtime agent (built-in agents are read-only)
+     */
+    upsertAgent: (payload: {
+        name: string;
+        description: string;
+        skills?: string[];
+        model_hint?: string | null;
+    }): Promise<AxiosResponse<ApiResponse<{ name: string; saved: boolean }>>> => {
+        return api.post('/agents/swarm/agents', payload);
+    },
+
+    /**
+     * Delete a runtime agent (built-in agents cannot be deleted)
+     */
+    deleteAgent: (name: string): Promise<AxiosResponse<ApiResponse<{ name: string; deleted: boolean }>>> => {
+        return api.delete(`/agents/swarm/agents/${encodeURIComponent(name)}`);
     },
 
     /**
@@ -120,6 +179,33 @@ export const agentApi = {
     },
 
     /**
+     * Add or update an MCP server (persists mcp_servers.json + reconnects)
+     */
+    upsertMcpServer: (payload: {
+        name: string;
+        type?: string;
+        command: string;
+        args?: string[];
+        env?: Record<string, string>;
+    }): Promise<AxiosResponse<ApiResponse<{ name: string; saved: boolean }>>> => {
+        return api.post('/agents/mcp/servers', { type: 'stdio', args: [], ...payload });
+    },
+
+    /**
+     * Delete an MCP server (persists + reconnects)
+     */
+    deleteMcpServer: (name: string): Promise<AxiosResponse<ApiResponse<{ name: string; deleted: boolean }>>> => {
+        return api.delete(`/agents/mcp/servers/${encodeURIComponent(name)}`);
+    },
+
+    /**
+     * Force reconnect all MCP servers
+     */
+    reconnectMcp: (): Promise<AxiosResponse<ApiResponse<{ reconnected: boolean }>>> => {
+        return api.post('/agents/mcp/reconnect');
+    },
+
+    /**
      * Get MCP tools available
      */
     getMcpTools: (): Promise<AxiosResponse<ApiResponse<McpTool[]>>> => {
@@ -134,9 +220,67 @@ export const agentApi = {
     },
 
     /**
+     * Get a single skill's full detail (Tier 2 - SKILL.md body + tools)
+     */
+    getSkillDetail: (name: string): Promise<AxiosResponse<ApiResponse<SkillDetail>>> => {
+        return api.get<ApiResponse<SkillDetail>>(`/agents/skills/${encodeURIComponent(name)}`);
+    },
+
+    /**
+     * Install a Skill from a ZIP archive (multipart/form-data)
+     */
+    installSkill: (file: File, overwrite = false): Promise<AxiosResponse<ApiResponse<{
+        installed: boolean;
+        name: string;
+        directory: string;
+        version?: string;
+        tool_count?: number;
+    }>>> => {
+        const form = new FormData();
+        form.append('file', file);
+        return api.post(`/agents/skills/upload?overwrite=${overwrite}`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+
+    /**
+     * Uninstall a Skill (and optionally delete its files on disk)
+     */
+    uninstallSkill: (name: string, deleteFiles = true): Promise<AxiosResponse<ApiResponse<{
+        name: string; deleted: boolean; files_removed: boolean;
+    }>>> => {
+        return api.delete(`/agents/skills/${encodeURIComponent(name)}?delete_files=${deleteFiles}`);
+    },
+
+    /**
+     * Enable/disable a Skill in-memory
+     */
+    toggleSkill: (name: string, enabled: boolean): Promise<AxiosResponse<ApiResponse<{
+        name: string; enabled: boolean;
+    }>>> => {
+        return api.post(`/agents/skills/${encodeURIComponent(name)}/toggle?enabled=${enabled}`);
+    },
+
+    /**
+     * Force reload of the skills directory
+     */
+    reloadSkills: (): Promise<AxiosResponse<ApiResponse<{
+        reloaded: boolean; skill_count: number;
+    }>>> => {
+        return api.post('/agents/skills/reload');
+    },
+
+    /**
      * Get realtime Agent DAG Trace
      */
     getTraces: (): Promise<AxiosResponse<ApiResponse<DAGData>>> => {
         return api.get<ApiResponse<DAGData>>('/agents/swarm/traces');
+    },
+
+    /**
+     * Get Agent-Skill-Tool capability topology graph
+     */
+    getTopology: (): Promise<AxiosResponse<ApiResponse<TopologyData>>> => {
+        return api.get<ApiResponse<TopologyData>>('/agents/swarm/topology');
     }
 };

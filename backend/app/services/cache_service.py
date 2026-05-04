@@ -78,11 +78,17 @@ class CacheService:
             logger.debug(f"Skipping cache for too-short response: '{response[:50]}'")
             return
             
+        # Generate embedding for the query
+        from app.core.embeddings import get_embedding_service
+        embedder = get_embedding_service()
+        embedding = embedder.embed_query(query)
+
         store = get_vector_store()
         try:
             # Store 'Query' as content so it's searchable, and 'Answer' in metadata.
             cache_doc = VectorDocument(
                 page_content=query,
+                embedding=embedding,
                 metadata={
                     "answer": response,
                     "cached_at": time.time(),

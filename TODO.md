@@ -420,6 +420,25 @@
 > **V3 Swarm 架构已正式上线**。系统现在具备极高的并行处理能力（Celery），并拥有原生 LangGraph 驱动的灵巧 Agent 协作能力。
 
 
+### 2.1M Agent Builder Assistant (智能辅助构建工具) 🟡 (REQ-014)
+
+> 📄 需求文档: `docs/requirements/REQ-014-agent-builder-assistant.md`
+> 🏛️ 设计说明书: `docs/design/DES-014-agent-builder-assistant.md`
+
+- ✅ **Phase 0: 需求发现与测试集共创 (Discovery & Co-Creation)** 
+  - ✅ 设计 6 阶段访谈协议与 LangGraph 图谱 (`BuilderGraph`)。
+  - ✅ 设计反顺从/反膨胀 (`Anti-Sycophancy`) 的护栏规则与 `scope_guardian_node`。
+  - ⬜ 实现 `BuilderChatService` 与 `testset_creation_node` 引导用户提取 Golden Dataset。
+- ⬜ **Phase 1: 模板引擎与配置生成 (Templates & Generation)**
+  - ⬜ 集成 `SkillRegistry` 和 `SwarmOrchestrator` 实现实例库搜索与动态匹配。
+  - ⬜ 开发 Meta-Prompt 自动生成 `AgentConfig` 并映射至数据库 `AgentDraft`。
+- ⬜ **Phase 2: 沙箱测试与脚手架评估 (Sandbox & Harness)**
+  - ⬜ 开发 `HarnessService`，基于测试集创建自动化的 `EvalHarness`。
+  - ⬜ 更新 `SandboxService` 以哨兵模式捕获结果，并结合 `CostTracker` 执行成本熔断。
+  - ⬜ 实现 A/B 测试面板与 Tokens 消耗实时展示。
+  - ⬜ 在前端沙箱中实时渲染执行 DAG 图谱。
+
+
 ### 2.2 对话与 AI 核心
 
 - ✅ **SSE 流式对话** — `POST /chat/completions` (已基本实现)
