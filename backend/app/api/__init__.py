@@ -25,12 +25,15 @@ router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
 
 # ── SHARED: Available in all modes ──────────────────────────
-from app.api.routes import memory, tags, security, audit
+from app.api.routes import memory, tags, security, audit, tenants, quotes, export
 
 router.include_router(memory.router, prefix="/memory", tags=["Memory"])
 router.include_router(tags.router, prefix="/tags", tags=["Knowledge Tags"])
 router.include_router(security.router, prefix="/security", tags=["Security & Desensitization"])
 router.include_router(audit.router, prefix="/audit", tags=["Data Quality Audit"])
+router.include_router(tenants.router, prefix="/tenants", tags=["Multi-Tenancy Management"])
+router.include_router(quotes.router, prefix="/quotes", tags=["Tenant Quotas & Quotes"])
+router.include_router(export.router, prefix="/export", tags=["Data Export Wizard"])
 
 # ── GOVERNANCE: Trace analytics, rainbow ops ────────────────
 try:
