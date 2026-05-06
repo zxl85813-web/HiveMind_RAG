@@ -20,6 +20,9 @@ import { LoadingState } from './components/common/LoadingState';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MockControl } from './components/common/MockControl';
 import { usePlatformStore } from './stores/platformStore';
+import { AuthGuard } from './guards/AuthGuard';
+
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 
 // 🚀 [Architecture-Gate]: 路由级代码分割 (Code Splitting)
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -113,7 +116,8 @@ function App() {
           <ErrorBoundary>
             <Suspense fallback={<LoadingState fullScreen tip="🧩 模块载入中..." />}>
               <Routes>
-                <Route path="/" element={<AppLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
                   {/* Dashboard — 始终可用 */}
                   <Route index element={<DashboardPage />} />
 

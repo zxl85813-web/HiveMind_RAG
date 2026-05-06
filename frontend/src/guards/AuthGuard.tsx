@@ -11,8 +11,9 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const location = useLocation();
     // const { token, isAuthenticated } = useAuthStore();
 
-    // 模拟鉴权逻辑 (TODO: 替换为实际 Store 状态)
-    const isAuthenticated = true; // 默认已登录，后续改为 token 校验
+    // 真实鉴权逻辑: 在 Mock 模式下自动放行，生产模式下校验 localStorage 中的 Token
+    const isMock = import.meta.env.VITE_USE_MOCK === 'true';
+    const isAuthenticated = isMock || !!localStorage.getItem('access_token');
 
     useEffect(() => {
         if (!isAuthenticated) {
