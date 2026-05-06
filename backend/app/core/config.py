@@ -81,13 +81,13 @@ class Settings(BaseSettings):
     MODEL_DEEPSEEK_V4_PRO: str = "deepseek-v4-pro"
 
     # Default LLM for different tasks (HVM - HiveMind Architecture)
-    DEFAULT_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V3"  # Flagship Balanced
+    DEFAULT_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V3.2"  # Flagship Balanced
     DEFAULT_REASONING_MODEL: str = "moonshot-v1-32k"            # Specialized Reasoning
     DEFAULT_EMBEDDING_MODEL: str = "embedding-3"
     
     # === Generic LLM Configuration (Global Fallback) ===
     LLM_PROVIDER: str = "siliconflow"  # openai | deepseek | siliconflow | moonshot
-    LLM_MODEL: str = "deepseek-ai/DeepSeek-V3"
+    LLM_MODEL: str = "deepseek-ai/DeepSeek-V3.2"
     LLM_BASE_URL: str | None = None
     LLM_API_KEY: str | None = None
 
