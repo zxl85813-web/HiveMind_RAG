@@ -49,6 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             model_hint="reasoning",
             built_in=True,
         ))
+        _swarm.register_agent(AgentDefinition(
+            name="price_compare",
+            description="比价智能体 (Price Comparison Agent). Specialized in multi-dimensional comparison, pricing analysis, cost estimation, and producing comprehensive comparison reports.",
+            model_hint="balanced",
+            built_in=True,
+        ))
 
         # RAG agent only makes sense when RAG is also enabled
         if settings.rag_enabled:

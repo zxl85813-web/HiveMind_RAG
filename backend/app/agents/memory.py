@@ -113,6 +113,10 @@ class SharedMemoryManager:
             results = await session.execute(statement)
             return results.scalars().all()
 
+    async def get_traces(self) -> dict[str, list]:
+        """Get the live execution DAG traces."""
+        return {"nodes": [], "links": []}
+
     # --- Future Memory Layers (Episodic/Semantic) ---
 
     async def store_episode(self, conversation_id: str, summary: str, metadata: dict) -> None:
