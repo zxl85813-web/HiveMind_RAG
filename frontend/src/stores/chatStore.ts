@@ -115,7 +115,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set) => ({
     // 视图模式
-    viewMode: 'ai' as ViewMode,
+    viewMode: 'classic' as ViewMode,
     toggleViewMode: () => set((state) => ({ viewMode: state.viewMode === 'ai' ? 'classic' : 'ai' })),
     setViewMode: (mode) => set({ viewMode: mode }),
 

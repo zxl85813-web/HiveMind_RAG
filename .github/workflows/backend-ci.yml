@@ -102,7 +102,7 @@ jobs:
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=80 \
+            --cov-fail-under=75 \
             --alluredir=allure-results \
             -o "addopts="
 

@@ -31,9 +31,19 @@ export const useConversationDetails = (id: string | null) => {
         queryFn: async () => {
             if (!id) return null;
             const res = await chatApi.getConversation(id);
+            // Robustly handle both wrapped (ApiResponse.ok(data)) and unwrapped responses
+            const body = res.data as any;
+            let messages: any[] = [];
+            if (body && typeof body === 'object') {
+                if (Array.isArray(body.messages)) {
+                    messages = body.messages;
+                } else if (body.data && Array.isArray(body.data.messages)) {
+                    messages = body.data.messages;
+                }
+            }
             // 归一化后端消息格式
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- backend payload shape varies across providers
-            return res.data.messages.map((m: any) => ({
+            return messages.map((m: any) => ({
                 id: m.id,
                 role: m.role,
                 content: m.content,

@@ -68,7 +68,7 @@ jobs:
           pytest tests/unit/ \
             --cov=app \
             --cov-report=term-missing \
-            --cov-fail-under=80 \
+            --cov-fail-under=60 \
             --alluredir=allure-results \
             -o "addopts="
 

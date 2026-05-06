@@ -2,7 +2,7 @@
 API Router — aggregates all route modules based on PLATFORM_MODE.
 
 Module Classification:
-  - CORE:  Always loaded (health, chat, settings, websocket)
+  - CORE:  Always loaded (health, chat, settings, websocket, auth)
   - RAG:   Loaded when rag_enabled (knowledge, learning, evaluation, ingestion, etc.)
   - AGENT: Loaded when agent_enabled (agents, skills, MCP, etc.)
   - SHARED: Loaded in any mode (memory, security, audit, tags)
@@ -16,28 +16,28 @@ from app.core.config import settings
 router = APIRouter()
 
 # ── CORE: Always available ──────────────────────────────────
-from app.api.routes import health, chat, websocket, settings as settings_routes, tenants, quotes
+from app.api.routes import health, chat, websocket, settings as settings_routes, auth
 
 router.include_router(health.router, prefix="/health", tags=["Health"])
+router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
-router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
-router.include_router(quotes.router, prefix="/quotes", tags=["Quote Intelligence"])
 
 # ── SHARED: Available in all modes ──────────────────────────
-from app.api.routes import memory, tags, security, audit, audit_v3, export
+from app.api.routes import memory, tags, security, audit
 
 router.include_router(memory.router, prefix="/memory", tags=["Memory"])
 router.include_router(tags.router, prefix="/tags", tags=["Knowledge Tags"])
 router.include_router(security.router, prefix="/security", tags=["Security & Desensitization"])
 router.include_router(audit.router, prefix="/audit", tags=["Data Quality Audit"])
-router.include_router(audit_v3.router, prefix="/audit/v3", tags=["V3 Swarm Audit"])
-router.include_router(export.router, prefix="/export", tags=["Blueprint Export"])
 
 # ── GOVERNANCE: Trace analytics, rainbow ops ────────────────
-from app.services.governance import trace_router
-router.include_router(trace_router, tags=["Governance"])
+try:
+    from app.services.governance import trace_router
+    router.include_router(trace_router, tags=["Governance"])
+except ImportError:
+    pass
 
 # ── RAG MODULE: Knowledge retrieval, ingestion, evaluation ──
 if settings.rag_enabled:

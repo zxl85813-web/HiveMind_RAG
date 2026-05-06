@@ -15,24 +15,26 @@ async def init_base_data() -> None:
     logger.info("Checking database seeding status...")
 
     async with async_session_factory() as session:
-        # 1. 确保 Mock 用户存在 (仅在 DEBUG 模式下)
-        if settings.DEBUG:
-            mock_user_id = "mock-user-001"
-            user = await session.get(User, mock_user_id)
-            if not user:
-                logger.info(f"Seeding mock user: {mock_user_id}")
-                # 开发环境 mock 用户 — 使用预计算的 bcrypt hash (原文: dev123456)
-                mock_user = User(
-                    id=mock_user_id,
-                    username="developer",
-                    email="dev@hivemind.local",
-                    hashed_password="$2b$12$LJ3m4ys3Lk0kXx0z0z0z0OeZ5V5V5V5V5V5V5V5V5V5V5V5V5u",  # noqa: S105
-                    role="admin",
-                )
-                session.add(mock_user)
-                await session.commit()
-            else:
-                logger.debug(f"Mock user {mock_user_id} already exists.")
+        # 1. 确保 Admin 用户存在 (无论是否在 DEBUG 模式下，供登录测试使用)
+        from sqlalchemy import select
+        stmt = select(User).where(User.username == "admin")
+        res = await session.execute(stmt)
+        admin_user = res.scalar_one_or_none()
+        if not admin_user:
+            logger.info("Seeding base admin user...")
+            from app.auth.security import hash_password
+            base_admin = User(
+                id="admin-user-001",
+                username="admin",
+                email="admin@hivemind.local",
+                hashed_password=hash_password("admin123"),
+                role="admin",
+            )
+            session.add(base_admin)
+            await session.commit()
+            logger.info("Base admin user seeded successfully: username='admin', password='admin123'")
+        else:
+            logger.info("Base admin user already exists.")
 
         # 2. 确保 Swarm 初始数据存在 (仅在 DEBUG 模式下)
         if settings.DEBUG:

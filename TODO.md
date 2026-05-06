@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-04-30
+> 📅 最后更新: 2026-05-04
 
 ---
 
@@ -416,6 +416,25 @@
   - 彻底移除旧版基于代码插件遍历的编排层（`IngestionExecutor`、`PipelineMonitor` 等）。
   - 已将 `knowledge.py` 预览接口切换至 V3 Observability 体系。
 
+### 2.1N 全域治理图谱 (Universal Governance Graph, UGG) 🟡 (DES-015)
+
+> 📑 设计说明书: `docs/design/DES-015-governance-graph-spec.md`
+
+- 🟡 **Phase 1: 基础构建与血缘补全** 
+  - ✅ **UGG 规格定义** — 完成 DES-015 架构设计，定义四维空间模型。
+  - 🟡 **UGG 集成引擎 (`sync_pgg.py`)** — 初始化骨架，支持多源同步。
+  - ⬜ **Git 血缘同步** — 提取 Commit 链，建立 `Commit -> File` 与 `Developer -> Commit` 关系。
+  - ⬜ **GitHub 管理同步** — 同步 Issue/PR/Review，关联 `Issue -> Requirement` 与 `Review -> Commit`。
+  - ⬜ **Agent 归因同步** — 将 `AgentAction` 动作关联至生成的代码与执行的评审。
+- ⬜ **Phase 2: 动态完整性审计 (Integrity Guard)**
+  - ⬜ **Orphan 检查 (G-01)** — 拦截无 Issue 关联的 Commit。
+  - ⬜ **Coverage 检查 (G-02)** — 拦截无测试覆盖的新增函数。
+  - ⬜ **Provenance 检查 (G-03)** — 拦截来源不明的 AI 生成代码。
+  - ⬜ **Approval 检查 (G-04)** — 拦截未经承认者审核的核心变更。
+- ⬜ **Phase 3: 可视化与复盘仪表盘**
+  - ⬜ **血缘追踪视图** — 前端展示“从需求到代码”的完整拓扑路径。
+  - ⬜ **治理合规性报告** — 实时统计项目研发流程的健康度得分。
+
 > [!TIP]
 > **V3 Swarm 架构已正式上线**。系统现在具备极高的并行处理能力（Celery），并拥有原生 LangGraph 驱动的灵巧 Agent 协作能力。
 
@@ -599,6 +618,14 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ---
 
 ## 八、📝 变更日志 (按日期倒序)
+
+### 2026-05-06
+- ✅ **基础认证与固定用户数据库播种 (Database Seeding & JWT Auth)**:
+  - **后端路由与数据库播种**: 新建 `auth.py` 路由，提供了 JSON 载荷验证的 `/login` 登录接口和获取当前登录用户信息的 `/me` 接口。在 `__init__.py` 中完成统一注册。
+  - **固定用户播种**: 在 `init_data.py` 中增加了对 `admin` 用户的初始化逻辑，无论是在 DEBUG 还是在生产模式下，启动时都会检测 `admin` 用户是否存在，不存在则使用 `admin123` 密码自动注册播种。
+  - **BCrypt 兼容性漏洞修复**: 修复了由于 `passlib` 和新版本 `bcrypt` 不兼容引发的 `ValueError: password cannot be longer than 72 bytes` 报错。采用直接引用 `bcrypt` 进行密码哈希与匹配，从根本上移除了不稳定的 `passlib` 依赖，保证了系统启动时的零卡顿与绝对稳定性。
+  - **远程一键构建与部署**: 在远程 Azure 服务器上完成了新文件和新路由的上传和一键编译（`docker compose ... up -d --build backend`）。
+  - **健康检查与接口双向通过**: 经验证，远程服务器 API 成功以 200 返回 `{"status":"ok"}`。且通过本地 Python 进行端到端请求测试，成功通过 `admin/admin123` 获取了 200 OK 以及正确的 Access Token 载荷！
 
 ### 2026-04-30
 - ✅ **2.1I Long-Horizon 三件套**:

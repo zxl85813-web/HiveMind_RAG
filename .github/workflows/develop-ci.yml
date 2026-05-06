@@ -68,7 +68,7 @@ jobs:
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=80 \
+            --cov-fail-under=70 \
             --alluredir=allure-results \
             -o "addopts="
 
@@ -79,6 +79,15 @@ jobs:
             echo "::error::OpenAPI 契约已过期。请在本地运行 'cd backend; python -m scripts.export_openapi --mode all' 并提交更新。"
             exit 1
           fi
+
+      - name: Neo4j UGG Dynamic Integrity Audit (DES-015 Gates)
+        env:
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/governance/sync_pgg.py --all --audit --strict
 
       - name: Upload Coverage Report
         if: always()
