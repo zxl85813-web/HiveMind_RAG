@@ -95,17 +95,15 @@ class ChatService:
     @staticmethod
     async def get_conversation(conv_id: str) -> Conversation | None:
         """获取单个会话及其所有消息。"""
+        from sqlalchemy.orm import selectinload
         tenant_id = get_current_tenant()
         async for session in get_db_session():
             statement = select(Conversation).where(
                 Conversation.id == conv_id,
                 Conversation.tenant_id == tenant_id,
-            )
+            ).options(selectinload(Conversation.messages))
             result = await session.exec(statement)
             conv = result.first()
-            if conv:
-                # 触发消息加载 (SQLModel Relationship)
-                _ = conv.messages
             return conv
 
     @staticmethod
