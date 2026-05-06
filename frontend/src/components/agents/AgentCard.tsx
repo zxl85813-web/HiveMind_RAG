@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { Card, Typography, Flex, Tag, Tooltip, Divider, Button, Popconfirm } from 'antd';
-import { ApiOutlined, ThunderboltOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
+import { ApiOutlined, ThunderboltOutlined, EditOutlined, DeleteOutlined, LockOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { StatusTag } from '../common';
 import styles from './AgentCard.module.css';
 
@@ -39,6 +39,8 @@ export interface AgentCardProps {
     onEdit?: () => void;
     /** 删除回调 */
     onDelete?: () => void;
+    /** 测试回调 */
+    onTest?: () => void;
 }
 
 export const AgentCard: React.FC<AgentCardProps> = ({
@@ -53,9 +55,10 @@ export const AgentCard: React.FC<AgentCardProps> = ({
     built_in,
     onEdit,
     onDelete,
+    onTest,
 }) => {
     const hasRelations = (skills && skills.length > 0) || (tools && tools.length > 0);
-    const showActions = !built_in && (onEdit || onDelete);
+    const showActions = onTest || (!built_in && (onEdit || onDelete));
     return (
         <Card hoverable className={styles.card}>
             <Flex vertical gap={8}>
@@ -117,10 +120,13 @@ export const AgentCard: React.FC<AgentCardProps> = ({
                     <>
                         <Divider style={{ margin: '4px 0' }} />
                         <Flex gap={6} justify="flex-end">
-                            {onEdit && (
+                            {onTest && (
+                                <Button size="small" type="primary" ghost icon={<ExperimentOutlined />} onClick={onTest}>测试</Button>
+                            )}
+                            {!built_in && onEdit && (
                                 <Button size="small" type="text" icon={<EditOutlined />} onClick={onEdit}>编辑</Button>
                             )}
-                            {onDelete && (
+                            {!built_in && onDelete && (
                                 <Popconfirm
                                     title={`删除 Agent "${name}"?`}
                                     description="下一次对话会重建调度图"

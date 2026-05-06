@@ -19,6 +19,7 @@ import { PageContainer, StatCard } from '../components/common';
 import { AgentCard } from '../components/agents/AgentCard';
 import { AgentDAGVisualizer } from '../components/agents/AgentDAGVisualizer';
 import { SwarmTopologyMap } from '../components/agents/SwarmTopologyMap';
+import { AgentTestStudio } from '../components/agents/AgentTestStudio';
 import type { DAGData } from '../components/agents/AgentDAGVisualizer';
 import { agentApi, type ReflectionEntry, type AgentInfo, type SwarmStats, type TodoItem, type TopologyData } from '../services/agentApi';
 
@@ -45,6 +46,10 @@ export const AgentsPage: React.FC = () => {
     const [agentModalMode, setAgentModalMode] = useState<'create' | 'update'>('create');
     const [agentSubmitting, setAgentSubmitting] = useState(false);
     const [agentForm] = Form.useForm<{ name: string; description: string; model_hint: string; skillsText: string }>();
+
+    // === Agent Test Studio ===
+    const [testStudioOpen, setTestStudioOpen] = useState(false);
+    const [selectedAgentForTest, setSelectedAgentForTest] = useState<AgentInfo | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -293,6 +298,10 @@ export const AgentsPage: React.FC = () => {
                             built_in={agent.built_in}
                             onEdit={() => openEditAgent(agent)}
                             onDelete={() => deleteAgent(agent.name)}
+                            onTest={() => {
+                                setSelectedAgentForTest(agent);
+                                setTestStudioOpen(true);
+                            }}
                         />
                     </Col>
                 ))}
@@ -430,6 +439,16 @@ export const AgentsPage: React.FC = () => {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            {/* Agent Test Studio */}
+            <AgentTestStudio
+                open={testStudioOpen}
+                agent={selectedAgentForTest}
+                onClose={() => {
+                    setTestStudioOpen(false);
+                    setSelectedAgentForTest(null);
+                }}
+            />
         </PageContainer>
     );
 };

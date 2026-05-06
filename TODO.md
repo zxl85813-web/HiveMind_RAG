@@ -8,7 +8,7 @@
 > 🛡️ **架构治理**: ✅ `team-collaboration-standards`, ✅ `agent-design-standards`, ✅ `Git Hooks` 已合入并运转。
 > 🧬 **架构参考**: [Anthropic Agent 工程模式参考手册](docs/architecture/anthropic_agent_patterns.md) — 源自 15 篇官方文档
 
-> 📅 最后更新: 2026-05-04
+> 📅 最后更新: 2026-05-06
 
 ---
 
@@ -620,6 +620,14 @@ npm install i18next react-i18next i18next-browser-languagedetector
 ## 八、📝 变更日志 (按日期倒序)
 
 ### 2026-05-06
+- ✅ **Agent 测试工作坊与沙盒 (Agent Test Studio & Sandbox)**:
+  - **AgentCard 升级**: 为 Custom 与 Built-in 所有 Agent 引入了 `onTest` 独立回调和带有 `ExperimentOutlined` 图标的“测试”按钮。
+  - **AgentTestStudio 专属组件**: 开发了功能极其丰富的测试沙盒控制台，涵盖四大核心模块：
+    - *提示词调试与沙盒 (Sandbox)*: 提供可编辑的全局 System Prompt 以及 Model Hint 微调选项，结合实时的 Agent Swarm 决策与 RAG 检索踪迹。
+    - *A/B 对抗测试区 (Arena)*: 实现了两个 Agent 实例的并行对决，支持自定义对比问题、模型规格以及提示词微调，实时输出延迟、Token 消耗和 RAGAS 智能评分。
+    - *运行日志与链路 (Traces)*: 可视化 LangGraph 的节点跳转序列 (pre_processor → supervisor → agent_node → reflection)，支持查看详细 payload 参数。
+    - *评估测试报告 (Reports)*: 结合 RAGAS 规范和 Bad Cases 检测列表，展示运行成功率、平均调用耗时、健康度趋势。
+  - **AgentsPage 页面集成**: 在 Agent 管理后台无缝挂载了 `AgentTestStudio` 组件，成功消除原先只能在侧边栏聊天框测试的单一交互，实现了开箱即用的闭环测试环境。
 - ✅ **基础认证与固定用户数据库播种 (Database Seeding & JWT Auth)**:
   - **后端路由与数据库播种**: 新建 `auth.py` 路由，提供了 JSON 载荷验证的 `/login` 登录接口和获取当前登录用户信息的 `/me` 接口。在 `__init__.py` 中完成统一注册。
   - **固定用户播种**: 在 `init_data.py` 中增加了对 `admin` 用户的初始化逻辑，无论是在 DEBUG 还是在生产模式下，启动时都会检测 `admin` 用户是否存在，不存在则使用 `admin123` 密码自动注册播种。
