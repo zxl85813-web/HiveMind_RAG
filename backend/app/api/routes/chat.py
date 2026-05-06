@@ -81,7 +81,7 @@ async def get_conversation(conversation_id: str):
                 "role": m.role,
                 "content": m.content,
                 "created_at": m.created_at,
-                "metadata": m.metadata_json # TODO: parse JSON if needed
+                "metadata": getattr(m, "metadata_json", None) or getattr(m, "trace_data", None)
             } for m in conv.messages
         ]
     })
