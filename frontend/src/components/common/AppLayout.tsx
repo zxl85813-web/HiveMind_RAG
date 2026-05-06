@@ -90,18 +90,76 @@ export const AppLayout: React.FC = () => {
         { key: '/settings', label: t('nav.settings'), icon: <SettingOutlined />, module: 'core' },
     ];
 
-    /** 根据平台模式过滤导航项 (转换为 antd Menu items 类型) */
+    /** 根据平台模式过滤并分类归并导航项 (转换为带 SubMenu 的 AntD Menu items) */
     const navItems = useMemo<MenuProps['items']>(() => {
-        return allNavItems
-            .filter(item => {
-                if (item.module === 'core') return true;
-                if (item.module === 'rag') return ragEnabled;
-                if (item.module === 'agent') return agentEnabled;
-                return true;
-            })
-            .map(({ key, label, icon }) => ({ key, label, icon }));
-        // allNavItems is rebuilt every render via t() — depending on it would loop.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const coreGroup: any[] = [];
+        const ragGroup: any[] = [];
+        const agentGroup: any[] = [];
+        const govGroup: any[] = [];
+        const sysGroup: any[] = [];
+
+        allNavItems.forEach(item => {
+            const isEnabled = item.module === 'core' || 
+                              (item.module === 'rag' && ragEnabled) || 
+                              (item.module === 'agent' && agentEnabled);
+            if (!isEnabled) return;
+
+            const menuItem = { key: item.key, label: item.label, icon: item.icon };
+
+            if (item.key === '/') {
+                coreGroup.push(menuItem);
+            } else if (['/knowledge', '/evaluation', '/finetuning', '/pipelines', '/learning'].includes(item.key)) {
+                ragGroup.push(menuItem);
+            } else if (['/studio', '/studio/builder', '/agents', '/capabilities', '/batch'].includes(item.key)) {
+                agentGroup.push(menuItem);
+            } else if (['/audit', '/security', '/export'].includes(item.key)) {
+                govGroup.push(menuItem);
+            } else if (['/usage', '/settings'].includes(item.key)) {
+                sysGroup.push(menuItem);
+            }
+        });
+
+        const items: MenuProps['items'] = [
+            ...coreGroup, // 概览始终置顶
+        ];
+
+        if (ragEnabled && ragGroup.length > 0) {
+            items.push({
+                key: 'rag-module',
+                label: t('nav.rag_module', '知识库管理'),
+                icon: <DatabaseOutlined />,
+                children: ragGroup
+            });
+        }
+
+        if (agentEnabled && agentGroup.length > 0) {
+            items.push({
+                key: 'agent-module',
+                label: t('nav.agent_module', '智能体协同'),
+                icon: <RobotOutlined />,
+                children: agentGroup
+            });
+        }
+
+        if (govGroup.length > 0) {
+            items.push({
+                key: 'gov-module',
+                label: t('nav.gov_module', '合规与安全'),
+                icon: <SafetyCertificateOutlined />,
+                children: govGroup
+            });
+        }
+
+        if (sysGroup.length > 0) {
+            items.push({
+                key: 'sys-module',
+                label: t('nav.sys_module', '用量与系统'),
+                icon: <SettingOutlined />,
+                children: sysGroup
+            });
+        }
+
+        return items;
     }, [ragEnabled, agentEnabled, t]);
 
     /** 平台模式标签 */
@@ -122,6 +180,23 @@ export const AppLayout: React.FC = () => {
     const activeKey = location.pathname === '/'
         ? '/'
         : '/' + (location.pathname.split('/')[1] || '');
+
+    /** 根据当前活跃路径，自动推导应当展开的子菜单分组 Key */
+    const defaultOpenKeys = useMemo(() => {
+        if (['/knowledge', '/evaluation', '/finetuning', '/pipelines', '/learning'].includes(activeKey)) {
+            return ['rag-module'];
+        }
+        if (['/studio', '/studio/builder', '/agents', '/capabilities', '/batch'].includes(activeKey)) {
+            return ['agent-module'];
+        }
+        if (['/audit', '/security', '/export'].includes(activeKey)) {
+            return ['gov-module'];
+        }
+        if (['/usage', '/settings'].includes(activeKey)) {
+            return ['sys-module'];
+        }
+        return [];
+    }, [activeKey]);
 
     /** 处理侧边栏导航 */
     const handleNavClick = ({ key }: { key: string }) => {
@@ -168,6 +243,7 @@ export const AppLayout: React.FC = () => {
                         <Menu
                             mode="inline"
                             selectedKeys={[activeKey]}
+                            defaultOpenKeys={defaultOpenKeys}
                             onClick={handleNavClick}
                             items={navItems}
                             className={styles.nav}
