@@ -4,7 +4,8 @@ import { Bubble, Welcome, Sender } from '@ant-design/x';
 import { RocketOutlined, ClearOutlined, SettingOutlined } from '@ant-design/icons';
 import { PageContainer } from '../components/common/PageContainer';
 import { BuilderSidebar } from '../components/builder/BuilderSidebar';
-import { builderApi, BuilderState } from '../services/builderApi';
+import { builderApi } from '../services/builderApi';
+import type { BuilderState } from '../services/builderApi';
 
 const { Content, Sider } = Layout;
 const { Title, Text } = Typography;
