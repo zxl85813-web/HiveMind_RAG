@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - develop
       - feature/agent-shared-memory # 准备合入前，保留此触发用于验证 Sonar+Deploy 全流程
 
 jobs:
