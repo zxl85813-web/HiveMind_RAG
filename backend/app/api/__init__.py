@@ -16,13 +16,14 @@ from app.core.config import settings
 router = APIRouter()
 
 # ── CORE: Always available ──────────────────────────────────
-from app.api.routes import health, chat, websocket, settings as settings_routes, auth
+from app.api.routes import health, chat, websocket, settings as settings_routes, auth, feishu
 
 router.include_router(health.router, prefix="/health", tags=["Health"])
 router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 router.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 router.include_router(settings_routes.router, prefix="/settings", tags=["Platform Settings"])
+router.include_router(feishu.router, prefix="/feishu", tags=["Feishu ChatOps"])
 
 # ── SHARED: Available in all modes ──────────────────────────
 from app.api.routes import memory, tags, security, audit, tenants, quotes, export
