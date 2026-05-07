@@ -55,17 +55,14 @@ export const AgentBuilderPage: React.FC = () => {
         setLoading(true);
 
         try {
-            // Note: In a real environment, this calls the backend which runs the LangGraph
             const response = await builderApi.sendMessage(
                 state.session_id,
                 state.user_id,
                 inputText,
-                state // Pass current state for context
+                state
             );
 
             const serverState = response.data;
-            
-            // Extract the last AI message
             const aiMsgs = serverState.messages.filter((m: any) => m.type === 'ai' || m.role === 'assistant');
             const latestAiMsg = aiMsgs[aiMsgs.length - 1];
 
@@ -73,13 +70,13 @@ export const AgentBuilderPage: React.FC = () => {
                 ...serverState,
                 messages: [...newMessages, { 
                     id: Date.now() + 1, 
-                    content: latestAiMsg?.content || "Processing...", 
+                    content: latestAiMsg?.content || "智能生成中...", 
                     role: 'assistant' 
                 }]
             });
         } catch (error) {
             console.error(error);
-            message.error("Failed to connect to Builder Engine.");
+            message.error("连接智能体构建引擎失败，请检查服务。");
         } finally {
             setLoading(false);
         }
@@ -87,11 +84,11 @@ export const AgentBuilderPage: React.FC = () => {
 
     return (
         <PageContainer
-            title="Agent Builder Assistant"
-            description="Co-create premium Agents using structured 6-stage interview and Eval-Driven Development (EDD)."
+            title="Agent 智能体构建助手 (Agent Builder)"
+            description="通过结构化的 6 阶段人机协同访谈与评估驱动开发（EDD），轻而易举设计并构建出符合业务高标准的 Agent 智能体。"
             extra={[
-                <Button key="reset" icon={<ClearOutlined />}>Reset Session</Button>,
-                <Button key="config" icon={<SettingOutlined />} type="primary">View Config</Button>
+                <Button key="reset" icon={<ClearOutlined />}>重置会话</Button>,
+                <Button key="config" icon={<SettingOutlined />} type="primary">查看配置</Button>
             ]}
         >
             <Layout style={{ background: 'transparent', height: 'calc(100vh - 180px)' }}>
@@ -109,8 +106,8 @@ export const AgentBuilderPage: React.FC = () => {
                             {state.messages.length === 0 ? (
                                 <Welcome
                                     icon={<RocketOutlined style={{ fontSize: 40, color: '#06D6A0' }} />}
-                                    title="Welcome to Agent Builder"
-                                    description="I will help you design, test, and deploy a high-performance Agent. Let's start by defining what you want to build."
+                                    title="欢迎来到 Agent 智能体构建助手"
+                                    description="我是您的智能体共创助手。我将通过对话式引导您完成智能体的需求分析、功能定义、工具绑定与评测集设计。让我们从输入您想要构建的智能体目标开始吧！"
                                 />
                             ) : (
                                 state.messages.map((msg, i) => (
@@ -125,7 +122,7 @@ export const AgentBuilderPage: React.FC = () => {
                                     />
                                 ))
                             )}
-                            {loading && <Bubble placement="start" loading content="Thinking..." />}
+                            {loading && <Bubble placement="start" loading content="正在深度思考中..." />}
                         </div>
 
                         <div style={{ marginTop: 'auto', paddingTop: '12px' }}>
@@ -134,8 +131,8 @@ export const AgentBuilderPage: React.FC = () => {
                                 onChange={setInputText}
                                 onSubmit={handleSend}
                                 loading={loading}
-                                placeholder="Type your requirements or answer questions..."
-                                prefix={<Space><Text type="secondary" style={{ fontSize: 12 }}>Round {state.interview_round}</Text></Space>}
+                                placeholder="请输入您的需求或回答上面的问题..."
+                                prefix={<Space><Text type="secondary" style={{ fontSize: 12 }}>第 {state.interview_round} 轮访谈</Text></Space>}
                             />
                         </div>
                     </Card>

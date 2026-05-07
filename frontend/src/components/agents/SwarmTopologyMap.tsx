@@ -67,6 +67,16 @@ export const SwarmTopologyMap: React.FC<SwarmTopologyMapProps> = ({ data, height
         }
     }, [graphData]);
 
+    // Auto center & zoom to fit on data or window size change
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (graphRef.current && graphData.nodes.length > 0) {
+                graphRef.current.zoomToFit(400, 30);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [graphData, windowWidth]);
+
     const containerWidth = useMemo(
         () => (windowWidth ? windowWidth - 400 : 800),
         [windowWidth]
@@ -189,6 +199,9 @@ export const SwarmTopologyMap: React.FC<SwarmTopologyMapProps> = ({ data, height
                 minZoom={0.3}
                 maxZoom={6}
                 cooldownTicks={120}
+                onEngineStop={() => {
+                    graphRef.current?.zoomToFit(400, 30);
+                }}
                 onNodeClick={(node: any) => {
                     graphRef.current?.centerAt(node.x, node.y, 400);
                     graphRef.current?.zoom(2.5, 400);

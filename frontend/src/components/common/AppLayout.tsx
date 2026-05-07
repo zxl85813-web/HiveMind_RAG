@@ -179,7 +179,7 @@ export const AppLayout: React.FC = () => {
     /** 当前活跃路由 */
     const activeKey = location.pathname === '/'
         ? '/'
-        : '/' + (location.pathname.split('/')[1] || '');
+        : (location.pathname === '/studio/builder' ? '/studio/builder' : '/' + (location.pathname.split('/')[1] || ''));
 
     /** 根据当前活跃路径，自动推导应当展开的子菜单分组 Key */
     const defaultOpenKeys = useMemo(() => {
