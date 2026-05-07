@@ -68,7 +68,8 @@ jobs:
             # 先停止并清理旧容器，防止重名冲突 (Conflict)
             docker compose -f docker-compose.prod.yml down --remove-orphans
             
-            # 重新构建并后台启动
+            # 重新构建并后台启动 (强制清除前端缓存进行全新编译，彻底打碎 Docker Cache 粘性)
+            docker compose -f docker-compose.prod.yml build --no-cache frontend
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             
             # --- Database Migration ---
