@@ -81,3 +81,55 @@ jobs:
             docker builder prune -f
             
             echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"
+
+      - name: Send Feishu Notification (Success)
+        if: success() && env.FEISHU_WEBHOOK != ''
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{
+              "msg_type": "interactive",
+              "card": {
+                "config": { "wide_screen_mode": true },
+                "header": {
+                  "title": { "tag": "plain_text", "content": "🚀 HiveMind RAG 部署成功通知" },
+                  "template": "green"
+                },
+                "elements": [
+                  {
+                    "tag": "div",
+                    "text": {
+                      "tag": "lark_md",
+                      "content": "**状态**: ✅ 部署成功\n**分支**: `${{ github.ref_name }}`\n**提交者**: `${{ github.actor }}`\n**提交信息**: `${{ github.event.head_commit.message }}`\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  }
+                ]
+              }
+            }' $FEISHU_WEBHOOK
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+
+      - name: Send Feishu Notification (Failure)
+        if: failure() && env.FEISHU_WEBHOOK != ''
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{
+              "msg_type": "interactive",
+              "card": {
+                "config": { "wide_screen_mode": true },
+                "header": {
+                  "title": { "tag": "plain_text", "content": "❌ HiveMind RAG 部署失败通知" },
+                  "template": "red"
+                },
+                "elements": [
+                  {
+                    "tag": "div",
+                    "text": {
+                      "tag": "lark_md",
+                      "content": "**状态**: ❌ 部署失败\n**分支**: `${{ github.ref_name }}`\n**提交者**: `${{ github.actor }}`\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  }
+                ]
+              }
+            }' $FEISHU_WEBHOOK
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
