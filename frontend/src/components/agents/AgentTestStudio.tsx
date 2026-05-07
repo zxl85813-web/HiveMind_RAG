@@ -19,8 +19,7 @@ import {
     Form,
     List,
     message,
-    Empty,
-    Flex
+    Empty
 } from 'antd';
 import {
     ExperimentOutlined,
@@ -338,7 +337,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
     return (
         <Modal
             title={
-                <Flex align="center" gap={10}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ background: '#06D6A0', padding: '6px 10px', borderRadius: '8px', color: '#000' }}>
                         <ExperimentOutlined />
                     </div>
@@ -348,7 +347,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                             调试 Agent 核心提示词，进行 A/B 测试，观察实时运行链路及 RAGAS 评估报告
                         </Text>
                     </div>
-                </Flex>
+                </div>
             }
             open={open}
             onCancel={onClose}
@@ -436,10 +435,10 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                                 />
                                             </div>
                                             <div>
-                                                <Flex justify="space-between" align="center" style={{ marginBottom: 6 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                                     <Text type="secondary">System Instructions (提示词)</Text>
                                                     <Button size="small" type="link" onClick={() => setSystemPrompt('')}>清空</Button>
-                                                </Flex>
+                                                </div>
                                                 <Input.TextArea
                                                     value={systemPrompt}
                                                     onChange={e => setSystemPrompt(e.target.value)}
@@ -476,7 +475,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                 <Col xs={24} md={14}>
                                     <Card
                                         title={
-                                            <Flex justify="space-between" align="center">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Space>
                                                     <ThunderboltOutlined style={{ color: '#1890ff' }} />
                                                     <Text strong>实时沙盒对话 (Interactive Chat)</Text>
@@ -484,7 +483,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                                 <Button size="small" onClick={() => setChatMessages([])} style={{ borderColor: '#333' }}>
                                                     重置会话
                                                 </Button>
-                                            </Flex>
+                                            </div>
                                         }
                                         style={{ background: 'rgba(255,255,255,0.01)', borderColor: '#1f1f1f', height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}
                                         styles={{ body: { padding: 0, flex: 1, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' } }}
@@ -595,13 +594,13 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                     <Col xs={24} md={12}>
                                         <Card
                                             title={
-                                                <Flex justify="space-between" align="center">
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <Space>
                                                         <Badge status="processing" />
                                                         <Text strong>Variant A (基准配置)</Text>
                                                     </Space>
                                                     <Tag color="blue">Model: {abModelA}</Tag>
-                                                </Flex>
+                                                </div>
                                             }
                                             style={{ background: 'rgba(255,255,255,0.01)', borderColor: '#1f1f1f', minHeight: '380px' }}
                                         >
@@ -636,7 +635,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                     <Col xs={24} md={12}>
                                         <Card
                                             title={
-                                                <Flex justify="space-between" align="center">
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <Space>
                                                         <Badge status="warning" />
                                                         <Text strong>Variant B (对抗优化)</Text>
@@ -651,7 +650,7 @@ export const AgentTestStudio: React.FC<AgentTestStudioProps> = ({ open, agent, o
                                                         ]}
                                                         style={{ width: '130px' }}
                                                     />
-                                                </Flex>
+                                                </div>
                                             }
                                             style={{ background: 'rgba(255,255,255,0.01)', borderColor: '#1f1f1f', minHeight: '380px' }}
                                         >
