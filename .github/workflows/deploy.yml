@@ -83,53 +83,53 @@ jobs:
             echo "Deployment finished successfully on $(hostname) with branch $DEPLOY_BRANCH"
 
       - name: Send Feishu Notification (Success)
-        if: success() && env.FEISHU_WEBHOOK != ''
+        if: success() && env.FEISHU_APP_ID != ''
         run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{
-              "msg_type": "interactive",
-              "card": {
-                "config": { "wide_screen_mode": true },
-                "header": {
-                  "title": { "tag": "plain_text", "content": "🚀 HiveMind RAG 部署成功通知" },
-                  "template": "green"
-                },
-                "elements": [
-                  {
-                    "tag": "div",
-                    "text": {
-                      "tag": "lark_md",
-                      "content": "**状态**: ✅ 部署成功\n**分支**: `${{ github.ref_name }}`\n**提交者**: `${{ github.actor }}`\n**提交信息**: `${{ github.event.head_commit.message }}`\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  }
-                ]
-              }
-            }' $FEISHU_WEBHOOK
+          # 1. 申请飞书 App 临时通行令牌 Token
+          TOKEN_RESP=$(curl -s -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal \
+            -H "Content-Type: application/json" \
+            -d "{\"app_id\":\"$FEISHU_APP_ID\",\"app_secret\":\"$FEISHU_APP_SECRET\"}")
+          TOKEN=$(echo $TOKEN_RESP | jq -r '.tenant_access_token')
+          
+          # 2. 用 jq 安全构建 JSON 载荷，防止提交日志中的引号或特殊符号打乱 JSON 结构
+          jq -n \
+            --arg receive_id "$FEISHU_USER_EMAIL" \
+            --arg msg_type "interactive" \
+            --arg content "{\"config\":{\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"🚀 HiveMind RAG 部署成功通知\"},\"template\":\"green\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**状态**: ✅ 部署成功\\n**分支**: \`${{ github.ref_name }}\`\\n**提交者**: \`${{ github.actor }}\`\\n**提交信息**: \`${{ github.event.head_commit.message }}\`\\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}}]}" \
+            '{receive_id: $receive_id, msg_type: $msg_type, content: $content}' > payload.json
+
+          # 3. 私信给指定的飞书用户邮箱
+          curl -s -X POST "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=email" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @payload.json
         env:
-          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_USER_EMAIL: ${{ secrets.FEISHU_USER_EMAIL }}
 
       - name: Send Feishu Notification (Failure)
-        if: failure() && env.FEISHU_WEBHOOK != ''
+        if: failure() && env.FEISHU_APP_ID != ''
         run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{
-              "msg_type": "interactive",
-              "card": {
-                "config": { "wide_screen_mode": true },
-                "header": {
-                  "title": { "tag": "plain_text", "content": "❌ HiveMind RAG 部署失败通知" },
-                  "template": "red"
-                },
-                "elements": [
-                  {
-                    "tag": "div",
-                    "text": {
-                      "tag": "lark_md",
-                      "content": "**状态**: ❌ 部署失败\n**分支**: `${{ github.ref_name }}`\n**提交者**: `${{ github.actor }}`\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  }
-                ]
-              }
-            }' $FEISHU_WEBHOOK
+          # 1. 申请飞书 App 临时通行令牌 Token
+          TOKEN_RESP=$(curl -s -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal \
+            -H "Content-Type: application/json" \
+            -d "{\"app_id\":\"$FEISHU_APP_ID\",\"app_secret\":\"$FEISHU_APP_SECRET\"}")
+          TOKEN=$(echo $TOKEN_RESP | jq -r '.tenant_access_token')
+          
+          # 2. 安全构建 JSON 载荷
+          jq -n \
+            --arg receive_id "$FEISHU_USER_EMAIL" \
+            --arg msg_type "interactive" \
+            --arg content "{\"config\":{\"wide_screen_mode\":true},\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"❌ HiveMind RAG 部署失败通知\"},\"template\":\"red\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**状态**: ❌ 部署失败\\n**分支**: \`${{ github.ref_name }}\`\\n**提交者**: \`${{ github.actor }}\`\\n**链接详情**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}}]}" \
+            '{receive_id: $receive_id, msg_type: $msg_type, content: $content}' > payload.json
+
+          # 3. 私信给指定的飞书用户邮箱
+          curl -s -X POST "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=email" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @payload.json
         env:
-          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_USER_EMAIL: ${{ secrets.FEISHU_USER_EMAIL }}
