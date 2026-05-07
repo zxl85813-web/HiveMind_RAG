@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Flex, Button, Modal, Form, Input, Select, message } from 'antd';
+import { Row, Col, Typography, List, Tag, Badge, Space, Empty, Card, Tooltip, Button, Modal, Form, Input, Select, message } from 'antd';
 import {
     ClusterOutlined,
     MessageOutlined,
@@ -213,7 +213,7 @@ export const AgentsPage: React.FC = () => {
                 reflections.map((item) => (
                     <Card key={item.id} size="small" hoverable style={{ borderColor: 'rgba(6, 214, 160, 0.2)', background: 'rgba(255, 255, 255, 0.03)' }}>
                         <Space direction="vertical" style={{ width: '100%' }}>
-                            <Flex justify="space-between" align="flex-start">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <Space>
                                     <Text strong style={{ color: '#06D6A0', fontSize: '13px' }}>Agent [{item.agent_name}]</Text>
                                     <Tag color="cyan" variant="filled" style={{ border: 'none' }}>{item.type.replace('_', ' ')}</Tag>
@@ -221,7 +221,7 @@ export const AgentsPage: React.FC = () => {
                                 <Tooltip title="Confidence Score">
                                     <Badge count={`${(item.confidence_score * 100).toFixed(0)}%`} style={{ backgroundColor: '#52c41a' }} />
                                 </Tooltip>
-                            </Flex>
+                            </div>
 
                             <Paragraph style={{ margin: '8px 0', fontSize: '13px', lineHeight: '1.6', color: 'var(--hm-color-text-primary)' }}>
                                 {item.summary}
@@ -274,7 +274,7 @@ export const AgentsPage: React.FC = () => {
             </Row>
 
             {/* Agent 列表 */}
-            <Flex justify="space-between" align="center" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
                 <Title level={4} style={{ margin: 0 }}>
                     <Badge dot status="processing" offset={[10, 0]}>
                         <ClusterOutlined /> {t('agents.clusters')}
@@ -283,7 +283,7 @@ export const AgentsPage: React.FC = () => {
                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreateAgent}>
                     添加 Agent
                 </Button>
-            </Flex>
+            </div>
             <Row gutter={[16, 16]} style={{ marginTop: 12 }}>
                 {agents.map((agent) => (
                     <Col key={agent.name} xs={24} sm={12} lg={8}>
@@ -333,9 +333,9 @@ export const AgentsPage: React.FC = () => {
                 {topologyData.nodes.length > 0 ? (
                     <SwarmTopologyMap data={topologyData} height={480} />
                 ) : (
-                    <Flex justify="center" align="center" style={{ height: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                         <Empty description="暂无能力拓扑数据 (Agent 未注册 Skill 或 Tool)" />
-                    </Flex>
+                    </div>
                 )}
             </Card>
 
