@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import { ActionButton } from '../components/chat/ActionButton';
 import { chatApi } from '../services/chatApi';
+import { useWebSocket } from '../hooks/useWebSocket'; // BUG-007: 引入长连接管理钩子
 import styles from './ChatPage.module.css';
 
 const { Text } = Typography;
@@ -57,7 +58,24 @@ export const ChatPage: React.FC = () => {
     const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
     const [agentStatus, setAgentStatus] = useState<string | null>(null);
 
+    // BUG-007: 实例化 useWebSocket 以建立与后端的长连接心跳通知通道，防止连接断层
+    useWebSocket({
+        url: '/api/v1/ws/connect',
+        autoConnect: true,
+        onOpen: () => console.log('⚡ HiveMind WebSocket Connected!'),
+        onMessage: (ev) => console.log('📩 WebSocket Notification Received:', ev.data)
+    });
+
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    /** 中止发送/流式生成 */
+    const handleCancel = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            setLoading(false);
+            setAgentStatus('⚡ 已应用户要求中止生成');
+        }
+    };
 
     /** 发送消息 */
     const handleSend = async (value: string) => {
@@ -81,6 +99,7 @@ export const ChatPage: React.FC = () => {
         await chatApi.streamChat({
             message: value,
             conversationId: currentConversationId,
+            clientEvents: [], // BUG-008: 补齐参数传递，防止审计日志静默流失
             onDelta: (delta) => {
                 fullContent += delta;
                 setMessages((prev) => {
@@ -113,10 +132,14 @@ export const ChatPage: React.FC = () => {
                 setLoading(false);
                 setAgentStatus(null);
             },
-            onError: (err) => {
+            onError: (err: any) => {
                 console.error('Chat error:', err);
                 setLoading(false);
-                setAgentStatus('❌ 服务连接异常，请重试');
+                if (err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message?.includes('AbortError')) {
+                    setAgentStatus('⚡ 已应用户要求中止生成');
+                } else {
+                    setAgentStatus('❌ 服务连接异常，请重试');
+                }
             },
             controller
         });
@@ -200,6 +223,7 @@ export const ChatPage: React.FC = () => {
                     value={inputValue}
                     onChange={setInputValue}
                     onSubmit={handleSend}
+                    onCancel={handleCancel}
                     loading={loading}
                     placeholder="输入你的问题... (支持知识库检索、数据分析等)"
                     className={styles.sender}

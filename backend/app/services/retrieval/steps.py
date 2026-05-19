@@ -105,14 +105,19 @@ class HybridRetrievalStep(BaseRetrievalStep):
             ctx.log("Retrieval", f"Parallel retrieval failed: {e}")
             all_docs = []
                     
-        # Dedup by content
+        # Dedup by content, preserving any pre-existing candidates (e.g. from GraphRetrievalStep)
         unique_docs = {}
+        # Pre-populate with existing candidates
+        for d in (ctx.candidates or []):
+            if d.page_content not in unique_docs:
+                unique_docs[d.page_content] = d
+
         for d in all_docs:
             if d.page_content not in unique_docs:
                 unique_docs[d.page_content] = d
                 
         ctx.candidates = list(unique_docs.values())
-        ctx.log("Retrieval", f"Found {len(ctx.candidates)} unique candidates from {len(ctx.kb_ids)} KBs (Parallelized)")
+        ctx.log("Retrieval", f"Found {len(ctx.candidates)} unique candidates including pre-existing ones (Parallelized)")
 
 class RerankingStep(BaseRetrievalStep):
     """

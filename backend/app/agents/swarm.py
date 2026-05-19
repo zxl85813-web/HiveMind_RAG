@@ -483,10 +483,15 @@ class SwarmOrchestrator:
             "description": "Knowledge Retrieval System. Route here if you need more context or factual information from the internal knowledge bases before answering."
         })
 
+        # Setup LLM and Prompt
+        llm = self.router.get_model(ModelTier.FAST)
+        model_name = getattr(llm, "model_name", getattr(llm, "model", ""))
+
         # Build prompt via PromptEngine (Layer 1 + 2 + 3)
         system_prompt = self.prompt_engine.build_supervisor_prompt(
             agents=agents_info,
             memory_context=state.get("context_data", ""),
+            model_name=model_name,
         )
 
         # --- Speculative Retrieval (Phase 6: Parallel Intent & Recall) ---
@@ -498,8 +503,6 @@ class SwarmOrchestrator:
             logger.info("⚡ [Phase 6] Starting speculative retrieval task...")
             retrieval_task = asyncio.create_task(self._do_retrieval_work(state))
 
-        # Setup LLM and Prompt
-        llm = self.router.get_model(ModelTier.FAST)
         final_prompt = [
             SystemMessage(content=system_prompt),
             *messages
@@ -627,17 +630,18 @@ class SwarmOrchestrator:
                 available_tools.extend(self.skills.get_all_tools())
 
             # --- Tool Auditing (Phase 3) ---
-            from app.services.security.sanitizer import ToolAuditor, SecuritySanitizer
+            # 3. Get the appropriate LLM and bind tools
+            llm = self._get_llm_for_agent(agent_def)
+            model_name = getattr(llm, "model_name", getattr(llm, "model", ""))
+
             system_prompt = self.prompt_engine.build_agent_prompt(
                 agent_name=agent_def.name,
                 task=task,
                 rag_context=state.get("context_data", ""),
                 memory_context="", # TODO: inject episodic memory
                 tools_available=[t.name for t in available_tools if hasattr(t, "name")],
+                model_name=model_name,
             )
-
-            # 3. Get the appropriate LLM and bind tools
-            llm = self._get_llm_for_agent(agent_def)
             if available_tools:
                 llm = llm.bind_tools(available_tools)
 

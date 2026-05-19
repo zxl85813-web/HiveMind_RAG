@@ -113,6 +113,21 @@ backend/start_data/chroma_db/
 *.sqlite3
 .checkpoints/
 
+# Evaluation & Benchmark Outputs
+review_comparison*.md
+runs.json
+backend/scripts/review_bench/
+cli.py
+SKILL.md
+
+# Generated Assets & Root Tooling
+docs/*.html
+docs/*_RESTRUCTURED.md
+docs/presentation/
+package.json
+package-lock.json
+
+
 # ==========================================
 # Ad-hoc Debug / Test Scripts (root & backend)
 # ==========================================

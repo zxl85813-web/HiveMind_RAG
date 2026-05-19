@@ -69,6 +69,7 @@ export function useChat(options: UseChatOptions = {}) {
             message: text,
             conversationId,
             knowledgeBaseIds,
+            clientEvents: [], // BUG-008: 补齐参数传递，防止审计日志静默流失
             controller: newController,
             onDelta: (delta) => {
                 fullContent += delta;
